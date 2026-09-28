@@ -2,6 +2,7 @@
 URL configuration for the configuration service.
 
 - /admin/                 Django admin
+- /api/auth/              auth_app: JWT login/refresh/verify/logout, current user profile
 - /api/configuration/     configuration_app API routes
 - /api/products/, /api/faqs/   product_app CRUD APIs (login required)
 - /api/schema/            OpenAPI 3 schema (YAML/JSON)
@@ -18,6 +19,7 @@ from drf_spectacular.views import (
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/auth/', include('auth_app.urls')),
     path('api/configuration/', include('configuration_app.urls')),
     path('api/', include('product_app.urls')),
     # API docs

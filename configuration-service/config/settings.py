@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
 import os
+from datetime import timedelta
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -51,6 +52,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     # Third-party
     'rest_framework',
+    'rest_framework_simplejwt.token_blacklist',  # revokes refresh tokens on logout / rotation
     'drf_spectacular',
     'corsheaders',
     # Local apps
@@ -158,10 +160,12 @@ MAILERS = {
 
 REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
-    # Basic auth lets you "Authorize" with a username/password in Swagger UI (/api/docs/).
-    # It sends the password on every request, so it's only enabled while DEBUG is on.
+    # JWT (Authorization: Bearer <access token>) is how frontend-app authenticates.
+    # Basic auth lets you "Authorize" with a username/password in Swagger UI (/api/docs/);
+    # it sends the password on every request, so it's only enabled while DEBUG is on.
     # Session auth works when you're logged in to /admin/ in the same browser.
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
         *(['rest_framework.authentication.BasicAuthentication'] if DEBUG else []),
         'rest_framework.authentication.SessionAuthentication',
     ],
@@ -169,6 +173,21 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.IsAuthenticated'],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
+}
+
+
+# JWT authentication (djangorestframework-simplejwt)
+# https://django-rest-framework-simplejwt.readthedocs.io/en/latest/settings.html
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    # Every refresh returns a new refresh token and blacklists the old one, so a stolen
+    # refresh token stops working as soon as the real client refreshes.
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': True,
+    'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
 

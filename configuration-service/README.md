@@ -10,6 +10,7 @@ Django REST API backend for Ansera Business Admin. It has three Django apps: `co
 | REST APIs | [Django REST Framework (DRF)](https://www.django-rest-framework.org/) |
 | Swagger / OpenAPI docs | [drf-spectacular](https://drf-spectacular.readthedocs.io/) (OpenAPI 3, Swagger UI + ReDoc) |
 | CORS | [django-cors-headers](https://github.com/adamchainz/django-cors-headers) |
+| Authentication | [djangorestframework-simplejwt](https://django-rest-framework-simplejwt.readthedocs.io/) (JWT access/refresh tokens) |
 | Database | SQLite (local file `db.sqlite3`); a real database will be integrated later |
 
 ## Prerequisites
@@ -112,7 +113,24 @@ When a business is deleted:
 
 ## APIs
 
-Endpoints for products and FAQs. All of them require you to be logged in.
+### Authentication (JWT)
+
+| Method | URL | Body → response | What it does |
+| --- | --- | --- | --- |
+| `POST` | `/api/auth/token/` | `{username, password}` → `{access, refresh}` | Log in |
+| `POST` | `/api/auth/token/refresh/` | `{refresh}` → `{access, refresh}` | Get a new access token. The refresh token also rotates: use the new one, because the old one is now invalid. |
+| `POST` | `/api/auth/token/verify/` | `{token}` → `{}` | Check that a token is valid (200) or not (401) |
+| `POST` | `/api/auth/logout/` | `{refresh}` → `{}` | Log out: revokes (blacklists) the refresh token |
+| `GET` | `/api/auth/me/` | → profile | Your profile: `id`, `username`, `email`, `first_name`, `last_name`, **`business`** (your `BusinessConfiguration` ID, or `null`), `business_name`, `is_staff`, `is_superuser`. Requires login. |
+
+- **Access token:** send it as `Authorization: Bearer <access>`. It's valid for **15 minutes**.
+- **Refresh token:** valid for **7 days**. It can be used only once, because each refresh returns a new one.
+- **Settings:** lifetimes and rotation are configured in `SIMPLE_JWT` in `config/settings.py`.
+- **Endpoint access:** the login, refresh, verify and logout endpoints are public; `me/` needs a login.
+
+### Products and FAQs
+
+All of these require you to be logged in.
 
 | Method | URL | What it does |
 | --- | --- | --- |
@@ -147,15 +165,21 @@ Endpoints for products and FAQs. All of them require you to be logged in.
 ### Trying the APIs in Swagger UI
 
 1. Start the server and open <http://127.0.0.1:8000/api/docs/>.
-2. Click **Authorize** (top right). Under **basicAuth**, enter a username and password, e.g. `kopi_owner` / `123`, then **Authorize** → **Close**.
-3. Expand an endpoint, click **Try it out**, fill in the request and click **Execute**.
+2. Click **Authorize** (top right) and log in one of two ways:
+   - **basicAuth** (quickest): enter a username and password, e.g. `kopi_owner` / `123`.
+   - **jwtAuth** (what `frontend-app` uses):
+     1. Run `POST /api/auth/token/` with `{"username": "kopi_owner", "password": "123"}`.
+     2. Copy the `access` value from the response.
+     3. Paste it into **jwtAuth**, without the `Bearer ` prefix; Swagger adds it.
+   Then click **Authorize** → **Close**.
+3. Expand an endpoint, click **Try it out**, fill in the request and click **Execute**. For example, `GET /api/auth/me/` shows who you're logged in as and your business ID.
 
 To switch user, click **Authorize** → **Logout** and log in as someone else (e.g. `bloom_owner`). Then try opening a Kopi & Co. product, such as `GET /api/products/1/`, to see the `403`.
 
 You can also use your Django Admin login instead (**cookieAuth**). If you're logged in at `/admin/` in the same browser, Swagger requests use that session automatically. Business users can't log in to Admin, though, so basicAuth is the easiest way to test as them.
 
 > [!NOTE]
-> Username/password (Basic) authentication is only enabled while `DJANGO_DEBUG` is on, because it sends the password with every request. A proper login flow (e.g. tokens) will be needed for production and for `frontend-app`.
+> Username/password (Basic) authentication is only enabled while `DJANGO_DEBUG` is on, because it sends the password with every request. Use JWT everywhere else.
 
 ## Useful URLs (once the server is running)
 
@@ -195,6 +219,7 @@ Tests use a temporary database, so your `db.sqlite3` isn't touched.
 
 | File | Covers |
 | --- | --- |
+| `auth_app/test_api.py` | JWT login, refresh + rotation, verify, logout (blacklist), `/api/auth/me/`, CORS for the `Authorization` header |
 | `product_app/test_api.py` | Product and FAQ APIs: login required, business scoping and 403s, CRUD, read-only `quantity_sold`, validation |
 | `product_app/tests.py` | Product and FAQ model validation and database constraints |
 | `auth_app/tests.py` | `BusinessUser` model, Django Admin pages load |
@@ -257,6 +282,10 @@ configuration-service/
 │   ├── fixtures/           # sample_business_users.json
 │   ├── migrations/
 │   ├── admin.py            # BusinessUserAdmin (extends Django's UserAdmin)
+│   ├── serializers.py      # MeSerializer
+│   ├── views.py            # Login/refresh/verify/logout (SimpleJWT) + MeView
+│   ├── urls.py             # /api/auth/…
+│   ├── test_api.py         # Auth API tests
 │   ├── business_scope.py   # Business-ownership permission + serializer/viewset mixins
 │   ├── models.py
 │   └── tests.py            # Model + admin smoke tests

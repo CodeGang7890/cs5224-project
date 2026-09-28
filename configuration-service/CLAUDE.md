@@ -28,7 +28,7 @@ The user named the apps with hyphens ("configuration-app", "auth-app", "product-
 
 ### APIs and access control
 
-- **Endpoints:** `product_app` has CRUD `ModelViewSet`s for `/api/products/` and `/api/faqs/`, registered with a `DefaultRouter` in `product_app/urls.py` and mounted at `/api/` in `config/urls.py`. There are no business-configuration or user APIs yet.
+- **Endpoints:** `product_app` has CRUD `ModelViewSet`s for `/api/products/` and `/api/faqs/`, registered with a `DefaultRouter` in `product_app/urls.py` and mounted at `/api/` in `config/urls.py`. `auth_app` has the auth endpoints under `/api/auth/` (`auth_app/urls.py`): `token/` (login), `token/refresh/`, `token/verify/`, `logout/` (blacklists the refresh token), and `me/` (`MeSerializer`: profile + `business` ID + `business_name`, read-only). The token views are thin subclasses of SimpleJWT's views (`LoginView`, `RefreshView`, `VerifyView`, `LogoutView`) that add Swagger docs under the `Auth` tag. There are no business-configuration or user-management APIs yet.
 - **Business scoping (`auth_app/business_scope.py`):** reuse this for every business-owned model.
   - `IsBusinessMember`: object-level `obj.business_id == user.business_id`, so another business's record returns **403, not 404** (the user asked for 403). Users with no business get 403 on every unsafe method.
   - `BusinessScopedViewSetMixin`: the `list` action is filtered to the user's business; detail routes use the unfiltered queryset so the permission can return 403.
@@ -37,8 +37,13 @@ The user named the apps with hyphens ("configuration-app", "auth-app", "product-
 - **DRF defaults (`REST_FRAMEWORK`):**
   - `DEFAULT_PERMISSION_CLASSES = IsAuthenticated`, so endpoints are private by default. Public endpoints must opt out: `RandomNumberView` sets `permission_classes = [AllowAny]` and `authentication_classes = []`.
   - `PageNumberPagination`, `PAGE_SIZE = 20`. List responses are `{count, next, previous, results}`.
-  - Authentication: `BasicAuthentication` (**only when `DEBUG`**, for Swagger's Authorize dialog) first, so unauthenticated requests get 401, then `SessionAuthentication`. drf-spectacular's Swagger UI sends the CSRF token, so session auth works there too.
-  - There's no token or JWT auth yet; it will be needed for the frontend login.
+  - Authentication, in order:
+    1. **`JWTAuthentication`** (SimpleJWT, `Authorization: Bearer`). This is what `frontend-app` uses. Being first means unauthenticated requests get 401 with `WWW-Authenticate: Bearer`.
+    2. `BasicAuthentication`, **only when `DEBUG`**, for Swagger's Authorize dialog.
+    3. `SessionAuthentication`. drf-spectacular's Swagger UI sends the CSRF token, so it works there too.
+  - **`SIMPLE_JWT`:** access 15 minutes, refresh 7 days, `ROTATE_REFRESH_TOKENS` + `BLACKLIST_AFTER_ROTATION` (needs the `rest_framework_simplejwt.token_blacklist` app, which is installed and migrated), `UPDATE_LAST_LOGIN`.
+  - drf-spectacular's built-in SimpleJWT extension adds the `jwtAuth` security scheme to Swagger.
+  - The frontend stores tokens in localStorage and refreshes them on 401 (see `../frontend-app/CLAUDE.md`).
 - **Swagger docs:** keep the `@extend_schema_view` docs (tags `Products` / `FAQs`, summaries, 403 responses) up to date for new actions. Decimal fields are strings in the schema, so document numeric limits in `help_text`.
 
 ### Model conventions

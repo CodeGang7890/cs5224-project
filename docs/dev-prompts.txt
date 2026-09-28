@@ -128,3 +128,29 @@ In the configuration-service, using DRF, please create me CRUD APIs for these:
 Please add some basic test cases for the APIs above, and write down the command to run the test cases in README.md.
 Additionally, for all the BusinessUsers there, can you change the fixture so that all the password is simply “123” so I log in as anyone for testing purposes.
 Make sure these API are there in /api/docs in the Swagger API that I can use for testing without having to use Postman / Bruno separately.
+
+Date & Time (GMT+8): 2026-09-28 22:17:25
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+I want my frontend-app able to get authenticated from Django.
+Please use the rest framework simple jwt library, and setup the APIs used for authentication, including the access / refresh token system.
+Please put these APIs in auth_app.
+Also add an API that can fetch your profile (whatever you’re logged in as), plus this API should retrieve the BusinessConfiguration id that your account is tied too.
+Now in the frontend-app, I want you add a login functionality, user can simply enter username and password to log in.
+Please add these functionality in the frontend-app:
+- If not logged in, shows “Log In” button, otherwise shows “Log Out” button.
+- Add a React hook / some mechanism to wrap this mechanism of log in, including the fetching of Refresh / Access token, the idea is I don’t want every request having to have a “long code copy pasted everywhere for the same authentication”.
+- Please show the username you’re logged in as in the frontend-app.
+Let me know for extra assumptions you made or anything else that I missed regarding this authentication feature.
+
+Date & Time (GMT+8): 2026-09-28 22:33:15
+AI Model Used: claude-opus-5-5
+Original Prompt:
+<task-notification>
+<task-id>bz8nxtwsw</task-id>
+<tool-use-id>toolu_bdrk_01U7KPp3skX2pPvmsoEpVCgQ</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-michael-andrew-chan-repos-personal-projects-cs5224-project/aea8f9f6-c195-4b39-821a-962ec9576c02/tasks/bz8nxtwsw.output</output-file>
+<status>failed</status>
+<summary>Background command "Rerun client-side login flow harness with CustomEvent" failed with exit code 144</summary>
+</task-notification>

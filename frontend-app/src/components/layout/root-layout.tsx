@@ -4,9 +4,10 @@ import { Link, NavLink, Outlet } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { APP_NAME } from '@/config/app'
 import { navItems, paths } from '@/config/navigation'
-import { ProfileDialog } from '@/features/profile'
 import { cn } from '@/lib/utils'
 import { useThemeStore } from '@/stores/theme-store'
+
+import { AuthControls } from './auth-controls'
 
 export function RootLayout() {
   const theme = useThemeStore((state) => state.theme)
@@ -44,7 +45,7 @@ export function RootLayout() {
             <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle theme">
               {theme === 'dark' ? <Sun /> : <Moon />}
             </Button>
-            <ProfileDialog />
+            <AuthControls />
           </div>
         </div>
       </header>
