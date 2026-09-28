@@ -26,7 +26,7 @@ Guidance for Claude Code when working in `frontend-app/`.
 - `src/app/`: app shell. `routes.tsx` is the route table (plain `RouteObject[]`, importable without a browser); `router.tsx` wraps it in `createBrowserRouter`; `providers.tsx` holds global providers.
 - `src/config/`: `app.ts` (`APP_NAME`), `navigation.ts` (`paths` + top-nav `navItems`; use `paths` instead of hard-coded URLs), `env.ts` (typed env access).
 - **Adding a page**: create `src/pages/<name>-page.tsx`, add its path to `paths`, add a route in `routes.tsx`, and add it to `navItems` if it's a top-nav tab. Pages set the browser tab title by rendering `<title>{`${title} | ${APP_NAME}`}</title>` (React 19 hoists it into `<head>`); `PagePlaceholder` does this already.
-- `src/pages/`: route-level components. Keep them thin; they compose features. Current tabs (Home shows the random-number card; the rest use `PagePlaceholder`): Home `/`, Workflow `/workflow`, Product `/product`, Schedule `/schedule`, Payment `/payment`, FAQ `/faq`, Chats `/chats`, Chat Sandbox `/chat-sandbox`. 
+- `src/pages/`: route-level components. Keep them thin; they compose features. Current tabs (Home shows the random-number card; the rest use `PagePlaceholder`; **Product and FAQ are behind `RequireAuth`**): Home `/`, Workflow `/workflow`, Product `/product`, Schedule `/schedule`, Payment `/payment`, FAQ `/faq`, Chats `/chats`, Chat Sandbox `/chat-sandbox`. 
 - `src/features/<feature>/`: self-contained domain modules with `api/` (Axios functions), `hooks/` (TanStack Query hooks + keys), `components/`, `types.ts`, and an `index.ts` public API. Import features via `@/features/<feature>`, not their internal paths. `features/random-number` is the reference example for the Axios + TanStack Query pattern: it calls `GET /api/configuration/random-number/` on configuration-service and is shown on the Home page. `features/auth` holds the login dialog, auth API calls and the `useAuth` / `useCurrentUser` hooks. `features/profile` holds the profile modal (`ProfileDialog`), which shows `useCurrentUser()` data.
 - `src/components/ui/`: shadcn-generated code. Prefer composing or wrapping over heavy edits. The oxlint `only-export-components` rule is disabled for this folder.
 - `src/components/layout/`: layout components. `RootLayout` renders the sticky header (app name, nav tabs, theme toggle, `AuthControls`) and the `<Outlet />`. `AuthControls` lives in layout, not in a feature, because it combines `features/auth` and `features/profile`; this avoids a circular import.
@@ -54,7 +54,12 @@ Guidance for Claude Code when working in `frontend-app/`.
 - **Component API:** `useAuth()` from `@/features/auth` returns `{ isAuthenticated, user, isLoadingUser, login, isLoggingIn, loginError, resetLoginError, logout }`. `useCurrentUser()` is the `/me` query (key `authKeys.currentUser`).
 - **Cache safety:** `useResetQueriesOnAuthChange()` (mounted in `AppProviders` via `GlobalEffects`) resets all queries on any login or logout, including an expired session or another tab. It excludes the current-user query, because `login()` fetches that itself and resetting would cancel it. On logout, the current-user query is removed. Keep this behaviour when changing auth.
 - **Retries:** `queryClient` doesn't retry 4xx errors (`shouldRetry`), so a 401 or 403 isn't retried pointlessly.
-- **Not built yet:** route guards or redirects for protected pages, an "expired session" toast, and role-based UI.
+- **Login guard: `RequireAuth`** (`features/auth/components/require-auth.tsx`, exported from `@/features/auth`).
+  - It renders `children`, or `<Outlet />` when used as a layout route, when `selectIsAuthenticated` is true. Otherwise it shows a "Log in required" card with a `LoginDialog`.
+  - It doesn't redirect: after login the page renders in place, and after logout the message replaces it.
+  - **Protect pages by adding them to the pathless `{ element: <RequireAuth />, children: [...] }` group in `src/app/routes.tsx`**, currently Product and FAQ. Don't add auth checks inside page components.
+  - It's UI only; the backend still enforces 401/403.
+- **Not built yet:** an "expired session" toast, and role-based UI.
 
 ## Environment variables
 

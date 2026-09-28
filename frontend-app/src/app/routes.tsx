@@ -2,6 +2,7 @@ import type { RouteObject } from 'react-router'
 
 import { RootLayout } from '@/components/layout/root-layout'
 import { paths } from '@/config/navigation'
+import { RequireAuth } from '@/features/auth'
 import { ChatSandboxPage } from '@/pages/chat-sandbox-page'
 import { ChatsPage } from '@/pages/chats-page'
 import { ErrorPage } from '@/pages/error-page'
@@ -15,6 +16,7 @@ import { WorkflowPage } from '@/pages/workflow-page'
 
 // All client-side routes. Add new pages here as children of the root layout,
 // and add a tab in `@/config/navigation` if they belong in the top nav.
+// Pages that need a logged-in user go inside the `<RequireAuth />` group.
 export const routes: RouteObject[] = [
   {
     path: paths.home,
@@ -23,10 +25,16 @@ export const routes: RouteObject[] = [
     children: [
       { index: true, element: <HomePage /> },
       { path: paths.workflow, element: <WorkflowPage /> },
-      { path: paths.product, element: <ProductPage /> },
       { path: paths.schedule, element: <SchedulePage /> },
       { path: paths.payment, element: <PaymentPage /> },
-      { path: paths.faq, element: <FaqPage /> },
+      // Login required: shows a "you need to be logged in" message instead when logged out.
+      {
+        element: <RequireAuth />,
+        children: [
+          { path: paths.product, element: <ProductPage /> },
+          { path: paths.faq, element: <FaqPage /> },
+        ],
+      },
       { path: paths.chats, element: <ChatsPage /> },
       { path: paths.chatSandbox, element: <ChatSandboxPage /> },
       { path: '*', element: <NotFoundPage /> },

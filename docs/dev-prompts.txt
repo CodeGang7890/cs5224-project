@@ -152,3 +152,15 @@ In configuration-service, I want you to add 2 extra API for list / read:
 - Given the BusinessConfiguration id, this API should be able to list down all the products.
 - Given the BusinessConfiguration id, another API should be able to list down all the FAQs.
 Also add extra test cases for those API. Please include 400 case when ID is not found, 401 case when user is not authenticated, and 403 when user gives a BusinessConfiguration id that the user a foreign key of.
+
+Date & Time (GMT+8): 2026-09-28 22:51:15
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Now work with frontend-app.
+I want you to work on a guard feature / higher order component in React.
+Essentially, this component would check if the user is logged in or not.
+If the user is not logged in, it will show sth like “You need to be logged in to access this page”.
+If the user is logged in, then render the component.
+Purpose is I want this component to be reusable, that I can simply wrap around the pages that need login with this instead of duplicating my code in many files.
+After you make the component, please add this to the “Product” and “FAQ” tab, so if you’re not logged in it will show the message.

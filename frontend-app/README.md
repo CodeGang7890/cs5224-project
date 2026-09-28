@@ -54,7 +54,7 @@ Then open the URL Vite prints, usually <http://localhost:5173>.
 | Chats | `/chats` |
 | Chat Sandbox | `/chat-sandbox` |
 
-Home shows a random number fetched from `configuration-service` (see [Connecting to configuration-service](#connecting-to-configuration-service)). The other pages are placeholders for now.
+Home shows a random number fetched from `configuration-service` (see [Connecting to configuration-service](#connecting-to-configuration-service)). The other pages are placeholders for now. **Product** and **FAQ** require login: when you're logged out, they show "You need to be logged in to access this page" with a Log In button (see [Login-protected pages](#login-protected-pages)).
 
 The top right shows **Log In** when you're logged out. When you're logged in, it shows your username, a profile icon and **Log Out** (see [Authentication](#authentication)). The profile modal's open state is kept in the URL as `?profile`, so you can link to it directly and the browser's back button closes it.
 
@@ -99,6 +99,35 @@ Calling a protected API needs nothing extra:
 const { data } = await configurationApiClient.get('/products/') // token attached + refreshed automatically
 ```
 
+### Login-protected pages
+
+`<RequireAuth>` (from `@/features/auth`) is a reusable login guard:
+- **Logged in:** it renders the page.
+- **Logged out:** it shows a "You need to be logged in to access this page" card with a **Log In** button. After you log in, the page appears in place, with no redirect. If you log out while on the page, the message comes back.
+
+**To protect a page, add its route to the `RequireAuth` group** in `src/app/routes.tsx`. The page component itself needs no changes:
+
+```tsx
+{
+  element: <RequireAuth />,
+  children: [
+    { path: paths.product, element: <ProductPage /> },
+    { path: paths.faq, element: <FaqPage /> },
+    // { path: paths.payment, element: <PaymentPage /> },  ← add more here
+  ],
+},
+```
+
+It also works as a plain wrapper, e.g. to protect just part of a page:
+
+```tsx
+<RequireAuth>
+  <SomethingPrivate />
+</RequireAuth>
+```
+
+The guard is a UI convenience only. The backend enforces access on every API call (`401`/`403`), so hiding a page doesn't need to be secure on its own.
+
 ## Environment variables
 
 Vite only exposes variables that start with `VITE_`. Put local values in `.env.local`, which git ignores.
@@ -132,7 +161,7 @@ frontend-app/
 │   │   ├── navigation.ts       # Route paths + top-nav tabs
 │   │   └── env.ts              # Typed access to environment variables
 │   ├── features/               # Feature modules, one folder per domain
-│   │   ├── auth/               # Login dialog, useAuth / useCurrentUser hooks, auth API calls
+│   │   ├── auth/               # Login dialog, RequireAuth guard, useAuth / useCurrentUser hooks, auth API calls
 │   │   ├── profile/            # Profile modal (data from /api/auth/me/)
 │   │   └── random-number/      # Sample configuration-service call (shown on Home)
 │   │       ├── api/            # Axios calls (plain async functions)
@@ -161,7 +190,7 @@ Import from `src` with the `@/` alias, e.g. `import { Button } from '@/component
 
 1. Create `src/pages/<name>-page.tsx`. `PagePlaceholder` is a good starting point.
 2. Add its path to `paths` in `src/config/navigation.ts`.
-3. Add a route for it in `src/app/routes.tsx`.
+3. Add a route for it in `src/app/routes.tsx`. If it needs login, put it inside the `RequireAuth` group.
 4. To show it as a top-nav tab, add it to `navItems` in `src/config/navigation.ts`.
 
 ### Add an API-backed feature
