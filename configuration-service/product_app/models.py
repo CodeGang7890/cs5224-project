@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from django.core.validators import MaxLengthValidator, MinValueValidator
+from django.core.validators import MaxLengthValidator, MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Q
 
@@ -8,6 +8,7 @@ PRODUCT_NAME_MAX_LENGTH = 150
 PRODUCT_DESCRIPTION_MAX_LENGTH = 5000
 PRICE_MAX_DIGITS = 10  # up to 99,999,999.99
 PRICE_DECIMAL_PLACES = 2
+QUANTITY_MAX = 1_000_000
 
 FAQ_QUESTION_MAX_LENGTH = 300
 FAQ_ANSWER_MAX_LENGTH = 10000
@@ -32,9 +33,15 @@ class Product(models.Model):
         validators=[MinValueValidator(Decimal('0.00'))],
     )
     # PositiveIntegerField rejects negatives in validation and at the database level.
-    quantity_available = models.PositiveIntegerField(default=0)
-    quantity_on_hold = models.PositiveIntegerField(default=0)
-    quantity_sold = models.PositiveIntegerField(default=0)
+    quantity_available = models.PositiveIntegerField(
+        default=0, validators=[MaxValueValidator(QUANTITY_MAX)]
+    )
+    quantity_on_hold = models.PositiveIntegerField(
+        default=0, validators=[MaxValueValidator(QUANTITY_MAX)]
+    )
+    quantity_sold = models.PositiveIntegerField(
+        default=0, validators=[MaxValueValidator(QUANTITY_MAX)]
+    )
     is_active = models.BooleanField(default=True)
 
     class Meta:

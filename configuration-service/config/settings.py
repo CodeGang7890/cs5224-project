@@ -158,6 +158,17 @@ MAILERS = {
 
 REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    # Basic auth lets you "Authorize" with a username/password in Swagger UI (/api/docs/).
+    # It sends the password on every request, so it's only enabled while DEBUG is on.
+    # Session auth works when you're logged in to /admin/ in the same browser.
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        *(['rest_framework.authentication.BasicAuthentication'] if DEBUG else []),
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    # Secure by default: endpoints need a logged-in user unless they opt out.
+    'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.IsAuthenticated'],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 20,
 }
 
 

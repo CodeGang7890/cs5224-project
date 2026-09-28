@@ -26,7 +26,20 @@ The user named the apps with hyphens ("configuration-app", "auth-app", "product-
 | `auth_app` | `BusinessUser(AbstractUser)` + `business` FK (nullable, `SET_NULL`, `related_name='users'`) | **`AUTH_USER_MODEL = 'auth_app.BusinessUser'`.** Always use `get_user_model()` / `settings.AUTH_USER_MODEL`, never `django.contrib.auth.models.User`. The admin extends Django's `UserAdmin`. The app label is `auth_app`; don't rename it to `auth`, which clashes with `django.contrib.auth`. |
 | `product_app` | `Product`, `FAQ` (both FK → `BusinessConfiguration`, `CASCADE`, `related_name='products'` / `'faqs'`) | `Product`: `name`, `description`, `price` (Decimal 10,2), `quantity_available` / `on_hold` / `sold` (`PositiveIntegerField`), `is_active`. `FAQ`: `question`, `answer`. |
 
-Status: the models, admin and fixtures exist, but there are **no CRUD APIs yet** (the user asked for tables first). No serializers or views exist for these models.
+### APIs and access control
+
+- **Endpoints:** `product_app` has CRUD `ModelViewSet`s for `/api/products/` and `/api/faqs/`, registered with a `DefaultRouter` in `product_app/urls.py` and mounted at `/api/` in `config/urls.py`. There are no business-configuration or user APIs yet.
+- **Business scoping (`auth_app/business_scope.py`):** reuse this for every business-owned model.
+  - `IsBusinessMember`: object-level `obj.business_id == user.business_id`, so another business's record returns **403, not 404** (the user asked for 403). Users with no business get 403 on every unsafe method.
+  - `BusinessScopedViewSetMixin`: the `list` action is filtered to the user's business; detail routes use the unfiltered queryset so the permission can return 403.
+  - `BusinessOwnedSerializerMixin`: a `business` field that defaults to the user's business (`CurrentUserBusinessDefault`). Any other business raises `PermissionDenied` (403) in `validate_business`. Because it has a default, DRF's `UniqueTogetherValidator` still works for the per-business unique constraints.
+- **`Product.quantity_sold` is read-only in the API.** `ProductSerializer.to_internal_value` explicitly returns 400 when it's sent, reported together with other field errors, instead of DRF's default of silently ignoring it.
+- **DRF defaults (`REST_FRAMEWORK`):**
+  - `DEFAULT_PERMISSION_CLASSES = IsAuthenticated`, so endpoints are private by default. Public endpoints must opt out: `RandomNumberView` sets `permission_classes = [AllowAny]` and `authentication_classes = []`.
+  - `PageNumberPagination`, `PAGE_SIZE = 20`. List responses are `{count, next, previous, results}`.
+  - Authentication: `BasicAuthentication` (**only when `DEBUG`**, for Swagger's Authorize dialog) first, so unauthenticated requests get 401, then `SessionAuthentication`. drf-spectacular's Swagger UI sends the CSRF token, so session auth works there too.
+  - There's no token or JWT auth yet; it will be needed for the frontend login.
+- **Swagger docs:** keep the `@extend_schema_view` docs (tags `Products` / `FAQs`, summaries, 403 responses) up to date for new actions. Decimal fields are strings in the schema, so document numeric limits in `help_text`.
 
 ### Model conventions
 
@@ -41,6 +54,7 @@ Status: the models, admin and fixtures exist, but there are **no CRUD APIs yet**
   - Field validators (`MinValueValidator`, `PositiveIntegerField`) catch bad values in forms, admin and serializers.
   - `Meta.constraints` catch them at the database level: `CheckConstraint` for non-negative prices and non-empty strings, `UniqueConstraint` for product name and FAQ question per business.
   - Django 6 uses `CheckConstraint(condition=...)`; the old `check=` argument was removed.
+- **Quantity cap:** quantities are capped at `QUANTITY_MAX = 1_000_000` with a `MaxValueValidator`.
 - **Primary keys:** `BigAutoField` (Django 6 default).
 - **Admin:** register every model with `list_display`, `search_fields`, `list_filter` and `list_select_related`. Use `autocomplete_fields` for the `business` FK, which works because `BusinessConfigurationAdmin` has `search_fields`.
 - **Serializers:** when you add them, reuse the model validators. DRF `ModelSerializer` picks them up automatically, and `UniqueConstraint` becomes a `UniqueTogetherValidator`.
@@ -54,7 +68,7 @@ Status: the models, admin and fixtures exist, but there are **no CRUD APIs yet**
 - **Loading:** always load them together, in one command:
   `python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs`
 - **IDs:** fixtures use fixed pks, so reloading overwrites rather than duplicating. Businesses are 1–3, users 101–104, products 1–8 and FAQs 1–6.
-- **Sample users:** the business users' password is `password123` (the stored value is a pbkdf2 hash). Generate new hashes with `make_password`.
+- **Sample users:** every sample business user's password is **`123`** (the user asked for this, for easy testing). The fixture stores a pbkdf2 hash; generate new ones with `make_password('123')`. Users: `kopi_owner` (business 1), `bloom_owner` and `bloom_staff` (business 2), `fitlab_owner` (business 3).
 - **Validation:** `loaddata` bypasses `full_clean()`. After editing fixtures, validate them, e.g. by loading them and calling `full_clean()` on every object.
 - **Superuser:** the local superuser is **`superuser` / `123`**, created with `DJANGO_SUPERUSER_PASSWORD=123 python manage.py createsuperuser --noinput --username superuser --email superuser@example.com`. `--noinput` skips password validators. It is deliberately not in a fixture. It's for local development only.
 
@@ -75,7 +89,8 @@ python manage.py loaddata sample_business_configurations sample_business_users s
 python manage.py runserver            # http://127.0.0.1:8000
 python manage.py makemigrations
 python manage.py makemigrations --check --dry-run   # verify no missing migrations
-python manage.py test
+python manage.py test                         # all tests
+python manage.py test product_app.test_api    # product/FAQ API tests
 python manage.py check
 python manage.py spectacular --validate --file /tmp/schema.yml
 ```

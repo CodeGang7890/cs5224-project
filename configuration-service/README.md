@@ -1,6 +1,6 @@
 # Configuration Service
 
-Django REST API backend for Ansera Business Admin. It has three Django apps: `configuration_app`, `auth_app` and `product_app`. So far they contain the data models, Django Admin screens, sample fixtures and one sample endpoint. It uses a local SQLite database for now.
+Django REST API backend for Ansera Business Admin. It has three Django apps: `configuration_app`, `auth_app` and `product_app`. So far they contain the data models, Django Admin screens, sample fixtures, CRUD APIs for products and FAQs, and one sample endpoint. It uses a local SQLite database for now.
 
 ## Tech stack
 
@@ -73,7 +73,17 @@ python manage.py loaddata sample_business_configurations sample_business_users s
 | `sample_products` | `product_app/fixtures/` | 8 products (one of them inactive) |
 | `sample_faqs` | `product_app/fixtures/` | 6 FAQs |
 
-The sample business users are `kopi_owner`, `bloom_owner`, `bloom_staff` and `fitlab_owner`. They all have the password `password123` and aren't staff, so they can't log in to Django Admin.
+Every sample account uses the password **`123`**, so you can log in as anyone while testing:
+
+| Username | Business | Can log in to |
+| --- | --- | --- |
+| `kopi_owner` | Kopi & Co. Café (1) | API only |
+| `bloom_owner` | Bloom Florist Studio (2) | API only |
+| `bloom_staff` | Bloom Florist Studio (2) | API only |
+| `fitlab_owner` | FitLab Personal Training (3) | API only |
+| `superuser` (created by the `createsuperuser` command, not a fixture) | none | Django Admin (full access). Gets 403 on product/FAQ changes, because it has no business. |
+
+Business users aren't staff, so they can't log in to Django Admin.
 
 Notes:
 - Fixtures use fixed IDs, so re-running `loaddata` resets those records to the sample values rather than creating duplicates. Records you created yourself are kept.
@@ -100,6 +110,53 @@ When a business is deleted:
 
 `BusinessUser` is the project's user model (`AUTH_USER_MODEL = 'auth_app.BusinessUser'`). In code, refer to it with `django.contrib.auth.get_user_model()` or `settings.AUTH_USER_MODEL`.
 
+## APIs
+
+Endpoints for products and FAQs. All of them require you to be logged in.
+
+| Method | URL | What it does |
+| --- | --- | --- |
+| `GET` | `/api/products/` | List your business's products (paginated, 20 per page: `?page=2`) |
+| `POST` | `/api/products/` | Create a product |
+| `GET` | `/api/products/{id}/` | Get a product |
+| `PUT` / `PATCH` | `/api/products/{id}/` | Replace / partially update a product |
+| `DELETE` | `/api/products/{id}/` | Delete a product |
+| `GET` / `POST` | `/api/faqs/` | List / create FAQs |
+| `GET` / `PUT` / `PATCH` / `DELETE` | `/api/faqs/{id}/` | Get / replace / update / delete an FAQ |
+| `GET` | `/api/configuration/random-number/` | Sample endpoint (public, no login needed) |
+
+### Access rules
+
+- **Not logged in:** `401 Unauthorized`.
+- **Business scope:** you only see and change records of **your own business** (the `business` on your user).
+  - Lists only include your business's records.
+  - Opening, editing or deleting another business's record returns **`403 Forbidden`**.
+  - `business` is optional when creating; it defaults to your business. Sending another business's ID, whether on create or when trying to move a record, returns **`403 Forbidden`**.
+  - Users without a business, like `superuser`, can view lists (which are empty) but get `403` for everything else.
+- **`quantity_sold` is read-only.** It's returned in responses, but sending it in a create or update returns `400 Bad Request`.
+- **Validation errors return `400`** with a message per field, for example:
+  - a negative quantity or price
+  - a quantity over 1,000,000
+  - a price with more than 2 decimal places
+  - a name over 150 characters or an FAQ answer over 10,000 characters
+  - a blank name
+  - a product name or FAQ question that's already used in the same business
+
+  The full list of rules is in [Data model](#data-model).
+
+### Trying the APIs in Swagger UI
+
+1. Start the server and open <http://127.0.0.1:8000/api/docs/>.
+2. Click **Authorize** (top right). Under **basicAuth**, enter a username and password, e.g. `kopi_owner` / `123`, then **Authorize** → **Close**.
+3. Expand an endpoint, click **Try it out**, fill in the request and click **Execute**.
+
+To switch user, click **Authorize** → **Logout** and log in as someone else (e.g. `bloom_owner`). Then try opening a Kopi & Co. product, such as `GET /api/products/1/`, to see the `403`.
+
+You can also use your Django Admin login instead (**cookieAuth**). If you're logged in at `/admin/` in the same browser, Swagger requests use that session automatically. Business users can't log in to Admin, though, so basicAuth is the easiest way to test as them.
+
+> [!NOTE]
+> Username/password (Basic) authentication is only enabled while `DJANGO_DEBUG` is on, because it sends the password with every request. A proper login flow (e.g. tokens) will be needed for production and for `frontend-app`.
+
 ## Useful URLs (once the server is running)
 
 | URL | What it is |
@@ -119,9 +176,29 @@ When a business is deleted:
 | `python manage.py migrate` | Applies migrations to the database |
 | `python manage.py createsuperuser` | Creates an admin user |
 | `python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs` | Loads the sample data |
-| `python manage.py test` | Runs the tests |
+| `python manage.py test` | Runs all tests (see [Running tests](#running-tests)) |
 | `python manage.py check` | Checks the project configuration for problems |
 | `python manage.py spectacular --validate --file schema.yml` | Exports and validates the OpenAPI schema |
+
+## Running tests
+
+With the virtual environment active, from `configuration-service/`:
+
+```bash
+python manage.py test                      # run all tests
+python manage.py test product_app          # one app
+python manage.py test product_app.test_api # just the product/FAQ API tests
+python manage.py test -v 2                 # verbose: list each test
+```
+
+Tests use a temporary database, so your `db.sqlite3` isn't touched.
+
+| File | Covers |
+| --- | --- |
+| `product_app/test_api.py` | Product and FAQ APIs: login required, business scoping and 403s, CRUD, read-only `quantity_sold`, validation |
+| `product_app/tests.py` | Product and FAQ model validation and database constraints |
+| `auth_app/tests.py` | `BusinessUser` model, Django Admin pages load |
+| `configuration_app/tests.py` | `BusinessConfiguration` model, random-number endpoint, CORS |
 
 ### Resetting the local database
 
@@ -164,7 +241,7 @@ To try it, run `python manage.py runserver` here and `npm run dev` in `../fronte
 configuration-service/
 ├── config/                 # Django project: settings, root URLs, WSGI/ASGI entry points
 │   ├── settings.py
-│   ├── urls.py             # /admin, /api/configuration, /api/schema, /api/docs, /api/redoc
+│   ├── urls.py             # /admin, /api/configuration, /api/products, /api/faqs, /api/schema, /api/docs, /api/redoc
 │   ├── asgi.py
 │   └── wsgi.py
 ├── configuration_app/      # Businesses (BusinessConfiguration) + sample API
@@ -180,6 +257,7 @@ configuration-service/
 │   ├── fixtures/           # sample_business_users.json
 │   ├── migrations/
 │   ├── admin.py            # BusinessUserAdmin (extends Django's UserAdmin)
+│   ├── business_scope.py   # Business-ownership permission + serializer/viewset mixins
 │   ├── models.py
 │   └── tests.py            # Model + admin smoke tests
 ├── product_app/            # Products and FAQs
@@ -187,7 +265,11 @@ configuration-service/
 │   ├── migrations/
 │   ├── admin.py
 │   ├── models.py
-│   └── tests.py            # Validation tests
+│   ├── serializers.py      # ProductSerializer, FAQSerializer
+│   ├── views.py            # ProductViewSet, FAQViewSet
+│   ├── urls.py             # Router: /api/products/, /api/faqs/
+│   ├── tests.py            # Model validation tests
+│   └── test_api.py         # API tests
 ├── manage.py
 ├── requirements.txt
 └── .env.example

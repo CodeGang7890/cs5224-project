@@ -1,6 +1,7 @@
 import random
 
 from drf_spectacular.utils import extend_schema
+from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -13,6 +14,10 @@ RANDOM_NUMBER_MAX = 10
 
 class RandomNumberView(APIView):
     """Dummy endpoint used to verify frontend ↔ backend connectivity."""
+
+    # Public: frontend-app's Home tab calls it without logging in.
+    permission_classes = [AllowAny]
+    authentication_classes: list = []
 
     @extend_schema(
         summary='Get a random number',

@@ -100,3 +100,31 @@ Make another app called as product-app, with these models:
 Please add a fixtures with a few sample data. Document the command to run the fixture in README too, so I have sample data for testing purpose. Please also create me a superuser, just use a simple username “superuser” and password “123” that currently has all admin access (reads/writes/deletes/edits) in Django Admin page.
 
 Please limit the chars count in each field to a sensible amount (e.g., for name should not be too long, description can be much longer), add extra validation whenever possible (e.g., product quantity or price should not be negative, etc.).
+
+Date & Time (GMT+8): 2026-09-28 22:01:53
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+In the configuration-service, using DRF, please create me CRUD APIs for these:
+- Product
+    - an authenticated user can add / edit / delete a product, but this product should belong to the BusinessConfiguration that the BusinessUser is in; otherwise it has to show 403 Forbidden errors
+    - quantity_sold cannot be edited, the rest can be edited; please ensure the validations apply in the API (e.g., cannot make quantity negative, or enter a very long string in the name etc)
+- FAQs
+    - same with above, only authenticated users who owns that business shall be able to add / edit / delete FAQ
+Please add some basic test cases for the APIs above, and write down the command to run the test cases in README.md.
+Additionally, for all the BusinessUsers there, can you change the fixture so that all the password is simply “123” so I log in as anyone for testing purposes.
+Make sure these API are there in /api/docs in the Swagger API that I can use for testing without having to use Postman / Bruno separately.
+
+Date & Time (GMT+8): 2026-09-28 22:02:02
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+In the configuration-service, using DRF, please create me CRUD APIs for these:
+- Product
+    - an authenticated user can add / edit / delete a product, but this product should belong to the BusinessConfiguration that the BusinessUser is in; otherwise it has to show 403 Forbidden errors
+    - quantity_sold cannot be edited, the rest can be edited; please ensure the validations apply in the API (e.g., cannot make quantity negative, or enter a very long string in the name etc)
+- FAQs
+    - same with above, only authenticated users who owns that business shall be able to add / edit / delete FAQ
+Please add some basic test cases for the APIs above, and write down the command to run the test cases in README.md.
+Additionally, for all the BusinessUsers there, can you change the fixture so that all the password is simply “123” so I log in as anyone for testing purposes.
+Make sure these API are there in /api/docs in the Swagger API that I can use for testing without having to use Postman / Bruno separately.

@@ -3,7 +3,7 @@
     "model": "auth_app.businessuser",
     "pk": 101,
     "fields": {
-      "password": "pbkdf2_sha256$1500000$BW2GPd6fVPCsBveSieQm6I$riQPbFxMrSgBbBkPMb9MGHda4arb6yApOkHsZeRcanU=",
+      "password": "pbkdf2_sha256$1500000$7Ubw2LiqTzYI4r7XQivx38$bTZzMjuGuLAyHssK8wT0EoDkPgxfbnEfSSZItUP9yrs=",
       "last_login": null,
       "is_superuser": false,
       "username": "kopi_owner",
@@ -22,7 +22,7 @@
     "model": "auth_app.businessuser",
     "pk": 102,
     "fields": {
-      "password": "pbkdf2_sha256$1500000$BW2GPd6fVPCsBveSieQm6I$riQPbFxMrSgBbBkPMb9MGHda4arb6yApOkHsZeRcanU=",
+      "password": "pbkdf2_sha256$1500000$7Ubw2LiqTzYI4r7XQivx38$bTZzMjuGuLAyHssK8wT0EoDkPgxfbnEfSSZItUP9yrs=",
       "last_login": null,
       "is_superuser": false,
       "username": "bloom_owner",
@@ -41,7 +41,7 @@
     "model": "auth_app.businessuser",
     "pk": 103,
     "fields": {
-      "password": "pbkdf2_sha256$1500000$BW2GPd6fVPCsBveSieQm6I$riQPbFxMrSgBbBkPMb9MGHda4arb6yApOkHsZeRcanU=",
+      "password": "pbkdf2_sha256$1500000$7Ubw2LiqTzYI4r7XQivx38$bTZzMjuGuLAyHssK8wT0EoDkPgxfbnEfSSZItUP9yrs=",
       "last_login": null,
       "is_superuser": false,
       "username": "bloom_staff",
@@ -60,7 +60,7 @@
     "model": "auth_app.businessuser",
     "pk": 104,
     "fields": {
-      "password": "pbkdf2_sha256$1500000$BW2GPd6fVPCsBveSieQm6I$riQPbFxMrSgBbBkPMb9MGHda4arb6yApOkHsZeRcanU=",
+      "password": "pbkdf2_sha256$1500000$7Ubw2LiqTzYI4r7XQivx38$bTZzMjuGuLAyHssK8wT0EoDkPgxfbnEfSSZItUP9yrs=",
       "last_login": null,
       "is_superuser": false,
       "username": "fitlab_owner",
