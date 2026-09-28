@@ -1,0 +1,49 @@
+
+##### DO NOT DELETE THIS
+
+I want to document all AI prompts used to create this project.
+Starting from the next message that I send to you (excluding this one),
+every time I send a prompt,
+please append to the file `docs/dev-prompts.txt` in this format:
+
+```
+Date & Time (GMT+8): ...
+AI Model Used: ...
+Original Prompt:
+...
+
+```
+
+Do not edit or remove any texts from `docs/dev-prompts.txt`,
+all you can do is to keep appending / write at the very bottom of the file.
+
+#####
+
+Date & Time (GMT+8): 2026-09-28 20:54:52
+AI Model Used: claude-opus-5-5
+Original Prompt:
+What is 12 + 15?
+
+Date & Time (GMT+8): 2026-09-28 20:55:11
+AI Model Used: claude-opus-5-5
+Original Prompt:
+Looks good! The hook is working, I can see the prompts documented :)
+
+Date & Time (GMT+8): 2026-09-28 21:01:48
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Create a folder named “frontend-app”.
+Inside, I want you to initialise a boilerplate React codebase.
+I want you to use TypeScript, use Vite (no CRA!).
+It will be a SPA, no server-based components at all.
+Please also use these following libraries in the boilerplate:
+- Axios for API calls
+- Zustand for state management
+- React Router to handle different path / url
+- Tanstack Query for managing loading / error states in API calls
+- Tailwind CSS as the UI library, with Shadcn UI
+Put these library details in CLAUDE.md please so you remember the details related to this frontend app.
+Make the project structure concrete and manageable.
+Also write a README.md inside the folder with instructions on how to run the frontend app.
+Let me know for any other assumptions you made.
