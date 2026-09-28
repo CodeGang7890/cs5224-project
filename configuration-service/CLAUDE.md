@@ -1,0 +1,43 @@
+# CLAUDE.md: configuration-service
+
+Guidance for Claude Code when working in `configuration-service/`.
+
+## What this is
+
+A Django REST API backend for Ansera Business Admin. It is consumed by `../frontend-app` (the Vite dev server runs at `http://localhost:5173`).
+
+## Stack (keep to these; don't swap libraries without asking)
+
+- **Django 6.1** (Python 3.12+). Project package: `config/`. Settings are in `config/settings.py`.
+- **Django REST Framework** for all API endpoints: serializers + `APIView`/viewsets. Don't write plain Django `JsonResponse` views.
+- **drf-spectacular** for OpenAPI 3 / Swagger docs. `DEFAULT_SCHEMA_CLASS` is set in `REST_FRAMEWORK`. The docs are at `/api/docs/` (Swagger UI) and `/api/redoc/`, and the schema is at `/api/schema/`. Use `@extend_schema` where auto-generated docs are unclear.
+- **django-cors-headers**. `CorsMiddleware` is first in `MIDDLEWARE`. Allowed origins come from `DJANGO_CORS_ALLOWED_ORIGINS` (default: the Vite dev server). Never use `CORS_ALLOW_ALL_ORIGINS = True`.
+- **SQLite** (`db.sqlite3`, git-ignored) for now. A real database will be integrated later, so keep the code database-agnostic (no raw SQLite-specific SQL).
+
+## Structure and conventions
+
+- There is one app: **`configuration_app`**. The user called it "configuration-app", but Python package names can't contain hyphens. Its routes live in `configuration_app/urls.py` and are mounted at `/api/configuration/`. Don't add more apps unless asked.
+- All API routes live under `/api/`.
+- Settings read from environment variables (`DJANGO_DEBUG`, `DJANGO_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS`, `DJANGO_CORS_ALLOWED_ORIGINS`) with local-dev defaults. When adding a new setting, add it to `.env.example` and the README table.
+- Add new dependencies to `requirements.txt` with a version range.
+- After changing models, run `makemigrations` and commit the migration files.
+
+## Commands (run from `configuration-service/`, with `.venv` active or via `.venv/bin/python`)
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver            # http://127.0.0.1:8000
+python manage.py makemigrations
+python manage.py test
+python manage.py check
+python manage.py spectacular --validate --file /tmp/schema.yml
+```
+
+Before finishing a change, run `python manage.py check`, `python manage.py test`, and the `spectacular --validate` command. All must pass.
+
+## Environment notes for Claude
+
+- The sandbox blocks listening on ports, so `runserver` can't be tested from inside Claude. Use Django's test client instead, and pass `HTTP_HOST='localhost'`, because `testserver` isn't in `ALLOWED_HOSTS` outside `manage.py test`.
+- The user's shell sets `PYTHONPATH` to a Spark install, so `pip freeze` shows `pyspark`. Don't add it to `requirements.txt`.

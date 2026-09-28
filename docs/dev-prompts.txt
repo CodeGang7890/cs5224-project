@@ -58,3 +58,18 @@ The title should be in the web title and also in the top navigation bar.
 I want these tabs to be in the navigation bar (leave the content empty / put text placeholder first): Home, Workflow, Product, Schedule, Payment, FAQ, Chats, Chat Sandbox.
 Then there is a profile icon on the top right, where clicking it opens a modal with your profile (now simply put a placeholder name and email).
 Use react router and make sure the URL are in sync.
+
+Date & Time (GMT+8): 2026-09-28 21:22:48
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Now I want you to create a folder named configuration-service.
+This is going to be a Python Django backend application.
+Currently make it so there’ll be only 1 app inside called as “configuration-app”.
+Leave it empty and just use boilerplate as of now.
+Leave it to have a local SQL database for now, will do data integration much later.
+I want you to configure the projects to use these libraries:
+- Django Rest Framework (DRF)
+- Swagger Docs (please find, I forget the name of the library)
+- Django Cors Headers
+Please document the commands to start the server in README.md, including to run the migration.
