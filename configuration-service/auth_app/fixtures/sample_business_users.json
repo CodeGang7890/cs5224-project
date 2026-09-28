@@ -1,0 +1,78 @@
+[
+  {
+    "model": "auth_app.businessuser",
+    "pk": 101,
+    "fields": {
+      "password": "pbkdf2_sha256$1500000$BW2GPd6fVPCsBveSieQm6I$riQPbFxMrSgBbBkPMb9MGHda4arb6yApOkHsZeRcanU=",
+      "last_login": null,
+      "is_superuser": false,
+      "username": "kopi_owner",
+      "first_name": "Alicia",
+      "last_name": "Tan",
+      "email": "alicia@kopiandco.example",
+      "is_staff": false,
+      "is_active": true,
+      "date_joined": "2026-09-01T00:00:00Z",
+      "business": 1,
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "auth_app.businessuser",
+    "pk": 102,
+    "fields": {
+      "password": "pbkdf2_sha256$1500000$BW2GPd6fVPCsBveSieQm6I$riQPbFxMrSgBbBkPMb9MGHda4arb6yApOkHsZeRcanU=",
+      "last_login": null,
+      "is_superuser": false,
+      "username": "bloom_owner",
+      "first_name": "Marcus",
+      "last_name": "Lim",
+      "email": "marcus@bloomstudio.example",
+      "is_staff": false,
+      "is_active": true,
+      "date_joined": "2026-09-01T00:00:00Z",
+      "business": 2,
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "auth_app.businessuser",
+    "pk": 103,
+    "fields": {
+      "password": "pbkdf2_sha256$1500000$BW2GPd6fVPCsBveSieQm6I$riQPbFxMrSgBbBkPMb9MGHda4arb6yApOkHsZeRcanU=",
+      "last_login": null,
+      "is_superuser": false,
+      "username": "bloom_staff",
+      "first_name": "Priya",
+      "last_name": "Nair",
+      "email": "priya@bloomstudio.example",
+      "is_staff": false,
+      "is_active": true,
+      "date_joined": "2026-09-01T00:00:00Z",
+      "business": 2,
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "auth_app.businessuser",
+    "pk": 104,
+    "fields": {
+      "password": "pbkdf2_sha256$1500000$BW2GPd6fVPCsBveSieQm6I$riQPbFxMrSgBbBkPMb9MGHda4arb6yApOkHsZeRcanU=",
+      "last_login": null,
+      "is_superuser": false,
+      "username": "fitlab_owner",
+      "first_name": "Daniel",
+      "last_name": "Wong",
+      "email": "daniel@fitlab.example",
+      "is_staff": false,
+      "is_active": true,
+      "date_joined": "2026-09-01T00:00:00Z",
+      "business": 3,
+      "groups": [],
+      "user_permissions": []
+    }
+  }
+]

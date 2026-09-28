@@ -81,3 +81,22 @@ Original Prompt:
 Now I want you to make a sample connection from the frontend-app to configuration-service. Create a dummy API in configuration-service, say it just return a randomised number from 1 to 10. In the “Home” tab of the frontend-app, simply call the API of this and show it on screen.
 Please use the react query (Tanstack) when calling the API and Axios.
 Please change the CORS configuration in the Django app to make the connection works. Currently the frontend is running on localhost 5173. Please check the middleware ordering as well to make sure it is correct.
+
+Date & Time (GMT+8): 2026-09-28 21:45:54
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Work with the configuration-service Django app.
+Please make a CLAUDE.md so you are familiar with the libraries and configs in the next session.
+Now I want you to focus on creating the tables first, no APIs yet.
+In the configuration-app, initialise these models:
+- BusinessConfiguration: id (pk), business_name (char field), description (text field), location (char field)
+Make another app called as auth-app, with these models:
+- BusinessUser (inherited from Django’s user class) -> all fields from the mixin, plus make another field which is foreign key to BusinessConfiguration
+Make another app called as product-app, with these models:
+- Product: id, foreign key to BusinessConfiguration, name, description, price, quantity_available, quantity_on_hold, quantity_sold, is_active (Boolean)
+- FAQ: id, foreign key to BusinessConfiguration, question (char field), answer (text field, larger text limit please)
+
+Please add a fixtures with a few sample data. Document the command to run the fixture in README too, so I have sample data for testing purpose. Please also create me a superuser, just use a simple username “superuser” and password “123” that currently has all admin access (reads/writes/deletes/edits) in Django Admin page.
+
+Please limit the chars count in each field to a sensible amount (e.g., for name should not be too long, description can be much longer), add extra validation whenever possible (e.g., product quantity or price should not be negative, etc.).

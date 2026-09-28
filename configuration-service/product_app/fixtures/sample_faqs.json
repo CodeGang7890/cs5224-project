@@ -1,0 +1,56 @@
+[
+  {
+    "model": "product_app.faq",
+    "pk": 1,
+    "fields": {
+      "business": 1,
+      "question": "What are your opening hours?",
+      "answer": "We're open daily from 7am to 6pm, and until 3pm on public holidays."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 2,
+    "fields": {
+      "business": 1,
+      "question": "Do you take reservations?",
+      "answer": "We don't take reservations for groups under 6. For larger groups, message us at least a day ahead."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 3,
+    "fields": {
+      "business": 2,
+      "question": "Do you offer same-day delivery?",
+      "answer": "Yes. Orders placed before 12pm are delivered the same day anywhere in Singapore. A delivery fee applies based on location."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 4,
+    "fields": {
+      "business": 2,
+      "question": "Can I customise a bouquet?",
+      "answer": "Absolutely. Tell us your preferred flowers, colours and budget, and our florists will design something for you."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 5,
+    "fields": {
+      "business": 3,
+      "question": "Do I need prior gym experience?",
+      "answer": "Not at all. Your coach will assess your fitness in the first session and build a programme around your level and goals."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 6,
+    "fields": {
+      "business": 3,
+      "question": "What is your cancellation policy?",
+      "answer": "Please cancel or reschedule at least 24 hours before your session. Late cancellations are counted as a used session."
+    }
+  }
+]

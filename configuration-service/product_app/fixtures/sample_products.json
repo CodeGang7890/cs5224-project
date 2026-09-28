@@ -1,0 +1,114 @@
+[
+  {
+    "model": "product_app.product",
+    "pk": 1,
+    "fields": {
+      "business": 1,
+      "name": "Kopi C",
+      "description": "Traditional coffee with evaporated milk and sugar.",
+      "price": "1.80",
+      "quantity_available": 200,
+      "quantity_on_hold": 0,
+      "quantity_sold": 1250,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 2,
+    "fields": {
+      "business": 1,
+      "name": "Kaya Toast Set",
+      "description": "Kaya butter toast, two soft-boiled eggs and a hot drink.",
+      "price": "5.50",
+      "quantity_available": 80,
+      "quantity_on_hold": 5,
+      "quantity_sold": 640,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 3,
+    "fields": {
+      "business": 1,
+      "name": "Seasonal Brunch Plate",
+      "description": "Rotating weekend special. Currently unavailable.",
+      "price": "16.00",
+      "quantity_available": 0,
+      "quantity_on_hold": 0,
+      "quantity_sold": 90,
+      "is_active": false
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 4,
+    "fields": {
+      "business": 2,
+      "name": "Classic Rose Bouquet (12 stems)",
+      "description": "A dozen red roses, hand-tied with seasonal greenery.",
+      "price": "68.00",
+      "quantity_available": 25,
+      "quantity_on_hold": 3,
+      "quantity_sold": 310,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 5,
+    "fields": {
+      "business": 2,
+      "name": "Sunflower Posy",
+      "description": "Three sunflowers with eucalyptus in kraft wrapping.",
+      "price": "35.00",
+      "quantity_available": 40,
+      "quantity_on_hold": 0,
+      "quantity_sold": 185,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 6,
+    "fields": {
+      "business": 2,
+      "name": "Event Floral Consultation",
+      "description": "One-hour consultation for weddings and corporate events.",
+      "price": "0.00",
+      "quantity_available": 10,
+      "quantity_on_hold": 2,
+      "quantity_sold": 22,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 7,
+    "fields": {
+      "business": 3,
+      "name": "Single PT Session (60 min)",
+      "description": "One-on-one session with a certified coach.",
+      "price": "95.00",
+      "quantity_available": 30,
+      "quantity_on_hold": 4,
+      "quantity_sold": 410,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 8,
+    "fields": {
+      "business": 3,
+      "name": "10-Session PT Package",
+      "description": "Ten one-on-one sessions, valid for 3 months.",
+      "price": "850.00",
+      "quantity_available": 15,
+      "quantity_on_hold": 1,
+      "quantity_sold": 58,
+      "is_active": true
+    }
+  }
+]

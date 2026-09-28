@@ -1,0 +1,29 @@
+[
+  {
+    "model": "configuration_app.businessconfiguration",
+    "pk": 1,
+    "fields": {
+      "business_name": "Kopi & Co. Café",
+      "description": "Neighbourhood café serving local kopi, toast sets and weekend brunch.",
+      "location": "12 Tiong Bahru Road, Singapore 168729"
+    }
+  },
+  {
+    "model": "configuration_app.businessconfiguration",
+    "pk": 2,
+    "fields": {
+      "business_name": "Bloom Florist Studio",
+      "description": "Hand-tied bouquets, event florals and same-day delivery across Singapore.",
+      "location": "35 Joo Chiat Place, Singapore 427757"
+    }
+  },
+  {
+    "model": "configuration_app.businessconfiguration",
+    "pk": 3,
+    "fields": {
+      "business_name": "FitLab Personal Training",
+      "description": "One-on-one and small-group strength training with certified coaches.",
+      "location": "1 Kent Ridge Road, Singapore 119224"
+    }
+  }
+]
