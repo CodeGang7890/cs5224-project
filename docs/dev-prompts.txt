@@ -47,3 +47,14 @@ Put these library details in CLAUDE.md please so you remember the details relate
 Make the project structure concrete and manageable.
 Also write a README.md inside the folder with instructions on how to run the frontend app.
 Let me know for any other assumptions you made.
+
+Date & Time (GMT+8): 2026-09-28 21:15:33
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Work with the frontend-app.
+Make the title to be “Ansera Business Admin”.
+The title should be in the web title and also in the top navigation bar.
+I want these tabs to be in the navigation bar (leave the content empty / put text placeholder first): Home, Workflow, Product, Schedule, Payment, FAQ, Chats, Chat Sandbox.
+Then there is a profile icon on the top right, where clicking it opens a modal with your profile (now simply put a placeholder name and email).
+Use react router and make sure the URL are in sync.
