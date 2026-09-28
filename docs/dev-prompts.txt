@@ -73,3 +73,11 @@ I want you to configure the projects to use these libraries:
 - Swagger Docs (please find, I forget the name of the library)
 - Django Cors Headers
 Please document the commands to start the server in README.md, including to run the migration.
+
+Date & Time (GMT+8): 2026-09-28 21:30:19
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Now I want you to make a sample connection from the frontend-app to configuration-service. Create a dummy API in configuration-service, say it just return a randomised number from 1 to 10. In the “Home” tab of the frontend-app, simply call the API of this and show it on screen.
+Please use the react query (Tanstack) when calling the API and Axios.
+Please change the CORS configuration in the Django app to make the connection works. Currently the frontend is running on localhost 5173. Please check the middleware ordering as well to make sure it is correct.

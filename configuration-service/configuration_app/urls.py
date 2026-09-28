@@ -1,8 +1,10 @@
 from django.urls import path
 
+from . import views
+
 app_name = 'configuration_app'
 
 # API routes for this app, mounted under /api/configuration/ in config/urls.py.
-urlpatterns: list = [
-    # path('example/', views.ExampleView.as_view(), name='example'),
+urlpatterns = [
+    path('random-number/', views.RandomNumberView.as_view(), name='random-number'),
 ]

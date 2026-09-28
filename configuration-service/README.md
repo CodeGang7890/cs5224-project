@@ -1,6 +1,6 @@
 # Configuration Service
 
-Django REST API backend for Ansera Business Admin. It currently contains one empty app, `configuration_app`, and uses a local SQLite database.
+Django REST API backend for Ansera Business Admin. It currently contains one app, `configuration_app`, with a single sample endpoint, and uses a local SQLite database.
 
 ## Tech stack
 
@@ -58,7 +58,7 @@ python manage.py runserver
 | <http://127.0.0.1:8000/api/redoc/> | ReDoc (alternative API docs) |
 | <http://127.0.0.1:8000/api/schema/> | Raw OpenAPI 3 schema (YAML; add `?format=json` for JSON) |
 | <http://127.0.0.1:8000/admin/> | Django admin |
-| `/api/configuration/…` | `configuration_app` endpoints (none yet) |
+| <http://127.0.0.1:8000/api/configuration/random-number/> | Sample endpoint: returns `{"value": <1–10>}`. `frontend-app`'s Home tab calls it. |
 
 ## Common commands
 
@@ -85,6 +85,16 @@ To reset the local database, stop the server, delete `db.sqlite3`, and run `pyth
 | `DJANGO_ALLOWED_HOSTS` | `localhost,127.0.0.1` | Comma-separated hostnames the server responds to. |
 | `DJANGO_CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Comma-separated origins allowed to call the API from a browser. The default is the `frontend-app` Vite dev server. |
 
+## Connecting from frontend-app
+
+`frontend-app` (Vite, <http://localhost:5173>) calls this service from the browser, so CORS must allow its origin:
+
+- `corsheaders.middleware.CorsMiddleware` is the **first** entry in `MIDDLEWARE`. That way every response, including redirects and errors produced by later middleware, carries CORS headers.
+- `CORS_ALLOWED_ORIGINS` defaults to `http://localhost:5173` and `http://127.0.0.1:5173`. For other frontend URLs (e.g. a deployed site), set `DJANGO_CORS_ALLOWED_ORIGINS`.
+- `CORS_URLS_REGEX` limits CORS headers to `/api/` routes.
+
+To try it, run `python manage.py runserver` here and `npm run dev` in `../frontend-app`, then open <http://localhost:5173>.
+
 ## Project structure
 
 ```
@@ -94,14 +104,15 @@ configuration-service/
 │   ├── urls.py             # /admin, /api/configuration, /api/schema, /api/docs, /api/redoc
 │   ├── asgi.py
 │   └── wsgi.py
-├── configuration_app/      # The single Django app (empty boilerplate)
+├── configuration_app/      # The single Django app
 │   ├── migrations/
 │   ├── admin.py
 │   ├── apps.py
 │   ├── models.py
-│   ├── tests.py
+│   ├── serializers.py      # DRF serializers
+│   ├── tests.py            # Endpoint + CORS tests
 │   ├── urls.py             # App routes, mounted at /api/configuration/
-│   └── views.py
+│   └── views.py            # RandomNumberView
 ├── manage.py
 ├── requirements.txt
 └── .env.example
@@ -110,7 +121,7 @@ configuration-service/
 ## Adding an endpoint (quick guide)
 
 1. Define a model in `configuration_app/models.py`, then run `python manage.py makemigrations` and `python manage.py migrate`.
-2. Create a serializer in `configuration_app/serializers.py`.
+2. Add a serializer to `configuration_app/serializers.py`.
 3. Create a view or viewset in `configuration_app/views.py`.
 4. Register the route in `configuration_app/urls.py`.
 

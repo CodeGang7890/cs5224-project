@@ -54,7 +54,17 @@ Then open the URL Vite prints, usually <http://localhost:5173>.
 | Chats | `/chats` |
 | Chat Sandbox | `/chat-sandbox` |
 
-All pages are placeholders for now. The profile icon (top right) opens a profile modal, and its open state is kept in the URL as `?profile`. That means you can link to the modal directly, and the browser's back button closes it.
+Home shows a random number fetched from `configuration-service` (see [Connecting to configuration-service](#connecting-to-configuration-service)). The other pages are placeholders for now. The profile icon (top right) opens a profile modal, and its open state is kept in the URL as `?profile`. That means you can link to the modal directly, and the browser's back button closes it.
+
+## Connecting to configuration-service
+
+The Home tab calls `GET /api/configuration/random-number/` on the Django backend in `../configuration-service`. To see it working:
+
+1. Start the backend (see `../configuration-service/README.md`): `python manage.py runserver`. It serves on <http://127.0.0.1:8000>.
+2. Start the frontend: `npm run dev`. It serves on <http://localhost:5173>.
+3. Open <http://localhost:5173>. The Home tab shows a number from 1 to 10; the refresh button fetches a new one.
+
+If the backend isn't running, the card shows an error message instead. The backend's CORS settings allow `http://localhost:5173` by default.
 
 ## Environment variables
 
@@ -62,7 +72,7 @@ Vite only exposes variables that start with `VITE_`. Put local values in `.env.l
 
 | Variable | Description | Default |
 | --- | --- | --- |
-| `VITE_API_BASE_URL` | Base URL used by the Axios client | `https://jsonplaceholder.typicode.com` (demo API) |
+| `VITE_CONFIGURATION_SERVICE_URL` | Base URL of `configuration-service`, used by `configurationApiClient` | `http://localhost:8000/api/configuration` |
 
 When you add a variable, add it to `.env.example`, `src/vite-env.d.ts` (types) and `src/config/env.ts`.
 
@@ -87,7 +97,7 @@ frontend-app/
 │   │   └── env.ts              # Typed access to environment variables
 │   ├── features/               # Feature modules, one folder per domain
 │   │   ├── profile/            # Profile modal (placeholder user data)
-│   │   └── posts/              # Reference example of the API pattern (not routed)
+│   │   └── random-number/      # Sample configuration-service call (shown on Home)
 │   │       ├── api/            # Axios calls (plain async functions)
 │   │       ├── components/     # Feature-specific components
 │   │       ├── hooks/          # TanStack Query hooks + query keys
@@ -120,11 +130,11 @@ Import from `src` with the `@/` alias, e.g. `import { Button } from '@/component
 ### Add an API-backed feature
 
 1. Create `src/features/<feature>/`.
-2. Add Axios calls in `api/` using `apiClient` from `@/lib/api-client`.
+2. Add Axios calls in `api/` using the service's client from `@/lib/api-client` (e.g. `configurationApiClient`). For a new backend service, add a client with `createApiClient(env.<serviceUrl>)`.
 3. Wrap them in `useQuery` / `useMutation` hooks in `hooks/`, with a query-key factory.
 4. Export the public pieces from the feature's `index.ts`.
 
-Use `src/features/posts` as the template.
+Use `src/features/random-number` as the template.
 
 ### Add a shadcn/ui component
 
