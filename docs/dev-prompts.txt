@@ -144,13 +144,11 @@ Please add these functionality in the frontend-app:
 - Please show the username you’re logged in as in the frontend-app.
 Let me know for extra assumptions you made or anything else that I missed regarding this authentication feature.
 
-Date & Time (GMT+8): 2026-09-28 22:33:15
+Date & Time (GMT+8): 2026-09-28 22:43:04
 AI Model Used: claude-opus-5-5
 Original Prompt:
-<task-notification>
-<task-id>bz8nxtwsw</task-id>
-<tool-use-id>toolu_bdrk_01U7KPp3skX2pPvmsoEpVCgQ</tool-use-id>
-<output-file>/private/tmp/claude-501/-Users-michael-andrew-chan-repos-personal-projects-cs5224-project/aea8f9f6-c195-4b39-821a-962ec9576c02/tasks/bz8nxtwsw.output</output-file>
-<status>failed</status>
-<summary>Background command "Rerun client-side login flow harness with CustomEvent" failed with exit code 144</summary>
-</task-notification>
+/goal
+In configuration-service, I want you to add 2 extra API for list / read:
+- Given the BusinessConfiguration id, this API should be able to list down all the products.
+- Given the BusinessConfiguration id, another API should be able to list down all the FAQs.
+Also add extra test cases for those API. Please include 400 case when ID is not found, 401 case when user is not authenticated, and 403 when user gives a BusinessConfiguration id that the user a foreign key of.

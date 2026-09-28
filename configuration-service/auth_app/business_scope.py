@@ -9,11 +9,13 @@ Rule: a BusinessUser may only access records whose `business` is their own busin
 - Users without a business (e.g. the admin superuser) can't create or modify business data.
 
 Usage: subclass `BusinessOwnedSerializerMixin` in the serializer (with a `business` model field)
-and `BusinessScopedViewSetMixin` in the viewset. See product_app for an example.
+and `BusinessScopedViewSetMixin` in the viewset. For views whose URL names a business
+(e.g. /api/businesses/<business_id>/products/), use `BusinessFromUrlMixin`.
+See product_app for examples.
 """
 
 from rest_framework import permissions, serializers
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from configuration_app.models import BusinessConfiguration
 
@@ -81,3 +83,28 @@ class BusinessScopedViewSetMixin:
         if self.action == 'list':
             return queryset.filter(business_id=self.request.user.business_id)
         return queryset
+
+
+class BusinessFromUrlMixin:
+    """
+    For views with a `business_id` URL argument. After authentication (401 if not logged in):
+
+    - 400 Bad Request if no BusinessConfiguration has that ID,
+    - 403 Forbidden if it isn't the requesting user's business,
+    - otherwise sets `self.business` for use in `get_queryset()`.
+    """
+
+    business_url_kwarg = 'business_id'
+    business: BusinessConfiguration
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)  # authentication + permissions (401 first)
+        business_id = kwargs[self.business_url_kwarg]
+        business = BusinessConfiguration.objects.filter(pk=business_id).first()
+        if business is None:
+            raise ValidationError(
+                {self.business_url_kwarg: [f'Business configuration with ID {business_id} does not exist.']}
+            )
+        if business.pk != request.user.business_id:
+            raise PermissionDenied(OTHER_BUSINESS_MESSAGE)
+        self.business = business

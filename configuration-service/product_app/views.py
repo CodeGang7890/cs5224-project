@@ -1,7 +1,7 @@
 from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
-from rest_framework import viewsets
+from rest_framework import generics, viewsets
 
-from auth_app.business_scope import BusinessScopedViewSetMixin
+from auth_app.business_scope import BusinessFromUrlMixin, BusinessScopedViewSetMixin
 
 from .models import FAQ, Product
 from .serializers import FAQSerializer, ProductSerializer
@@ -38,3 +38,55 @@ class ProductViewSet(BusinessScopedViewSetMixin, viewsets.ModelViewSet):
 class FAQViewSet(BusinessScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = FAQ.objects.all()
     serializer_class = FAQSerializer
+
+
+# --- List by business ID ---------------------------------------------------------------
+
+BUSINESS_LIST_ERRORS = {
+    400: OpenApiResponse(description='No business configuration has this ID.'),
+    401: OpenApiResponse(description='Not logged in.'),
+    403: OpenApiResponse(description="This isn't your business."),
+}
+
+
+def business_list_schema(resource: str, tag: str, serializer):
+    return extend_schema(
+        tags=[tag],
+        summary=f'List a business’s {resource}s',
+        description=(
+            f'All {resource}s of the business with this `business_id` (paginated). '
+            'You can only list your own business.'
+        ),
+        # For list views drf-spectacular wraps the serializer in the paginated response shape.
+        responses={200: serializer, **BUSINESS_LIST_ERRORS},
+    )
+
+
+class BusinessProductListView(BusinessFromUrlMixin, generics.ListAPIView):
+    """GET /api/businesses/<business_id>/products/"""
+
+    serializer_class = ProductSerializer
+
+    @business_list_schema('product', 'Products', ProductSerializer)
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):  # schema generation has no request/business
+            return Product.objects.none()
+        return Product.objects.filter(business=self.business).select_related('business')
+
+
+class BusinessFAQListView(BusinessFromUrlMixin, generics.ListAPIView):
+    """GET /api/businesses/<business_id>/faqs/"""
+
+    serializer_class = FAQSerializer
+
+    @business_list_schema('FAQ', 'FAQs', FAQSerializer)
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return FAQ.objects.none()
+        return FAQ.objects.filter(business=self.business).select_related('business')

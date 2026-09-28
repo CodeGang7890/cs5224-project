@@ -141,6 +141,8 @@ All of these require you to be logged in.
 | `DELETE` | `/api/products/{id}/` | Delete a product |
 | `GET` / `POST` | `/api/faqs/` | List / create FAQs |
 | `GET` / `PUT` / `PATCH` / `DELETE` | `/api/faqs/{id}/` | Get / replace / update / delete an FAQ |
+| `GET` | `/api/businesses/{business_id}/products/` | List **all** products of a business, including inactive ones (paginated) |
+| `GET` | `/api/businesses/{business_id}/faqs/` | List all FAQs of a business (paginated) |
 | `GET` | `/api/configuration/random-number/` | Sample endpoint (public, no login needed) |
 
 ### Access rules
@@ -151,6 +153,13 @@ All of these require you to be logged in.
   - Opening, editing or deleting another business's record returns **`403 Forbidden`**.
   - `business` is optional when creating; it defaults to your business. Sending another business's ID, whether on create or when trying to move a record, returns **`403 Forbidden`**.
   - Users without a business, like `superuser`, can view lists (which are empty) but get `403` for everything else.
+- **Listing by business ID** (`/api/businesses/{business_id}/…`) is read-only. The checks run in this order:
+  1. Not logged in: `401`.
+  2. No business with that ID: `400`, with `{"business_id": ["Business configuration with ID 999 does not exist."]}`.
+  3. Not your business (or your account has none): `403`.
+  4. Otherwise: `200` with the paginated list.
+
+  A non-numeric ID such as `/api/businesses/abc/products/` doesn't match the URL, so it returns `404`.
 - **`quantity_sold` is read-only.** It's returned in responses, but sending it in a create or update returns `400 Bad Request`.
 - **Validation errors return `400`** with a message per field, for example:
   - a negative quantity or price
@@ -220,7 +229,7 @@ Tests use a temporary database, so your `db.sqlite3` isn't touched.
 | File | Covers |
 | --- | --- |
 | `auth_app/test_api.py` | JWT login, refresh + rotation, verify, logout (blacklist), `/api/auth/me/`, CORS for the `Authorization` header |
-| `product_app/test_api.py` | Product and FAQ APIs: login required, business scoping and 403s, CRUD, read-only `quantity_sold`, validation |
+| `product_app/test_api.py` | Product and FAQ APIs: login required, business scoping and 403s, CRUD, read-only `quantity_sold`, validation; list-by-business endpoints (200 / 400 unknown ID / 401 / 403 other business, pagination, read-only) |
 | `product_app/tests.py` | Product and FAQ model validation and database constraints |
 | `auth_app/tests.py` | `BusinessUser` model, Django Admin pages load |
 | `configuration_app/tests.py` | `BusinessConfiguration` model, random-number endpoint, CORS |
@@ -295,8 +304,8 @@ configuration-service/
 │   ├── admin.py
 │   ├── models.py
 │   ├── serializers.py      # ProductSerializer, FAQSerializer
-│   ├── views.py            # ProductViewSet, FAQViewSet
-│   ├── urls.py             # Router: /api/products/, /api/faqs/
+│   ├── views.py            # ProductViewSet, FAQViewSet, BusinessProductListView, BusinessFAQListView
+│   ├── urls.py             # /api/products/, /api/faqs/, /api/businesses/{id}/products|faqs/
 │   ├── tests.py            # Model validation tests
 │   └── test_api.py         # API tests
 ├── manage.py

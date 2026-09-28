@@ -28,10 +28,16 @@ The user named the apps with hyphens ("configuration-app", "auth-app", "product-
 
 ### APIs and access control
 
-- **Endpoints:** `product_app` has CRUD `ModelViewSet`s for `/api/products/` and `/api/faqs/`, registered with a `DefaultRouter` in `product_app/urls.py` and mounted at `/api/` in `config/urls.py`. `auth_app` has the auth endpoints under `/api/auth/` (`auth_app/urls.py`): `token/` (login), `token/refresh/`, `token/verify/`, `logout/` (blacklists the refresh token), and `me/` (`MeSerializer`: profile + `business` ID + `business_name`, read-only). The token views are thin subclasses of SimpleJWT's views (`LoginView`, `RefreshView`, `VerifyView`, `LogoutView`) that add Swagger docs under the `Auth` tag. There are no business-configuration or user-management APIs yet.
+- **Endpoints:** `product_app` has CRUD `ModelViewSet`s for `/api/products/` and `/api/faqs/`, registered with a `DefaultRouter` in `product_app/urls.py` and mounted at `/api/` in `config/urls.py`. `auth_app` has the auth endpoints under `/api/auth/` (`auth_app/urls.py`): `token/` (login), `token/refresh/`, `token/verify/`, `logout/` (blacklists the refresh token), and `me/` (`MeSerializer`: profile + `business` ID + `business_name`, read-only). The token views are thin subclasses of SimpleJWT's views (`LoginView`, `RefreshView`, `VerifyView`, `LogoutView`) that add Swagger docs under the `Auth` tag. `product_app` also has read-only `BusinessProductListView` / `BusinessFAQListView` at `/api/businesses/<int:business_id>/products/` and `/faqs/` (URL names `product_app:business-product-list` / `business-faq-list`). They list **all** of that business's records, including inactive products, and are paginated. There are no business-configuration or user-management APIs yet.
 - **Business scoping (`auth_app/business_scope.py`):** reuse this for every business-owned model.
   - `IsBusinessMember`: object-level `obj.business_id == user.business_id`, so another business's record returns **403, not 404** (the user asked for 403). Users with no business get 403 on every unsafe method.
   - `BusinessScopedViewSetMixin`: the `list` action is filtered to the user's business; detail routes use the unfiltered queryset so the permission can return 403.
+  - `BusinessFromUrlMixin`: for views with a `business_id` URL kwarg. It runs in `initial()`, after auth, so **401 comes first**. Then:
+    - An unknown ID raises `ValidationError` → **400**. The user explicitly asked for 400 rather than 404.
+    - Another business, or a user with no business, gets **403**.
+    - Otherwise it sets `self.business`.
+
+    Its `get_queryset()` must return `.none()` when `swagger_fake_view` is set (schema generation).
   - `BusinessOwnedSerializerMixin`: a `business` field that defaults to the user's business (`CurrentUserBusinessDefault`). Any other business raises `PermissionDenied` (403) in `validate_business`. Because it has a default, DRF's `UniqueTogetherValidator` still works for the per-business unique constraints.
 - **`Product.quantity_sold` is read-only in the API.** `ProductSerializer.to_internal_value` explicitly returns 400 when it's sent, reported together with other field errors, instead of DRF's default of silently ignoring it.
 - **DRF defaults (`REST_FRAMEWORK`):**

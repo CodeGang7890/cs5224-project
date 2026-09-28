@@ -15,6 +15,7 @@ from .models import (
     QUANTITY_MAX,
     Product,
 )
+from .serializers import ProductSerializer
 
 
 class BusinessAPITestCase(APITestCase):
@@ -305,3 +306,128 @@ class FAQAPITests(BusinessAPITestCase):
             format='json',
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+
+class BusinessListAPITests(BusinessAPITestCase):
+    """GET /api/businesses/<business_id>/products/ and /api/businesses/<business_id>/faqs/"""
+
+    MISSING_BUSINESS_ID = 999_999
+
+    @staticmethod
+    def products_url(business_id):
+        return reverse('product_app:business-product-list', args=[business_id])
+
+    @staticmethod
+    def faqs_url(business_id):
+        return reverse('product_app:business-faq-list', args=[business_id])
+
+    def both_urls(self, business_id):
+        return {'products': self.products_url(business_id), 'faqs': self.faqs_url(business_id)}
+
+    # --- 200 ------------------------------------------------------------------------
+
+    def test_lists_all_products_of_own_business(self):
+        inactive = Product.objects.create(
+            business=self.cafe, name='Old Blend', price=Decimal('3.00'), is_active=False
+        )
+        self.login(self.cafe_user)
+        response = self.client.get(self.products_url(self.cafe.pk))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['count'], 2)
+        self.assertEqual(
+            {p['id'] for p in response.data['results']}, {self.cafe_product.pk, inactive.pk}
+        )
+        self.assertTrue(all(p['business'] == self.cafe.pk for p in response.data['results']))
+        self.assertEqual(set(response.data['results'][0]), set(ProductSerializer.Meta.fields))
+
+    def test_lists_all_faqs_of_own_business(self):
+        self.login(self.florist_user)
+        response = self.client.get(self.faqs_url(self.florist.pk))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([f['id'] for f in response.data['results']], [self.florist_faq.pk])
+        self.assertEqual(response.data['results'][0]['question'], 'Delivery?')
+
+    def test_empty_business_returns_empty_list(self):
+        empty = BusinessConfiguration.objects.create(business_name='New Shop', location='Singapore')
+        user = BusinessUser.objects.create_user(username='newshop', password='123', business=empty)
+        self.login(user)
+        for name, url in self.both_urls(empty.pk).items():
+            with self.subTest(name):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertEqual(response.data['count'], 0)
+                self.assertEqual(response.data['results'], [])
+
+    def test_results_are_paginated(self):
+        Product.objects.bulk_create(
+            Product(business=self.cafe, name=f'Item {i:02}', price=Decimal('1.00')) for i in range(25)
+        )
+        self.login(self.cafe_user)
+        first = self.client.get(self.products_url(self.cafe.pk))
+        self.assertEqual(first.data['count'], 26)
+        self.assertEqual(len(first.data['results']), 20)
+        self.assertIsNotNone(first.data['next'])
+        second = self.client.get(self.products_url(self.cafe.pk), {'page': 2})
+        self.assertEqual(len(second.data['results']), 6)
+
+    def test_bearer_token_works(self):
+        tokens = self.client.post(
+            reverse('auth_app:token-obtain'), {'username': 'cafe', 'password': '123'}, format='json'
+        ).data
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {tokens['access']}")
+        self.assertEqual(self.client.get(self.products_url(self.cafe.pk)).status_code, status.HTTP_200_OK)
+
+    # --- 400: business not found ----------------------------------------------------
+
+    def test_unknown_business_id_returns_400(self):
+        self.login(self.cafe_user)
+        for name, url in self.both_urls(self.MISSING_BUSINESS_ID).items():
+            with self.subTest(name):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn('business_id', response.data)
+                self.assertIn(str(self.MISSING_BUSINESS_ID), str(response.data['business_id'][0]))
+
+    def test_non_numeric_business_id_is_not_routed(self):
+        self.login(self.cafe_user)
+        self.assertEqual(self.client.get('/api/businesses/abc/products/').status_code, status.HTTP_404_NOT_FOUND)
+
+    # --- 401: not logged in ---------------------------------------------------------
+
+    def test_not_logged_in_returns_401(self):
+        for business_id in (self.cafe.pk, self.MISSING_BUSINESS_ID):
+            for name, url in self.both_urls(business_id).items():
+                with self.subTest(name, business_id=business_id):
+                    self.assertEqual(self.client.get(url).status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_invalid_token_returns_401(self):
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer not-a-token')
+        for name, url in self.both_urls(self.cafe.pk).items():
+            with self.subTest(name):
+                self.assertEqual(self.client.get(url).status_code, status.HTTP_401_UNAUTHORIZED)
+
+    # --- 403: not your business -----------------------------------------------------
+
+    def test_other_business_returns_403(self):
+        self.login(self.cafe_user)
+        for name, url in self.both_urls(self.florist.pk).items():
+            with self.subTest(name):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+                self.assertNotIn('results', response.data)
+
+    def test_user_without_business_returns_403(self):
+        self.login(self.no_business_user)
+        for name, url in self.both_urls(self.cafe.pk).items():
+            with self.subTest(name):
+                self.assertEqual(self.client.get(url).status_code, status.HTTP_403_FORBIDDEN)
+
+    # --- Read-only ------------------------------------------------------------------
+
+    def test_endpoints_are_read_only(self):
+        self.login(self.cafe_user)
+        for name, url in self.both_urls(self.cafe.pk).items():
+            for method in ('post', 'put', 'patch', 'delete'):
+                with self.subTest(name, method=method):
+                    response = getattr(self.client, method)(url, {}, format='json')
+                    self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
