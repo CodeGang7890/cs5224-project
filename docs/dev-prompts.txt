@@ -164,3 +164,15 @@ If the user is not logged in, it will show sth like “You need to be logged in 
 If the user is logged in, then render the component.
 Purpose is I want this component to be reusable, that I can simply wrap around the pages that need login with this instead of duplicating my code in many files.
 After you make the component, please add this to the “Product” and “FAQ” tab, so if you’re not logged in it will show the message.
+
+Date & Time (GMT+8): 2026-09-28 22:57:03
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Work with frontend-app.
+I want you to work with the Product and FAQ page.
+The goal is to implement basic CRUD functionality.
+When you’re logged in, you should be able to:
+add / edit / delete / remove a product and a FAQ in the corresponding page
+Beware on which field can be edited and which cannot be edited, please check the corresponding API / model in configuration-service for reference.
+When the user is deleting or saving a change, please add a confirmation modal for extra confirmation.

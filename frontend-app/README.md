@@ -54,7 +54,7 @@ Then open the URL Vite prints, usually <http://localhost:5173>.
 | Chats | `/chats` |
 | Chat Sandbox | `/chat-sandbox` |
 
-Home shows a random number fetched from `configuration-service` (see [Connecting to configuration-service](#connecting-to-configuration-service)). The other pages are placeholders for now. **Product** and **FAQ** require login: when you're logged out, they show "You need to be logged in to access this page" with a Log In button (see [Login-protected pages](#login-protected-pages)).
+Home shows a random number fetched from `configuration-service` (see [Connecting to configuration-service](#connecting-to-configuration-service)). **Product** and **FAQ** let you add, edit and delete your business's products and FAQs (see [Managing products and FAQs](#managing-products-and-faqs)). The other pages are placeholders for now. Product and FAQ require login: when you're logged out, they show "You need to be logged in to access this page" with a Log In button (see [Login-protected pages](#login-protected-pages)).
 
 The top right shows **Log In** when you're logged out. When you're logged in, it shows your username, a profile icon and **Log Out** (see [Authentication](#authentication)). The profile modal's open state is kept in the URL as `?profile`, so you can link to it directly and the browser's back button closes it.
 
@@ -67,6 +67,28 @@ The Home tab calls `GET /api/configuration/random-number/` on the Django backend
 3. Open <http://localhost:5173>. The Home tab shows a number from 1 to 10; the refresh button fetches a new one.
 
 If the backend isn't running, the card shows an error message instead. The backend's CORS settings allow `http://localhost:5173` by default.
+
+## Managing products and FAQs
+
+When you're logged in, the **Product** and **FAQ** tabs list your business's records. Each tab has an **Add** button, and each record has **Edit** (pencil) and **Delete** (bin) buttons.
+
+- **Every save and delete asks for confirmation.** On edits, the confirmation lists what changed. Cancel leaves everything unchanged.
+- **Editable fields follow the API** (`configuration-service`):
+
+  | | Editable | Shown but read-only | Never sent |
+  | --- | --- | --- | --- |
+  | Product | name, description, price, quantity available, quantity on hold, active | quantity sold (managed by the system) | `id`, `business` (always your business), `quantity_sold` |
+  | FAQ | question, answer | none | `id`, `business` |
+
+- **Edits send only the fields you changed** (`PATCH`). **Save** is disabled until something changes.
+- **Limits are checked as you type,** with character counters and messages:
+  - Names: 150 characters. FAQ questions: 300 characters.
+  - Descriptions: 5,000 characters. FAQ answers: 10,000 characters.
+  - Price: ≥ 0, up to 2 decimal places.
+  - Quantities: whole numbers from 0 to 1,000,000.
+- **The backend checks everything again.** Its errors, such as "This business already has a product with this name", appear in the form.
+- **Lists are paginated,** 20 per page, and the page is kept in the URL (`?page=2`).
+- **To hide a product without deleting it,** edit it and turn off **Active**.
 
 ## Authentication
 
@@ -154,7 +176,7 @@ frontend-app/
 │   │   └── router.tsx          # createBrowserRouter(routes)
 │   ├── components/
 │   │   ├── ui/                 # shadcn/ui components (generated; edit sparingly)
-│   │   ├── common/             # Shared app components (e.g. PagePlaceholder)
+│   │   ├── common/             # Shared app components: ConfirmDialog, FormField, PaginationControls, PagePlaceholder
 │   │   └── layout/             # App layout: header (nav tabs, AuthControls), <Outlet />
 │   ├── config/
 │   │   ├── app.ts              # App name
@@ -162,6 +184,8 @@ frontend-app/
 │   │   └── env.ts              # Typed access to environment variables
 │   ├── features/               # Feature modules, one folder per domain
 │   │   ├── auth/               # Login dialog, RequireAuth guard, useAuth / useCurrentUser hooks, auth API calls
+│   │   ├── products/           # Product list + add/edit/delete dialogs (Product tab)
+│   │   ├── faqs/               # FAQ list + add/edit/delete dialogs (FAQ tab)
 │   │   ├── profile/            # Profile modal (data from /api/auth/me/)
 │   │   └── random-number/      # Sample configuration-service call (shown on Home)
 │   │       ├── api/            # Axios calls (plain async functions)
@@ -169,8 +193,8 @@ frontend-app/
 │   │       ├── hooks/          # TanStack Query hooks + query keys
 │   │       ├── types.ts
 │   │       └── index.ts        # Public exports of the feature
-│   ├── hooks/                  # Shared, feature-agnostic hooks
-│   ├── lib/                    # Shared setup: axios client, query client, cn()
+│   ├── hooks/                  # Shared hooks (theme, ?page= URL param)
+│   ├── lib/                    # Shared setup: axios client, query client, cn(), getFormErrors()
 │   ├── pages/                  # Route-level components (thin; compose features)
 │   ├── stores/                 # Zustand stores: theme, auth tokens (client state only)
 │   ├── types/                  # Shared TypeScript types
@@ -200,7 +224,7 @@ Import from `src` with the `@/` alias, e.g. `import { Button } from '@/component
 3. Wrap them in `useQuery` / `useMutation` hooks in `hooks/`, with a query-key factory.
 4. Export the public pieces from the feature's `index.ts`.
 
-Use `src/features/random-number` as the template.
+Use `src/features/random-number` as the template for read-only data, and `src/features/products` for full CRUD with forms and confirmations.
 
 ### Add a shadcn/ui component
 

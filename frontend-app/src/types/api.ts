@@ -4,3 +4,11 @@ export interface ApiError {
   status?: number
   data?: unknown
 }
+
+/** DRF PageNumberPagination response (list endpoints, 20 items per page). */
+export interface Paginated<T> {
+  count: number
+  next: string | null
+  previous: string | null
+  results: T[]
+}

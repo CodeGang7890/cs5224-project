@@ -26,8 +26,8 @@ Guidance for Claude Code when working in `frontend-app/`.
 - `src/app/`: app shell. `routes.tsx` is the route table (plain `RouteObject[]`, importable without a browser); `router.tsx` wraps it in `createBrowserRouter`; `providers.tsx` holds global providers.
 - `src/config/`: `app.ts` (`APP_NAME`), `navigation.ts` (`paths` + top-nav `navItems`; use `paths` instead of hard-coded URLs), `env.ts` (typed env access).
 - **Adding a page**: create `src/pages/<name>-page.tsx`, add its path to `paths`, add a route in `routes.tsx`, and add it to `navItems` if it's a top-nav tab. Pages set the browser tab title by rendering `<title>{`${title} | ${APP_NAME}`}</title>` (React 19 hoists it into `<head>`); `PagePlaceholder` does this already.
-- `src/pages/`: route-level components. Keep them thin; they compose features. Current tabs (Home shows the random-number card; the rest use `PagePlaceholder`; **Product and FAQ are behind `RequireAuth`**): Home `/`, Workflow `/workflow`, Product `/product`, Schedule `/schedule`, Payment `/payment`, FAQ `/faq`, Chats `/chats`, Chat Sandbox `/chat-sandbox`. 
-- `src/features/<feature>/`: self-contained domain modules with `api/` (Axios functions), `hooks/` (TanStack Query hooks + keys), `components/`, `types.ts`, and an `index.ts` public API. Import features via `@/features/<feature>`, not their internal paths. `features/random-number` is the reference example for the Axios + TanStack Query pattern: it calls `GET /api/configuration/random-number/` on configuration-service and is shown on the Home page. `features/auth` holds the login dialog, auth API calls and the `useAuth` / `useCurrentUser` hooks. `features/profile` holds the profile modal (`ProfileDialog`), which shows `useCurrentUser()` data.
+- `src/pages/`: route-level components. Keep them thin; they compose features. Current tabs (Home shows the random-number card; **Product and FAQ are CRUD pages behind `RequireAuth`**; the rest use `PagePlaceholder`): Home `/`, Workflow `/workflow`, Product `/product`, Schedule `/schedule`, Payment `/payment`, FAQ `/faq`, Chats `/chats`, Chat Sandbox `/chat-sandbox`. 
+- `src/features/<feature>/`: self-contained domain modules with `api/` (Axios functions), `hooks/` (TanStack Query hooks + keys), `components/`, `types.ts`, and an `index.ts` public API. Import features via `@/features/<feature>`, not their internal paths. `features/random-number` is the reference example for the Axios + TanStack Query pattern: it calls `GET /api/configuration/random-number/` on configuration-service and is shown on the Home page. `features/auth` holds the login dialog, auth API calls and the `useAuth` / `useCurrentUser` hooks. `features/products` and `features/faqs` implement CRUD (see "CRUD pattern" below). `features/profile` holds the profile modal (`ProfileDialog`), which shows `useCurrentUser()` data.
 - `src/components/ui/`: shadcn-generated code. Prefer composing or wrapping over heavy edits. The oxlint `only-export-components` rule is disabled for this folder.
 - `src/components/layout/`: layout components. `RootLayout` renders the sticky header (app name, nav tabs, theme toggle, `AuthControls`) and the `<Outlet />`. `AuthControls` lives in layout, not in a feature, because it combines `features/auth` and `features/profile`; this avoids a circular import.
 - `src/components/common/`: shared app-level components that aren't shadcn primitives (e.g. `PagePlaceholder`).
@@ -35,6 +35,26 @@ Guidance for Claude Code when working in `frontend-app/`.
 - `src/stores/`: Zustand stores. `src/hooks/`: shared hooks. `src/types/`: shared types.
 - File names are **kebab-case** (`random-number-card.tsx`, `use-random-number.ts`), matching shadcn. Exports are named (no default exports).
 - Always import from `src` via the `@/` alias.
+
+## CRUD pattern (`features/products`, `features/faqs`)
+
+Copy this structure for new CRUD features.
+
+- **Files:**
+  - `types.ts`: the API shape, plus an `*Input` type with **only the writable fields**.
+  - `validation.ts`: limits mirrored from the Django models, `validate*()`, `changed*Fields()` (a diff for PATCH), and the form ↔ API converters. Number fields are kept as strings in form state.
+  - `api/`: `list(page)`, `create`, `update(id, changes)` (PATCH), and `delete`.
+  - `hooks/`: `*Keys`, `use*(page)` with `keepPreviousData`, and `useSave*`/`useDelete*`, which invalidate `*Keys.all` on success.
+  - `components/`: `*Manager` (the list), `*FormDialog` and `Delete*Dialog`.
+- **Field rules (from configuration-service):**
+  - Never send `id` or `business`; the backend fills in the user's business.
+  - Product `quantity_sold` is read-only: display it, but never send it, or the API returns 400.
+  - Editable: product `name`, `description`, `price` (a decimal string, sent with `toFixed(2)`), `quantity_available`, `quantity_on_hold`, `is_active`; FAQ `question`, `answer`.
+  - If the backend limits change, update `PRODUCT_LIMITS` / `FAQ_LIMITS`.
+- **Flow:** submit → client validation → `ConfirmDialog` (`@/components/common/confirm-dialog`) → mutation. The confirm dialog stays open with a pending state until the request finishes. On a 400, `getFormErrors()` (`@/lib/form-errors`) maps DRF `{field: [msg]}` errors onto fields, and `non_field_errors` becomes the form alert. **Every save and every delete must go through `ConfirmDialog`** (the user asked for this).
+- **Form state:** the form content is remounted on each open (`{open && <Form />}`), so it always starts from the saved values. Edit mode sends only the changed fields, and **Save** is disabled when nothing changed.
+- **Pagination:** `usePageParam()` keeps `?page=` in the URL, and `PaginationControls` renders the controls. If a page goes out of range (the API returns 404, e.g. after deleting the last item), the manager steps back a page.
+- **Shared components:** `FormField` (label, hint/error, character counter) and `components/ui` `alert-dialog`, `table`, `textarea`, `switch` and `badge`. These were hand-written from shadcn because the CLI is blocked in this environment.
 
 ## Authentication (JWT from configuration-service)
 
