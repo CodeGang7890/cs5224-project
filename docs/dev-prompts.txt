@@ -176,3 +176,16 @@ When you’re logged in, you should be able to:
 add / edit / delete / remove a product and a FAQ in the corresponding page
 Beware on which field can be edited and which cannot be edited, please check the corresponding API / model in configuration-service for reference.
 When the user is deleting or saving a change, please add a confirmation modal for extra confirmation.
+
+Date & Time (GMT+8): 2026-09-28 23:10:48
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Create another folder called messaing-service.
+This will be a Flask app.
+Please make me a simple boilerplate Flask app.
+No database or other dependency as of now.
+Please make the default port to be 8001 as the 8000 port is already taken by the Django app previously.
+Simply has the root url “/“ return hello world in JSON.
+Add CLAUDE.md there too like the other folder.
+Add README.md too to run the server.
