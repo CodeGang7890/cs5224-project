@@ -8,8 +8,8 @@ export function ChatSandboxPage() {
       <div className="grid gap-1">
         <h1 className="text-2xl font-bold tracking-tight">Chat Sandbox</h1>
         <p className="text-muted-foreground text-sm">
-          Try out your chat assistant by pretending to be a customer. Messages go through the same API as
-          real customers' and are saved as a chat session for your business.
+          Try out your chat assistant by pretending to be a customer. Start as many test chats as you like: each
+          one is a separate conversation, kept apart from your real customer chats.
         </p>
       </div>
       <ChatSandbox />

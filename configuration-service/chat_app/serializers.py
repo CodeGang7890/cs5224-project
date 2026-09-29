@@ -151,3 +151,11 @@ class CustomerMessageRequestSerializer(serializers.Serializer):
         max_length=CHAT_MESSAGE_MAX_LENGTH,
         help_text=f"The customer's message (max {CHAT_MESSAGE_MAX_LENGTH} characters).",
     )
+
+
+class SandboxMessageRequestSerializer(serializers.Serializer):
+    # trim_whitespace + allow_blank=False rejects empty and whitespace-only messages.
+    message = serializers.CharField(
+        max_length=CHAT_MESSAGE_MAX_LENGTH,
+        help_text=f'Your message, as the pretend customer (max {CHAT_MESSAGE_MAX_LENGTH} characters).',
+    )

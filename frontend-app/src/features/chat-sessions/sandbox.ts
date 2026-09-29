@@ -1,16 +1,25 @@
 import type { ApiError } from '@/types/api'
 
-// The Chat Sandbox pretends to be a customer with this mock phone number. It must pass the
-// backend's phone validation (international format: "+", a country code not starting with 0,
-// 7–15 digits), which rules out "000"; "+1" followed by zeros is clearly fake but valid.
-export const SANDBOX_PHONE_NUMBER = '+10000000000'
-export const SANDBOX_DISPLAY_NAME = 'sandbox_user'
+import type { ChatSession } from './types'
 
 /** Backend limit for one message (`CHAT_MESSAGE_MAX_LENGTH`). */
 export const CHAT_MESSAGE_MAX_LENGTH = 4096
 
-/** The create-session API returns 400 `non_field_errors` when the business has no chat configuration. */
+/** Creating a session returns 400 `non_field_errors` when the business has no chat configuration. */
 export function isMissingChatConfiguration(error: ApiError): boolean {
   const data = error.data as { non_field_errors?: unknown } | undefined
   return error.status === 400 && Array.isArray(data?.non_field_errors)
+}
+
+/** What to call a session in the UI. */
+export function sessionLabel(session: ChatSession): string {
+  return session.display_name || session.phone_number || `Sandbox chat #${session.id}`
+}
+
+const TEST_CHAT_NAME = /^Test chat (\d+)$/
+
+/** Name for a new sandbox chat: "Test chat N", one more than the highest N so far. */
+export function nextSandboxChatName(sessions: ChatSession[]): string {
+  const highest = Math.max(0, ...sessions.map((s) => Number(TEST_CHAT_NAME.exec(s.display_name)?.[1] ?? 0)))
+  return `Test chat ${highest + 1}`
 }

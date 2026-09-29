@@ -21,6 +21,7 @@ from .serializers import (
     ChatSessionSerializer,
     CustomerMessageRequestSerializer,
     SandboxChatSessionSerializer,
+    SandboxMessageRequestSerializer,
 )
 
 NO_CHAT_CONFIGURATION_MESSAGE = 'Your business has no chat configuration yet. Create one with PUT.'
@@ -30,7 +31,7 @@ SESSION_NEEDS_CONFIGURATION_MESSAGE = (
 )
 
 NO_CHAT_SESSION_MESSAGE = 'No chat session found for this phone number at this business.'
-NOT_SANDBOX_MESSAGE = 'Only sandbox chat sessions can be deleted here.'
+NOT_SANDBOX_MESSAGE = 'This is a real customer chat session; only sandbox chat sessions can be used here.'
 
 SAMPLE_CONFIG_JSON = [
     {'id': 1, 'next_block_id': 2, 'block_type': 'START_BLOCK', 'position_x': 100, 'position_y': 100},
@@ -281,6 +282,27 @@ def append_chat_message(session_id: int, message: str, sent_by: str) -> dict:
     return chat_message
 
 
+def reply_to_customer_message(session: ChatSession, message: str) -> dict:
+    """Saves a customer message, gets the assistant's reply from the LLM, saves and returns it.
+
+    The customer message is saved first, so it's kept even if the LLM call fails (502/503/504).
+    """
+    append_chat_message(session.pk, message, SENT_BY_CUSTOMER)
+
+    # TODO: the core chat logic: use the conversation so far and the business's chat flow
+    # (move chat_state_id between blocks, use each block type's prompt) to decide the reply.
+    try:
+        reply = llm.generate_customer_reply(session.business, message)
+    except llm.LLMUnavailableError as exc:
+        raise LLMUnavailable(str(exc)) from exc
+    except llm.LLMTimeoutError as exc:
+        raise LLMTimeout(str(exc)) from exc
+    except llm.LLMError as exc:
+        raise LLMBadGateway(str(exc)) from exc
+
+    return append_chat_message(session.pk, reply, SENT_BY_BUSINESS_AUTOMATED)
+
+
 class CustomerMessageView(APIView):
     """A customer sends a message to a business and gets the assistant's reply.
 
@@ -329,22 +351,24 @@ class CustomerMessageView(APIView):
         )
         if session is None:
             raise NotFound(NO_CHAT_SESSION_MESSAGE)
+        return Response(ChatMessageSerializer(reply_to_customer_message(session, data['message'])).data)
 
-        append_chat_message(session.pk, data['message'], SENT_BY_CUSTOMER)
 
-        # TODO: the core chat logic: use the conversation so far and the business's chat flow
-        # (move chat_state_id between blocks, use each block type's prompt) to decide the reply.
-        try:
-            reply = llm.generate_customer_reply(session.business, data['message'])
-        except llm.LLMUnavailableError as exc:
-            raise LLMUnavailable(str(exc)) from exc
-        except llm.LLMTimeoutError as exc:
-            raise LLMTimeout(str(exc)) from exc
-        except llm.LLMError as exc:
-            raise LLMBadGateway(str(exc)) from exc
+def get_own_sandbox_session(request: Request, pk: int) -> ChatSession:
+    """The logged-in user's business's sandbox session `pk`.
 
-        reply_message = append_chat_message(session.pk, reply, SENT_BY_BUSINESS_AUTOMATED)
-        return Response(ChatMessageSerializer(reply_message).data)
+    403 without a business, 404 if it doesn't exist, 403 if it's another business's (checked
+    before the sandbox check, like the rest of the API), 400 if it's a real customer session.
+    """
+    business = get_user_business(request)
+    session = ChatSession.objects.select_related('business').filter(pk=pk).first()
+    if session is None:
+        raise NotFound('No chat session with this ID.')
+    if session.business_id != business.pk:
+        raise PermissionDenied(OTHER_BUSINESS_MESSAGE)
+    if not session.is_sandbox:
+        raise NotSandboxSession()
+    return session
 
 
 class SandboxChatSessionListView(generics.ListCreateAPIView):
@@ -416,14 +440,38 @@ class SandboxChatSessionDetailView(APIView):
         },
     )
     def delete(self, request: Request, pk: int) -> Response:
-        business = get_user_business(request)
-        session = ChatSession.objects.filter(pk=pk).first()
-        if session is None:
-            raise NotFound('No chat session with this ID.')
-        # Another business's session is 403, not 404, like the rest of the API.
-        if session.business_id != business.pk:
-            raise PermissionDenied(OTHER_BUSINESS_MESSAGE)
-        if not session.is_sandbox:
-            raise NotSandboxSession()
-        session.delete()
+        get_own_sandbox_session(request, pk).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class SandboxChatMessageView(APIView):
+    """Send a message in one of your sandbox sessions, as the pretend customer."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=['Sandbox chat sessions'],
+        summary='Send a message in a sandbox chat and get the reply',
+        description=(
+            'Same flow as `POST /api/chat/sessions/messages/`, for one of your sandbox sessions: '
+            'appends the message (`sent_by: customer`), asks the LLM for a reply, appends it '
+            '(`sent_by: business-automated`) and returns it. The message is kept if the LLM fails.'
+        ),
+        request=SandboxMessageRequestSerializer,
+        responses={
+            200: ChatMessageSerializer,
+            400: OpenApiResponse(description='Invalid message, or the session is a real customer session.'),
+            403: OpenApiResponse(description="Another business's session, or your account has no business."),
+            404: OpenApiResponse(description='No chat session with this ID.'),
+            502: OpenApiResponse(description='Ollama returned an error (e.g. the model is not pulled).'),
+            503: OpenApiResponse(description='Ollama is not reachable.'),
+            504: OpenApiResponse(description='Ollama took too long to answer.'),
+        },
+        examples=[OpenApiExample('Message', value={'message': 'Are you open today?'}, request_only=True)],
+    )
+    def post(self, request: Request, pk: int) -> Response:
+        session = get_own_sandbox_session(request, pk)
+        serializer = SandboxMessageRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        reply = reply_to_customer_message(session, serializer.validated_data['message'])
+        return Response(ChatMessageSerializer(reply).data)

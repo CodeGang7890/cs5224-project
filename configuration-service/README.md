@@ -166,6 +166,7 @@ All of these require you to be logged in.
 | `GET` | `/api/chat/configuration/` | Your business's chat configuration `{id, business, config_json, last_updated}`. 404 if it has none yet |
 | `GET` / `POST` | `/api/chat/sandbox-sessions/` | List / start your business's sandbox (test) chat sessions |
 | `DELETE` | `/api/chat/sandbox-sessions/{id}/` | Delete one of your sandbox chat sessions |
+| `POST` | `/api/chat/sandbox-sessions/{id}/messages/` | `{message}` → the assistant's reply, in one of your sandbox chat sessions |
 | `GET` | `/api/chat/sessions/` | Your business's real (non-sandbox) chat sessions (paginated, most recent chat first). `?phone_number=%2B6591234567` returns just that customer's session |
 | `POST` | `/api/chat/sessions/messages/` | `{business_id, phone_number, message}` → the assistant's reply. Public (no login), for the Chat Sandbox / future webhook. See [Chat sessions](#chat-sessions) |
 | `POST` | `/api/chat/sessions/` | `{phone_number, display_name}` → the new chat session (201). See [Chat sessions](#chat-sessions) |
@@ -195,9 +196,9 @@ Each business has at most one chat configuration. Both endpoints need a login an
 
 Errors: 400 for an invalid phone number, a phone number that already has a session with your business, or a business with no chat configuration yet (set up the workflow first). 403 if your account isn't linked to a business.
 
-`GET /api/chat/sessions/` (login required) lists your business's sessions, 20 per page, most recent chat first, including each conversation. Add `?phone_number=` (URL-encode `+` as `%2B`) to get only that customer's session; `frontend-app`'s Chat Sandbox uses this to find its session.
+`GET /api/chat/sessions/` (login required) lists your business's sessions, 20 per page, most recent chat first, including each conversation. Add `?phone_number=` (URL-encode `+` as `%2B`) to get only that customer's session.
 
-`POST /api/chat/sessions/messages/` is how a **customer** sends a message. It needs no login: for now the Chat Sandbox uses it, and it will become the WhatsApp webhook later. Send `{business_id, phone_number, message}`. It:
+`POST /api/chat/sessions/messages/` is how a **customer** sends a message. It needs no login, and will become the WhatsApp webhook later. (The Chat Sandbox uses the sandbox message endpoint above instead.) Send `{business_id, phone_number, message}`. It:
 
 1. Finds that business's session for that phone number (404 if there isn't one; create it first with `POST /api/chat/sessions/`).
 2. Appends the message as `{message, sent_by: "customer", message_time: now}` and sets `last_chat_time` to now.
@@ -208,11 +209,12 @@ If Ollama fails (502/503/504), the customer's message is still saved, but there'
 
 ### Sandbox chat sessions
 
-Test chats a business starts itself (e.g. from the Chat Sandbox), separate from real customer chats. All three endpoints need a login and only work on **your own** business (403 without a business).
+Test chats a business starts itself (e.g. from the Chat Sandbox), separate from real customer chats. All four endpoints need a login and only work on **your own** business (403 without a business).
 
 - `GET /api/chat/sandbox-sessions/`: your sandbox sessions, paginated, most recent chat first.
 - `POST /api/chat/sandbox-sessions/`: `{display_name?, phone_number?}`, both optional. Starts a sandbox session the same way as a real one (Start block, no messages, `created_time = last_chat_time = now`), so your business needs a chat configuration (400 otherwise). A business can have any number.
 - `DELETE /api/chat/sandbox-sessions/{id}/`: deletes the session and its conversation (204). Another business's session → 403; a real customer session → 400 ("Only sandbox chat sessions can be deleted here."); unknown ID → 404.
+- `POST /api/chat/sandbox-sessions/{id}/messages/`: `{message}`. Same flow as the customer message endpoint below (save the message as `customer`, ask the LLM, save and return the `business-automated` reply; the message is kept if the LLM fails), with the same 403/400/404 rules as delete. `frontend-app`'s Chat Sandbox uses this.
 
 Sandbox sessions are left out of `GET /api/chat/sessions/`, and `POST /api/chat/sessions/messages/` only finds real sessions.
 

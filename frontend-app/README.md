@@ -107,16 +107,15 @@ The **Workflow** tab (login required) edits your business's chat configuration o
 
 ## Chat Sandbox
 
-The **Chat Sandbox** tab (login required) lets you test your chat assistant by pretending to be a customer. It uses the same `configuration-service` APIs a real customer chat would:
+The **Chat Sandbox** tab (login required) lets you test your chat assistant by pretending to be a customer, in as many separate test chats as you like. Test chats are **sandbox chat sessions** on `configuration-service` (`is_sandbox = true`), kept apart from real customer chats.
 
-1. It finds your business's sandbox chat session: `GET /api/chat/sessions/?phone_number=%2B10000000000`.
-2. If there isn't one yet, it creates it: `POST /api/chat/sessions/` with phone number `+10000000000` and display name `sandbox_user`. (`000` isn't a valid phone number for the backend, so the mock number is `+1` followed by zeros.) The session starts at your workflow's Start block, so **your business needs a saved workflow first**; otherwise the tab links you to the Workflow tab.
-3. Each message you send goes to `POST /api/chat/sessions/messages/`. The backend saves it, asks the LLM (local Ollama) for a reply, saves and returns the reply. Your message appears straight away with a typing indicator, and the conversation is re-fetched afterwards.
-
-- Enter sends, Shift+Enter adds a new line. Messages can be up to 4,096 characters.
-- Replies can take a while (the local model may need to load), so this request waits up to 150 seconds instead of the usual 15.
-- If the LLM fails, you see an error, but your message is still saved in the conversation.
-- The conversation is kept between visits. There's no way to clear it from the app yet.
+- **The left panel lists your sandbox chats**, most recent first, with the last message. `GET /api/chat/sandbox-sessions/` (20 at a time; **Load more** fetches the next page).
+- **New chat** creates one: `POST /api/chat/sandbox-sessions/`, named "Test chat N". It starts at your workflow's Start block, so **your business needs a saved workflow first**; otherwise you get a link to the Workflow tab.
+- **Click a chat to open it.** The open chat is kept in the URL (`?session=<id>`), so a refresh keeps it open. Each chat keeps its own unsent text.
+- **Send a message:** `POST /api/chat/sandbox-sessions/{id}/messages/`. The backend saves it, asks the LLM (local Ollama) for a reply, and saves and returns the reply. Your message appears straight away with a typing indicator. You can switch to another chat while waiting: the list shows "Waiting for reply…" and the reply lands in the right chat.
+- **Delete a chat** with the bin icon in its header, after a confirmation: `DELETE /api/chat/sandbox-sessions/{id}/`.
+- Enter sends, Shift+Enter adds a new line. Messages can be up to 4,096 characters. Replies can take a while, so sending waits up to 150 seconds instead of the usual 15.
+- If the LLM fails, you see an error, but your message is still saved in the chat.
 - You need `configuration-service` and Ollama running (see `../configuration-service/README.md`).
 
 ## Authentication

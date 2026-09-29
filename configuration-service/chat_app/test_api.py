@@ -587,7 +587,7 @@ class SandboxChatSessionAPITests(APITestCase):
         self.login(self.cafe_user)
         response = self.client.delete(self.detail_url(self.cafe_real))
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.json()['detail'], 'Only sandbox chat sessions can be deleted here.')
+        self.assertIn('only sandbox chat sessions', response.json()['detail'])
         self.assertTrue(ChatSession.objects.filter(pk=self.cafe_real.pk).exists())
 
     def test_cannot_delete_other_business_session(self):
@@ -615,3 +615,99 @@ class SandboxChatSessionAPITests(APITestCase):
         self.login(self.cafe_user)
         self.assertEqual(self.client.get(self.detail_url(self.cafe_sandbox_old)).status_code, 405)
         self.assertEqual(self.client.put(self.detail_url(self.cafe_sandbox_old), {}).status_code, 405)
+
+
+class SandboxChatMessageAPITests(APITestCase):
+    @staticmethod
+    def url(session):
+        return reverse('chat_app:sandbox-session-messages', args=[session.pk])
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.cafe = BusinessConfiguration.objects.create(business_name='Kopi Café', location='Tiong Bahru')
+        cls.florist = BusinessConfiguration.objects.create(business_name='Florist', location='Singapore')
+        cls.cafe_user = BusinessUser.objects.create_user(username='cafe', password='123', business=cls.cafe)
+        cls.no_business_user = BusinessUser.objects.create_user(username='nobiz', password='123')
+        ChatConfiguration.objects.create(business=cls.cafe, config_json=VALID_CONFIG)
+
+    def setUp(self):
+        self.sandbox = ChatSession.objects.create(business=self.cafe, is_sandbox=True, chat_state_id=1)
+        self.other_sandbox = ChatSession.objects.create(business=self.cafe, is_sandbox=True)
+        self.ollama = MagicMock()
+        self.ollama.chat.return_value = fake_chat_response('Hello from the café!')
+        patcher = patch('chat_app.llm.get_client', return_value=self.ollama)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def send(self, session, message='Hi there'):
+        return self.client.post(self.url(session), {'message': message}, format='json')
+
+    def test_requires_authentication(self):
+        self.assertEqual(self.send(self.sandbox).status_code, status.HTTP_401_UNAUTHORIZED)
+        self.ollama.chat.assert_not_called()
+
+    def test_user_without_business_gets_403(self):
+        self.client.force_authenticate(self.no_business_user)
+        self.assertEqual(self.send(self.sandbox).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_appends_messages_and_returns_reply(self):
+        self.client.force_authenticate(self.cafe_user)
+        response = self.send(self.sandbox, '  Are you open?  ')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()['message'], 'Hello from the café!')
+        self.assertEqual(response.json()['sent_by'], 'business-automated')
+        self.sandbox.refresh_from_db()
+        self.assertEqual(
+            [(m['sent_by'], m['message']) for m in self.sandbox.chat_message_json],
+            [('customer', 'Are you open?'), ('business-automated', 'Hello from the café!')],
+        )
+        validate_chat_messages(self.sandbox.chat_message_json)
+        self.assertEqual(self.sandbox.chat_state_id, 1)
+        self.assertIn('Kopi Café', self.ollama.chat.call_args.kwargs['messages'][0]['content'])
+
+    def test_sessions_are_independent(self):
+        self.client.force_authenticate(self.cafe_user)
+        self.send(self.sandbox, 'first chat')
+        self.send(self.other_sandbox, 'second chat')
+        self.sandbox.refresh_from_db()
+        self.other_sandbox.refresh_from_db()
+        self.assertEqual(self.sandbox.chat_message_json[0]['message'], 'first chat')
+        self.assertEqual(self.other_sandbox.chat_message_json[0]['message'], 'second chat')
+        self.assertEqual(len(self.sandbox.chat_message_json), 2)
+
+    def test_real_session_returns_400(self):
+        real = ChatSession.objects.create(business=self.cafe, phone_number='+6591234567')
+        self.client.force_authenticate(self.cafe_user)
+        self.assertEqual(self.send(real).status_code, status.HTTP_400_BAD_REQUEST)
+        real.refresh_from_db()
+        self.assertEqual(real.chat_message_json, [])
+
+    def test_other_business_session_returns_403(self):
+        florist_sandbox = ChatSession.objects.create(business=self.florist, is_sandbox=True)
+        self.client.force_authenticate(self.cafe_user)
+        self.assertEqual(self.send(florist_sandbox).status_code, status.HTTP_403_FORBIDDEN)
+        florist_sandbox.refresh_from_db()
+        self.assertEqual(florist_sandbox.chat_message_json, [])
+
+    def test_unknown_session_returns_404(self):
+        self.client.force_authenticate(self.cafe_user)
+        response = self.client.post(
+            reverse('chat_app:sandbox-session-messages', args=[99999]), {'message': 'hi'}, format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_invalid_message_returns_400(self):
+        self.client.force_authenticate(self.cafe_user)
+        for message in ('', '   ', 'x' * 4097):
+            with self.subTest(length=len(message)):
+                response = self.send(self.sandbox, message)
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn('message', response.json())
+        self.ollama.chat.assert_not_called()
+
+    def test_llm_failure_keeps_message(self):
+        self.ollama.chat.side_effect = ConnectionError('down')
+        self.client.force_authenticate(self.cafe_user)
+        self.assertEqual(self.send(self.sandbox).status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.sandbox.refresh_from_db()
+        self.assertEqual([m['sent_by'] for m in self.sandbox.chat_message_json], ['customer'])

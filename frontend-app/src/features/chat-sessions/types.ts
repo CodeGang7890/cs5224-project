@@ -9,10 +9,11 @@ export interface ChatMessage {
   message_time: string
 }
 
-/** A conversation between a business and one customer (`/api/chat/sessions/`). */
+/** A conversation between a business and one customer, or a sandbox (test) chat. */
 export interface ChatSession {
   id: number
   business: number
+  /** Empty for sandbox sessions without a mock number. */
   phone_number: string
   display_name: string
   created_time: string
@@ -21,14 +22,9 @@ export interface ChatSession {
   chat_message_json: ChatMessage[]
   /** Block `id` in the business's chat configuration that the customer is at. */
   chat_state_id: number | string | null
+  /** A test chat from the Chat Sandbox rather than a real customer. */
+  is_sandbox: boolean
 }
 
-/** Writable fields when creating a session; the backend sets everything else. */
-export type ChatSessionInput = Pick<ChatSession, 'phone_number' | 'display_name'>
-
-/** Body of POST /api/chat/sessions/messages/ (what a customer sends). */
-export interface CustomerMessageInput {
-  business_id: number
-  phone_number: string
-  message: string
-}
+/** Body of POST /api/chat/sandbox-sessions/ (both optional); the backend sets everything else. */
+export type SandboxChatSessionInput = Partial<Pick<ChatSession, 'display_name' | 'phone_number'>>
