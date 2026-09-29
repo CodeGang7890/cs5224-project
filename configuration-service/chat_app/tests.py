@@ -152,3 +152,15 @@ class ChatConfigurationModelTests(TestCase):
         ChatConfiguration.objects.create(business=self.business, config_json=VALID_CONFIG)
         self.business.delete()
         self.assertFalse(ChatConfiguration.objects.exists())
+
+
+class SampleChatConfigurationFixtureTests(TestCase):
+    fixtures = ['sample_business_configurations', 'sample_chat_configurations']
+
+    def test_fixture_is_valid(self):
+        chat_config = ChatConfiguration.objects.get(business_id=1)
+        chat_config.full_clean()  # loaddata skips validation
+        self.assertEqual(
+            [block['block_type'] for block in chat_config.config_json],
+            ['START_BLOCK', 'PRODUCT_SELECTION_BLOCK', 'DETAILS_COLLECTION_BLOCK', 'CONFIRMATION_BLOCK'],
+        )

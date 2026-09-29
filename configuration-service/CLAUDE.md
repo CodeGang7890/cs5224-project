@@ -77,11 +77,13 @@ The user named the apps with hyphens ("configuration-app", "auth-app", "product-
   - `configuration_app/fixtures/sample_business_configurations.json`
   - `auth_app/fixtures/sample_business_users.json`
   - `product_app/fixtures/sample_products.json` and `sample_faqs.json`
+  - `chat_app/fixtures/sample_chat_configurations.json` (business 1, start → product selection → details collection → confirmation). It must set `last_updated` explicitly: `loaddata` does raw saves, which skip `auto_now`. `chat_app.tests.SampleChatConfigurationFixtureTests` checks it passes `validate_chat_config`.
 - **Loading:** always load them together, in one command:
-  `python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs`
-- **IDs:** fixtures use fixed pks, so reloading overwrites rather than duplicating. Businesses are 1–3, users 101–104, products 1–8 and FAQs 1–6.
+  `python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations`
+- **IDs:** fixtures use fixed pks, so reloading overwrites rather than duplicating. Businesses are 1–3, users 101–104, products 1–8, FAQs 1–6 and chat configurations 1.
 - **Sample users:** every sample business user's password is **`123`** (the user asked for this, for easy testing). The fixture stores a pbkdf2 hash; generate new ones with `make_password('123')`. Users: `kopi_owner` (business 1), `bloom_owner` and `bloom_staff` (business 2), `fitlab_owner` (business 3).
 - **Validation:** `loaddata` bypasses `full_clean()`. After editing fixtures, validate them, e.g. by loading them and calling `full_clean()` on every object.
+- **Resetting data:** `python manage.py flush --noinput` deletes all rows (keeps tables), then reload every fixture and re-create the superuser (see README "Resetting the local database"). Flush also removes the superuser.
 - **Superuser:** the local superuser is **`superuser` / `123`**, created with `DJANGO_SUPERUSER_PASSWORD=123 python manage.py createsuperuser --noinput --username superuser --email superuser@example.com`. `--noinput` skips password validators. It is deliberately not in a fixture. It's for local development only.
 
 ### General
@@ -97,7 +99,7 @@ The user named the apps with hyphens ("configuration-app", "auth-app", "product-
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 python manage.py migrate
-python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs
+python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations
 python manage.py runserver            # http://127.0.0.1:8000
 python manage.py makemigrations
 python manage.py makemigrations --check --dry-run   # verify no missing migrations

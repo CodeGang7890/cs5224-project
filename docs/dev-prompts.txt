@@ -253,3 +253,13 @@ Make sure:
 - There is only 1 “START_BLOCK” in the JSON, other blocks can be duplicated
 - “id” can be any value like uuid (doesn’t have to be auto increment), just make sure it’s unique
 - “next_block_id” should point at a valid id (another object in this json)
+
+Date & Time (GMT+8): 2026-09-29 17:06:00
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+Work with configuration-service, particularly chat-app application.
+For this ChatConfiguration, please add a fixture with simple flow (start -> product selection -> details collection -> confirmation block), tie this to one of the business configuration that have been created (refer to the fixtures in configuration_app).
+Make sure the JSON format is valid.
+Please add the command to run this fixture to README (alongside other fixtures so can be loaded in 1 command).
+Please also add the command in README to flush / delete all rows (not the tables!). So I can reset the data back to the original state by flushing, then repopulate from all the fixtures.

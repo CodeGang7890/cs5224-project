@@ -36,7 +36,7 @@ pip install -r requirements.txt
 python manage.py migrate
 
 # 4. Load sample data (businesses, business users, products, FAQs)
-python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs
+python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations
 
 # 5. Create the local admin superuser (username: superuser, password: 123)
 DJANGO_SUPERUSER_PASSWORD=123 python manage.py createsuperuser --noinput --username superuser --email superuser@example.com
@@ -65,7 +65,7 @@ python manage.py runserver
 The fixtures are JSON files in each app's `fixtures/` folder. Load them all with:
 
 ```bash
-python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs
+python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations
 ```
 
 | Fixture | File | Contents |
@@ -74,6 +74,7 @@ python manage.py loaddata sample_business_configurations sample_business_users s
 | `sample_business_users` | `auth_app/fixtures/` | 4 business users linked to those businesses |
 | `sample_products` | `product_app/fixtures/` | 8 products (one of them inactive) |
 | `sample_faqs` | `product_app/fixtures/` | 6 FAQs |
+| `sample_chat_configurations` | `chat_app/fixtures/` | 1 chat flow for Kopi & Co. Café: start → product selection → details collection → confirmation |
 
 Every sample account uses the password **`123`**, so you can log in as anyone while testing:
 
@@ -89,7 +90,7 @@ Business users aren't staff, so they can't log in to Django Admin.
 
 Notes:
 - Fixtures use fixed IDs, so re-running `loaddata` resets those records to the sample values rather than creating duplicates. Records you created yourself are kept.
-- Load them in one command, as shown above. The records depend on each other: users, products and FAQs point to businesses.
+- Load them in one command, as shown above. The records depend on each other: users, products, FAQs and chat configurations point to businesses.
 - `loaddata` saves records as-is, without running model validation. When you edit a fixture, keep the data within the model rules.
 
 ## Data model
@@ -227,7 +228,8 @@ You can also use your Django Admin login instead (**cookieAuth**). If you're log
 | `python manage.py makemigrations` | Creates migration files after you change models |
 | `python manage.py migrate` | Applies migrations to the database |
 | `python manage.py createsuperuser` | Creates an admin user |
-| `python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs` | Loads the sample data |
+| `python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations` | Loads the sample data |
+| `python manage.py flush --noinput` | Deletes all rows from every table (keeps the tables); see [Resetting the local database](#resetting-the-local-database) |
 | `python manage.py test` | Runs all tests (see [Running tests](#running-tests)) |
 | `python manage.py check` | Checks the project configuration for problems |
 | `python manage.py spectacular --validate --file schema.yml` | Exports and validates the OpenAPI schema |
@@ -257,12 +259,23 @@ Tests use a temporary database, so your `db.sqlite3` isn't touched.
 
 ### Resetting the local database
 
-To wipe everything and start fresh with sample data:
+To put the data back to the sample state, delete every row (the tables and migrations stay) and reload the fixtures:
+
+```bash
+python manage.py flush --noinput
+python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations
+DJANGO_SUPERUSER_PASSWORD=123 python manage.py createsuperuser --noinput --username superuser --email superuser@example.com
+```
+
+> [!WARNING]
+> `flush` deletes **all** rows in every table: your own records, the superuser, sessions and blacklisted tokens. Drop `--noinput` to get a confirmation prompt first. Existing JWT tokens stop working, because their users no longer exist until the fixtures are reloaded (and anyone logged in has to log in again).
+
+To delete the database file itself and rebuild it from the migrations (e.g. after migration problems):
 
 ```bash
 rm db.sqlite3
 python manage.py migrate
-python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs
+python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations
 DJANGO_SUPERUSER_PASSWORD=123 python manage.py createsuperuser --noinput --username superuser --email superuser@example.com
 ```
 
@@ -330,6 +343,7 @@ configuration-service/
 │   ├── tests.py            # Model validation tests
 │   └── test_api.py         # API tests
 ├── chat_app/               # ChatConfiguration (chat flow) + temporary one-off chat with the local LLM (Ollama)
+│   ├── fixtures/           # sample_chat_configurations.json
 │   ├── migrations/
 │   ├── admin.py
 │   ├── constants.py        # BLOCK_TYPES
