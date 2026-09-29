@@ -55,7 +55,7 @@ Then open the URL Vite prints, usually <http://localhost:5173>.
 | Chats | `/chats` |
 | Chat Sandbox | `/chat-sandbox` |
 
-Home shows a random number fetched from `configuration-service` (see [Connecting to configuration-service](#connecting-to-configuration-service)). **Product** and **FAQ** let you add, edit and delete your business's products and FAQs (see [Managing products and FAQs](#managing-products-and-faqs)). **Workflow** is a drag-and-drop editor for your business's chat flow (see [Editing the chat workflow](#editing-the-chat-workflow)). The other pages are placeholders for now. Workflow, Product and FAQ require login: when you're logged out, they show "You need to be logged in to access this page" with a Log In button (see [Login-protected pages](#login-protected-pages)).
+Home shows a random number fetched from `configuration-service` (see [Connecting to configuration-service](#connecting-to-configuration-service)). **Product** and **FAQ** let you add, edit and delete your business's products and FAQs (see [Managing products and FAQs](#managing-products-and-faqs)). **Workflow** is a drag-and-drop editor for your business's chat flow (see [Editing the chat workflow](#editing-the-chat-workflow)). **Chat Sandbox** lets you chat with your assistant as a pretend customer (see [Chat Sandbox](#chat-sandbox)). The other pages are placeholders for now. Workflow, Product, FAQ and Chat Sandbox require login: when you're logged out, they show "You need to be logged in to access this page" with a Log In button (see [Login-protected pages](#login-protected-pages)).
 
 The top right shows **Log In** when you're logged out. When you're logged in, it shows your username, a profile icon and **Log Out** (see [Authentication](#authentication)). The profile modal's open state is kept in the URL as `?profile`, so you can link to it directly and the browser's back button closes it.
 
@@ -104,6 +104,20 @@ The **Workflow** tab (login required) edits your business's chat configuration o
 - The toolbar warns about blocks that can't be reached from Start. They can still be saved.
 - Leaving the tab, or closing or reloading the page, with unsaved changes asks you to confirm first.
 - Accounts without a business (e.g. `superuser`) see a message instead of the editor.
+
+## Chat Sandbox
+
+The **Chat Sandbox** tab (login required) lets you test your chat assistant by pretending to be a customer. It uses the same `configuration-service` APIs a real customer chat would:
+
+1. It finds your business's sandbox chat session: `GET /api/chat/sessions/?phone_number=%2B10000000000`.
+2. If there isn't one yet, it creates it: `POST /api/chat/sessions/` with phone number `+10000000000` and display name `sandbox_user`. (`000` isn't a valid phone number for the backend, so the mock number is `+1` followed by zeros.) The session starts at your workflow's Start block, so **your business needs a saved workflow first**; otherwise the tab links you to the Workflow tab.
+3. Each message you send goes to `POST /api/chat/sessions/messages/`. The backend saves it, asks the LLM (local Ollama) for a reply, saves and returns the reply. Your message appears straight away with a typing indicator, and the conversation is re-fetched afterwards.
+
+- Enter sends, Shift+Enter adds a new line. Messages can be up to 4,096 characters.
+- Replies can take a while (the local model may need to load), so this request waits up to 150 seconds instead of the usual 15.
+- If the LLM fails, you see an error, but your message is still saved in the conversation.
+- The conversation is kept between visits. There's no way to clear it from the app yet.
+- You need `configuration-service` and Ollama running (see `../configuration-service/README.md`).
 
 ## Authentication
 
@@ -202,6 +216,7 @@ frontend-app/
 │   │   ├── products/           # Product list + add/edit/delete dialogs (Product tab)
 │   │   ├── faqs/               # FAQ list + add/edit/delete dialogs (FAQ tab)
 │   │   ├── workflow/           # Chat workflow editor (Workflow tab, React Flow)
+│   │   ├── chat-sessions/      # Chat session API calls + Chat Sandbox
 │   │   ├── profile/            # Profile modal (data from /api/auth/me/)
 │   │   └── random-number/      # Sample configuration-service call (shown on Home)
 │   │       ├── api/            # Axios calls (plain async functions)

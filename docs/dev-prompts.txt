@@ -348,3 +348,25 @@ Date & Time (GMT+8): 2026-09-29 18:33:47
 AI Model Used: anthropic.claude-opus-5-5
 Original Prompt:
 can u edit my last commit:
+
+Date & Time (GMT+8): 2026-09-29 18:42:41
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+Now I want to work with the frontend-app.
+The goal now is to integrate the “Chat Sandbox” page with all these APIs.
+Make it so using a phone number like “000” or sth (so it looks like a mock phone number) and a display_name of “sandbox_user”.
+Make sure it passes the backend validation of a phone_number as of now.
+Then the business owner can be a “mock user” and interact with the LLM via the sandbox (pretending to be user).
+The exact functionality of the LLM will be handled later.
+Now, the important thing is the API created above can be integrated with the frontend.
+The goal is from the browser the user can type something and pass through the APIs defined above.
+Please let me know if you think there is a missing API functionality or any other assumptions you made.
+
+Date & Time (GMT+8): 2026-09-29 18:47:50
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+Create a folder called “diagram” inside “docs” folder.
+Inside, I want you to sketch me the Object diagram (all the models / objects defined in models.py and its relation, whether it’s 1-1 or 1-many or many-many).
+Make the diagram as png file.
+No need to add the tables created by Django underneath the hood (only the ones defined in models.py explicitly that’s relevant with the app flow).

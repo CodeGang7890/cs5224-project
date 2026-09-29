@@ -1,6 +1,6 @@
 from django.db import transaction
 from django.utils import timezone
-from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema
+from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import generics, status
 from rest_framework.exceptions import APIException, NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -175,15 +175,27 @@ class ChatSessionListView(generics.ListCreateAPIView):
         if getattr(self, 'swagger_fake_view', False):  # schema generation: no real user
             return ChatSession.objects.none()
         business = get_user_business(self.request)
-        return ChatSession.objects.filter(business=business).order_by('-last_chat_time', '-id')
+        sessions = ChatSession.objects.filter(business=business).order_by('-last_chat_time', '-id')
+        phone_number = self.request.query_params.get('phone_number')
+        if phone_number:
+            sessions = sessions.filter(phone_number=phone_number)
+        return sessions
 
     @extend_schema(
         tags=['Chat sessions'],
         summary="List your business's chat sessions",
         description=(
             'All chat sessions of your business (paginated), most recent chat first, '
-            'including each conversation (`chat_message_json`).'
+            'including each conversation (`chat_message_json`). Filter by `phone_number` to find '
+            "one customer's session (at most one, as numbers are unique per business)."
         ),
+        parameters=[
+            OpenApiParameter(
+                'phone_number',
+                str,
+                description='Only the session with this exact phone number, e.g. `+6591234567` (URL-encode the `+` as `%2B`).',
+            ),
+        ],
         responses={
             200: ChatSessionSerializer(many=True),
             403: OpenApiResponse(description='Your account is not linked to a business.'),

@@ -323,6 +323,15 @@ class ChatSessionListAPITests(APITestCase):
         self.assertEqual(body['results'][0]['chat_message_json'], VALID_MESSAGES)
         self.assertEqual(body['results'][0]['display_name'], 'Alice')
 
+    def test_filter_by_phone_number(self):
+        self.client.force_authenticate(self.cafe_user)
+        response = self.client.get(self.url, {'phone_number': '+6591111111'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Only the café's session: the florist's session with the same number isn't included.
+        self.assertEqual([s['id'] for s in response.json()['results']], [self.older.pk])
+        response = self.client.get(self.url, {'phone_number': '+6599999999'})
+        self.assertEqual(response.json()['count'], 0)
+
     def test_empty_list(self):
         empty = BusinessConfiguration.objects.create(business_name='Empty', location='Singapore')
         user = BusinessUser.objects.create_user(username='empty', password='123', business=empty)

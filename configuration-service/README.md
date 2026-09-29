@@ -163,7 +163,7 @@ All of these require you to be logged in.
 | `GET` | `/api/configuration/random-number/` | Sample endpoint (public, no login needed) |
 | `POST` | `/api/chat/` | `{prompt}` → `{reply, model, options}`: one-off chat with the local LLM (public, no login needed) |
 | `GET` | `/api/chat/configuration/` | Your business's chat configuration `{id, business, config_json, last_updated}`. 404 if it has none yet |
-| `GET` | `/api/chat/sessions/` | Your business's chat sessions (paginated, most recent chat first) |
+| `GET` | `/api/chat/sessions/` | Your business's chat sessions (paginated, most recent chat first). `?phone_number=%2B6591234567` returns just that customer's session |
 | `POST` | `/api/chat/sessions/messages/` | `{business_id, phone_number, message}` → the assistant's reply. Public (no login), for the Chat Sandbox / future webhook. See [Chat sessions](#chat-sessions) |
 | `POST` | `/api/chat/sessions/` | `{phone_number, display_name}` → the new chat session (201). See [Chat sessions](#chat-sessions) |
 | `PUT` | `/api/chat/configuration/` | `{config_json}`: replace your business's chat flow (validated). Creates it (201) if missing, otherwise 200 |
@@ -192,7 +192,7 @@ Each business has at most one chat configuration. Both endpoints need a login an
 
 Errors: 400 for an invalid phone number, a phone number that already has a session with your business, or a business with no chat configuration yet (set up the workflow first). 403 if your account isn't linked to a business.
 
-`GET /api/chat/sessions/` (login required) lists your business's sessions, 20 per page, most recent chat first, including each conversation.
+`GET /api/chat/sessions/` (login required) lists your business's sessions, 20 per page, most recent chat first, including each conversation. Add `?phone_number=` (URL-encode `+` as `%2B`) to get only that customer's session; `frontend-app`'s Chat Sandbox uses this to find its session.
 
 `POST /api/chat/sessions/messages/` is how a **customer** sends a message. It needs no login: for now the Chat Sandbox uses it, and it will become the WhatsApp webhook later. Send `{business_id, phone_number, message}`. It:
 
