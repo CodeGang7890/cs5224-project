@@ -202,3 +202,16 @@ Please install the Ollama library for this, add in requirements.txt.
 The model used is qwen2.5:7b-instruct-q4_K_M.
 Please use some constant variable (all caps) where we can set the port and system prompt and model.
 Also please use the flask-smorest library, the goal is to have the Swagger UI where I can try the API from that page.
+
+Date & Time (GMT+8): 2026-09-29 16:57:11
+AI Model Used: opus
+Original Prompt:
+/goal
+See the simple API in messaging-service Flask app.
+As I don’t have proper DB etc setup yet, I’d like to temporarily move this chat functionality to configuration-service.
+I want you to create a new boilerplate for a new app in configuration-service called as chat-app (use Django create app template).
+Just have a single REST API that is basically the same API like the one in the Flask app, making connection to Ollama with the same system prompt and model boilerplate.
+Please add max tokens, temperature, seed, and other hyper parameters available too hardcoded from the backend.
+Make the seed the same number so I can get deterministic output for testing purpose.
+Make sure this is shown on the Swagger Docs page so I can do the testing from the website itself.
+When adding test case for this, please don’t make the call to Ollama, simply just have 1 test case with mock LLM result, just to ensure response is returned to the user.

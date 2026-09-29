@@ -18,13 +18,14 @@ A Django REST API backend for Ansera Business Admin. It is consumed by `../front
 
 ### Apps
 
-The user named the apps with hyphens ("configuration-app", "auth-app", "product-app"), but Python package names can't contain hyphens. **Don't add more apps unless asked.**
+The user named the apps with hyphens ("configuration-app", "auth-app", "product-app", "chat-app"), but Python package names can't contain hyphens. **Don't add more apps unless asked.**
 
 | App | Models | Notes |
 | --- | --- | --- |
 | `configuration_app` | `BusinessConfiguration` (`business_name`, `description`, `location`) | The tenant/business that everything else hangs off. Also has the dummy `GET /api/configuration/random-number/` (`RandomNumberView`), which `frontend-app`'s Home tab uses to check the connection. Routes live in `configuration_app/urls.py`, mounted at `/api/configuration/`. |
 | `auth_app` | `BusinessUser(AbstractUser)` + `business` FK (nullable, `SET_NULL`, `related_name='users'`) | **`AUTH_USER_MODEL = 'auth_app.BusinessUser'`.** Always use `get_user_model()` / `settings.AUTH_USER_MODEL`, never `django.contrib.auth.models.User`. The admin extends Django's `UserAdmin`. The app label is `auth_app`; don't rename it to `auth`, which clashes with `django.contrib.auth`. |
 | `product_app` | `Product`, `FAQ` (both FK → `BusinessConfiguration`, `CASCADE`, `related_name='products'` / `'faqs'`) | `Product`: `name`, `description`, `price` (Decimal 10,2), `quantity_available` / `on_hold` / `sold` (`PositiveIntegerField`), `is_active`. `FAQ`: `question`, `answer`. |
+| `chat_app` | none | **Temporary** home for `../messaging-service`'s `/chat` until that service has a database. `POST /api/chat/` (`ChatView`, public: `AllowAny`, no authentication) sends a fixed system prompt + the user's prompt to a local Ollama server. Model, system prompt and sampling options (fixed `seed` for deterministic output) are hardcoded constants in `chat_app/llm.py`. Ollama errors map to 502/503/504. Tests mock `chat_app.llm.get_client`; never call a real Ollama in tests. |
 
 ### APIs and access control
 

@@ -1,6 +1,6 @@
 # Configuration Service
 
-Django REST API backend for Ansera Business Admin. It has three Django apps: `configuration_app`, `auth_app` and `product_app`. So far they contain the data models, Django Admin screens, sample fixtures, CRUD APIs for products and FAQs, and one sample endpoint. It uses a local SQLite database for now.
+Django REST API backend for Ansera Business Admin. It has four Django apps: `configuration_app`, `auth_app`, `product_app` and `chat_app`. So far they contain the data models, Django Admin screens, sample fixtures, CRUD APIs for products and FAQs, a chat endpoint backed by a local LLM (Ollama), and one sample endpoint. It uses a local SQLite database for now.
 
 ## Tech stack
 
@@ -11,6 +11,7 @@ Django REST API backend for Ansera Business Admin. It has three Django apps: `co
 | Swagger / OpenAPI docs | [drf-spectacular](https://drf-spectacular.readthedocs.io/) (OpenAPI 3, Swagger UI + ReDoc) |
 | CORS | [django-cors-headers](https://github.com/adamchainz/django-cors-headers) |
 | Authentication | [djangorestframework-simplejwt](https://django-rest-framework-simplejwt.readthedocs.io/) (JWT access/refresh tokens) |
+| LLM (chat) | [ollama](https://github.com/ollama/ollama-python) Python client, talking to a local [Ollama](https://ollama.com/) server |
 | Database | SQLite (local file `db.sqlite3`); a real database will be integrated later |
 
 ## Prerequisites
@@ -144,6 +145,16 @@ All of these require you to be logged in.
 | `GET` | `/api/businesses/{business_id}/products/` | List **all** products of a business, including inactive ones (paginated) |
 | `GET` | `/api/businesses/{business_id}/faqs/` | List all FAQs of a business (paginated) |
 | `GET` | `/api/configuration/random-number/` | Sample endpoint (public, no login needed) |
+| `POST` | `/api/chat/` | `{prompt}` → `{reply, model, options}`: one-off chat with the local LLM (public, no login needed) |
+
+### Chat (temporary)
+
+`chat_app` is a temporary copy of `../messaging-service`'s `/chat` endpoint, living here until that service has its own database. It needs [Ollama](https://ollama.com/) running on `http://localhost:11434` with the model pulled (`ollama pull qwen2.5:7b-instruct-q4_K_M`).
+
+- Every request is independent: the fixed system prompt plus your `prompt` (≤4,000 characters). No history is kept.
+- The model, system prompt and sampling options (`seed`, `temperature`, `num_predict` (max tokens), `top_k`, `top_p`, `min_p`, `repeat_penalty`, `repeat_last_n`, `presence_penalty`, `frequency_penalty`, `num_ctx`) are hardcoded in `chat_app/llm.py`.
+- The seed is fixed (`42`), so the same prompt gives the same reply, which is handy for testing.
+- Errors: 400 invalid prompt, 502 Ollama error (e.g. model not pulled), 503 Ollama not reachable, 504 Ollama timed out.
 
 ### Access rules
 
@@ -233,6 +244,7 @@ Tests use a temporary database, so your `db.sqlite3` isn't touched.
 | `product_app/tests.py` | Product and FAQ model validation and database constraints |
 | `auth_app/tests.py` | `BusinessUser` model, Django Admin pages load |
 | `configuration_app/tests.py` | `BusinessConfiguration` model, random-number endpoint, CORS |
+| `chat_app/tests.py` | Chat endpoint returns the reply, with the LLM mocked (no Ollama needed) |
 
 ### Resetting the local database
 
@@ -275,7 +287,7 @@ To try it, run `python manage.py runserver` here and `npm run dev` in `../fronte
 configuration-service/
 ├── config/                 # Django project: settings, root URLs, WSGI/ASGI entry points
 │   ├── settings.py
-│   ├── urls.py             # /admin, /api/configuration, /api/products, /api/faqs, /api/schema, /api/docs, /api/redoc
+│   ├── urls.py             # /admin, /api/configuration, /api/products, /api/faqs, /api/chat, /api/schema, /api/docs, /api/redoc
 │   ├── asgi.py
 │   └── wsgi.py
 ├── configuration_app/      # Businesses (BusinessConfiguration) + sample API
@@ -308,6 +320,12 @@ configuration-service/
 │   ├── urls.py             # /api/products/, /api/faqs/, /api/businesses/{id}/products|faqs/
 │   ├── tests.py            # Model validation tests
 │   └── test_api.py         # API tests
+├── chat_app/               # Temporary: one-off chat with the local LLM (Ollama), from messaging-service
+│   ├── llm.py              # Ollama client, model, system prompt, hardcoded sampling options
+│   ├── serializers.py      # ChatRequestSerializer, ChatResponseSerializer
+│   ├── views.py            # ChatView
+│   ├── urls.py             # /api/chat/
+│   └── tests.py            # Mocked-LLM test
 ├── manage.py
 ├── requirements.txt
 └── .env.example
