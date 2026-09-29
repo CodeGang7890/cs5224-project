@@ -1,13 +1,25 @@
 from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema
 from rest_framework import status
-from rest_framework.exceptions import APIException
-from rest_framework.permissions import AllowAny
+from rest_framework.exceptions import APIException, NotFound, PermissionDenied
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from auth_app.business_scope import NO_BUSINESS_MESSAGE
+
 from . import llm
-from .serializers import ChatRequestSerializer, ChatResponseSerializer
+from .models import ChatConfiguration
+from .serializers import ChatConfigurationSerializer, ChatRequestSerializer, ChatResponseSerializer
+
+NO_CHAT_CONFIGURATION_MESSAGE = 'Your business has no chat configuration yet. Create one with PUT.'
+
+SAMPLE_CONFIG_JSON = [
+    {'id': 1, 'next_block_id': 2, 'block_type': 'START_BLOCK', 'position_x': 100, 'position_y': 100},
+    {'id': 2, 'next_block_id': 3, 'block_type': 'PRODUCT_SELECTION_BLOCK', 'position_x': 300, 'position_y': 100},
+    {'id': 3, 'next_block_id': 4, 'block_type': 'DETAILS_COLLECTION_BLOCK', 'position_x': 500, 'position_y': 100},
+    {'id': 4, 'next_block_id': None, 'block_type': 'CONFIRMATION_BLOCK', 'position_x': 700, 'position_y': 100},
+]
 
 
 class LLMBadGateway(APIException):
@@ -72,3 +84,64 @@ class ChatView(APIView):
             {'reply': reply, 'model': llm.OLLAMA_MODEL, 'options': llm.OLLAMA_OPTIONS}
         )
         return Response(response.data)
+
+
+class ChatConfigurationView(APIView):
+    """The logged-in user's business's chat configuration (each business has at most one)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get_business(self, request: Request):
+        if request.user.business_id is None:
+            raise PermissionDenied(NO_BUSINESS_MESSAGE)
+        return request.user.business
+
+    @extend_schema(
+        tags=['Chat configuration'],
+        summary="Get your business's chat configuration",
+        responses={
+            200: ChatConfigurationSerializer,
+            403: OpenApiResponse(description='Your account is not linked to a business.'),
+            404: OpenApiResponse(description='Your business has no chat configuration yet.'),
+        },
+    )
+    def get(self, request: Request) -> Response:
+        business = self.get_business(request)
+        chat_config = ChatConfiguration.objects.filter(business=business).first()
+        if chat_config is None:
+            raise NotFound(NO_CHAT_CONFIGURATION_MESSAGE)
+        return Response(ChatConfigurationSerializer(chat_config).data)
+
+    @extend_schema(
+        tags=['Chat configuration'],
+        summary="Replace your business's chat flow (config_json)",
+        description=(
+            'Replaces `config_json`, after checking it with `validate_chat_config`. '
+            "Creates the configuration (201) if your business doesn't have one yet. "
+            '`id`, `business` and `last_updated` are read-only.'
+        ),
+        request=ChatConfigurationSerializer,
+        responses={
+            200: ChatConfigurationSerializer,
+            201: ChatConfigurationSerializer,
+            400: OpenApiResponse(description='Invalid `config_json`; every problem is listed.'),
+            403: OpenApiResponse(description='Your account is not linked to a business.'),
+        },
+        examples=[
+            OpenApiExample(
+                'Start → product selection → details collection → confirmation',
+                value={'config_json': SAMPLE_CONFIG_JSON},
+                request_only=True,
+            ),
+        ],
+    )
+    def put(self, request: Request) -> Response:
+        business = self.get_business(request)
+        chat_config = ChatConfiguration.objects.filter(business=business).first()
+        serializer = ChatConfigurationSerializer(chat_config, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(business=business)
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK if chat_config else status.HTTP_201_CREATED,
+        )

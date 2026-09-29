@@ -155,6 +155,8 @@ All of these require you to be logged in.
 | `GET` | `/api/businesses/{business_id}/faqs/` | List all FAQs of a business (paginated) |
 | `GET` | `/api/configuration/random-number/` | Sample endpoint (public, no login needed) |
 | `POST` | `/api/chat/` | `{prompt}` → `{reply, model, options}`: one-off chat with the local LLM (public, no login needed) |
+| `GET` | `/api/chat/configuration/` | Your business's chat configuration `{id, business, config_json, last_updated}`. 404 if it has none yet |
+| `PUT` | `/api/chat/configuration/` | `{config_json}`: replace your business's chat flow (validated). Creates it (201) if missing, otherwise 200 |
 
 ### Chat (temporary)
 
@@ -164,6 +166,10 @@ All of these require you to be logged in.
 - The model, system prompt and sampling options (`seed`, `temperature`, `num_predict` (max tokens), `top_k`, `top_p`, `min_p`, `repeat_penalty`, `repeat_last_n`, `presence_penalty`, `frequency_penalty`, `num_ctx`) are hardcoded in `chat_app/llm.py`.
 - The seed is fixed (`42`), so the same prompt gives the same reply, which is handy for testing.
 - Errors: 400 invalid prompt, 502 Ollama error (e.g. model not pulled), 503 Ollama not reachable, 504 Ollama timed out.
+
+### Chat configuration
+
+Each business has at most one chat configuration. Both endpoints need a login and work on **your own** business, so there's no ID in the URL. Users without a business (e.g. `superuser`) get 403. `PUT` only changes `config_json`; `id`, `business` and `last_updated` are read-only. An invalid `config_json` returns 400 with every problem listed under `config_json` (see the rules under [Data model](#data-model)). The sample data gives `kopi_owner`'s business a configuration; the other businesses start with none.
 
 ### Access rules
 
@@ -255,7 +261,7 @@ Tests use a temporary database, so your `db.sqlite3` isn't touched.
 | `auth_app/tests.py` | `BusinessUser` model, Django Admin pages load |
 | `configuration_app/tests.py` | `BusinessConfiguration` model, random-number endpoint, CORS |
 | `chat_app/tests.py` | `validate_chat_config` rules, `ChatConfiguration` model (validation, one per business, `last_updated`) |
-| `chat_app/test_api.py` | Chat endpoint returns the reply, with the LLM mocked (no Ollama needed) |
+| `chat_app/test_api.py` | Chat endpoint returns the reply, with the LLM mocked (no Ollama needed); chat configuration GET/PUT (401/403/404, create vs update, read-only fields, invalid `config_json` → 400) |
 
 ### Resetting the local database
 
@@ -350,11 +356,11 @@ configuration-service/
 │   ├── models.py           # ChatConfiguration
 │   ├── validators.py       # validate_chat_config (config_json rules)
 │   ├── llm.py              # Ollama client, model, system prompt, hardcoded sampling options
-│   ├── serializers.py      # ChatRequestSerializer, ChatResponseSerializer
-│   ├── views.py            # ChatView
-│   ├── urls.py             # /api/chat/
+│   ├── serializers.py      # Chat request/response, ChatConfigurationSerializer
+│   ├── views.py            # ChatView, ChatConfigurationView
+│   ├── urls.py             # /api/chat/, /api/chat/configuration/
 │   ├── tests.py            # Validator + model tests
-│   └── test_api.py         # Mocked-LLM chat API test
+│   └── test_api.py         # Chat API (mocked LLM) + chat configuration API tests
 ├── manage.py
 ├── requirements.txt
 └── .env.example

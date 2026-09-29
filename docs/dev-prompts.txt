@@ -263,3 +263,13 @@ For this ChatConfiguration, please add a fixture with simple flow (start -> prod
 Make sure the JSON format is valid.
 Please add the command to run this fixture to README (alongside other fixtures so can be loaded in 1 command).
 Please also add the command in README to flush / delete all rows (not the tables!). So I can reset the data back to the original state by flushing, then repopulate from all the fixtures.
+
+Date & Time (GMT+8): 2026-09-29 17:17:57
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+Work with configuration-service, particularly chat-app application.
+Now I want you to make the API for the ChatConfiguration object.
+First, an API that given an authenticated user, it should get the users’ BusinessConfiguration instance, and get the ChatConfiguration instance that’s tied to that business and return it. The ChatConfiguration instance tied to a BusinessConfiguration should be at most 1 instance, or 0.
+Second, a PUT API to edit the “config_json” field, also run it through the validation function that has been created before.
+Add test cases for the API, and unit test on the validation function so it rejects invalid config_json format.

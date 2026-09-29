@@ -1,6 +1,10 @@
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
+from .constants import BLOCK_TYPES, START_BLOCK
 from .llm import CHAT_PROMPT_MAX_LENGTH, OLLAMA_MODEL, OLLAMA_OPTIONS
+from .models import ChatConfiguration
+from .validators import validate_chat_config
 
 
 class ChatRequestSerializer(serializers.Serializer):
@@ -17,3 +21,47 @@ class ChatResponseSerializer(serializers.Serializer):
     options = serializers.DictField(
         help_text=f'Sampling hyperparameters sent to Ollama (hardcoded): `{OLLAMA_OPTIONS}`.',
     )
+
+
+# --- Chat configuration -------------------------------------------------------------------
+# config_json is stored and validated as plain JSON (validate_chat_config). The serializers
+# below only describe its shape in the Swagger docs.
+
+BLOCK_ID_SCHEMA = {'oneOf': [{'type': 'integer'}, {'type': 'string'}]}
+
+
+@extend_schema_field(BLOCK_ID_SCHEMA)
+class _BlockIdSchemaField(serializers.JSONField):
+    pass
+
+
+@extend_schema_field({**BLOCK_ID_SCHEMA, 'nullable': True})
+class _NextBlockIdSchemaField(serializers.JSONField):
+    pass
+
+
+class ChatBlockSerializer(serializers.Serializer):
+    id = _BlockIdSchemaField(help_text='Integer or non-blank string (e.g. a UUID), unique in the list.')
+    next_block_id = _NextBlockIdSchemaField(help_text='`id` of the next block, or null for the last one.')
+    block_type = serializers.ChoiceField(
+        choices=BLOCK_TYPES, help_text=f'Exactly one block must be a `{START_BLOCK}`.'
+    )
+    position_x = serializers.FloatField()
+    position_y = serializers.FloatField()
+
+
+@extend_schema_field(ChatBlockSerializer(many=True))
+class ChatConfigJSONField(serializers.JSONField):
+    pass
+
+
+class ChatConfigurationSerializer(serializers.ModelSerializer):
+    config_json = ChatConfigJSONField(
+        validators=[validate_chat_config],
+        help_text='The chat flow: a list of blocks. See the block schema for the rules.',
+    )
+
+    class Meta:
+        model = ChatConfiguration
+        fields = ['id', 'business', 'config_json', 'last_updated']
+        read_only_fields = ['id', 'business', 'last_updated']

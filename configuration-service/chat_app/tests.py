@@ -1,4 +1,5 @@
 import copy
+import json
 import uuid
 
 from django.core.exceptions import ValidationError
@@ -70,7 +71,19 @@ class ValidateChatConfigTests(SimpleTestCase):
         validate_chat_config(config(b0={'position_x': 12.5, 'position_y': -3.25}))
 
     def test_not_a_list(self):
-        self.assertInvalid({'id': 1}, 'must be a list')
+        for bad in ({'id': 1}, None, 'START_BLOCK', 42, True):
+            with self.subTest(value=bad):
+                self.assertInvalid(bad, 'must be a list')
+
+    def test_json_encoded_string_is_not_parsed(self):
+        # The value must already be a list, not a JSON string of one.
+        self.assertInvalid(json.dumps(VALID_CONFIG), 'must be a list')
+
+    def test_nested_list_rejected(self):
+        self.assertInvalid([VALID_CONFIG], 'must be an object')
+
+    def test_block_type_is_case_sensitive(self):
+        self.assertInvalid(config(b1={'block_type': 'product_selection_block'}), 'block_type must be one of')
 
     def test_block_not_an_object(self):
         self.assertInvalid([*VALID_CONFIG, 'oops'], 'must be an object')
