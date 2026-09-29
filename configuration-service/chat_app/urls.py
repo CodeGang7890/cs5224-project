@@ -9,4 +9,5 @@ urlpatterns = [
     path('', views.ChatView.as_view(), name='chat'),
     path('configuration/', views.ChatConfigurationView.as_view(), name='chat-configuration'),
     path('sessions/', views.ChatSessionListView.as_view(), name='chat-session-list'),
+    path('sessions/messages/', views.CustomerMessageView.as_view(), name='customer-message'),
 ]

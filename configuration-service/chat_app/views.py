@@ -1,6 +1,7 @@
+from django.db import transaction
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema
-from rest_framework import status
+from rest_framework import generics, status
 from rest_framework.exceptions import APIException, NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
@@ -10,12 +11,15 @@ from rest_framework.views import APIView
 from auth_app.business_scope import NO_BUSINESS_MESSAGE
 
 from . import llm
-from .models import ChatConfiguration
+from .constants import SENT_BY_BUSINESS_AUTOMATED, SENT_BY_CUSTOMER
+from .models import ChatConfiguration, ChatSession
 from .serializers import (
     ChatConfigurationSerializer,
+    ChatMessageSerializer,
     ChatRequestSerializer,
     ChatResponseSerializer,
     ChatSessionSerializer,
+    CustomerMessageRequestSerializer,
 )
 
 NO_CHAT_CONFIGURATION_MESSAGE = 'Your business has no chat configuration yet. Create one with PUT.'
@@ -23,6 +27,8 @@ SESSION_NEEDS_CONFIGURATION_MESSAGE = (
     'Your business has no chat configuration yet, so a chat session has no Start block to begin at. '
     'Set up the workflow first.'
 )
+
+NO_CHAT_SESSION_MESSAGE = 'No chat session found for this phone number at this business.'
 
 SAMPLE_CONFIG_JSON = [
     {'id': 1, 'next_block_id': 2, 'block_type': 'START_BLOCK', 'position_x': 100, 'position_y': 100},
@@ -159,10 +165,32 @@ class ChatConfigurationView(APIView):
         )
 
 
-class ChatSessionListView(APIView):
-    """Chat sessions of the logged-in user's business."""
+class ChatSessionListView(generics.ListCreateAPIView):
+    """Chat sessions of the logged-in user's business: list them, or start a new one."""
 
+    serializer_class = ChatSessionSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):  # schema generation: no real user
+            return ChatSession.objects.none()
+        business = get_user_business(self.request)
+        return ChatSession.objects.filter(business=business).order_by('-last_chat_time', '-id')
+
+    @extend_schema(
+        tags=['Chat sessions'],
+        summary="List your business's chat sessions",
+        description=(
+            'All chat sessions of your business (paginated), most recent chat first, '
+            'including each conversation (`chat_message_json`).'
+        ),
+        responses={
+            200: ChatSessionSerializer(many=True),
+            403: OpenApiResponse(description='Your account is not linked to a business.'),
+        },
+    )
+    def get(self, request: Request, *args, **kwargs) -> Response:
+        return super().get(request, *args, **kwargs)
 
     @extend_schema(
         tags=['Chat sessions'],
@@ -191,7 +219,7 @@ class ChatSessionListView(APIView):
             ),
         ],
     )
-    def post(self, request: Request) -> Response:
+    def post(self, request: Request, *args, **kwargs) -> Response:
         business = get_user_business(request)
         serializer = ChatSessionSerializer(data=request.data, context={'business': business})
         serializer.is_valid(raise_exception=True)
@@ -207,3 +235,85 @@ class ChatSessionListView(APIView):
             chat_state_id=chat_config.start_block_id,
         )
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+def append_chat_message(session_id: int, message: str, sent_by: str) -> dict:
+    """Appends a message (timestamped now) to a session and updates its last_chat_time.
+
+    Row-locked in its own short transaction, so concurrent messages aren't lost. (The lock
+    isn't held during the LLM call, which can take a while.)
+    """
+    with transaction.atomic():
+        session = ChatSession.objects.select_for_update().get(pk=session_id)
+        now = timezone.now()
+        chat_message = {'message': message, 'sent_by': sent_by, 'message_time': now.isoformat()}
+        session.chat_message_json.append(chat_message)
+        session.last_chat_time = now
+        session.save(update_fields=['chat_message_json', 'last_chat_time'])
+    return chat_message
+
+
+class CustomerMessageView(APIView):
+    """A customer sends a message to a business and gets the assistant's reply.
+
+    Used by the Chat Sandbox for now; it will become the WhatsApp webhook later.
+    """
+
+    # Public, like a webhook: the customer isn't a logged-in user.
+    permission_classes = [AllowAny]
+    authentication_classes: list = []
+
+    @extend_schema(
+        tags=['Chat sessions'],
+        summary='Send a customer message and get the reply',
+        description=(
+            'Finds the chat session for `business_id` + `phone_number`, appends the message '
+            '(`sent_by: customer`), asks the LLM for a reply, appends the reply '
+            '(`sent_by: business-automated`) and returns it. `last_chat_time` is set to the time '
+            'of each appended message. `chat_state_id` is not changed yet. The customer message '
+            'is kept even if the LLM fails.'
+        ),
+        request=CustomerMessageRequestSerializer,
+        responses={
+            200: ChatMessageSerializer,
+            400: OpenApiResponse(description='Invalid business ID, phone number or message.'),
+            404: OpenApiResponse(description='No chat session for this phone number at this business.'),
+            502: OpenApiResponse(description='Ollama returned an error (e.g. the model is not pulled).'),
+            503: OpenApiResponse(description='Ollama is not reachable.'),
+            504: OpenApiResponse(description='Ollama took too long to answer.'),
+        },
+        examples=[
+            OpenApiExample(
+                'Customer message',
+                value={'business_id': 1, 'phone_number': '+6591234567', 'message': 'Hi, are you open today?'},
+                request_only=True,
+            ),
+        ],
+    )
+    def post(self, request: Request) -> Response:
+        serializer = CustomerMessageRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        session = (
+            ChatSession.objects.select_related('business')
+            .filter(business_id=data['business_id'], phone_number=data['phone_number'])
+            .first()
+        )
+        if session is None:
+            raise NotFound(NO_CHAT_SESSION_MESSAGE)
+
+        append_chat_message(session.pk, data['message'], SENT_BY_CUSTOMER)
+
+        # TODO: the core chat logic: use the conversation so far and the business's chat flow
+        # (move chat_state_id between blocks, use each block type's prompt) to decide the reply.
+        try:
+            reply = llm.generate_customer_reply(session.business, data['message'])
+        except llm.LLMUnavailableError as exc:
+            raise LLMUnavailable(str(exc)) from exc
+        except llm.LLMTimeoutError as exc:
+            raise LLMTimeout(str(exc)) from exc
+        except llm.LLMError as exc:
+            raise LLMBadGateway(str(exc)) from exc
+
+        reply_message = append_chat_message(session.pk, reply, SENT_BY_BUSINESS_AUTOMATED)
+        return Response(ChatMessageSerializer(reply_message).data)

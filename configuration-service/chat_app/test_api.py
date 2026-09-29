@@ -1,7 +1,9 @@
+from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -10,7 +12,8 @@ from configuration_app.models import BusinessConfiguration
 
 from . import llm
 from .models import ChatConfiguration, ChatSession
-from .tests import VALID_CONFIG, config
+from .tests import VALID_CONFIG, VALID_MESSAGES, config
+from .validators import validate_chat_messages
 
 
 class ChatViewTests(APITestCase):
@@ -276,6 +279,158 @@ class ChatSessionCreateAPITests(APITestCase):
         self.assertIn('no chat configuration', response.json()['non_field_errors'][0])
         self.assertFalse(ChatSession.objects.exists())
 
-    def test_get_not_allowed(self):
+
+def fake_chat_response(content: str):
+    """Shape of ollama's ChatResponse that the app reads: response.message.content."""
+    return SimpleNamespace(message=SimpleNamespace(content=content))
+
+
+class ChatSessionListAPITests(APITestCase):
+    url = reverse('chat_app:chat-session-list')
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.cafe = BusinessConfiguration.objects.create(business_name='Café', location='Singapore')
+        cls.florist = BusinessConfiguration.objects.create(business_name='Florist', location='Singapore')
+        cls.cafe_user = BusinessUser.objects.create_user(username='cafe', password='123', business=cls.cafe)
+        cls.no_business_user = BusinessUser.objects.create_user(username='nobiz', password='123')
+        now = timezone.now()
+        cls.older = ChatSession.objects.create(
+            business=cls.cafe, phone_number='+6591111111', last_chat_time=now - timedelta(hours=2)
+        )
+        cls.newer = ChatSession.objects.create(
+            business=cls.cafe, phone_number='+6592222222', display_name='Alice',
+            last_chat_time=now, chat_message_json=VALID_MESSAGES,
+        )
+        cls.florist_session = ChatSession.objects.create(business=cls.florist, phone_number='+6591111111')
+
+    def test_requires_authentication(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_user_without_business_gets_403(self):
+        self.client.force_authenticate(self.no_business_user)
+        self.assertEqual(self.client.get(self.url).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_lists_own_business_sessions_most_recent_first(self):
         self.client.force_authenticate(self.cafe_user)
-        self.assertEqual(self.client.get(self.url).status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        body = response.json()
+        self.assertEqual(body['count'], 2)
+        self.assertEqual([s['id'] for s in body['results']], [self.newer.pk, self.older.pk])
+        self.assertTrue(all(s['business'] == self.cafe.pk for s in body['results']))
+        self.assertEqual(body['results'][0]['chat_message_json'], VALID_MESSAGES)
+        self.assertEqual(body['results'][0]['display_name'], 'Alice')
+
+    def test_empty_list(self):
+        empty = BusinessConfiguration.objects.create(business_name='Empty', location='Singapore')
+        user = BusinessUser.objects.create_user(username='empty', password='123', business=empty)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json(), {'count': 0, 'next': None, 'previous': None, 'results': []})
+
+
+class CustomerMessageAPITests(APITestCase):
+    url = reverse('chat_app:customer-message')
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.cafe = BusinessConfiguration.objects.create(
+            business_name='Kopi Café', description='Local kopi and toast.', location='Tiong Bahru'
+        )
+        cls.florist = BusinessConfiguration.objects.create(business_name='Florist', location='Singapore')
+        ChatConfiguration.objects.create(business=cls.cafe, config_json=VALID_CONFIG)
+
+    def setUp(self):
+        self.created = timezone.now() - timedelta(days=1)
+        self.session = ChatSession.objects.create(
+            business=self.cafe,
+            phone_number='+6591234567',
+            created_time=self.created,
+            last_chat_time=self.created,
+            chat_message_json=list(VALID_MESSAGES),
+            chat_state_id=2,
+        )
+        # Replace the Ollama client so tests never need a running model.
+        self.ollama = MagicMock()
+        self.ollama.chat.return_value = fake_chat_response('Yes, we are open until 6pm!')
+        patcher = patch('chat_app.llm.get_client', return_value=self.ollama)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def send(self, **overrides):
+        body = {'business_id': self.cafe.pk, 'phone_number': '+6591234567', 'message': 'Are you open today?'}
+        return self.client.post(self.url, {**body, **overrides}, format='json')
+
+    def test_appends_both_messages_and_returns_reply(self):
+        response = self.send()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        reply = response.json()
+        self.assertEqual(set(reply), {'message', 'sent_by', 'message_time'})
+        self.assertEqual(reply['message'], 'Yes, we are open until 6pm!')
+        self.assertEqual(reply['sent_by'], 'business-automated')
+
+        self.session.refresh_from_db()
+        messages = self.session.chat_message_json
+        self.assertEqual(messages[:len(VALID_MESSAGES)], VALID_MESSAGES)  # history kept
+        customer, bot = messages[len(VALID_MESSAGES):]
+        self.assertEqual((customer['message'], customer['sent_by']), ('Are you open today?', 'customer'))
+        self.assertEqual(bot, reply)
+        validate_chat_messages(messages)  # stored in the agreed format, in time order
+
+        self.assertGreater(self.session.last_chat_time, self.created)
+        self.assertEqual(self.session.last_chat_time.isoformat(), bot['message_time'])
+        self.assertEqual(self.session.created_time, self.created)
+        self.assertEqual(self.session.chat_state_id, 2)  # not changed yet
+
+    def test_llm_gets_business_system_prompt_and_message(self):
+        self.send(message='  Do you have kaya toast?  ')
+        messages = self.ollama.chat.call_args.kwargs['messages']
+        self.assertEqual(messages[0]['role'], 'system')
+        for part in ('Kopi Café', 'Local kopi and toast.', 'Tiong Bahru'):
+            self.assertIn(part, messages[0]['content'])
+        self.assertEqual(messages[1], {'role': 'user', 'content': 'Do you have kaya toast?'})
+        self.assertEqual(self.ollama.chat.call_args.kwargs['options'], llm.OLLAMA_OPTIONS)
+
+    def test_no_login_needed(self):
+        # The customer isn't a logged-in user (it will be a webhook).
+        self.assertEqual(self.send().status_code, status.HTTP_200_OK)
+
+    def test_unknown_session_returns_404(self):
+        cases = {
+            'unknown phone number': {'phone_number': '+6599999999'},
+            'another business': {'business_id': self.florist.pk},
+            'unknown business': {'business_id': 99999},
+        }
+        for label, overrides in cases.items():
+            with self.subTest(label):
+                self.assertEqual(self.send(**overrides).status_code, status.HTTP_404_NOT_FOUND)
+        self.ollama.chat.assert_not_called()
+
+    def test_invalid_input_returns_400(self):
+        cases = {
+            'missing business_id': ({'business_id': None}, 'business_id'),
+            'business_id not a number': ({'business_id': 'abc'}, 'business_id'),
+            'invalid phone number': ({'phone_number': '91234567'}, 'phone_number'),
+            'blank message': ({'message': '   '}, 'message'),
+            'message too long': ({'message': 'x' * 4097}, 'message'),
+        }
+        for label, (overrides, field) in cases.items():
+            with self.subTest(label):
+                response = self.send(**overrides)
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn(field, response.json())
+        self.ollama.chat.assert_not_called()
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.chat_message_json, VALID_MESSAGES)
+
+    def test_llm_failure_keeps_customer_message(self):
+        self.ollama.chat.side_effect = ConnectionError('Failed to connect to Ollama.')
+        response = self.send()
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.session.refresh_from_db()
+        self.assertEqual(len(self.session.chat_message_json), len(VALID_MESSAGES) + 1)
+        self.assertEqual(self.session.chat_message_json[-1]['sent_by'], 'customer')
+        self.assertGreater(self.session.last_chat_time, self.created)

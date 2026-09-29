@@ -3,8 +3,8 @@ from rest_framework import serializers
 
 from .constants import BLOCK_TYPES, MESSAGE_SENDERS, START_BLOCK
 from .llm import CHAT_PROMPT_MAX_LENGTH, OLLAMA_MODEL, OLLAMA_OPTIONS
-from .models import ChatConfiguration, ChatSession
-from .validators import validate_chat_config
+from .models import PHONE_NUMBER_MAX_LENGTH, ChatConfiguration, ChatSession, phone_number_validator
+from .validators import CHAT_MESSAGE_MAX_LENGTH, validate_chat_config
 
 
 class ChatRequestSerializer(serializers.Serializer):
@@ -70,7 +70,7 @@ class ChatConfigurationSerializer(serializers.ModelSerializer):
 # --- Chat sessions ------------------------------------------------------------------------
 
 class ChatMessageSerializer(serializers.Serializer):
-    """Swagger docs only: one item of ChatSession.chat_message_json (see validate_chat_messages)."""
+    """One item of ChatSession.chat_message_json (see validate_chat_messages)."""
 
     message = serializers.CharField()
     sent_by = serializers.ChoiceField(choices=MESSAGE_SENDERS)
@@ -114,3 +114,17 @@ class ChatSessionSerializer(serializers.ModelSerializer):
         if sessions.exists():
             raise serializers.ValidationError('Your business already has a chat session with this phone number.')
         return value
+
+
+class CustomerMessageRequestSerializer(serializers.Serializer):
+    business_id = serializers.IntegerField(min_value=1, help_text='ID of the business the customer is messaging.')
+    phone_number = serializers.CharField(
+        max_length=PHONE_NUMBER_MAX_LENGTH,
+        validators=[phone_number_validator],
+        help_text="The customer's phone number, in international format (e.g. +6591234567).",
+    )
+    # trim_whitespace + allow_blank=False rejects empty and whitespace-only messages.
+    message = serializers.CharField(
+        max_length=CHAT_MESSAGE_MAX_LENGTH,
+        help_text=f"The customer's message (max {CHAT_MESSAGE_MAX_LENGTH} characters).",
+    )

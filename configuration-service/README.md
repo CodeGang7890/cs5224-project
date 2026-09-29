@@ -163,6 +163,8 @@ All of these require you to be logged in.
 | `GET` | `/api/configuration/random-number/` | Sample endpoint (public, no login needed) |
 | `POST` | `/api/chat/` | `{prompt}` → `{reply, model, options}`: one-off chat with the local LLM (public, no login needed) |
 | `GET` | `/api/chat/configuration/` | Your business's chat configuration `{id, business, config_json, last_updated}`. 404 if it has none yet |
+| `GET` | `/api/chat/sessions/` | Your business's chat sessions (paginated, most recent chat first) |
+| `POST` | `/api/chat/sessions/messages/` | `{business_id, phone_number, message}` → the assistant's reply. Public (no login), for the Chat Sandbox / future webhook. See [Chat sessions](#chat-sessions) |
 | `POST` | `/api/chat/sessions/` | `{phone_number, display_name}` → the new chat session (201). See [Chat sessions](#chat-sessions) |
 | `PUT` | `/api/chat/configuration/` | `{config_json}`: replace your business's chat flow (validated). Creates it (201) if missing, otherwise 200 |
 
@@ -189,6 +191,17 @@ Each business has at most one chat configuration. Both endpoints need a login an
 - `chat_state_id`: the `id` of the Start block in your business's chat configuration.
 
 Errors: 400 for an invalid phone number, a phone number that already has a session with your business, or a business with no chat configuration yet (set up the workflow first). 403 if your account isn't linked to a business.
+
+`GET /api/chat/sessions/` (login required) lists your business's sessions, 20 per page, most recent chat first, including each conversation.
+
+`POST /api/chat/sessions/messages/` is how a **customer** sends a message. It needs no login: for now the Chat Sandbox uses it, and it will become the WhatsApp webhook later. Send `{business_id, phone_number, message}`. It:
+
+1. Finds that business's session for that phone number (404 if there isn't one; create it first with `POST /api/chat/sessions/`).
+2. Appends the message as `{message, sent_by: "customer", message_time: now}` and sets `last_chat_time` to now.
+3. Asks the LLM (Ollama, see [Chat (temporary)](#chat-temporary)) for a reply, using a system prompt built from the business's name, description and location (`CUSTOMER_SYSTEM_PROMPT_TEMPLATE` in `chat_app/llm.py`). Only the new message is sent for now: no history, and `chat_state_id` isn't used or changed yet.
+4. Appends the reply as `{message, sent_by: "business-automated", message_time: now}`, sets `last_chat_time` again, and returns that reply object.
+
+If Ollama fails (502/503/504), the customer's message is still saved, but there's no reply.
 
 ### Access rules
 
@@ -280,7 +293,7 @@ Tests use a temporary database, so your `db.sqlite3` isn't touched.
 | `auth_app/tests.py` | `BusinessUser` model, Django Admin pages load |
 | `configuration_app/tests.py` | `BusinessConfiguration` model, random-number endpoint, CORS |
 | `chat_app/tests.py` | `validate_chat_config` and `validate_chat_messages` rules; `ChatConfiguration` and `ChatSession` models (validation, uniqueness, `chat_state_id` must match a block); sample fixtures are valid |
-| `chat_app/test_api.py` | Chat endpoint returns the reply, with the LLM mocked (no Ollama needed); chat configuration GET/PUT (401/403/404, create vs update, read-only fields, invalid `config_json` → 400) |
+| `chat_app/test_api.py` | Chat endpoint returns the reply, with the LLM mocked (no Ollama needed); chat configuration GET/PUT (401/403/404, create vs update, read-only fields, invalid `config_json` → 400); chat sessions create/list and customer messages (LLM mocked) |
 
 ### Resetting the local database
 
