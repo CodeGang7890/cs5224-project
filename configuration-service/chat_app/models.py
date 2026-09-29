@@ -4,6 +4,7 @@ from django.db import models
 from django.db.models import Q
 from django.utils import timezone
 
+from .constants import START_BLOCK
 from .validators import is_valid_block_id, validate_chat_config, validate_chat_messages
 
 PHONE_NUMBER_MAX_LENGTH = 16  # E.164: "+" and up to 15 digits
@@ -33,6 +34,11 @@ class ChatConfiguration(models.Model):
     def __str__(self) -> str:
         return f'Chat configuration for {self.business}'
 
+    @property
+    def start_block_id(self):
+        """`id` of the START_BLOCK (a valid config_json has exactly one)."""
+        return next(block['id'] for block in self.config_json if block['block_type'] == START_BLOCK)
+
 
 class ChatSession(models.Model):
     """A conversation between a business and one customer (identified by phone number)."""
@@ -52,7 +58,9 @@ class ChatSession(models.Model):
         blank=True,
         help_text="The customer's name, if known.",
     )
-    created_time = models.DateTimeField(auto_now_add=True)
+    # Not auto_now_add, which always overwrites the value: creating a session sets created_time
+    # and last_chat_time to the same instant.
+    created_time = models.DateTimeField(default=timezone.now, editable=False)
     last_chat_time = models.DateTimeField(default=timezone.now)
     chat_message_json = models.JSONField(default=list, blank=True, validators=[validate_chat_messages])
     # A block `id` from the business's ChatConfiguration.config_json (int or string, like the

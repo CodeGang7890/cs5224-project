@@ -313,3 +313,16 @@ chat_state_id should be one of the block_type_id in the corresponding BusinessCo
 Each ChatSession instances should have unique combination of (business_configuration_id which is the foreign key, and the phone_number which is the customers’ phone number that message the business).
 Please also add fixtures (sample data) and update the README of the new fixture in the command too.
 Refer to the existing fixtures and make sure you get the foreign key ID right and work with the sample data.
+
+Date & Time (GMT+8): 2026-09-29 17:48:02
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+I want to work with chat-app inside configuration-service.
+I want to make APIs for the ChatSession above.
+First, an API to create ChatSession given a phone_number and display_name.
+- config_json will be taken from the corresponding BusinessConfiguration.ChatConfiguration.config_json
+- created_time should be filled automatically from the backend
+- last_chat_time will be the same as created_time when instance is first created
+- message_json just initialised as empty list [] initially
+- chat_state_id should be the object id in config_json with “START_BLOCK” type

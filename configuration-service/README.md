@@ -102,7 +102,7 @@ Notes:
 | `auth_app` | `BusinessUser` | Every field of Django's built-in user (username, password, email, first/last name, `is_staff`, `is_superuser`, `is_active`, groups, permissions, `last_login`, `date_joined`), plus `business` → `BusinessConfiguration` (optional) |
 | `product_app` | `Product` | `id`, `business` → `BusinessConfiguration`, `name` (≤150 chars), `description` (≤5,000 chars, optional), `price` (≥0, 2 decimal places, up to 99,999,999.99), `quantity_available` / `quantity_on_hold` / `quantity_sold` (whole numbers ≥0, default 0), `is_active` (default true) |
 | `product_app` | `FAQ` | `id`, `business` → `BusinessConfiguration`, `question` (≤300 chars), `answer` (≤10,000 chars) |
-| `chat_app` | `ChatSession` | `id`, `business` → `BusinessConfiguration`, `phone_number` (the customer's, international format e.g. `+6591234567`), `display_name` (≤150 chars, optional), `created_time` (set automatically), `last_chat_time`, `chat_message_json` (the conversation, see below), `chat_state_id` (the flow block the customer is at, or empty) |
+| `chat_app` | `ChatSession` | `id`, `business` → `BusinessConfiguration`, `phone_number` (the customer's, international format e.g. `+6591234567`), `display_name` (≤150 chars, optional), `created_time` (defaults to now), `last_chat_time`, `chat_message_json` (the conversation, see below), `chat_state_id` (the flow block the customer is at, or empty) |
 | `chat_app` | `ChatConfiguration` | `id`, `business` → `BusinessConfiguration` (one per business), `config_json` (the chat flow, see below), `last_updated` (set automatically on every save) |
 
 Rules enforced by Django validation (e.g. in Django Admin) **and** by the database:
@@ -163,6 +163,7 @@ All of these require you to be logged in.
 | `GET` | `/api/configuration/random-number/` | Sample endpoint (public, no login needed) |
 | `POST` | `/api/chat/` | `{prompt}` → `{reply, model, options}`: one-off chat with the local LLM (public, no login needed) |
 | `GET` | `/api/chat/configuration/` | Your business's chat configuration `{id, business, config_json, last_updated}`. 404 if it has none yet |
+| `POST` | `/api/chat/sessions/` | `{phone_number, display_name}` → the new chat session (201). See [Chat sessions](#chat-sessions) |
 | `PUT` | `/api/chat/configuration/` | `{config_json}`: replace your business's chat flow (validated). Creates it (201) if missing, otherwise 200 |
 
 ### Chat (temporary)
@@ -177,6 +178,17 @@ All of these require you to be logged in.
 ### Chat configuration
 
 Each business has at most one chat configuration. Both endpoints need a login and work on **your own** business, so there's no ID in the URL. Users without a business (e.g. `superuser`) get 403. `PUT` only changes `config_json`; `id`, `business` and `last_updated` are read-only. An invalid `config_json` returns 400 with every problem listed under `config_json` (see the rules under [Data model](#data-model)). The sample data gives `kopi_owner`'s business a configuration; the other businesses start with none.
+
+### Chat sessions
+
+`POST /api/chat/sessions/` (login required) starts a chat session between **your** business and a customer. Send `phone_number` (international format, e.g. `+6591234567`) and optionally `display_name`. The backend fills in the rest:
+
+- `business`: your business.
+- `created_time` and `last_chat_time`: now (the same instant).
+- `chat_message_json`: `[]`.
+- `chat_state_id`: the `id` of the Start block in your business's chat configuration.
+
+Errors: 400 for an invalid phone number, a phone number that already has a session with your business, or a business with no chat configuration yet (set up the workflow first). 403 if your account isn't linked to a business.
 
 ### Access rules
 

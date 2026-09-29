@@ -8,4 +8,5 @@ app_name = 'chat_app'
 urlpatterns = [
     path('', views.ChatView.as_view(), name='chat'),
     path('configuration/', views.ChatConfigurationView.as_view(), name='chat-configuration'),
+    path('sessions/', views.ChatSessionListView.as_view(), name='chat-session-list'),
 ]

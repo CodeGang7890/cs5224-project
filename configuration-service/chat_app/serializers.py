@@ -1,9 +1,9 @@
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from .constants import BLOCK_TYPES, START_BLOCK
+from .constants import BLOCK_TYPES, MESSAGE_SENDERS, START_BLOCK
 from .llm import CHAT_PROMPT_MAX_LENGTH, OLLAMA_MODEL, OLLAMA_OPTIONS
-from .models import ChatConfiguration
+from .models import ChatConfiguration, ChatSession
 from .validators import validate_chat_config
 
 
@@ -65,3 +65,52 @@ class ChatConfigurationSerializer(serializers.ModelSerializer):
         model = ChatConfiguration
         fields = ['id', 'business', 'config_json', 'last_updated']
         read_only_fields = ['id', 'business', 'last_updated']
+
+
+# --- Chat sessions ------------------------------------------------------------------------
+
+class ChatMessageSerializer(serializers.Serializer):
+    """Swagger docs only: one item of ChatSession.chat_message_json (see validate_chat_messages)."""
+
+    message = serializers.CharField()
+    sent_by = serializers.ChoiceField(choices=MESSAGE_SENDERS)
+    message_time = serializers.DateTimeField(help_text='ISO 8601 with a timezone. Oldest message first.')
+
+
+@extend_schema_field(ChatMessageSerializer(many=True))
+class ChatMessagesJSONField(serializers.JSONField):
+    pass
+
+
+class ChatSessionSerializer(serializers.ModelSerializer):
+    """Create: only `phone_number` and `display_name` are writable; the rest is set by the backend."""
+
+    chat_message_json = ChatMessagesJSONField(read_only=True)
+    chat_state_id = _NextBlockIdSchemaField(
+        read_only=True, help_text='`id` of the chat flow block the customer is at.'
+    )
+
+    class Meta:
+        model = ChatSession
+        fields = [
+            'id',
+            'business',
+            'phone_number',
+            'display_name',
+            'created_time',
+            'last_chat_time',
+            'chat_message_json',
+            'chat_state_id',
+        ]
+        read_only_fields = ['id', 'business', 'created_time', 'last_chat_time']
+
+    def validate_phone_number(self, value: str) -> str:
+        # `business` isn't a writable field, so DRF can't build the (business, phone_number)
+        # unique validator itself; the view passes the business in the context.
+        business = self.context['business']
+        sessions = ChatSession.objects.filter(business=business, phone_number=value)
+        if self.instance is not None:
+            sessions = sessions.exclude(pk=self.instance.pk)
+        if sessions.exists():
+            raise serializers.ValidationError('Your business already has a chat session with this phone number.')
+        return value
