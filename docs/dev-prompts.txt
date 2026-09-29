@@ -189,3 +189,16 @@ Please make the default port to be 8001 as the 8000 port is already taken by the
 Simply has the root url “/“ return hello world in JSON.
 Add CLAUDE.md there too like the other folder.
 Add README.md too to run the server.
+
+Date & Time (GMT+8): 2026-09-28 23:17:55
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Now work with messaging-service.
+I want to have another API “/chat”, currently make it just a one off chat.
+Single prompt in, and it gets a message out.
+I already have Ollama running in port 11434.
+Please install the Ollama library for this, add in requirements.txt.
+The model used is qwen2.5:7b-instruct-q4_K_M.
+Please use some constant variable (all caps) where we can set the port and system prompt and model.
+Also please use the flask-smorest library, the goal is to have the Swagger UI where I can try the API from that page.

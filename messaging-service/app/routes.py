@@ -1,8 +1,12 @@
-from flask import Blueprint, jsonify
+from flask_smorest import Blueprint
 
-bp = Blueprint('main', __name__)
+from .schemas import MessageSchema
+
+bp = Blueprint('main', __name__, description='Service health / hello world')
 
 
 @bp.get('/')
+@bp.response(200, MessageSchema)
 def index():
-    return jsonify(message='Hello, World!')
+    """Hello world"""
+    return {'message': 'Hello, World!'}
