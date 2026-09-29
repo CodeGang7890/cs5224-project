@@ -1,0 +1,138 @@
+// Object diagram of the models defined in configuration-service's models.py files.
+// Render with: dot -Tpng object-diagram.dot -o object-diagram.png
+digraph ObjectDiagram {
+  graph [rankdir=LR, fontname="Helvetica", fontsize=12, pad=0.4, nodesep=0.45, ranksep=1.3,
+         label=<<b>Ansera Business Admin: object diagram</b> (configuration-service models)<br/><font point-size="10">PK = primary key, FK = foreign key. Multiplicities: 1 = exactly one, 0..1 = at most one, 0..* = any number.</font>>,
+         labelloc=t, fontsize=16];
+  node  [shape=plain, fontname="Helvetica", fontsize=11];
+  edge  [fontname="Helvetica", fontsize=10, color="#555555", arrowhead=none];
+
+  BusinessConfiguration [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="5" color="#2E7D32">
+      <tr><td bgcolor="#2E7D32" align="center"><font color="white"><b>BusinessConfiguration</b></font><br/><font color="white" point-size="9">configuration_app</font></td></tr>
+      <tr><td align="left" balign="left">
+        <u>id</u>: BigAutoField (PK)<br/>
+        business_name: CharField(150)<br/>
+        description: TextField(2000), optional<br/>
+        location: CharField(255)
+      </td></tr>
+    </table>>];
+
+  BusinessUser [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="5" color="#1565C0">
+      <tr><td bgcolor="#1565C0" align="center"><font color="white"><b>BusinessUser</b></font><br/><font color="white" point-size="9">auth_app · extends Django AbstractUser</font></td></tr>
+      <tr><td align="left" balign="left">
+        <u>id</u>: BigAutoField (PK)<br/>
+        username: CharField(150), unique<br/>
+        password: CharField(128), hashed<br/>
+        email, first_name, last_name<br/>
+        is_active, is_staff, is_superuser<br/>
+        last_login, date_joined<br/>
+        <b>business</b>: FK → BusinessConfiguration, nullable
+      </td></tr>
+    </table>>];
+
+  Product [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="5" color="#EF6C00">
+      <tr><td bgcolor="#EF6C00" align="center"><font color="white"><b>Product</b></font><br/><font color="white" point-size="9">product_app</font></td></tr>
+      <tr><td align="left" balign="left">
+        <u>id</u>: BigAutoField (PK)<br/>
+        <b>business</b>: FK → BusinessConfiguration<br/>
+        name: CharField(150), unique per business<br/>
+        description: TextField(5000), optional<br/>
+        price: Decimal(10, 2), ≥ 0<br/>
+        quantity_available: PositiveInteger<br/>
+        quantity_on_hold: PositiveInteger<br/>
+        quantity_sold: PositiveInteger<br/>
+        is_active: Boolean
+      </td></tr>
+    </table>>];
+
+  FAQ [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="5" color="#EF6C00">
+      <tr><td bgcolor="#EF6C00" align="center"><font color="white"><b>FAQ</b></font><br/><font color="white" point-size="9">product_app</font></td></tr>
+      <tr><td align="left" balign="left">
+        <u>id</u>: BigAutoField (PK)<br/>
+        <b>business</b>: FK → BusinessConfiguration<br/>
+        question: CharField(300), unique per business<br/>
+        answer: TextField(10000)
+      </td></tr>
+    </table>>];
+
+  ChatConfiguration [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="5" color="#6A1B9A">
+      <tr><td bgcolor="#6A1B9A" align="center"><font color="white"><b>ChatConfiguration</b></font><br/><font color="white" point-size="9">chat_app</font></td></tr>
+      <tr><td align="left" balign="left">
+        <u>id</u>: BigAutoField (PK)<br/>
+        <b>business</b>: OneToOne → BusinessConfiguration<br/>
+        config_json: JSON (list of blocks)<br/>
+        last_updated: DateTime (auto on save)
+      </td></tr>
+    </table>>];
+
+  ChatSession [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="5" color="#6A1B9A">
+      <tr><td bgcolor="#6A1B9A" align="center"><font color="white"><b>ChatSession</b></font><br/><font color="white" point-size="9">chat_app</font></td></tr>
+      <tr><td align="left" balign="left">
+        <u>id</u>: BigAutoField (PK)<br/>
+        <b>business</b>: FK → BusinessConfiguration<br/>
+        phone_number: CharField(16), E.164, unique per business<br/>
+        display_name: CharField(150), optional<br/>
+        created_time: DateTime<br/>
+        last_chat_time: DateTime<br/>
+        chat_message_json: JSON (list of messages)<br/>
+        chat_state_id: JSON (int | string), nullable
+      </td></tr>
+    </table>>];
+
+  // JSON structures stored inside the models (not separate tables).
+  ChatBlock [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="5" color="#9E9E9E" style="dashed">
+      <tr><td bgcolor="#F3E5F5" align="center"><b>block</b> <font point-size="9">(item of config_json, not a table)</font></td></tr>
+      <tr><td align="left" balign="left">
+        id: int | string, unique<br/>
+        next_block_id: id of another block | null<br/>
+        block_type: START_BLOCK (exactly one) |<br/>
+        PRODUCT_SELECTION_BLOCK |<br/>
+        DETAILS_COLLECTION_BLOCK |<br/>
+        CONFIRMATION_BLOCK<br/>
+        position_x, position_y: number
+      </td></tr>
+    </table>>];
+
+  ChatMessage [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="5" color="#9E9E9E" style="dashed">
+      <tr><td bgcolor="#F3E5F5" align="center"><b>message</b> <font point-size="9">(item of chat_message_json, not a table)</font></td></tr>
+      <tr><td align="left" balign="left">
+        message: string (≤ 4096)<br/>
+        sent_by: customer | business-manual |<br/>
+        business-automated<br/>
+        message_time: ISO 8601 date-time
+      </td></tr>
+    </table>>];
+
+  // --- Relations (database) -------------------------------------------------------------
+  BusinessConfiguration -> BusinessUser      [taillabel="0..1", headlabel="0..*", label="  1-to-many\n  business.users  ", labeldistance=2];
+  BusinessConfiguration -> Product           [taillabel="1", headlabel="0..*", label="  1-to-many\n  business.products  ", labeldistance=2];
+  BusinessConfiguration -> FAQ               [taillabel="1", headlabel="0..*", label="  1-to-many\n  business.faqs  ", labeldistance=2];
+  BusinessConfiguration -> ChatConfiguration [taillabel="1", headlabel="0..1", label="  1-to-1\n  business.chat_configuration  ", labeldistance=2, color="#6A1B9A", penwidth=1.5];
+  BusinessConfiguration -> ChatSession       [taillabel="1", headlabel="0..*", label="  1-to-many\n  business.chat_sessions  ", labeldistance=2, color="#6A1B9A", penwidth=1.5];
+
+  // --- Inside JSON fields / logical references (not database foreign keys) ---------------
+  ChatConfiguration -> ChatBlock   [taillabel="1", headlabel="1..*", label="  contains (JSON)  ", arrowtail=diamond, dir=back, style=dashed, labeldistance=2];
+  ChatSession -> ChatMessage       [taillabel="1", headlabel="0..*", label="  contains (JSON)  ", arrowtail=diamond, dir=back, style=dashed, labeldistance=2];
+  ChatBlock -> ChatBlock           [label="  next_block_id  ", style=dashed, arrowhead=vee, headlabel="0..1"];
+  ChatSession -> ChatBlock         [label="  chat_state_id = a block id\n  of the same business's\n  config_json (validated in clean())  ", style=dashed, arrowhead=vee, color="#AD1457", fontcolor="#AD1457", constraint=false];
+
+  // --- Legend -----------------------------------------------------------------------------
+  Legend [label=<
+    <table border="0" cellborder="0" cellspacing="2" cellpadding="3">
+      <tr><td align="left" colspan="2"><b>Legend</b></td></tr>
+      <tr><td align="left">──────</td><td align="left" balign="left">database relation (ForeignKey / OneToOneField). Deleting a business<br/>deletes its rows, except BusinessUser.business, which is set to null</td></tr>
+      <tr><td align="left">- - - - ◇</td><td align="left">structure stored inside a JSON field (validated in chat_app/validators.py)</td></tr>
+      <tr><td align="left"><font color="#AD1457">- - - - &gt;</font></td><td align="left">logical reference by id (no database constraint)</td></tr>
+      <tr><td align="left" colspan="2">No many-to-many relations between these models.</td></tr>
+    </table>>];
+  { rank=same; BusinessConfiguration; Legend; }
+  BusinessConfiguration -> Legend [style=invis];
+}
