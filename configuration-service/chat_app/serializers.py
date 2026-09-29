@@ -83,8 +83,15 @@ class ChatMessagesJSONField(serializers.JSONField):
 
 
 class ChatSessionSerializer(serializers.ModelSerializer):
-    """Create: only `phone_number` and `display_name` are writable; the rest is set by the backend."""
+    """A real customer's session. Create: only `phone_number` and `display_name` are writable;
+    the rest is set by the backend."""
 
+    # Required here, although the model allows it to be blank (for sandbox sessions only).
+    phone_number = serializers.CharField(
+        max_length=PHONE_NUMBER_MAX_LENGTH,
+        validators=[phone_number_validator],
+        help_text="The customer's phone number, in international format (e.g. +6591234567).",
+    )
     chat_message_json = ChatMessagesJSONField(read_only=True)
     chat_state_id = _NextBlockIdSchemaField(
         read_only=True, help_text='`id` of the chat flow block the customer is at.'
@@ -101,19 +108,35 @@ class ChatSessionSerializer(serializers.ModelSerializer):
             'last_chat_time',
             'chat_message_json',
             'chat_state_id',
+            'is_sandbox',
         ]
-        read_only_fields = ['id', 'business', 'created_time', 'last_chat_time']
+        read_only_fields = ['id', 'business', 'created_time', 'last_chat_time', 'is_sandbox']
 
     def validate_phone_number(self, value: str) -> str:
         # `business` isn't a writable field, so DRF can't build the (business, phone_number)
         # unique validator itself; the view passes the business in the context.
         business = self.context['business']
-        sessions = ChatSession.objects.filter(business=business, phone_number=value)
+        sessions = ChatSession.objects.filter(business=business, phone_number=value, is_sandbox=False)
         if self.instance is not None:
             sessions = sessions.exclude(pk=self.instance.pk)
         if sessions.exists():
             raise serializers.ValidationError('Your business already has a chat session with this phone number.')
         return value
+
+
+class SandboxChatSessionSerializer(ChatSessionSerializer):
+    """A sandbox (test) session. Both writable fields are optional, and phone numbers needn't be unique."""
+
+    phone_number = serializers.CharField(
+        max_length=PHONE_NUMBER_MAX_LENGTH,
+        required=False,
+        allow_blank=True,
+        validators=[phone_number_validator],
+        help_text='Optional mock phone number, in international format (e.g. +10000000000).',
+    )
+
+    def validate_phone_number(self, value: str) -> str:
+        return value  # sandbox sessions may share a number
 
 
 class CustomerMessageRequestSerializer(serializers.Serializer):

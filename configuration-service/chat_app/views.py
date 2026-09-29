@@ -8,7 +8,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from auth_app.business_scope import NO_BUSINESS_MESSAGE
+from auth_app.business_scope import NO_BUSINESS_MESSAGE, OTHER_BUSINESS_MESSAGE
 
 from . import llm
 from .constants import SENT_BY_BUSINESS_AUTOMATED, SENT_BY_CUSTOMER
@@ -20,6 +20,7 @@ from .serializers import (
     ChatResponseSerializer,
     ChatSessionSerializer,
     CustomerMessageRequestSerializer,
+    SandboxChatSessionSerializer,
 )
 
 NO_CHAT_CONFIGURATION_MESSAGE = 'Your business has no chat configuration yet. Create one with PUT.'
@@ -29,6 +30,7 @@ SESSION_NEEDS_CONFIGURATION_MESSAGE = (
 )
 
 NO_CHAT_SESSION_MESSAGE = 'No chat session found for this phone number at this business.'
+NOT_SANDBOX_MESSAGE = 'Only sandbox chat sessions can be deleted here.'
 
 SAMPLE_CONFIG_JSON = [
     {'id': 1, 'next_block_id': 2, 'block_type': 'START_BLOCK', 'position_x': 100, 'position_y': 100},
@@ -36,6 +38,12 @@ SAMPLE_CONFIG_JSON = [
     {'id': 3, 'next_block_id': 4, 'block_type': 'DETAILS_COLLECTION_BLOCK', 'position_x': 500, 'position_y': 100},
     {'id': 4, 'next_block_id': None, 'block_type': 'CONFIRMATION_BLOCK', 'position_x': 700, 'position_y': 100},
 ]
+
+
+class NotSandboxSession(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = NOT_SANDBOX_MESSAGE
+    default_code = 'not_sandbox'
 
 
 class LLMBadGateway(APIException):
@@ -165,6 +173,24 @@ class ChatConfigurationView(APIView):
         )
 
 
+def create_chat_session(serializer, business, *, is_sandbox: bool) -> Response:
+    """Validates and saves a new session that starts at the business's START_BLOCK."""
+    serializer.is_valid(raise_exception=True)
+    chat_config = ChatConfiguration.objects.filter(business=business).first()
+    if chat_config is None:
+        raise ValidationError({'non_field_errors': [SESSION_NEEDS_CONFIGURATION_MESSAGE]})
+    now = timezone.now()
+    serializer.save(
+        business=business,
+        created_time=now,
+        last_chat_time=now,
+        chat_message_json=[],
+        chat_state_id=chat_config.start_block_id,
+        is_sandbox=is_sandbox,
+    )
+    return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
 class ChatSessionListView(generics.ListCreateAPIView):
     """Chat sessions of the logged-in user's business: list them, or start a new one."""
 
@@ -175,7 +201,9 @@ class ChatSessionListView(generics.ListCreateAPIView):
         if getattr(self, 'swagger_fake_view', False):  # schema generation: no real user
             return ChatSession.objects.none()
         business = get_user_business(self.request)
-        sessions = ChatSession.objects.filter(business=business).order_by('-last_chat_time', '-id')
+        sessions = ChatSession.objects.filter(business=business, is_sandbox=False).order_by(
+            '-last_chat_time', '-id'
+        )
         phone_number = self.request.query_params.get('phone_number')
         if phone_number:
             sessions = sessions.filter(phone_number=phone_number)
@@ -185,7 +213,7 @@ class ChatSessionListView(generics.ListCreateAPIView):
         tags=['Chat sessions'],
         summary="List your business's chat sessions",
         description=(
-            'All chat sessions of your business (paginated), most recent chat first, '
+            'All real (non-sandbox) chat sessions of your business (paginated), most recent chat first, '
             'including each conversation (`chat_message_json`). Filter by `phone_number` to find '
             "one customer's session (at most one, as numbers are unique per business)."
         ),
@@ -234,19 +262,7 @@ class ChatSessionListView(generics.ListCreateAPIView):
     def post(self, request: Request, *args, **kwargs) -> Response:
         business = get_user_business(request)
         serializer = ChatSessionSerializer(data=request.data, context={'business': business})
-        serializer.is_valid(raise_exception=True)
-        chat_config = ChatConfiguration.objects.filter(business=business).first()
-        if chat_config is None:
-            raise ValidationError({'non_field_errors': [SESSION_NEEDS_CONFIGURATION_MESSAGE]})
-        now = timezone.now()
-        serializer.save(
-            business=business,
-            created_time=now,
-            last_chat_time=now,
-            chat_message_json=[],
-            chat_state_id=chat_config.start_block_id,
-        )
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return create_chat_session(serializer, business, is_sandbox=False)
 
 
 def append_chat_message(session_id: int, message: str, sent_by: str) -> dict:
@@ -308,7 +324,7 @@ class CustomerMessageView(APIView):
         data = serializer.validated_data
         session = (
             ChatSession.objects.select_related('business')
-            .filter(business_id=data['business_id'], phone_number=data['phone_number'])
+            .filter(business_id=data['business_id'], phone_number=data['phone_number'], is_sandbox=False)
             .first()
         )
         if session is None:
@@ -329,3 +345,85 @@ class CustomerMessageView(APIView):
 
         reply_message = append_chat_message(session.pk, reply, SENT_BY_BUSINESS_AUTOMATED)
         return Response(ChatMessageSerializer(reply_message).data)
+
+
+class SandboxChatSessionListView(generics.ListCreateAPIView):
+    """Sandbox (test) chat sessions of the logged-in user's business: list them, or start one."""
+
+    serializer_class = SandboxChatSessionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):  # schema generation: no real user
+            return ChatSession.objects.none()
+        business = get_user_business(self.request)
+        return ChatSession.objects.filter(business=business, is_sandbox=True).order_by('-last_chat_time', '-id')
+
+    @extend_schema(
+        tags=['Sandbox chat sessions'],
+        summary="List your business's sandbox chat sessions",
+        description='All sandbox (test) chat sessions of your business (paginated), most recent chat first.',
+        responses={
+            200: SandboxChatSessionSerializer(many=True),
+            403: OpenApiResponse(description='Your account is not linked to a business.'),
+        },
+    )
+    def get(self, request: Request, *args, **kwargs) -> Response:
+        return super().get(request, *args, **kwargs)
+
+    @extend_schema(
+        tags=['Sandbox chat sessions'],
+        summary='Start a sandbox chat session',
+        description=(
+            'Creates a sandbox (test) chat session for your business. `display_name` and '
+            '`phone_number` are optional, and a business can have any number of sandbox sessions. '
+            'Like real sessions, it starts at the START_BLOCK of your chat configuration, which must '
+            'exist, with no messages.'
+        ),
+        request=SandboxChatSessionSerializer,
+        responses={
+            201: SandboxChatSessionSerializer,
+            400: OpenApiResponse(description='Invalid input, or your business has no chat configuration.'),
+            403: OpenApiResponse(description='Your account is not linked to a business.'),
+        },
+        examples=[
+            OpenApiExample('Sandbox chat', value={'display_name': 'sandbox_user'}, request_only=True),
+        ],
+    )
+    def post(self, request: Request, *args, **kwargs) -> Response:
+        business = get_user_business(request)
+        serializer = SandboxChatSessionSerializer(data=request.data, context={'business': business})
+        return create_chat_session(serializer, business, is_sandbox=True)
+
+
+class SandboxChatSessionDetailView(APIView):
+    """One sandbox chat session of the logged-in user's business."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=['Sandbox chat sessions'],
+        summary='Delete a sandbox chat session',
+        description=(
+            'Deletes one of your business\'s sandbox chat sessions, with its conversation. '
+            'Real customer sessions can\'t be deleted here (400).'
+        ),
+        responses={
+            204: OpenApiResponse(description='Deleted.'),
+            400: OpenApiResponse(description='The session is a real customer session, not a sandbox one.'),
+            403: OpenApiResponse(description="Another business's session, or your account has no business."),
+            404: OpenApiResponse(description='No chat session with this ID.'),
+        },
+    )
+    def delete(self, request: Request, pk: int) -> Response:
+        business = get_user_business(request)
+        session = ChatSession.objects.filter(pk=pk).first()
+        if session is None:
+            raise NotFound('No chat session with this ID.')
+        # Another business's session is 403, not 404, like the rest of the API.
+        if session.business_id != business.pk:
+            raise PermissionDenied(OTHER_BUSINESS_MESSAGE)
+        if not session.is_sandbox:
+            raise NotSandboxSession()
+        session.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

@@ -370,3 +370,17 @@ Create a folder called “diagram” inside “docs” folder.
 Inside, I want you to sketch me the Object diagram (all the models / objects defined in models.py and its relation, whether it’s 1-1 or 1-many or many-many).
 Make the diagram as png file.
 No need to add the tables created by Django underneath the hood (only the ones defined in models.py explicitly that’s relevant with the app flow).
+
+Date & Time (GMT+8): 2026-09-29 19:17:48
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+I want you to work with configuration-service chat_app.
+Modify ChatSession object to have is_sandbox boolean flag, default to False.
+Phone number is not required when is_sandbox is set to True.
+- Create a POST API for business user to create a new ChatSession in the sandbox.
+- Also GET API to get all the sandbox session.
+- And lastly a DELETE API to delete the ChatSession sandbox.
+Also please modify the fixtures, then run flush and execute the load fixture command.
+The fixture should now have sample chats with is_sandbox is True with some mock conversation history.
+Please add appropriate test cases and checks (e.g., can only delete instance when is_sandbox is True, cannot delete ChatSession owned by another BusinessConfiguration user, etc.)

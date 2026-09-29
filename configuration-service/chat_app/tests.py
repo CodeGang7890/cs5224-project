@@ -340,6 +340,31 @@ class ChatSessionModelTests(TestCase):
         other.full_clean()
         other.save()
 
+    def test_sandbox_session_needs_no_phone_number(self):
+        session = self.make_session(phone_number='', is_sandbox=True)
+        session.full_clean()
+        session.save()
+        self.assertIn('Sandbox chat', str(ChatSession(business=self.business, is_sandbox=True)))
+
+    def test_real_session_needs_phone_number(self):
+        self.assertFieldInvalid(self.make_session(phone_number=''), 'phone_number')
+
+    def test_sandbox_phone_number_still_validated(self):
+        self.assertFieldInvalid(self.make_session(phone_number='000', is_sandbox=True), 'phone_number')
+
+    def test_sandbox_sessions_can_share_phone_numbers(self):
+        self.make_session().save()  # real session with +6591234567
+        for _ in range(2):
+            sandbox = self.make_session(is_sandbox=True)
+            sandbox.full_clean()
+            sandbox.save()
+        for _ in range(2):
+            self.make_session(phone_number='', is_sandbox=True).save()
+        self.assertEqual(ChatSession.objects.filter(is_sandbox=True).count(), 4)
+
+    def test_sandbox_session_chat_state_id_still_checked(self):
+        self.assertFieldInvalid(self.make_session(is_sandbox=True, chat_state_id=99), 'chat_state_id')
+
     def test_empty_phone_number_rejected_by_database(self):
         with self.assertRaises(IntegrityError), transaction.atomic():
             self.make_session(phone_number='').save()
@@ -355,7 +380,8 @@ class SampleChatSessionFixtureTests(TestCase):
 
     def test_fixture_is_valid(self):
         sessions = ChatSession.objects.all()
-        self.assertEqual(sessions.count(), 6)
+        self.assertEqual(sessions.count(), 8)
+        self.assertEqual(sessions.filter(is_sandbox=True).count(), 2)
         for session in sessions:
             with self.subTest(session=session.pk):
                 session.full_clean()  # loaddata skips validation, including chat_state_id

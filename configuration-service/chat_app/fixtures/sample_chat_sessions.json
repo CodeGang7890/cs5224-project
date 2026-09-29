@@ -40,7 +40,8 @@
           "message_time": "2026-09-01T09:02:00+08:00"
         }
       ],
-      "chat_state_id": 4
+      "chat_state_id": 4,
+      "is_sandbox": false
     }
   },
   {
@@ -64,7 +65,8 @@
           "message_time": "2026-09-02T11:30:00+08:00"
         }
       ],
-      "chat_state_id": 2
+      "chat_state_id": 2,
+      "is_sandbox": false
     }
   },
   {
@@ -83,7 +85,8 @@
           "message_time": "2026-09-03T08:15:00+08:00"
         }
       ],
-      "chat_state_id": 1
+      "chat_state_id": 1,
+      "is_sandbox": false
     }
   },
   {
@@ -112,7 +115,8 @@
           "message_time": "2026-09-02T14:07:00+08:00"
         }
       ],
-      "chat_state_id": null
+      "chat_state_id": null,
+      "is_sandbox": false
     }
   },
   {
@@ -136,7 +140,8 @@
           "message_time": "2026-09-04T10:45:00+08:00"
         }
       ],
-      "chat_state_id": null
+      "chat_state_id": null,
+      "is_sandbox": false
     }
   },
   {
@@ -160,7 +165,68 @@
           "message_time": "2026-09-03T19:10:00+08:00"
         }
       ],
-      "chat_state_id": null
+      "chat_state_id": null,
+      "is_sandbox": false
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 7,
+    "fields": {
+      "business": 1,
+      "phone_number": "",
+      "display_name": "sandbox_user",
+      "created_time": "2026-09-05T10:00:00+08:00",
+      "last_chat_time": "2026-09-05T10:01:00+08:00",
+      "chat_message_json": [
+        {
+          "message": "Hi! What do you sell?",
+          "sent_by": "customer",
+          "message_time": "2026-09-05T10:00:00+08:00"
+        },
+        {
+          "message": "Hi there! Kopi & Co. Café serves local kopi, toast sets and weekend brunch. What would you like to order?",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-05T10:00:00+08:00"
+        },
+        {
+          "message": "One Seasonal Brunch Plate please",
+          "sent_by": "customer",
+          "message_time": "2026-09-05T10:01:00+08:00"
+        },
+        {
+          "message": "Great choice! 1 × Seasonal Brunch Plate ($16.00). May I have your name and pickup time?",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-05T10:01:00+08:00"
+        }
+      ],
+      "chat_state_id": 3,
+      "is_sandbox": true
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 8,
+    "fields": {
+      "business": 1,
+      "phone_number": "+10000000000",
+      "display_name": "Testing opening hours",
+      "created_time": "2026-09-06T15:30:00+08:00",
+      "last_chat_time": "2026-09-06T15:30:00+08:00",
+      "chat_message_json": [
+        {
+          "message": "Are you open today?",
+          "sent_by": "customer",
+          "message_time": "2026-09-06T15:30:00+08:00"
+        },
+        {
+          "message": "Yes, we are open today! Do drop by 12 Tiong Bahru Road.",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-06T15:30:00+08:00"
+        }
+      ],
+      "chat_state_id": 1,
+      "is_sandbox": true
     }
   }
 ]

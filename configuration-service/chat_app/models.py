@@ -41,7 +41,11 @@ class ChatConfiguration(models.Model):
 
 
 class ChatSession(models.Model):
-    """A conversation between a business and one customer (identified by phone number)."""
+    """A conversation between a business and one customer (identified by phone number).
+
+    Sandbox sessions (`is_sandbox`) are test chats started by the business itself from the Chat
+    Sandbox: they don't need a phone number, and a business can have any number of them.
+    """
 
     business = models.ForeignKey(
         'configuration_app.BusinessConfiguration',
@@ -50,8 +54,9 @@ class ChatSession(models.Model):
     )
     phone_number = models.CharField(
         max_length=PHONE_NUMBER_MAX_LENGTH,
+        blank=True,  # only sandbox sessions may leave it empty (see clean() and the constraints)
         validators=[phone_number_validator],
-        help_text="The customer's phone number, in international format (e.g. +6591234567).",
+        help_text="The customer's phone number, in international format (e.g. +6591234567). Optional for sandbox sessions.",
     )
     display_name = models.CharField(
         max_length=DISPLAY_NAME_MAX_LENGTH,
@@ -70,23 +75,36 @@ class ChatSession(models.Model):
         blank=True,
         help_text="ID of the chat flow block the customer is at, from the business's chat configuration.",
     )
+    is_sandbox = models.BooleanField(
+        default=False,
+        help_text='A test chat from the Chat Sandbox rather than a real customer.',
+    )
 
     class Meta:
         ordering = ['business', '-last_chat_time']
         constraints = [
+            # Sandbox sessions are excluded: they may share a number or have none.
             models.UniqueConstraint(
                 fields=['business', 'phone_number'],
+                condition=Q(is_sandbox=False),
                 name='chat_session_phone_unique_per_business',
                 violation_error_message='This business already has a chat session with this phone number.',
             ),
-            models.CheckConstraint(condition=~Q(phone_number=''), name='chat_session_phone_not_empty'),
+            models.CheckConstraint(
+                condition=Q(is_sandbox=True) | ~Q(phone_number=''),
+                name='chat_session_phone_required_unless_sandbox',
+                violation_error_message='A phone number is required, except for sandbox sessions.',
+            ),
         ]
 
     def __str__(self) -> str:
-        return f'{self.display_name or self.phone_number} ({self.business})'
+        name = self.display_name or self.phone_number or f'Sandbox chat #{self.pk}'
+        return f'{name} ({self.business})'
 
     def clean(self):
         super().clean()
+        if not self.is_sandbox and not self.phone_number:
+            raise ValidationError({'phone_number': 'A phone number is required, except for sandbox sessions.'})
         self._validate_chat_state_id()
 
     def _validate_chat_state_id(self) -> None:

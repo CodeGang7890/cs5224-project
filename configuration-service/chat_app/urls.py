@@ -10,4 +10,6 @@ urlpatterns = [
     path('configuration/', views.ChatConfigurationView.as_view(), name='chat-configuration'),
     path('sessions/', views.ChatSessionListView.as_view(), name='chat-session-list'),
     path('sessions/messages/', views.CustomerMessageView.as_view(), name='customer-message'),
+    path('sandbox-sessions/', views.SandboxChatSessionListView.as_view(), name='sandbox-session-list'),
+    path('sandbox-sessions/<int:pk>/', views.SandboxChatSessionDetailView.as_view(), name='sandbox-session-detail'),
 ]

@@ -201,8 +201,9 @@ class ChatSessionCreateAPITests(APITestCase):
         self.assertEqual(
             set(body),
             {'id', 'business', 'phone_number', 'display_name', 'created_time', 'last_chat_time',
-             'chat_message_json', 'chat_state_id'},
+             'chat_message_json', 'chat_state_id', 'is_sandbox'},
         )
+        self.assertIs(body['is_sandbox'], False)
         self.assertEqual(body['business'], self.cafe.pk)
         self.assertEqual(body['phone_number'], '+6591234567')
         self.assertEqual(body['display_name'], 'Alice Tan')
@@ -303,6 +304,7 @@ class ChatSessionListAPITests(APITestCase):
             last_chat_time=now, chat_message_json=VALID_MESSAGES,
         )
         cls.florist_session = ChatSession.objects.create(business=cls.florist, phone_number='+6591111111')
+        cls.cafe_sandbox = ChatSession.objects.create(business=cls.cafe, is_sandbox=True, last_chat_time=now)
 
     def test_requires_authentication(self):
         response = self.client.get(self.url)
@@ -322,6 +324,11 @@ class ChatSessionListAPITests(APITestCase):
         self.assertTrue(all(s['business'] == self.cafe.pk for s in body['results']))
         self.assertEqual(body['results'][0]['chat_message_json'], VALID_MESSAGES)
         self.assertEqual(body['results'][0]['display_name'], 'Alice')
+
+    def test_sandbox_sessions_not_listed(self):
+        self.client.force_authenticate(self.cafe_user)
+        ids = [s['id'] for s in self.client.get(self.url).json()['results']]
+        self.assertNotIn(self.cafe_sandbox.pk, ids)
 
     def test_filter_by_phone_number(self):
         self.client.force_authenticate(self.cafe_user)
@@ -408,6 +415,7 @@ class CustomerMessageAPITests(APITestCase):
         self.assertEqual(self.send().status_code, status.HTTP_200_OK)
 
     def test_unknown_session_returns_404(self):
+        ChatSession.objects.create(business=self.florist, phone_number='+6591234567', is_sandbox=True)
         cases = {
             'unknown phone number': {'phone_number': '+6599999999'},
             'another business': {'business_id': self.florist.pk},
@@ -443,3 +451,167 @@ class CustomerMessageAPITests(APITestCase):
         self.assertEqual(len(self.session.chat_message_json), len(VALID_MESSAGES) + 1)
         self.assertEqual(self.session.chat_message_json[-1]['sent_by'], 'customer')
         self.assertGreater(self.session.last_chat_time, self.created)
+
+
+class SandboxChatSessionAPITests(APITestCase):
+    list_url = reverse('chat_app:sandbox-session-list')
+
+    @staticmethod
+    def detail_url(session):
+        return reverse('chat_app:sandbox-session-detail', args=[session.pk])
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.cafe = BusinessConfiguration.objects.create(business_name='Café', location='Singapore')
+        cls.florist = BusinessConfiguration.objects.create(business_name='Florist', location='Singapore')
+        cls.cafe_user = BusinessUser.objects.create_user(username='cafe', password='123', business=cls.cafe)
+        cls.florist_user = BusinessUser.objects.create_user(
+            username='florist', password='123', business=cls.florist
+        )
+        cls.no_business_user = BusinessUser.objects.create_user(username='nobiz', password='123')
+        ChatConfiguration.objects.create(business=cls.cafe, config_json=VALID_CONFIG)
+
+    def setUp(self):
+        now = timezone.now()
+        self.cafe_sandbox_old = ChatSession.objects.create(
+            business=self.cafe, is_sandbox=True, display_name='Old test', last_chat_time=now - timedelta(hours=1)
+        )
+        self.cafe_sandbox_new = ChatSession.objects.create(
+            business=self.cafe, is_sandbox=True, chat_message_json=list(VALID_MESSAGES), last_chat_time=now
+        )
+        self.cafe_real = ChatSession.objects.create(business=self.cafe, phone_number='+6591234567')
+        self.florist_sandbox = ChatSession.objects.create(business=self.florist, is_sandbox=True)
+
+    def login(self, user):
+        self.client.force_authenticate(user)
+
+    # --- Authentication / business --------------------------------------------------
+
+    def test_requires_authentication(self):
+        for method, url in [
+            ('get', self.list_url),
+            ('post', self.list_url),
+            ('delete', self.detail_url(self.cafe_sandbox_old)),
+        ]:
+            with self.subTest(method=method):
+                self.assertEqual(getattr(self.client, method)(url).status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(ChatSession.objects.count(), 4)
+
+    def test_user_without_business_gets_403(self):
+        self.login(self.no_business_user)
+        self.assertEqual(self.client.get(self.list_url).status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.client.post(self.list_url, {}, format='json').status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(
+            self.client.delete(self.detail_url(self.cafe_sandbox_old)).status_code, status.HTTP_403_FORBIDDEN
+        )
+        self.assertEqual(ChatSession.objects.count(), 4)
+
+    # --- GET (list) -----------------------------------------------------------------
+
+    def test_lists_only_own_sandbox_sessions(self):
+        self.login(self.cafe_user)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        body = response.json()
+        self.assertEqual(body['count'], 2)  # not the real session, not the florist's sandbox
+        self.assertEqual([s['id'] for s in body['results']], [self.cafe_sandbox_new.pk, self.cafe_sandbox_old.pk])
+        self.assertTrue(all(s['is_sandbox'] for s in body['results']))
+        self.assertEqual(body['results'][0]['chat_message_json'], VALID_MESSAGES)
+
+    # --- POST (create) --------------------------------------------------------------
+
+    def test_creates_sandbox_session(self):
+        self.login(self.cafe_user)
+        response = self.client.post(self.list_url, {'display_name': 'sandbox_user'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        body = response.json()
+        self.assertIs(body['is_sandbox'], True)
+        self.assertEqual(body['business'], self.cafe.pk)
+        self.assertEqual(body['display_name'], 'sandbox_user')
+        self.assertEqual(body['phone_number'], '')
+        self.assertEqual(body['chat_message_json'], [])
+        self.assertEqual(body['chat_state_id'], 1)  # VALID_CONFIG's START_BLOCK
+        self.assertEqual(body['last_chat_time'], body['created_time'])
+        ChatSession.objects.get(pk=body['id']).full_clean()
+
+    def test_create_with_empty_body_and_multiple_sessions(self):
+        self.login(self.cafe_user)
+        for _ in range(2):
+            self.assertEqual(self.client.post(self.list_url, {}, format='json').status_code, status.HTTP_201_CREATED)
+        self.assertEqual(ChatSession.objects.filter(business=self.cafe, is_sandbox=True).count(), 4)
+
+    def test_create_with_phone_number_used_by_real_session(self):
+        self.login(self.cafe_user)
+        response = self.client.post(self.list_url, {'phone_number': '+6591234567'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.json()['phone_number'], '+6591234567')
+
+    def test_create_ignores_backend_fields(self):
+        self.login(self.cafe_user)
+        response = self.client.post(
+            self.list_url,
+            {'is_sandbox': False, 'business': self.florist.pk, 'chat_state_id': 3, 'chat_message_json': VALID_MESSAGES},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        body = response.json()
+        self.assertIs(body['is_sandbox'], True)
+        self.assertEqual(body['business'], self.cafe.pk)
+        self.assertEqual(body['chat_state_id'], 1)
+        self.assertEqual(body['chat_message_json'], [])
+
+    def test_create_invalid_input_returns_400(self):
+        self.login(self.cafe_user)
+        for body, field in [({'phone_number': '000'}, 'phone_number'), ({'display_name': 'x' * 151}, 'display_name')]:
+            with self.subTest(body=body):
+                response = self.client.post(self.list_url, body, format='json')
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn(field, response.json())
+
+    def test_create_without_chat_configuration_returns_400(self):
+        self.login(self.florist_user)
+        response = self.client.post(self.list_url, {}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('non_field_errors', response.json())
+
+    # --- DELETE ---------------------------------------------------------------------
+
+    def test_deletes_own_sandbox_session(self):
+        self.login(self.cafe_user)
+        response = self.client.delete(self.detail_url(self.cafe_sandbox_new))
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(ChatSession.objects.filter(pk=self.cafe_sandbox_new.pk).exists())
+        self.assertEqual(ChatSession.objects.count(), 3)
+
+    def test_cannot_delete_real_session(self):
+        self.login(self.cafe_user)
+        response = self.client.delete(self.detail_url(self.cafe_real))
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.json()['detail'], 'Only sandbox chat sessions can be deleted here.')
+        self.assertTrue(ChatSession.objects.filter(pk=self.cafe_real.pk).exists())
+
+    def test_cannot_delete_other_business_session(self):
+        self.login(self.cafe_user)
+        response = self.client.delete(self.detail_url(self.florist_sandbox))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(ChatSession.objects.filter(pk=self.florist_sandbox.pk).exists())
+
+    def test_other_business_real_session_is_403_not_400(self):
+        florist_real = ChatSession.objects.create(business=self.florist, phone_number='+6598765432')
+        self.login(self.cafe_user)
+        self.assertEqual(self.client.delete(self.detail_url(florist_real)).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_unknown_session_returns_404(self):
+        self.login(self.cafe_user)
+        response = self.client.delete(reverse('chat_app:sandbox-session-detail', args=[99999]))
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_delete_twice_returns_404(self):
+        self.login(self.cafe_user)
+        self.client.delete(self.detail_url(self.cafe_sandbox_old))
+        self.assertEqual(self.client.delete(self.detail_url(self.cafe_sandbox_old)).status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_get_and_put_on_detail_not_allowed(self):
+        self.login(self.cafe_user)
+        self.assertEqual(self.client.get(self.detail_url(self.cafe_sandbox_old)).status_code, 405)
+        self.assertEqual(self.client.put(self.detail_url(self.cafe_sandbox_old), {}).status_code, 405)

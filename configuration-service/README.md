@@ -75,7 +75,7 @@ python manage.py loaddata sample_business_configurations sample_business_users s
 | `sample_products` | `product_app/fixtures/` | 8 products (one of them inactive) |
 | `sample_faqs` | `product_app/fixtures/` | 6 FAQs |
 | `sample_chat_configurations` | `chat_app/fixtures/` | 1 chat flow for Kopi & Co. Café: start → product selection → details collection → confirmation |
-| `sample_chat_sessions` | `chat_app/fixtures/` | 6 customer chats: 3 with Kopi & Co. Café (at different steps of its flow), 2 with Bloom Florist Studio, 1 with FitLab. `+6591234567` chats with both the café and the florist |
+| `sample_chat_sessions` | `chat_app/fixtures/` | 6 customer chats: 3 with Kopi & Co. Café (at different steps of its flow), 2 with Bloom Florist Studio, 1 with FitLab. `+6591234567` chats with both the café and the florist. Plus 2 sandbox (test) chats for Kopi & Co. Café, one without a phone number |
 
 Every sample account uses the password **`123`**, so you can log in as anyone while testing:
 
@@ -102,7 +102,7 @@ Notes:
 | `auth_app` | `BusinessUser` | Every field of Django's built-in user (username, password, email, first/last name, `is_staff`, `is_superuser`, `is_active`, groups, permissions, `last_login`, `date_joined`), plus `business` → `BusinessConfiguration` (optional) |
 | `product_app` | `Product` | `id`, `business` → `BusinessConfiguration`, `name` (≤150 chars), `description` (≤5,000 chars, optional), `price` (≥0, 2 decimal places, up to 99,999,999.99), `quantity_available` / `quantity_on_hold` / `quantity_sold` (whole numbers ≥0, default 0), `is_active` (default true) |
 | `product_app` | `FAQ` | `id`, `business` → `BusinessConfiguration`, `question` (≤300 chars), `answer` (≤10,000 chars) |
-| `chat_app` | `ChatSession` | `id`, `business` → `BusinessConfiguration`, `phone_number` (the customer's, international format e.g. `+6591234567`), `display_name` (≤150 chars, optional), `created_time` (defaults to now), `last_chat_time`, `chat_message_json` (the conversation, see below), `chat_state_id` (the flow block the customer is at, or empty) |
+| `chat_app` | `ChatSession` | `id`, `business` → `BusinessConfiguration`, `phone_number` (the customer's, international format e.g. `+6591234567`), `display_name` (≤150 chars, optional), `created_time` (defaults to now), `last_chat_time`, `chat_message_json` (the conversation, see below), `chat_state_id` (the flow block the customer is at, or empty), `is_sandbox` (a test chat from the Chat Sandbox; default false) |
 | `chat_app` | `ChatConfiguration` | `id`, `business` → `BusinessConfiguration` (one per business), `config_json` (the chat flow, see below), `last_updated` (set automatically on every save) |
 
 Rules enforced by Django validation (e.g. in Django Admin) **and** by the database:
@@ -118,7 +118,8 @@ Rules enforced by Django validation (e.g. in Django Admin) **and** by the databa
 - `position_x` / `position_y` are numbers.
 
 `ChatSession` rules (checked by Django validation, e.g. in Django Admin):
-- `phone_number` is unique **within a business** (also enforced by the database). Different businesses can each have a chat with the same number.
+- `phone_number` is required and unique **within a business** (both also enforced by the database). Different businesses can each have a chat with the same number.
+- **Sandbox sessions** (`is_sandbox = true`) are exempt: the phone number is optional (still validated if given), may repeat, and a business can have any number of them.
 - `chat_message_json` is a list of messages, oldest first: `{"message": "Hi", "sent_by": "customer", "message_time": "2026-09-01T09:00:00+08:00"}`. `validate_chat_messages` (`chat_app/validators.py`) checks that `message` is non-blank (≤4,096 chars), `sent_by` is `customer`, `business-manual` or `business-automated` (defined in `chat_app/constants.py`), and `message_time` is an ISO 8601 date-time with a timezone, in chronological order. An empty list is fine.
 - `chat_state_id` is empty, or the `id` of a block in the business's chat configuration (the type must match too: `"2"` is not block `2`). If the business has no chat configuration, it must be empty.
 
@@ -163,7 +164,9 @@ All of these require you to be logged in.
 | `GET` | `/api/configuration/random-number/` | Sample endpoint (public, no login needed) |
 | `POST` | `/api/chat/` | `{prompt}` → `{reply, model, options}`: one-off chat with the local LLM (public, no login needed) |
 | `GET` | `/api/chat/configuration/` | Your business's chat configuration `{id, business, config_json, last_updated}`. 404 if it has none yet |
-| `GET` | `/api/chat/sessions/` | Your business's chat sessions (paginated, most recent chat first). `?phone_number=%2B6591234567` returns just that customer's session |
+| `GET` / `POST` | `/api/chat/sandbox-sessions/` | List / start your business's sandbox (test) chat sessions |
+| `DELETE` | `/api/chat/sandbox-sessions/{id}/` | Delete one of your sandbox chat sessions |
+| `GET` | `/api/chat/sessions/` | Your business's real (non-sandbox) chat sessions (paginated, most recent chat first). `?phone_number=%2B6591234567` returns just that customer's session |
 | `POST` | `/api/chat/sessions/messages/` | `{business_id, phone_number, message}` → the assistant's reply. Public (no login), for the Chat Sandbox / future webhook. See [Chat sessions](#chat-sessions) |
 | `POST` | `/api/chat/sessions/` | `{phone_number, display_name}` → the new chat session (201). See [Chat sessions](#chat-sessions) |
 | `PUT` | `/api/chat/configuration/` | `{config_json}`: replace your business's chat flow (validated). Creates it (201) if missing, otherwise 200 |
@@ -202,6 +205,16 @@ Errors: 400 for an invalid phone number, a phone number that already has a sessi
 4. Appends the reply as `{message, sent_by: "business-automated", message_time: now}`, sets `last_chat_time` again, and returns that reply object.
 
 If Ollama fails (502/503/504), the customer's message is still saved, but there's no reply.
+
+### Sandbox chat sessions
+
+Test chats a business starts itself (e.g. from the Chat Sandbox), separate from real customer chats. All three endpoints need a login and only work on **your own** business (403 without a business).
+
+- `GET /api/chat/sandbox-sessions/`: your sandbox sessions, paginated, most recent chat first.
+- `POST /api/chat/sandbox-sessions/`: `{display_name?, phone_number?}`, both optional. Starts a sandbox session the same way as a real one (Start block, no messages, `created_time = last_chat_time = now`), so your business needs a chat configuration (400 otherwise). A business can have any number.
+- `DELETE /api/chat/sandbox-sessions/{id}/`: deletes the session and its conversation (204). Another business's session → 403; a real customer session → 400 ("Only sandbox chat sessions can be deleted here."); unknown ID → 404.
+
+Sandbox sessions are left out of `GET /api/chat/sessions/`, and `POST /api/chat/sessions/messages/` only finds real sessions.
 
 ### Access rules
 
@@ -293,7 +306,7 @@ Tests use a temporary database, so your `db.sqlite3` isn't touched.
 | `auth_app/tests.py` | `BusinessUser` model, Django Admin pages load |
 | `configuration_app/tests.py` | `BusinessConfiguration` model, random-number endpoint, CORS |
 | `chat_app/tests.py` | `validate_chat_config` and `validate_chat_messages` rules; `ChatConfiguration` and `ChatSession` models (validation, uniqueness, `chat_state_id` must match a block); sample fixtures are valid |
-| `chat_app/test_api.py` | Chat endpoint returns the reply, with the LLM mocked (no Ollama needed); chat configuration GET/PUT (401/403/404, create vs update, read-only fields, invalid `config_json` → 400); chat sessions create/list and customer messages (LLM mocked) |
+| `chat_app/test_api.py` | Chat endpoint returns the reply, with the LLM mocked (no Ollama needed); chat configuration GET/PUT (401/403/404, create vs update, read-only fields, invalid `config_json` → 400); chat sessions create/list and customer messages (LLM mocked); sandbox sessions list/create/delete (only sandbox, only your business) |
 
 ### Resetting the local database
 
