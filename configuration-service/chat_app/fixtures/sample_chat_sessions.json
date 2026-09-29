@@ -1,0 +1,166 @@
+[
+  {
+    "model": "chat_app.chatsession",
+    "pk": 1,
+    "fields": {
+      "business": 1,
+      "phone_number": "+6591234567",
+      "display_name": "Alice Tan",
+      "created_time": "2026-09-01T09:00:00+08:00",
+      "last_chat_time": "2026-09-01T09:02:00+08:00",
+      "chat_message_json": [
+        {
+          "message": "Hi, can I order for pickup?",
+          "sent_by": "customer",
+          "message_time": "2026-09-01T09:00:00+08:00"
+        },
+        {
+          "message": "Hi Alice! Welcome to Kopi & Co. Café. What would you like to order?",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-01T09:00:00+08:00"
+        },
+        {
+          "message": "2 Kaya Toast Sets and 2 Kopi C please",
+          "sent_by": "customer",
+          "message_time": "2026-09-01T09:01:00+08:00"
+        },
+        {
+          "message": "Got it: 2 × Kaya Toast Set and 2 × Kopi C. What name and pickup time should we put down?",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-01T09:01:00+08:00"
+        },
+        {
+          "message": "Alice, 9:30am",
+          "sent_by": "customer",
+          "message_time": "2026-09-01T09:02:00+08:00"
+        },
+        {
+          "message": "Thanks! Order for Alice, pickup 9:30am, total $14.60. Reply YES to confirm.",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-01T09:02:00+08:00"
+        }
+      ],
+      "chat_state_id": 4
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 2,
+    "fields": {
+      "business": 1,
+      "phone_number": "+6598765432",
+      "display_name": "Ben Lim",
+      "created_time": "2026-09-02T11:30:00+08:00",
+      "last_chat_time": "2026-09-02T11:30:00+08:00",
+      "chat_message_json": [
+        {
+          "message": "Hello, what brunch plates do you have?",
+          "sent_by": "customer",
+          "message_time": "2026-09-02T11:30:00+08:00"
+        },
+        {
+          "message": "Hi Ben! We have the Seasonal Brunch Plate ($16.00), plus Kaya Toast Sets ($5.50). Which would you like?",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-02T11:30:00+08:00"
+        }
+      ],
+      "chat_state_id": 2
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 3,
+    "fields": {
+      "business": 1,
+      "phone_number": "+6581112222",
+      "display_name": "",
+      "created_time": "2026-09-03T08:15:00+08:00",
+      "last_chat_time": "2026-09-03T08:15:00+08:00",
+      "chat_message_json": [
+        {
+          "message": "Hi",
+          "sent_by": "customer",
+          "message_time": "2026-09-03T08:15:00+08:00"
+        }
+      ],
+      "chat_state_id": 1
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 4,
+    "fields": {
+      "business": 2,
+      "phone_number": "+6591234567",
+      "display_name": "Alice Tan",
+      "created_time": "2026-09-02T14:00:00+08:00",
+      "last_chat_time": "2026-09-02T14:07:00+08:00",
+      "chat_message_json": [
+        {
+          "message": "Hi, do you deliver rose bouquets on Saturday?",
+          "sent_by": "customer",
+          "message_time": "2026-09-02T14:00:00+08:00"
+        },
+        {
+          "message": "Hi Alice, yes we do! Our Classic Rose Bouquet (12 stems) is $68.00. Where should we deliver it?",
+          "sent_by": "business-manual",
+          "message_time": "2026-09-02T14:05:00+08:00"
+        },
+        {
+          "message": "Great, to Tiong Bahru please. I will send the address later.",
+          "sent_by": "customer",
+          "message_time": "2026-09-02T14:07:00+08:00"
+        }
+      ],
+      "chat_state_id": null
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 5,
+    "fields": {
+      "business": 2,
+      "phone_number": "+6587654321",
+      "display_name": "Chloe Ng",
+      "created_time": "2026-09-04T10:20:00+08:00",
+      "last_chat_time": "2026-09-04T10:45:00+08:00",
+      "chat_message_json": [
+        {
+          "message": "I would like a consultation for wedding flowers.",
+          "sent_by": "customer",
+          "message_time": "2026-09-04T10:20:00+08:00"
+        },
+        {
+          "message": "Congratulations, Chloe! Our event consultations are free. When are you free for a call?",
+          "sent_by": "business-manual",
+          "message_time": "2026-09-04T10:45:00+08:00"
+        }
+      ],
+      "chat_state_id": null
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 6,
+    "fields": {
+      "business": 3,
+      "phone_number": "+6590001111",
+      "display_name": "Daniel Koh",
+      "created_time": "2026-09-03T19:00:00+08:00",
+      "last_chat_time": "2026-09-03T19:10:00+08:00",
+      "chat_message_json": [
+        {
+          "message": "How much is the 10-session PT package?",
+          "sent_by": "customer",
+          "message_time": "2026-09-03T19:00:00+08:00"
+        },
+        {
+          "message": "Hi Daniel, the 10-Session PT Package is $850.00. Would you like to book a trial session first?",
+          "sent_by": "business-manual",
+          "message_time": "2026-09-03T19:10:00+08:00"
+        }
+      ],
+      "chat_state_id": null
+    }
+  }
+]

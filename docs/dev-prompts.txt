@@ -301,3 +301,15 @@ Original Prompt:
 please change the fixture:
 [{"id": 1, "next_block_id": 2, "block_type": "START_BLOCK", "position_x": 100, "position_y": 100}, {"id": 2, "next_block_id": 3, "block_type": "PRODUCT_SELECTION_BLOCK", "position_x": 300, "position_y": 100}, {"id": 3, "next_block_id": 4, "block_type": "DETAILS_COLLECTION_BLOCK", "position_x": 500, "position_y": 100}, {"id": 4, "next_block_id": null, "block_type": "CONFIRMATION_BLOCK", "position_x": 700, "position_y": 100}]
 Make the position_x to be 100, 400, 700, 1000 instead so it has more space in the UI
+
+Date & Time (GMT+8): 2026-09-29 17:39:28
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+Now I want to create more models inside chat-app in configuration-service Django backend:
+- ChatSession: id, FK to BusinessConfiguration, phone_number, display_name, created_time (date time), last_chat_time (date time), chat_message_json (specified below), chat_state_id (specified_below)
+chat_message_json should be a list of object that has: message (string), sent_by (either “customer” or “business-manual” or “business-automated”), message_time (date time). Please create a function to validate this too.
+chat_state_id should be one of the block_type_id in the corresponding BusinessConfiguration.ChatConfiguration.config_json (please configure the reverse accessor of these models if haven’t already).
+Each ChatSession instances should have unique combination of (business_configuration_id which is the foreign key, and the phone_number which is the customers’ phone number that message the business).
+Please also add fixtures (sample data) and update the README of the new fixture in the command too.
+Refer to the existing fixtures and make sure you get the foreign key ID right and work with the sample data.

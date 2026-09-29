@@ -8,9 +8,9 @@ from django.test import SimpleTestCase, TestCase
 
 from configuration_app.models import BusinessConfiguration
 
-from .constants import BLOCK_TYPES
-from .models import ChatConfiguration
-from .validators import validate_chat_config
+from .constants import BLOCK_TYPES, MESSAGE_SENDERS
+from .models import ChatConfiguration, ChatSession
+from .validators import CHAT_MESSAGE_MAX_LENGTH, validate_chat_config, validate_chat_messages
 
 VALID_CONFIG = [
     {'id': 1, 'next_block_id': 2, 'block_type': 'START_BLOCK', 'position_x': 100, 'position_y': 100},
@@ -177,3 +177,191 @@ class SampleChatConfigurationFixtureTests(TestCase):
             [block['block_type'] for block in chat_config.config_json],
             ['START_BLOCK', 'PRODUCT_SELECTION_BLOCK', 'DETAILS_COLLECTION_BLOCK', 'CONFIRMATION_BLOCK'],
         )
+
+
+# --- ChatSession ----------------------------------------------------------------------------
+
+VALID_MESSAGES = [
+    {'message': 'Hi, can I order?', 'sent_by': 'customer', 'message_time': '2026-09-01T09:00:00+08:00'},
+    {'message': 'Sure! What would you like?', 'sent_by': 'business-automated', 'message_time': '2026-09-01T09:00:05+08:00'},
+    {'message': 'I will help you here.', 'sent_by': 'business-manual', 'message_time': '2026-09-01T01:05:00Z'},
+]
+
+
+def messages(**changes_by_index):
+    """A copy of VALID_MESSAGES, with e.g. `m1={'sent_by': 'X'}` merged into message 1."""
+    items = copy.deepcopy(VALID_MESSAGES)
+    for key, changes in changes_by_index.items():
+        items[int(key[1:])].update(changes)
+    return items
+
+
+class ValidateChatMessagesTests(SimpleTestCase):
+    def assertInvalid(self, value, message_part):
+        with self.assertRaises(ValidationError) as ctx:
+            validate_chat_messages(value)
+        self.assertTrue(
+            any(message_part in message for message in ctx.exception.messages),
+            f'{message_part!r} not in {ctx.exception.messages}',
+        )
+
+    def test_valid_messages(self):
+        validate_chat_messages(VALID_MESSAGES)
+
+    def test_empty_list_is_valid(self):
+        validate_chat_messages([])
+
+    def test_senders_constant(self):
+        self.assertEqual(MESSAGE_SENDERS, ['customer', 'business-manual', 'business-automated'])
+
+    def test_not_a_list(self):
+        for bad in ({'message': 'hi'}, None, 'hi', 1):
+            with self.subTest(value=bad):
+                self.assertInvalid(bad, 'must be a list')
+
+    def test_item_not_an_object(self):
+        self.assertInvalid([*VALID_MESSAGES, 'hi'], 'must be an object')
+
+    def test_missing_and_unknown_fields(self):
+        items = messages()
+        del items[0]['sent_by']
+        self.assertInvalid(items, 'missing field(s) sent_by')
+        self.assertInvalid(messages(m0={'read': True}), 'unknown field(s) read')
+
+    def test_message_must_be_non_blank_string(self):
+        for bad in ('', '   ', None, 42, ['hi']):
+            with self.subTest(message=bad):
+                self.assertInvalid(messages(m0={'message': bad}), 'message must be a non-blank string')
+
+    def test_message_length_limit(self):
+        validate_chat_messages(messages(m0={'message': 'x' * CHAT_MESSAGE_MAX_LENGTH}))
+        self.assertInvalid(messages(m0={'message': 'x' * (CHAT_MESSAGE_MAX_LENGTH + 1)}), 'at most')
+
+    def test_invalid_sent_by(self):
+        for bad in ('business', 'Customer', 'business_manual', None):
+            with self.subTest(sent_by=bad):
+                self.assertInvalid(messages(m1={'sent_by': bad}), 'sent_by must be one of')
+
+    def test_invalid_message_time(self):
+        for bad in ('yesterday', '2026-13-01T09:00:00+08:00', '09:00', 1767225600, None):
+            with self.subTest(message_time=bad):
+                self.assertInvalid(messages(m0={'message_time': bad}), 'ISO 8601')
+
+    def test_message_time_needs_timezone(self):
+        for bad in ('2026-09-01T09:00:00', '2026-09-01'):  # a date alone parses as local midnight
+            with self.subTest(message_time=bad):
+                self.assertInvalid(messages(m0={'message_time': bad}), 'must include a timezone')
+
+    def test_messages_must_be_in_order(self):
+        # 00:59Z is 08:59+08:00, before message 1's 09:00:05+08:00.
+        self.assertInvalid(messages(m2={'message_time': '2026-09-01T00:59:00Z'}), 'earlier than the previous')
+
+    def test_reports_all_errors(self):
+        with self.assertRaises(ValidationError) as ctx:
+            validate_chat_messages(messages(m0={'message': ''}, m1={'sent_by': 'bot', 'message_time': 'x'}))
+        self.assertEqual(len(ctx.exception.messages), 3)
+
+
+class ChatSessionModelTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.business = BusinessConfiguration.objects.create(business_name='Test Café', location='Singapore')
+        cls.other_business = BusinessConfiguration.objects.create(business_name='Other', location='Singapore')
+        ChatConfiguration.objects.create(business=cls.business, config_json=VALID_CONFIG)
+
+    def make_session(self, **overrides):
+        fields = {
+            'business': self.business,
+            'phone_number': '+6591234567',
+            'display_name': 'Alice',
+            'chat_message_json': VALID_MESSAGES,
+            'chat_state_id': 2,
+        }
+        return ChatSession(**{**fields, **overrides})
+
+    def assertFieldInvalid(self, session, field):
+        with self.assertRaises(ValidationError) as ctx:
+            session.full_clean()
+        self.assertIn(field, ctx.exception.message_dict)
+
+    def test_valid_session(self):
+        session = self.make_session()
+        session.full_clean()
+        session.save()
+        self.assertIsNotNone(session.created_time)
+        self.assertIsNotNone(session.last_chat_time)
+        self.assertEqual(list(self.business.chat_sessions.all()), [session])
+
+    def test_defaults(self):
+        session = ChatSession(business=self.business, phone_number='+6591234567')
+        session.full_clean()  # no name, no messages, no state
+        self.assertEqual(session.chat_message_json, [])
+        self.assertIsNone(session.chat_state_id)
+
+    def test_phone_number_format(self):
+        for good in ('+6591234567', '+14155552671', '+441234567890'):
+            with self.subTest(phone_number=good):
+                self.make_session(phone_number=good).full_clean()
+        for bad in ('', '91234567', '+65 9123 4567', '+0123456789', '+65-91234567', '+1234567890123456'):
+            with self.subTest(phone_number=bad):
+                self.assertFieldInvalid(self.make_session(phone_number=bad), 'phone_number')
+
+    def test_invalid_messages_rejected(self):
+        self.assertFieldInvalid(self.make_session(chat_message_json=messages(m0={'sent_by': 'bot'})), 'chat_message_json')
+
+    def test_chat_state_id_must_be_a_block_of_the_business(self):
+        for block_id in (1, 2, 3):
+            with self.subTest(chat_state_id=block_id):
+                self.make_session(chat_state_id=block_id).full_clean()
+        for bad in (99, '2', True, 2.0, '', [2]):
+            with self.subTest(chat_state_id=bad):
+                self.assertFieldInvalid(self.make_session(chat_state_id=bad), 'chat_state_id')
+
+    def test_chat_state_id_with_string_block_ids(self):
+        chat_config = self.business.chat_configuration
+        chat_config.config_json = config(b0={'id': 'start', 'next_block_id': 2})
+        chat_config.save()
+        self.make_session(chat_state_id='start').full_clean()
+        self.assertFieldInvalid(self.make_session(chat_state_id=1), 'chat_state_id')
+
+    def test_chat_state_id_must_be_null_without_configuration(self):
+        self.make_session(business=self.other_business, chat_state_id=None).full_clean()
+        self.assertFieldInvalid(self.make_session(business=self.other_business, chat_state_id=1), 'chat_state_id')
+
+    def test_phone_number_unique_per_business(self):
+        self.make_session().save()
+        self.assertFieldInvalid(self.make_session(), '__all__')
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            self.make_session().save()
+
+    def test_same_phone_number_in_another_business(self):
+        self.make_session().save()
+        other = self.make_session(business=self.other_business, chat_state_id=None)
+        other.full_clean()
+        other.save()
+
+    def test_empty_phone_number_rejected_by_database(self):
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            self.make_session(phone_number='').save()
+
+    def test_deleted_with_business(self):
+        self.make_session().save()
+        self.business.delete()
+        self.assertFalse(ChatSession.objects.exists())
+
+
+class SampleChatSessionFixtureTests(TestCase):
+    fixtures = ['sample_business_configurations', 'sample_chat_configurations', 'sample_chat_sessions']
+
+    def test_fixture_is_valid(self):
+        sessions = ChatSession.objects.all()
+        self.assertEqual(sessions.count(), 6)
+        for session in sessions:
+            with self.subTest(session=session.pk):
+                session.full_clean()  # loaddata skips validation, including chat_state_id
+                self.assertEqual(session.last_chat_time.isoformat(), _utc(session.chat_message_json[-1]['message_time']))
+
+
+def _utc(iso_string: str) -> str:
+    from datetime import datetime, timezone
+    return datetime.fromisoformat(iso_string).astimezone(timezone.utc).isoformat()

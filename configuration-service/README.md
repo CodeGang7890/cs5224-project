@@ -36,7 +36,7 @@ pip install -r requirements.txt
 python manage.py migrate
 
 # 4. Load sample data (businesses, business users, products, FAQs)
-python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations
+python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions
 
 # 5. Create the local admin superuser (username: superuser, password: 123)
 DJANGO_SUPERUSER_PASSWORD=123 python manage.py createsuperuser --noinput --username superuser --email superuser@example.com
@@ -65,7 +65,7 @@ python manage.py runserver
 The fixtures are JSON files in each app's `fixtures/` folder. Load them all with:
 
 ```bash
-python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations
+python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions
 ```
 
 | Fixture | File | Contents |
@@ -75,6 +75,7 @@ python manage.py loaddata sample_business_configurations sample_business_users s
 | `sample_products` | `product_app/fixtures/` | 8 products (one of them inactive) |
 | `sample_faqs` | `product_app/fixtures/` | 6 FAQs |
 | `sample_chat_configurations` | `chat_app/fixtures/` | 1 chat flow for Kopi & Co. Café: start → product selection → details collection → confirmation |
+| `sample_chat_sessions` | `chat_app/fixtures/` | 6 customer chats: 3 with Kopi & Co. Café (at different steps of its flow), 2 with Bloom Florist Studio, 1 with FitLab. `+6591234567` chats with both the café and the florist |
 
 Every sample account uses the password **`123`**, so you can log in as anyone while testing:
 
@@ -90,7 +91,7 @@ Business users aren't staff, so they can't log in to Django Admin.
 
 Notes:
 - Fixtures use fixed IDs, so re-running `loaddata` resets those records to the sample values rather than creating duplicates. Records you created yourself are kept.
-- Load them in one command, as shown above. The records depend on each other: users, products, FAQs and chat configurations point to businesses.
+- Load them in one command, as shown above. The records depend on each other: users, products, FAQs, chat configurations and chat sessions point to businesses, and chat sessions' `chat_state_id` points to a block in the business's chat configuration.
 - `loaddata` saves records as-is, without running model validation. When you edit a fixture, keep the data within the model rules.
 
 ## Data model
@@ -101,6 +102,7 @@ Notes:
 | `auth_app` | `BusinessUser` | Every field of Django's built-in user (username, password, email, first/last name, `is_staff`, `is_superuser`, `is_active`, groups, permissions, `last_login`, `date_joined`), plus `business` → `BusinessConfiguration` (optional) |
 | `product_app` | `Product` | `id`, `business` → `BusinessConfiguration`, `name` (≤150 chars), `description` (≤5,000 chars, optional), `price` (≥0, 2 decimal places, up to 99,999,999.99), `quantity_available` / `quantity_on_hold` / `quantity_sold` (whole numbers ≥0, default 0), `is_active` (default true) |
 | `product_app` | `FAQ` | `id`, `business` → `BusinessConfiguration`, `question` (≤300 chars), `answer` (≤10,000 chars) |
+| `chat_app` | `ChatSession` | `id`, `business` → `BusinessConfiguration`, `phone_number` (the customer's, international format e.g. `+6591234567`), `display_name` (≤150 chars, optional), `created_time` (set automatically), `last_chat_time`, `chat_message_json` (the conversation, see below), `chat_state_id` (the flow block the customer is at, or empty) |
 | `chat_app` | `ChatConfiguration` | `id`, `business` → `BusinessConfiguration` (one per business), `config_json` (the chat flow, see below), `last_updated` (set automatically on every save) |
 
 Rules enforced by Django validation (e.g. in Django Admin) **and** by the database:
@@ -115,8 +117,13 @@ Rules enforced by Django validation (e.g. in Django Admin) **and** by the databa
 - `block_type` is one of `START_BLOCK`, `PRODUCT_SELECTION_BLOCK`, `DETAILS_COLLECTION_BLOCK`, `CONFIRMATION_BLOCK` (defined in `chat_app/constants.py`). There must be exactly one `START_BLOCK`; other types can repeat.
 - `position_x` / `position_y` are numbers.
 
+`ChatSession` rules (checked by Django validation, e.g. in Django Admin):
+- `phone_number` is unique **within a business** (also enforced by the database). Different businesses can each have a chat with the same number.
+- `chat_message_json` is a list of messages, oldest first: `{"message": "Hi", "sent_by": "customer", "message_time": "2026-09-01T09:00:00+08:00"}`. `validate_chat_messages` (`chat_app/validators.py`) checks that `message` is non-blank (≤4,096 chars), `sent_by` is `customer`, `business-manual` or `business-automated` (defined in `chat_app/constants.py`), and `message_time` is an ISO 8601 date-time with a timezone, in chronological order. An empty list is fine.
+- `chat_state_id` is empty, or the `id` of a block in the business's chat configuration (the type must match too: `"2"` is not block `2`). If the business has no chat configuration, it must be empty.
+
 When a business is deleted:
-- Its **products, FAQs and chat configuration are deleted** with it.
+- Its **products, FAQs, chat configuration and chat sessions are deleted** with it.
 - Its **users are kept**, with their business link cleared.
 
 `BusinessUser` is the project's user model (`AUTH_USER_MODEL = 'auth_app.BusinessUser'`). In code, refer to it with `django.contrib.auth.get_user_model()` or `settings.AUTH_USER_MODEL`.
@@ -234,7 +241,7 @@ You can also use your Django Admin login instead (**cookieAuth**). If you're log
 | `python manage.py makemigrations` | Creates migration files after you change models |
 | `python manage.py migrate` | Applies migrations to the database |
 | `python manage.py createsuperuser` | Creates an admin user |
-| `python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations` | Loads the sample data |
+| `python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions` | Loads the sample data |
 | `python manage.py flush --noinput` | Deletes all rows from every table (keeps the tables); see [Resetting the local database](#resetting-the-local-database) |
 | `python manage.py test` | Runs all tests (see [Running tests](#running-tests)) |
 | `python manage.py check` | Checks the project configuration for problems |
@@ -260,7 +267,7 @@ Tests use a temporary database, so your `db.sqlite3` isn't touched.
 | `product_app/tests.py` | Product and FAQ model validation and database constraints |
 | `auth_app/tests.py` | `BusinessUser` model, Django Admin pages load |
 | `configuration_app/tests.py` | `BusinessConfiguration` model, random-number endpoint, CORS |
-| `chat_app/tests.py` | `validate_chat_config` rules, `ChatConfiguration` model (validation, one per business, `last_updated`) |
+| `chat_app/tests.py` | `validate_chat_config` and `validate_chat_messages` rules; `ChatConfiguration` and `ChatSession` models (validation, uniqueness, `chat_state_id` must match a block); sample fixtures are valid |
 | `chat_app/test_api.py` | Chat endpoint returns the reply, with the LLM mocked (no Ollama needed); chat configuration GET/PUT (401/403/404, create vs update, read-only fields, invalid `config_json` → 400) |
 
 ### Resetting the local database
@@ -269,7 +276,7 @@ To put the data back to the sample state, delete every row (the tables and migra
 
 ```bash
 python manage.py flush --noinput
-python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations
+python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions
 DJANGO_SUPERUSER_PASSWORD=123 python manage.py createsuperuser --noinput --username superuser --email superuser@example.com
 ```
 
@@ -281,7 +288,7 @@ To delete the database file itself and rebuild it from the migrations (e.g. afte
 ```bash
 rm db.sqlite3
 python manage.py migrate
-python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations
+python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions
 DJANGO_SUPERUSER_PASSWORD=123 python manage.py createsuperuser --noinput --username superuser --email superuser@example.com
 ```
 
@@ -349,12 +356,12 @@ configuration-service/
 │   ├── tests.py            # Model validation tests
 │   └── test_api.py         # API tests
 ├── chat_app/               # ChatConfiguration (chat flow) + temporary one-off chat with the local LLM (Ollama)
-│   ├── fixtures/           # sample_chat_configurations.json
+│   ├── fixtures/           # sample_chat_configurations.json, sample_chat_sessions.json
 │   ├── migrations/
 │   ├── admin.py
-│   ├── constants.py        # BLOCK_TYPES
-│   ├── models.py           # ChatConfiguration
-│   ├── validators.py       # validate_chat_config (config_json rules)
+│   ├── constants.py        # BLOCK_TYPES, MESSAGE_SENDERS
+│   ├── models.py           # ChatConfiguration, ChatSession
+│   ├── validators.py       # validate_chat_config, validate_chat_messages
 │   ├── llm.py              # Ollama client, model, system prompt, hardcoded sampling options
 │   ├── serializers.py      # Chat request/response, ChatConfigurationSerializer
 │   ├── views.py            # ChatView, ChatConfigurationView

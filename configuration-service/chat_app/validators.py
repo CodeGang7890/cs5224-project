@@ -1,6 +1,8 @@
 from django.core.exceptions import ValidationError
+from django.utils.dateparse import parse_datetime
+from django.utils.timezone import is_aware
 
-from .constants import BLOCK_TYPES, START_BLOCK
+from .constants import BLOCK_TYPES, MESSAGE_SENDERS, START_BLOCK
 
 BLOCK_FIELDS = {'id', 'next_block_id', 'block_type', 'position_x', 'position_y'}
 
@@ -10,7 +12,7 @@ def _is_number(value) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
-def _is_valid_id(value) -> bool:
+def is_valid_block_id(value) -> bool:
     """Block IDs can be any int or non-blank string (e.g. a UUID)."""
     if isinstance(value, bool):
         return False
@@ -49,7 +51,7 @@ def validate_chat_config(value) -> None:
             continue
 
         block_id = block['id']
-        if not _is_valid_id(block_id):
+        if not is_valid_block_id(block_id):
             errors.append(f'{prefix}: id must be an integer or a non-blank string.')
         elif block_id in ids:
             errors.append(f'{prefix}: duplicate id {block_id!r}.')
@@ -57,7 +59,7 @@ def validate_chat_config(value) -> None:
             ids.add(block_id)
 
         next_id = block['next_block_id']
-        if next_id is not None and not _is_valid_id(next_id):
+        if next_id is not None and not is_valid_block_id(next_id):
             errors.append(f'{prefix}: next_block_id must be null, an integer or a non-blank string.')
 
         if block['block_type'] not in BLOCK_TYPES:
@@ -73,7 +75,7 @@ def validate_chat_config(value) -> None:
     # Checked after the loop, so next_block_id can point at a block further down the list.
     for index, block in blocks:
         next_id = block['next_block_id']
-        if next_id is None or not _is_valid_id(next_id):
+        if next_id is None or not is_valid_block_id(next_id):
             continue
         if next_id == block['id']:
             errors.append(f'Block {index}: next_block_id must not point at the block itself.')
@@ -83,6 +85,72 @@ def validate_chat_config(value) -> None:
     start_count = sum(1 for _, block in blocks if block['block_type'] == START_BLOCK)
     if start_count != 1:
         errors.append(f'There must be exactly one {START_BLOCK} (found {start_count}).')
+
+    if errors:
+        raise ValidationError(errors)
+
+
+# --- ChatSession.chat_message_json --------------------------------------------------------
+
+MESSAGE_FIELDS = {'message', 'sent_by', 'message_time'}
+CHAT_MESSAGE_MAX_LENGTH = 4096  # WhatsApp's limit for a text message
+
+
+def validate_chat_messages(value) -> None:
+    """Validate a ChatSession.chat_message_json: the conversation, oldest message first.
+
+    Each message is ``{message, sent_by, message_time}``. Rules:
+    - ``message`` is a non-blank string of at most ``CHAT_MESSAGE_MAX_LENGTH`` characters.
+    - ``sent_by`` is one of ``MESSAGE_SENDERS``.
+    - ``message_time`` is an ISO 8601 date-time string with a timezone
+      (e.g. ``2026-09-01T09:15:00+08:00``), and messages are in chronological order.
+    An empty list (no messages yet) is valid.
+
+    Raises a ``ValidationError`` listing every problem found.
+    """
+    if not isinstance(value, list):
+        raise ValidationError('Chat messages must be a list.')
+
+    errors = []
+    previous_time = None
+    for index, item in enumerate(value):
+        prefix = f'Message {index}'
+        if not isinstance(item, dict):
+            errors.append(f'{prefix}: must be an object.')
+            continue
+        missing = MESSAGE_FIELDS - item.keys()
+        unknown = item.keys() - MESSAGE_FIELDS
+        if missing:
+            errors.append(f'{prefix}: missing field(s) {", ".join(sorted(missing))}.')
+        if unknown:
+            errors.append(f'{prefix}: unknown field(s) {", ".join(sorted(unknown))}.')
+        if missing:
+            continue
+
+        message = item['message']
+        if not isinstance(message, str) or not message.strip():
+            errors.append(f'{prefix}: message must be a non-blank string.')
+        elif len(message) > CHAT_MESSAGE_MAX_LENGTH:
+            errors.append(f'{prefix}: message must be at most {CHAT_MESSAGE_MAX_LENGTH} characters.')
+
+        if item['sent_by'] not in MESSAGE_SENDERS:
+            errors.append(
+                f'{prefix}: sent_by must be one of {", ".join(MESSAGE_SENDERS)} (got {item["sent_by"]!r}).'
+            )
+
+        raw_time = item['message_time']
+        try:
+            message_time = parse_datetime(raw_time) if isinstance(raw_time, str) else None
+        except ValueError:  # well-formed but impossible, e.g. month 13
+            message_time = None
+        if message_time is None:
+            errors.append(f'{prefix}: message_time must be an ISO 8601 date-time string.')
+        elif not is_aware(message_time):
+            errors.append(f'{prefix}: message_time must include a timezone (e.g. "Z" or "+08:00").')
+        else:
+            if previous_time is not None and message_time < previous_time:
+                errors.append(f'{prefix}: message_time is earlier than the previous message.')
+            previous_time = message_time
 
     if errors:
         raise ValidationError(errors)

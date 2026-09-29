@@ -11,3 +11,14 @@ BLOCK_TYPES = [
     DETAILS_COLLECTION_BLOCK,
     CONFIRMATION_BLOCK,
 ]
+
+# Who sent a ChatSession message (chat_message_json[].sent_by).
+SENT_BY_CUSTOMER = 'customer'
+SENT_BY_BUSINESS_MANUAL = 'business-manual'  # typed by a person at the business
+SENT_BY_BUSINESS_AUTOMATED = 'business-automated'  # sent by the chat assistant
+
+MESSAGE_SENDERS = [
+    SENT_BY_CUSTOMER,
+    SENT_BY_BUSINESS_MANUAL,
+    SENT_BY_BUSINESS_AUTOMATED,
+]
