@@ -1,0 +1,82 @@
+# Repo-wide ignores. Each app also has its own .gitignore
+# (configuration-service/, messaging-service/, frontend-app/).
+
+# --- Claude Code: personal, machine-specific files --------------------------------------
+# .claude/settings.json and .claude/hooks/ are shared project config and stay tracked.
+.claude/settings.local.json
+.claude.local
+CLAUDE.local.md
+**/CLAUDE.local.md
+
+# --- Editors / IDEs ---------------------------------------------------------------------
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.code-workspace
+.fleet/
+.cursor/
+*.swp
+*.swo
+*.sw?
+*~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# --- OS files ---------------------------------------------------------------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# --- Environment files and secrets ------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- Python -----------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.python-version
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# --- Node / frontend --------------------------------------------------------------------
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.tsbuildinfo
+.eslintcache
+coverage/
+
+# --- Logs and temporary files -----------------------------------------------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+tmp/
+temp/
+*.tmp
+*.bak

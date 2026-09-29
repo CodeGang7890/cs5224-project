@@ -403,3 +403,11 @@ Goal is to have these: dynamic filtering, dynamic sorting, pagination (allow to 
 For pagination feature, the response should also return if next / prev page are exist or not.
 Add some test cases as usual, using the fixtures.
 Please add more sample ChatSession data in fixtures (sample chats that are not sandbox too), particularly for the kopi_owner user / Business.
+
+Date & Time (GMT+8): 2026-09-29 19:50:25
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+Make me a .gitignore, putting .idea etc inside it.
+Also put .claude.local file inside it.
+Also add other common files and folders that are usually included in a gitignore there too.
+This is the .gitignore in the root directory. There’re already .gitignore for specific applications already inside the folder.
