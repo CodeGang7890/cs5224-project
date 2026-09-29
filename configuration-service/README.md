@@ -100,14 +100,22 @@ Notes:
 | `auth_app` | `BusinessUser` | Every field of Django's built-in user (username, password, email, first/last name, `is_staff`, `is_superuser`, `is_active`, groups, permissions, `last_login`, `date_joined`), plus `business` → `BusinessConfiguration` (optional) |
 | `product_app` | `Product` | `id`, `business` → `BusinessConfiguration`, `name` (≤150 chars), `description` (≤5,000 chars, optional), `price` (≥0, 2 decimal places, up to 99,999,999.99), `quantity_available` / `quantity_on_hold` / `quantity_sold` (whole numbers ≥0, default 0), `is_active` (default true) |
 | `product_app` | `FAQ` | `id`, `business` → `BusinessConfiguration`, `question` (≤300 chars), `answer` (≤10,000 chars) |
+| `chat_app` | `ChatConfiguration` | `id`, `business` → `BusinessConfiguration` (one per business), `config_json` (the chat flow, see below), `last_updated` (set automatically on every save) |
 
 Rules enforced by Django validation (e.g. in Django Admin) **and** by the database:
 - Price and quantities can't be negative.
 - Business names, locations, product names, FAQ questions and FAQ answers can't be empty.
 - Product names and FAQ questions must be unique **within a business**. Different businesses can reuse them.
 
+`ChatConfiguration.config_json` is a list of blocks, e.g. `{"id": 1, "next_block_id": 2, "block_type": "START_BLOCK", "position_x": 100, "position_y": 100}`. `chat_app/validators.py` (`validate_chat_config`) checks it on every validated save, e.g. in Django Admin:
+- Every block has exactly those five fields.
+- `id` is an integer or a non-blank string (e.g. a UUID), unique within the list.
+- `next_block_id` is `null` or the `id` of another block in the list.
+- `block_type` is one of `START_BLOCK`, `PRODUCT_SELECTION_BLOCK`, `DETAILS_COLLECTION_BLOCK`, `CONFIRMATION_BLOCK` (defined in `chat_app/constants.py`). There must be exactly one `START_BLOCK`; other types can repeat.
+- `position_x` / `position_y` are numbers.
+
 When a business is deleted:
-- Its **products and FAQs are deleted** with it.
+- Its **products, FAQs and chat configuration are deleted** with it.
 - Its **users are kept**, with their business link cleared.
 
 `BusinessUser` is the project's user model (`AUTH_USER_MODEL = 'auth_app.BusinessUser'`). In code, refer to it with `django.contrib.auth.get_user_model()` or `settings.AUTH_USER_MODEL`.
@@ -244,7 +252,8 @@ Tests use a temporary database, so your `db.sqlite3` isn't touched.
 | `product_app/tests.py` | Product and FAQ model validation and database constraints |
 | `auth_app/tests.py` | `BusinessUser` model, Django Admin pages load |
 | `configuration_app/tests.py` | `BusinessConfiguration` model, random-number endpoint, CORS |
-| `chat_app/tests.py` | Chat endpoint returns the reply, with the LLM mocked (no Ollama needed) |
+| `chat_app/tests.py` | `validate_chat_config` rules, `ChatConfiguration` model (validation, one per business, `last_updated`) |
+| `chat_app/test_api.py` | Chat endpoint returns the reply, with the LLM mocked (no Ollama needed) |
 
 ### Resetting the local database
 
@@ -320,12 +329,18 @@ configuration-service/
 │   ├── urls.py             # /api/products/, /api/faqs/, /api/businesses/{id}/products|faqs/
 │   ├── tests.py            # Model validation tests
 │   └── test_api.py         # API tests
-├── chat_app/               # Temporary: one-off chat with the local LLM (Ollama), from messaging-service
+├── chat_app/               # ChatConfiguration (chat flow) + temporary one-off chat with the local LLM (Ollama)
+│   ├── migrations/
+│   ├── admin.py
+│   ├── constants.py        # BLOCK_TYPES
+│   ├── models.py           # ChatConfiguration
+│   ├── validators.py       # validate_chat_config (config_json rules)
 │   ├── llm.py              # Ollama client, model, system prompt, hardcoded sampling options
 │   ├── serializers.py      # ChatRequestSerializer, ChatResponseSerializer
 │   ├── views.py            # ChatView
 │   ├── urls.py             # /api/chat/
-│   └── tests.py            # Mocked-LLM test
+│   ├── tests.py            # Validator + model tests
+│   └── test_api.py         # Mocked-LLM chat API test
 ├── manage.py
 ├── requirements.txt
 └── .env.example

@@ -215,3 +215,41 @@ Please add max tokens, temperature, seed, and other hyper parameters available t
 Make the seed the same number so I can get deterministic output for testing purpose.
 Make sure this is shown on the Swagger Docs page so I can do the testing from the website itself.
 When adding test case for this, please don’t make the call to Ollama, simply just have 1 test case with mock LLM result, just to ensure response is returned to the user.
+
+Date & Time (GMT+8): 2026-09-29 17:01:52
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+Work with configuration-service.
+In the chat-app application, I want you to add a new model ChatConfiguration, this will be 1-1 relation to BusinessConfiguration. It has a field called as last_updated (date and time it’s last saved / updated), and config_json which is a JSON Field.
+So this JSON Field will be a list in this format:
+[
+    {
+        “id”: 1,
+        “next_block_id”: 2,
+        “block_type”: “START_BLOCK”,
+         “position_x”: 100,
+        “position_y”: 100,
+    },
+    {
+        “id”: 2,
+        “next_block_id”: 3,
+        “block_type”: “PRODUCT_SELECTION_BLOCK”,
+         “position_x”: 300,
+        “position_y”: 100,
+    },
+    {
+        “id”: 3,
+        “next_block_id”: null, # in python, it’s “None”
+        “block_type”: “CONFIRMATION_BLOCK”,
+         “position_x”: 500,
+        “position_y”: 100,
+    }
+]
+Please make a function that can validate this JSON.
+Make sure:
+- Block type currently can be 1 of these 4 values: START_BLOCK, PRODUCT_SELECTION_BLOCK, DETAILS_COLLECTION_BLOCK, CONFIRMATION_BLOCK
+    - Please make the list constant of these 4 values to be separately defined in a constant file in the chat-app (soon the constant will have mappings to prompts etc)
+- There is only 1 “START_BLOCK” in the JSON, other blocks can be duplicated
+- “id” can be any value like uuid (doesn’t have to be auto increment), just make sure it’s unique
+- “next_block_id” should point at a valid id (another object in this json)
