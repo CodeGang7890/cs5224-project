@@ -294,3 +294,10 @@ Make the UI intuitive and nice.
 Please also consider the loading and error state using the Tanstack query.
 The goal now is just to get this connection right and user able to configure the blocks and save the changes properly.
 Let me know if there’s any other changes or assumptions you made to get this working.
+
+Date & Time (GMT+8): 2026-09-29 17:36:15
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+please change the fixture:
+[{"id": 1, "next_block_id": 2, "block_type": "START_BLOCK", "position_x": 100, "position_y": 100}, {"id": 2, "next_block_id": 3, "block_type": "PRODUCT_SELECTION_BLOCK", "position_x": 300, "position_y": 100}, {"id": 3, "next_block_id": 4, "block_type": "DETAILS_COLLECTION_BLOCK", "position_x": 500, "position_y": 100}, {"id": 4, "next_block_id": null, "block_type": "CONFIRMATION_BLOCK", "position_x": 700, "position_y": 100}]
+Make the position_x to be 100, 400, 700, 1000 instead so it has more space in the UI
