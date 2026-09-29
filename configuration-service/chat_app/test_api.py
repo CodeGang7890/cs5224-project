@@ -345,7 +345,13 @@ class ChatSessionListAPITests(APITestCase):
         self.client.force_authenticate(user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.json(), {'count': 0, 'next': None, 'previous': None, 'results': []})
+        self.assertEqual(
+            response.json(),
+            {
+                'count': 0, 'total_pages': 1, 'current_page': 1, 'page_size': 20,
+                'has_next': False, 'has_previous': False, 'next': None, 'previous': None, 'results': [],
+            },
+        )
 
 
 class CustomerMessageAPITests(APITestCase):
@@ -711,3 +717,172 @@ class SandboxChatMessageAPITests(APITestCase):
         self.assertEqual(self.send(self.sandbox).status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
         self.sandbox.refresh_from_db()
         self.assertEqual([m['sent_by'] for m in self.sandbox.chat_message_json], ['customer'])
+
+
+class ChatSessionListFilteringAPITests(APITestCase):
+    """Filtering, sorting and pagination of GET /api/chat/sessions/, on the sample fixtures.
+
+    kopi_owner's business (1) has 11 real sessions (pks 1–3, 9–16) and 2 sandbox ones (7–8).
+    """
+
+    url = reverse('chat_app:chat-session-list')
+    fixtures = [
+        'sample_business_configurations',
+        'sample_business_users',
+        'sample_chat_configurations',
+        'sample_chat_sessions',
+    ]
+    # Business 1's real sessions, most recent chat first (the default order).
+    ALL = [16, 15, 14, 13, 12, 11, 10, 9, 3, 2, 1]
+
+    def setUp(self):
+        self.client.force_authenticate(BusinessUser.objects.get(username='kopi_owner'))
+
+    def ids(self, params=None):
+        response = self.client.get(self.url, params or {})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        return [s['id'] for s in response.json()['results']]
+
+    # --- Scope / default ------------------------------------------------------------
+
+    def test_default_lists_own_real_sessions_most_recent_first(self):
+        # No sandbox sessions (7, 8) and no other businesses' sessions (4, 5, 6).
+        self.assertEqual(self.ids(), self.ALL)
+
+    def test_other_business_sees_only_its_own(self):
+        self.client.force_authenticate(BusinessUser.objects.get(username='bloom_owner'))
+        self.assertEqual(self.ids(), [5, 4])
+
+    # --- Pagination -----------------------------------------------------------------
+
+    def test_first_page(self):
+        body = self.client.get(self.url, {'page_size': 4}).json()
+        self.assertEqual([s['id'] for s in body['results']], self.ALL[:4])
+        self.assertEqual(body['count'], 11)
+        self.assertEqual(body['total_pages'], 3)
+        self.assertEqual(body['current_page'], 1)
+        self.assertEqual(body['page_size'], 4)
+        self.assertIs(body['has_next'], True)
+        self.assertIs(body['has_previous'], False)
+        self.assertIn('page=2', body['next'])
+        self.assertIsNone(body['previous'])
+
+    def test_middle_and_last_page(self):
+        middle = self.client.get(self.url, {'page_size': 4, 'page': 2}).json()
+        self.assertEqual([s['id'] for s in middle['results']], self.ALL[4:8])
+        self.assertEqual((middle['current_page'], middle['has_next'], middle['has_previous']), (2, True, True))
+
+        last = self.client.get(self.url, {'page_size': 4, 'page': 3}).json()
+        self.assertEqual([s['id'] for s in last['results']], self.ALL[8:])
+        self.assertEqual((last['current_page'], last['has_next'], last['has_previous']), (3, False, True))
+        self.assertIsNone(last['next'])
+
+    def test_pages_cover_every_session_once(self):
+        seen = []
+        for page in (1, 2, 3):
+            seen += self.ids({'page_size': 4, 'page': page})
+        self.assertEqual(seen, self.ALL)
+
+    def test_default_page_size_is_20(self):
+        body = self.client.get(self.url).json()
+        self.assertEqual((body['page_size'], body['total_pages'], body['has_next']), (20, 1, False))
+
+    def test_page_size_is_capped_at_100(self):
+        self.assertEqual(self.client.get(self.url, {'page_size': 1000}).json()['page_size'], 100)
+
+    def test_invalid_page_size_falls_back_to_default(self):
+        for bad in ('0', '-5', 'abc'):
+            with self.subTest(page_size=bad):
+                self.assertEqual(self.client.get(self.url, {'page_size': bad}).json()['page_size'], 20)
+
+    def test_page_out_of_range_returns_404(self):
+        for bad in ('4', '0', 'abc'):
+            with self.subTest(page=bad):
+                response = self.client.get(self.url, {'page_size': 4, 'page': bad})
+                self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_pagination_applies_after_filters(self):
+        body = self.client.get(self.url, {'chat_state_id': 1, 'page_size': 2}).json()
+        self.assertEqual((body['count'], body['total_pages'], body['has_next']), (3, 2, True))
+        self.assertEqual([s['id'] for s in body['results']], [13, 12])
+
+    # --- Filters --------------------------------------------------------------------
+
+    def test_filter_by_exact_phone_number(self):
+        self.assertEqual(self.ids({'phone_number': '+6591234567'}), [1])
+        self.assertEqual(self.ids({'phone_number': '+659123'}), [])  # exact, not partial
+
+    def test_filter_by_display_name(self):
+        self.assertEqual(self.ids({'display_name': 'tan'}), [16, 1])  # Lina Tan, Alice Tan
+
+    def test_search_name_or_phone(self):
+        self.assertEqual(self.ids({'search': 'TAN'}), [16, 1])
+        self.assertEqual(self.ids({'search': '9111000'}), [16, 15, 14, 13, 12, 11, 10, 9])
+
+    def test_filter_by_chat_state_id(self):
+        self.assertEqual(self.ids({'chat_state_id': 1}), [13, 12, 3])
+        self.assertEqual(self.ids({'chat_state_id': 4}), [14, 9, 1])
+        self.assertEqual(self.ids({'chat_state_id': 'unknown'}), [])
+
+    def test_filter_by_has_messages(self):
+        self.assertEqual(self.ids({'has_messages': 'false'}), [13])
+        self.assertEqual(self.ids({'has_messages': 'true'}), [s for s in self.ALL if s != 13])
+
+    def test_filter_by_last_chat_time_range(self):
+        self.assertEqual(self.ids({'last_chat_time_after': '2026-09-08T00:00:00+08:00'}), [16, 15, 14, 13, 12])
+        self.assertEqual(
+            self.ids({
+                'last_chat_time_after': '2026-09-05T00:00:00+08:00',
+                'last_chat_time_before': '2026-09-07T23:59:59+08:00',
+            }),
+            [11, 10, 9],
+        )
+
+    def test_filter_by_created_time_range(self):
+        self.assertEqual(self.ids({'created_time_before': '2026-09-03T23:59:59+08:00'}), [3, 2, 1])
+
+    def test_filters_combine(self):
+        self.assertEqual(self.ids({'chat_state_id': 2, 'last_chat_time_after': '2026-09-06T00:00:00+08:00'}), [15, 10])
+
+    def test_invalid_filter_values_return_400(self):
+        for params, field in (
+            ({'last_chat_time_after': 'yesterday'}, 'last_chat_time'),
+            ({'created_time_before': '2026-13-01'}, 'created_time'),
+            ({'has_messages': 'maybe'}, 'has_messages'),
+        ):
+            with self.subTest(params=params):
+                response = self.client.get(self.url, params)
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn(field, response.json())
+
+    def test_unknown_parameters_are_ignored(self):
+        self.assertEqual(self.ids({'colour': 'blue'}), self.ALL)
+
+    # --- Sorting --------------------------------------------------------------------
+
+    def test_order_by_display_name(self):
+        # Blank names first; ties (13 and 3) are broken by newest id.
+        self.assertEqual(self.ids({'ordering': 'display_name'}), [13, 3, 1, 2, 9, 10, 11, 12, 14, 15, 16])
+        self.assertEqual(self.ids({'ordering': '-display_name'})[:3], [16, 15, 14])
+
+    def test_order_by_last_chat_time_ascending(self):
+        self.assertEqual(self.ids({'ordering': 'last_chat_time'}), list(reversed(self.ALL)))
+
+    def test_order_by_multiple_fields(self):
+        # +6581112222 (3) sorts before +6591110001 (9) and +6591110002 (10).
+        self.assertEqual(self.ids({'ordering': 'phone_number,-created_time'})[:3], [3, 9, 10])
+
+    def test_invalid_ordering_returns_400(self):
+        for bad in ('chat_message_json', 'password', '-colour'):
+            with self.subTest(ordering=bad):
+                response = self.client.get(self.url, {'ordering': bad})
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn('ordering', response.json())
+
+    def test_sorting_filtering_and_pagination_together(self):
+        body = self.client.get(
+            self.url, {'search': '9111000', 'ordering': 'display_name', 'page_size': 3, 'page': 2}
+        ).json()
+        # Names: '' (13), Farah (9), Gabriel (10) | Hui Min (11), Irfan (12), Jasmine (14) | Kumar, Lina
+        self.assertEqual([s['id'] for s in body['results']], [11, 12, 14])
+        self.assertEqual((body['count'], body['total_pages'], body['has_next'], body['has_previous']), (8, 3, True, True))

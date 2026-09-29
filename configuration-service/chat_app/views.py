@@ -1,5 +1,6 @@
 from django.db import transaction
 from django.utils import timezone
+from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import generics, status
 from rest_framework.exceptions import APIException, NotFound, PermissionDenied, ValidationError
@@ -9,8 +10,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from auth_app.business_scope import NO_BUSINESS_MESSAGE, OTHER_BUSINESS_MESSAGE
+from config.pagination import DetailedPageNumberPagination
 
 from . import llm
+from .filters import ChatSessionFilter
 from .constants import SENT_BY_BUSINESS_AUTOMATED, SENT_BY_CUSTOMER
 from .models import ChatConfiguration, ChatSession
 from .serializers import (
@@ -197,33 +200,35 @@ class ChatSessionListView(generics.ListCreateAPIView):
 
     serializer_class = ChatSessionSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = DetailedPageNumberPagination
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = ChatSessionFilter
 
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):  # schema generation: no real user
             return ChatSession.objects.none()
         business = get_user_business(self.request)
-        sessions = ChatSession.objects.filter(business=business, is_sandbox=False).order_by(
+        # Default order; `?ordering=` (ChatSessionFilter) replaces it.
+        return ChatSession.objects.filter(business=business, is_sandbox=False).order_by(
             '-last_chat_time', '-id'
         )
-        phone_number = self.request.query_params.get('phone_number')
-        if phone_number:
-            sessions = sessions.filter(phone_number=phone_number)
-        return sessions
 
     @extend_schema(
         tags=['Chat sessions'],
         summary="List your business's chat sessions",
         description=(
-            'All real (non-sandbox) chat sessions of your business (paginated), most recent chat first, '
-            'including each conversation (`chat_message_json`). Filter by `phone_number` to find '
-            "one customer's session (at most one, as numbers are unique per business)."
+            'Real (non-sandbox) chat sessions of your business, including each conversation '
+            '(`chat_message_json`). Most recent chat first unless `ordering` is given.\n\n'
+            '**Filters** (optional, combined with AND): `phone_number` (exact), `search`, '
+            '`display_name`, `chat_state_id`, `has_messages`, `created_time_after` / '
+            '`created_time_before`, `last_chat_time_after` / `last_chat_time_before`.\n\n'
+            '**Sorting:** `ordering`, e.g. `display_name` or `-created_time`.\n\n'
+            '**Pagination:** `page` (from 1) and `page_size` (default 20, max 100). The response '
+            'says `current_page`, `total_pages`, `has_next` and `has_previous`. A page past the end '
+            'returns 404; an invalid filter or sort value returns 400.'
         ),
         parameters=[
-            OpenApiParameter(
-                'phone_number',
-                str,
-                description='Only the session with this exact phone number, e.g. `+6591234567` (URL-encode the `+` as `%2B`).',
-            ),
+            OpenApiParameter('page_size', int, description='Items per page (default 20, max 100).'),
         ],
         responses={
             200: ChatSessionSerializer(many=True),

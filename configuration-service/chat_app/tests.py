@@ -380,12 +380,15 @@ class SampleChatSessionFixtureTests(TestCase):
 
     def test_fixture_is_valid(self):
         sessions = ChatSession.objects.all()
-        self.assertEqual(sessions.count(), 8)
+        self.assertEqual(sessions.count(), 16)
         self.assertEqual(sessions.filter(is_sandbox=True).count(), 2)
         for session in sessions:
             with self.subTest(session=session.pk):
                 session.full_clean()  # loaddata skips validation, including chat_state_id
-                self.assertEqual(session.last_chat_time.isoformat(), _utc(session.chat_message_json[-1]['message_time']))
+                if session.chat_message_json:
+                    self.assertEqual(session.last_chat_time.isoformat(), _utc(session.chat_message_json[-1]['message_time']))
+                else:  # no messages yet: last chat time is when it was created
+                    self.assertEqual(session.last_chat_time, session.created_time)
 
 
 def _utc(iso_string: str) -> str:

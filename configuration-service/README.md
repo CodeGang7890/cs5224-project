@@ -10,6 +10,7 @@ Django REST API backend for Ansera Business Admin. It has four Django apps: `con
 | REST APIs | [Django REST Framework (DRF)](https://www.django-rest-framework.org/) |
 | Swagger / OpenAPI docs | [drf-spectacular](https://drf-spectacular.readthedocs.io/) (OpenAPI 3, Swagger UI + ReDoc) |
 | CORS | [django-cors-headers](https://github.com/adamchainz/django-cors-headers) |
+| API filtering / sorting | [django-filter](https://django-filter.readthedocs.io/) |
 | Authentication | [djangorestframework-simplejwt](https://django-rest-framework-simplejwt.readthedocs.io/) (JWT access/refresh tokens) |
 | LLM (chat) | [ollama](https://github.com/ollama/ollama-python) Python client, talking to a local [Ollama](https://ollama.com/) server |
 | Database | SQLite (local file `db.sqlite3`); a real database will be integrated later |
@@ -75,7 +76,7 @@ python manage.py loaddata sample_business_configurations sample_business_users s
 | `sample_products` | `product_app/fixtures/` | 8 products (one of them inactive) |
 | `sample_faqs` | `product_app/fixtures/` | 6 FAQs |
 | `sample_chat_configurations` | `chat_app/fixtures/` | 1 chat flow for Kopi & Co. Café: start → product selection → details collection → confirmation |
-| `sample_chat_sessions` | `chat_app/fixtures/` | 6 customer chats: 3 with Kopi & Co. Café (at different steps of its flow), 2 with Bloom Florist Studio, 1 with FitLab. `+6591234567` chats with both the café and the florist. Plus 2 sandbox (test) chats for Kopi & Co. Café, one without a phone number |
+| `sample_chat_sessions` | `chat_app/fixtures/` | 14 customer chats: 11 with Kopi & Co. Café (at different steps of its flow, over 1–12 Sep, one with no messages yet), 2 with Bloom Florist Studio, 1 with FitLab. `+6591234567` chats with both the café and the florist. Plus 2 sandbox (test) chats for Kopi & Co. Café, one without a phone number |
 
 Every sample account uses the password **`123`**, so you can log in as anyone while testing:
 
@@ -167,7 +168,7 @@ All of these require you to be logged in.
 | `GET` / `POST` | `/api/chat/sandbox-sessions/` | List / start your business's sandbox (test) chat sessions |
 | `DELETE` | `/api/chat/sandbox-sessions/{id}/` | Delete one of your sandbox chat sessions |
 | `POST` | `/api/chat/sandbox-sessions/{id}/messages/` | `{message}` → the assistant's reply, in one of your sandbox chat sessions |
-| `GET` | `/api/chat/sessions/` | Your business's real (non-sandbox) chat sessions (paginated, most recent chat first). `?phone_number=%2B6591234567` returns just that customer's session |
+| `GET` | `/api/chat/sessions/` | Your business's real (non-sandbox) chat sessions, with filters, sorting and pagination. See [Chat sessions](#chat-sessions) |
 | `POST` | `/api/chat/sessions/messages/` | `{business_id, phone_number, message}` → the assistant's reply. Public (no login), for the Chat Sandbox / future webhook. See [Chat sessions](#chat-sessions) |
 | `POST` | `/api/chat/sessions/` | `{phone_number, display_name}` → the new chat session (201). See [Chat sessions](#chat-sessions) |
 | `PUT` | `/api/chat/configuration/` | `{config_json}`: replace your business's chat flow (validated). Creates it (201) if missing, otherwise 200 |
@@ -196,7 +197,22 @@ Each business has at most one chat configuration. Both endpoints need a login an
 
 Errors: 400 for an invalid phone number, a phone number that already has a session with your business, or a business with no chat configuration yet (set up the workflow first). 403 if your account isn't linked to a business.
 
-`GET /api/chat/sessions/` (login required) lists your business's sessions, 20 per page, most recent chat first, including each conversation. Add `?phone_number=` (URL-encode `+` as `%2B`) to get only that customer's session.
+`GET /api/chat/sessions/` (login required) lists your business's real (non-sandbox) sessions, including each conversation. All query parameters are optional and combine:
+
+| Parameter | What it does |
+| --- | --- |
+| `phone_number` | Exact phone number, e.g. `%2B6591234567` (URL-encode the `+`) |
+| `search` | Case-insensitive text in the display name or phone number |
+| `display_name` | Case-insensitive text in the display name |
+| `chat_state_id` | The flow block the customer is at, e.g. `2` |
+| `has_messages` | `true` (at least one message) or `false` (none yet) |
+| `created_time_after`, `created_time_before` | Created in this range (ISO 8601, inclusive), e.g. `2026-09-08T00:00:00%2B08:00` |
+| `last_chat_time_after`, `last_chat_time_before` | Last message in this range |
+| `ordering` | Sort by `last_chat_time`, `created_time`, `display_name`, `phone_number` or `id`; `-` for descending; comma-separate several (e.g. `display_name,-created_time`). Default: `-last_chat_time` |
+| `page` | Page number, from 1 |
+| `page_size` | Items per page: default 20, max 100 |
+
+The response is `{count, total_pages, current_page, page_size, has_next, has_previous, next, previous, results}`. An invalid filter or sort value returns 400, and a page past the end returns 404. Example: `/api/chat/sessions/?search=tan&ordering=display_name&page_size=10&page=1`.
 
 `POST /api/chat/sessions/messages/` is how a **customer** sends a message. It needs no login, and will become the WhatsApp webhook later. (The Chat Sandbox uses the sandbox message endpoint above instead.) Send `{business_id, phone_number, message}`. It:
 
@@ -308,7 +324,7 @@ Tests use a temporary database, so your `db.sqlite3` isn't touched.
 | `auth_app/tests.py` | `BusinessUser` model, Django Admin pages load |
 | `configuration_app/tests.py` | `BusinessConfiguration` model, random-number endpoint, CORS |
 | `chat_app/tests.py` | `validate_chat_config` and `validate_chat_messages` rules; `ChatConfiguration` and `ChatSession` models (validation, uniqueness, `chat_state_id` must match a block); sample fixtures are valid |
-| `chat_app/test_api.py` | Chat endpoint returns the reply, with the LLM mocked (no Ollama needed); chat configuration GET/PUT (401/403/404, create vs update, read-only fields, invalid `config_json` → 400); chat sessions create/list and customer messages (LLM mocked); sandbox sessions list/create/delete (only sandbox, only your business) |
+| `chat_app/test_api.py` | Chat endpoint returns the reply, with the LLM mocked (no Ollama needed); chat configuration GET/PUT (401/403/404, create vs update, read-only fields, invalid `config_json` → 400); chat sessions create/list (filters, sorting and pagination on the sample fixtures) and customer messages (LLM mocked); sandbox sessions list/create/delete (only sandbox, only your business) |
 
 ### Resetting the local database
 

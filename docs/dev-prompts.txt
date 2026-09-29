@@ -384,3 +384,22 @@ Phone number is not required when is_sandbox is set to True.
 Also please modify the fixtures, then run flush and execute the load fixture command.
 The fixture should now have sample chats with is_sandbox is True with some mock conversation history.
 Please add appropriate test cases and checks (e.g., can only delete instance when is_sandbox is True, cannot delete ChatSession owned by another BusinessConfiguration user, etc.)
+
+Date & Time (GMT+8): 2026-09-29 19:24:14
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+Now I want you to work with frontend-app.
+Modify the “Chat Sandbox” tab to integrate the new APIs created above using the is_sandbox flag for the chats there.
+The goal is business owner can create new chat sandbox window (multiple ones), can interact differently with each of them, and can delete a chat sandbox.
+Modify the configuration-service too if necessary.
+
+Date & Time (GMT+8): 2026-09-29 19:38:20
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+For the ?phone_number= filter can you use django filter library and allow dynamic filtering and sorting, this will be used in another page in the frontend-app later.
+Goal is to have these: dynamic filtering, dynamic sorting, pagination (allow to put numbers of item per page too, and the current page number).
+For pagination feature, the response should also return if next / prev page are exist or not.
+Add some test cases as usual, using the fixtures.
+Please add more sample ChatSession data in fixtures (sample chats that are not sandbox too), particularly for the kopi_owner user / Business.

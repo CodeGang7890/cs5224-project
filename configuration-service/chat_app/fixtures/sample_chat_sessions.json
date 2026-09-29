@@ -228,5 +228,229 @@
       "chat_state_id": 1,
       "is_sandbox": true
     }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 9,
+    "fields": {
+      "business": 1,
+      "phone_number": "+6591110001",
+      "display_name": "Farah Ismail",
+      "created_time": "2026-09-05T08:30:00+08:00",
+      "last_chat_time": "2026-09-05T08:31:00+08:00",
+      "chat_message_json": [
+        {
+          "message": "Hi, 3 Kopi C for takeaway please",
+          "sent_by": "customer",
+          "message_time": "2026-09-05T08:30:00+08:00"
+        },
+        {
+          "message": "Sure! 3 × Kopi C ($5.40). What name and pickup time?",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-05T08:30:00+08:00"
+        },
+        {
+          "message": "Farah, 8:45am",
+          "sent_by": "customer",
+          "message_time": "2026-09-05T08:31:00+08:00"
+        },
+        {
+          "message": "Got it: 3 × Kopi C for Farah at 8:45am, total $5.40. Reply YES to confirm.",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-05T08:31:00+08:00"
+        }
+      ],
+      "chat_state_id": 4,
+      "is_sandbox": false
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 10,
+    "fields": {
+      "business": 1,
+      "phone_number": "+6591110002",
+      "display_name": "Gabriel Wong",
+      "created_time": "2026-09-06T12:10:00+08:00",
+      "last_chat_time": "2026-09-06T12:11:00+08:00",
+      "chat_message_json": [
+        {
+          "message": "Is the brunch plate available on weekdays?",
+          "sent_by": "customer",
+          "message_time": "2026-09-06T12:10:00+08:00"
+        },
+        {
+          "message": "The Seasonal Brunch Plate ($16.00) is served every day until 2pm. Would you like to order one?",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-06T12:11:00+08:00"
+        }
+      ],
+      "chat_state_id": 2,
+      "is_sandbox": false
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 11,
+    "fields": {
+      "business": 1,
+      "phone_number": "+6591110003",
+      "display_name": "Hui Min",
+      "created_time": "2026-09-07T09:45:00+08:00",
+      "last_chat_time": "2026-09-07T09:50:00+08:00",
+      "chat_message_json": [
+        {
+          "message": "Can I order 2 Kaya Toast Sets for pickup?",
+          "sent_by": "customer",
+          "message_time": "2026-09-07T09:45:00+08:00"
+        },
+        {
+          "message": "Of course! 2 × Kaya Toast Set ($11.00). May I have your name and pickup time?",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-07T09:45:00+08:00"
+        },
+        {
+          "message": "Hui Min, 10:15",
+          "sent_by": "customer",
+          "message_time": "2026-09-07T09:50:00+08:00"
+        }
+      ],
+      "chat_state_id": 3,
+      "is_sandbox": false
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 12,
+    "fields": {
+      "business": 1,
+      "phone_number": "+6591110004",
+      "display_name": "Irfan",
+      "created_time": "2026-09-08T18:20:00+08:00",
+      "last_chat_time": "2026-09-08T18:32:00+08:00",
+      "chat_message_json": [
+        {
+          "message": "What time do you close today?",
+          "sent_by": "customer",
+          "message_time": "2026-09-08T18:20:00+08:00"
+        },
+        {
+          "message": "Hi Irfan, we close at 7pm today. See you soon!",
+          "sent_by": "business-manual",
+          "message_time": "2026-09-08T18:32:00+08:00"
+        }
+      ],
+      "chat_state_id": 1,
+      "is_sandbox": false
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 13,
+    "fields": {
+      "business": 1,
+      "phone_number": "+6591110005",
+      "display_name": "",
+      "created_time": "2026-09-09T07:55:00+08:00",
+      "last_chat_time": "2026-09-09T07:55:00+08:00",
+      "chat_message_json": [],
+      "chat_state_id": 1,
+      "is_sandbox": false
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 14,
+    "fields": {
+      "business": 1,
+      "phone_number": "+6591110006",
+      "display_name": "Jasmine Lee",
+      "created_time": "2026-09-10T11:05:00+08:00",
+      "last_chat_time": "2026-09-10T11:14:00+08:00",
+      "chat_message_json": [
+        {
+          "message": "Hello! Do you do catering for 20 people?",
+          "sent_by": "customer",
+          "message_time": "2026-09-10T11:05:00+08:00"
+        },
+        {
+          "message": "We can help with that! Which items would you like for your event?",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-10T11:06:00+08:00"
+        },
+        {
+          "message": "10 Kaya Toast Sets and 20 Kopi C",
+          "sent_by": "customer",
+          "message_time": "2026-09-10T11:10:00+08:00"
+        },
+        {
+          "message": "Noted: 10 × Kaya Toast Set and 20 × Kopi C, total $91.00. May I have your name, date and time?",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-10T11:10:00+08:00"
+        },
+        {
+          "message": "Jasmine, this Saturday 9am",
+          "sent_by": "customer",
+          "message_time": "2026-09-10T11:14:00+08:00"
+        },
+        {
+          "message": "Thanks Jasmine! Catering for Saturday 9am, total $91.00. Reply YES to confirm.",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-10T11:14:00+08:00"
+        }
+      ],
+      "chat_state_id": 4,
+      "is_sandbox": false
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 15,
+    "fields": {
+      "business": 1,
+      "phone_number": "+6591110007",
+      "display_name": "Kumar",
+      "created_time": "2026-09-11T15:40:00+08:00",
+      "last_chat_time": "2026-09-11T15:41:00+08:00",
+      "chat_message_json": [
+        {
+          "message": "Any vegetarian options?",
+          "sent_by": "customer",
+          "message_time": "2026-09-11T15:40:00+08:00"
+        },
+        {
+          "message": "Our Kaya Toast Set is vegetarian, and the Seasonal Brunch Plate can be made without meat. Which would you like?",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-11T15:41:00+08:00"
+        }
+      ],
+      "chat_state_id": 2,
+      "is_sandbox": false
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 16,
+    "fields": {
+      "business": 1,
+      "phone_number": "+6591110008",
+      "display_name": "Lina Tan",
+      "created_time": "2026-09-12T10:25:00+08:00",
+      "last_chat_time": "2026-09-12T10:25:00+08:00",
+      "chat_message_json": [
+        {
+          "message": "One brunch plate for dine-in please",
+          "sent_by": "customer",
+          "message_time": "2026-09-12T10:25:00+08:00"
+        },
+        {
+          "message": "1 × Seasonal Brunch Plate ($16.00). What name should we put down, and for what time?",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-12T10:25:00+08:00"
+        }
+      ],
+      "chat_state_id": 3,
+      "is_sandbox": false
+    }
   }
 ]
