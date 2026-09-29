@@ -273,3 +273,24 @@ Now I want you to make the API for the ChatConfiguration object.
 First, an API that given an authenticated user, it should get the users’ BusinessConfiguration instance, and get the ChatConfiguration instance that’s tied to that business and return it. The ChatConfiguration instance tied to a BusinessConfiguration should be at most 1 instance, or 0.
 Second, a PUT API to edit the “config_json” field, also run it through the validation function that has been created before.
 Add test cases for the API, and unit test on the validation function so it rejects invalid config_json format.
+
+Date & Time (GMT+8): 2026-09-29 17:22:43
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+Now work with the frontend-app, particularly the “Workflow” tab.
+In the “Workflow” tab, add the “Guard” React component so only authenticated user can access it.
+The idea of this tab is you can create new block and drag and drop, then connect arrow from a block to another block.
+When accessing the “Workflow” tab the first time, call the API that return the ChatConfiguration, render the data on the screen.
+Please find a suitable React library for this, late me know the library you use to make this drag and drop feature.
+User can then add a new block and can choose the type from these: PRODUCT_SELECTION_BLOCK, DETAILS_COLLECTION_BLOCK, CONFIRMATION_BLOCK.
+Make it so the user drag it from a left panel that shows these 3 block in a stacked format.
+User can also delete a block by clicking a delete button on the top right of a block.
+User should NOT be able to delete the START_BLOCK or create another START_BLOCK.
+Once user made some changes, there should be 2 buttons: one to save the change and another to discard the change (return to the last saved state, please call the GET API to get this instead of saving in a local react state).
+When the save button is clicked, call the PUT API created previously.
+Make a confirmation model for both save button and discard change button.
+Make the UI intuitive and nice.
+Please also consider the loading and error state using the Tanstack query.
+The goal now is just to get this connection right and user able to configure the blocks and save the changes properly.
+Let me know if there’s any other changes or assumptions you made to get this working.

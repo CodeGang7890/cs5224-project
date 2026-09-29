@@ -24,13 +24,13 @@ export const routes: RouteObject[] = [
     errorElement: <ErrorPage />,
     children: [
       { index: true, element: <HomePage /> },
-      { path: paths.workflow, element: <WorkflowPage /> },
       { path: paths.schedule, element: <SchedulePage /> },
       { path: paths.payment, element: <PaymentPage /> },
       // Login required: shows a "you need to be logged in" message instead when logged out.
       {
         element: <RequireAuth />,
         children: [
+          { path: paths.workflow, element: <WorkflowPage /> },
           { path: paths.product, element: <ProductPage /> },
           { path: paths.faq, element: <FaqPage /> },
         ],

@@ -14,6 +14,7 @@ A client-side single-page app (SPA) built with React, TypeScript and Vite. It ha
 | Client state | [Zustand](https://zustand.docs.pmnd.rs) |
 | Styling | [Tailwind CSS v4](https://tailwindcss.com) |
 | UI components | [shadcn/ui](https://ui.shadcn.com) (Radix primitives, `lucide-react` icons) |
+| Workflow editor (drag and drop, arrows) | [React Flow](https://reactflow.dev) (`@xyflow/react`) |
 | Linting | [oxlint](https://oxc.rs) |
 
 ## Prerequisites
@@ -54,7 +55,7 @@ Then open the URL Vite prints, usually <http://localhost:5173>.
 | Chats | `/chats` |
 | Chat Sandbox | `/chat-sandbox` |
 
-Home shows a random number fetched from `configuration-service` (see [Connecting to configuration-service](#connecting-to-configuration-service)). **Product** and **FAQ** let you add, edit and delete your business's products and FAQs (see [Managing products and FAQs](#managing-products-and-faqs)). The other pages are placeholders for now. Product and FAQ require login: when you're logged out, they show "You need to be logged in to access this page" with a Log In button (see [Login-protected pages](#login-protected-pages)).
+Home shows a random number fetched from `configuration-service` (see [Connecting to configuration-service](#connecting-to-configuration-service)). **Product** and **FAQ** let you add, edit and delete your business's products and FAQs (see [Managing products and FAQs](#managing-products-and-faqs)). **Workflow** is a drag-and-drop editor for your business's chat flow (see [Editing the chat workflow](#editing-the-chat-workflow)). The other pages are placeholders for now. Workflow, Product and FAQ require login: when you're logged out, they show "You need to be logged in to access this page" with a Log In button (see [Login-protected pages](#login-protected-pages)).
 
 The top right shows **Log In** when you're logged out. When you're logged in, it shows your username, a profile icon and **Log Out** (see [Authentication](#authentication)). The profile modal's open state is kept in the URL as `?profile`, so you can link to it directly and the browser's back button closes it.
 
@@ -89,6 +90,20 @@ When you're logged in, the **Product** and **FAQ** tabs list your business's rec
 - **The backend checks everything again.** Its errors, such as "This business already has a product with this name", appear in the form.
 - **Lists are paginated,** 20 per page, and the page is kept in the URL (`?page=2`).
 - **To hide a product without deleting it,** edit it and turn off **Active**.
+
+## Editing the chat workflow
+
+The **Workflow** tab (login required) edits your business's chat configuration on `configuration-service` (`GET` / `PUT /api/chat/configuration/`).
+
+- **Opening the tab loads the saved workflow.** If your business hasn't saved one yet, you start with just the **Start** block.
+- **Add blocks** by dragging **Product selection**, **Details collection** or **Confirmation** from the left panel onto the canvas, or by clicking their **+**. There is always exactly one Start block: it can't be added or deleted.
+- **Connect blocks** by dragging from a block's right dot to another block. Each block leads to at most one next block, so a new arrow replaces the old one. To remove an arrow, click it and press the **×** (or Delete/Backspace).
+- **Delete a block** with the **×** in its top-right corner (or select it and press Delete/Backspace). Its arrows go with it.
+- **Move blocks** by dragging them. Pan by dragging the background, and zoom with the mouse wheel or the controls in the corner.
+- **Save / Discard** appear once you change something, and both ask for confirmation. **Save** sends the whole workflow (`PUT`). **Discard** re-fetches the saved workflow from the server. The backend validates every save; its errors appear in the save dialog.
+- The toolbar warns about blocks that can't be reached from Start. They can still be saved.
+- Leaving the tab, or closing or reloading the page, with unsaved changes asks you to confirm first.
+- Accounts without a business (e.g. `superuser`) see a message instead of the editor.
 
 ## Authentication
 
@@ -186,6 +201,7 @@ frontend-app/
 │   │   ├── auth/               # Login dialog, RequireAuth guard, useAuth / useCurrentUser hooks, auth API calls
 │   │   ├── products/           # Product list + add/edit/delete dialogs (Product tab)
 │   │   ├── faqs/               # FAQ list + add/edit/delete dialogs (FAQ tab)
+│   │   ├── workflow/           # Chat workflow editor (Workflow tab, React Flow)
 │   │   ├── profile/            # Profile modal (data from /api/auth/me/)
 │   │   └── random-number/      # Sample configuration-service call (shown on Home)
 │   │       ├── api/            # Axios calls (plain async functions)

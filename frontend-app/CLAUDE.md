@@ -19,6 +19,7 @@ Guidance for Claude Code when working in `frontend-app/`.
 | Client state | **Zustand v5** | Only for client/UI state (theme, UI toggles, auth token, etc.). **Never** copy server data into Zustand; that's TanStack Query's job. Stores live in `src/stores/`, one per concern, named `use<Name>Store`. Select narrow slices: `useStore((s) => s.x)`. |
 | Styling | **Tailwind CSS v4** | CSS-first config (no `tailwind.config.js`). Theme tokens are CSS variables in `src/index.css`. Dark mode uses the `.dark` class on `<html>`, set by `useApplyTheme`. |
 | Components | **shadcn/ui** (Radix, `new-york` style, neutral) | Config in `components.json`. Components live in `src/components/ui/`. Add with `npx shadcn@latest add <name>`. Use the `cn()` helper from `@/lib/utils` to merge classes. Icons: `lucide-react`. |
+| Workflow editor | **React Flow** (`@xyflow/react` v12) | Node/edge canvas for `features/workflow`. Import its CSS once (`@xyflow/react/dist/style.css`, done in `workflow-editor.tsx`). Pass `colorMode` from the theme store. Keep `nodeTypes`/`edgeTypes` objects at module level. |
 | Lint | **oxlint** | `npm run lint`. Config in `.oxlintrc.json`. |
 
 ## Project structure conventions
@@ -26,8 +27,8 @@ Guidance for Claude Code when working in `frontend-app/`.
 - `src/app/`: app shell. `routes.tsx` is the route table (plain `RouteObject[]`, importable without a browser); `router.tsx` wraps it in `createBrowserRouter`; `providers.tsx` holds global providers.
 - `src/config/`: `app.ts` (`APP_NAME`), `navigation.ts` (`paths` + top-nav `navItems`; use `paths` instead of hard-coded URLs), `env.ts` (typed env access).
 - **Adding a page**: create `src/pages/<name>-page.tsx`, add its path to `paths`, add a route in `routes.tsx`, and add it to `navItems` if it's a top-nav tab. Pages set the browser tab title by rendering `<title>{`${title} | ${APP_NAME}`}</title>` (React 19 hoists it into `<head>`); `PagePlaceholder` does this already.
-- `src/pages/`: route-level components. Keep them thin; they compose features. Current tabs (Home shows the random-number card; **Product and FAQ are CRUD pages behind `RequireAuth`**; the rest use `PagePlaceholder`): Home `/`, Workflow `/workflow`, Product `/product`, Schedule `/schedule`, Payment `/payment`, FAQ `/faq`, Chats `/chats`, Chat Sandbox `/chat-sandbox`. 
-- `src/features/<feature>/`: self-contained domain modules with `api/` (Axios functions), `hooks/` (TanStack Query hooks + keys), `components/`, `types.ts`, and an `index.ts` public API. Import features via `@/features/<feature>`, not their internal paths. `features/random-number` is the reference example for the Axios + TanStack Query pattern: it calls `GET /api/configuration/random-number/` on configuration-service and is shown on the Home page. `features/auth` holds the login dialog, auth API calls and the `useAuth` / `useCurrentUser` hooks. `features/products` and `features/faqs` implement CRUD (see "CRUD pattern" below). `features/profile` holds the profile modal (`ProfileDialog`), which shows `useCurrentUser()` data.
+- `src/pages/`: route-level components. Keep them thin; they compose features. Current tabs (Home shows the random-number card; **Workflow, Product and FAQ are behind `RequireAuth`**; Product and FAQ are CRUD pages, Workflow is the chat flow editor; the rest use `PagePlaceholder`): Home `/`, Workflow `/workflow`, Product `/product`, Schedule `/schedule`, Payment `/payment`, FAQ `/faq`, Chats `/chats`, Chat Sandbox `/chat-sandbox`. 
+- `src/features/<feature>/`: self-contained domain modules with `api/` (Axios functions), `hooks/` (TanStack Query hooks + keys), `components/`, `types.ts`, and an `index.ts` public API. Import features via `@/features/<feature>`, not their internal paths. `features/random-number` is the reference example for the Axios + TanStack Query pattern: it calls `GET /api/configuration/random-number/` on configuration-service and is shown on the Home page. `features/auth` holds the login dialog, auth API calls and the `useAuth` / `useCurrentUser` hooks. `features/products` and `features/faqs` implement CRUD (see "CRUD pattern" below). `features/workflow` is the chat configuration editor (see "Workflow editor" below). `features/profile` holds the profile modal (`ProfileDialog`), which shows `useCurrentUser()` data.
 - `src/components/ui/`: shadcn-generated code. Prefer composing or wrapping over heavy edits. The oxlint `only-export-components` rule is disabled for this folder.
 - `src/components/layout/`: layout components. `RootLayout` renders the sticky header (app name, nav tabs, theme toggle, `AuthControls`) and the `<Outlet />`. `AuthControls` lives in layout, not in a feature, because it combines `features/auth` and `features/profile`; this avoids a circular import.
 - `src/components/common/`: shared app-level components that aren't shadcn primitives (e.g. `PagePlaceholder`).
@@ -56,6 +57,14 @@ Copy this structure for new CRUD features.
 - **Pagination:** `usePageParam()` keeps `?page=` in the URL, and `PaginationControls` renders the controls. If a page goes out of range (the API returns 404, e.g. after deleting the last item), the manager steps back a page.
 - **Shared components:** `FormField` (label, hint/error, character counter) and `components/ui` `alert-dialog`, `table`, `textarea`, `switch` and `badge`. These were hand-written from shadcn because the CLI is blocked in this environment.
 
+## Workflow editor (`features/workflow`)
+
+- **API:** `GET /api/chat/configuration/` → `{id, business, config_json, last_updated}` for the user's business (no ID in the URL); `getChatConfiguration()` turns a 404 into `null` (no configuration yet → the editor starts from `DEFAULT_CONFIG`, a lone START_BLOCK). `PUT` with `{config_json}` upserts; `useSaveChatConfiguration` writes the response into the query cache.
+- **`config_json`:** list of `{id, next_block_id, block_type, position_x, position_y}`. Block types are mirrored in `types.ts` from `configuration-service/chat_app/constants.py`; `blocks.ts` holds their labels/icons/colours. Exactly one `START_BLOCK`: it can't be added (not in the palette) or deleted (`deletable: false`, no × button), and has no input handle. New blocks get `crypto.randomUUID()` ids; existing ids (ints) are kept.
+- **`flow.ts`** converts `config_json` ↔ React Flow nodes/edges. Node ids are `${typeof id}:${id}` (so `1` ≠ `"1"`); the original id is `node.data.blockId`. Each block has at most one outgoing edge (edge id `next:<source>`), so `onConnect` replaces the source's existing edge; self-connections are rejected (the backend rejects them too). Positions are rounded when converting back.
+- **State:** nodes/edges live in `useNodesState`/`useEdgesState` (editor-local, not Zustand). Dirty = `flowToConfig(current)` JSON ≠ the saved config from the query. **Discard re-fetches** via the query's `refetch()` and resets from the result; it doesn't keep a local copy of the saved state (the user asked for this). Save and Discard both go through `ConfirmDialog`. `useBlocker` + `beforeunload` guard unsaved changes.
+- `WorkflowBuilder` shows the skeleton/error states; it only shows the error screen while there's no data at all, so a failed re-fetch never unmounts the editor and loses edits.
+
 ## Authentication (JWT from configuration-service)
 
 - **Backend endpoints:**
@@ -77,7 +86,7 @@ Copy this structure for new CRUD features.
 - **Login guard: `RequireAuth`** (`features/auth/components/require-auth.tsx`, exported from `@/features/auth`).
   - It renders `children`, or `<Outlet />` when used as a layout route, when `selectIsAuthenticated` is true. Otherwise it shows a "Log in required" card with a `LoginDialog`.
   - It doesn't redirect: after login the page renders in place, and after logout the message replaces it.
-  - **Protect pages by adding them to the pathless `{ element: <RequireAuth />, children: [...] }` group in `src/app/routes.tsx`**, currently Product and FAQ. Don't add auth checks inside page components.
+  - **Protect pages by adding them to the pathless `{ element: <RequireAuth />, children: [...] }` group in `src/app/routes.tsx`**, currently Workflow, Product and FAQ. Don't add auth checks inside page components.
   - It's UI only; the backend still enforces 401/403.
 - **Not built yet:** an "expired session" toast, and role-based UI.
 
