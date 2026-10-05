@@ -1,3 +1,4 @@
+import json
 from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -201,9 +202,10 @@ class ChatSessionCreateAPITests(APITestCase):
         self.assertEqual(
             set(body),
             {'id', 'business', 'phone_number', 'display_name', 'created_time', 'last_chat_time',
-             'chat_message_json', 'chat_state_id', 'is_sandbox'},
+             'chat_message_json', 'chat_state_id', 'chat_state_data', 'is_sandbox'},
         )
         self.assertIs(body['is_sandbox'], False)
+        self.assertEqual(body['chat_state_data'], {})
         self.assertEqual(body['business'], self.cafe.pk)
         self.assertEqual(body['phone_number'], '+6591234567')
         self.assertEqual(body['display_name'], 'Alice Tan')
@@ -284,6 +286,22 @@ class ChatSessionCreateAPITests(APITestCase):
 def fake_chat_response(content: str):
     """Shape of ollama's ChatResponse that the app reads: response.message.content."""
     return SimpleNamespace(message=SimpleNamespace(content=content))
+
+
+def fake_ollama_chat(reply: str, extractions=()):
+    """A `side_effect` for the mocked ollama `chat`, for the chat flow (flow.py).
+
+    Structured calls (with `format`, the extraction step) return the next of `extractions` as JSON
+    (`{}`, i.e. nothing found, once they run out). Other calls (the reply) return `reply`.
+    """
+    queue = list(extractions)
+
+    def chat(**kwargs):
+        if kwargs.get('format'):
+            return fake_chat_response(json.dumps(queue.pop(0) if queue else {}))
+        return fake_chat_response(reply)
+
+    return chat
 
 
 class ChatSessionListAPITests(APITestCase):
@@ -377,7 +395,7 @@ class CustomerMessageAPITests(APITestCase):
         )
         # Replace the Ollama client so tests never need a running model.
         self.ollama = MagicMock()
-        self.ollama.chat.return_value = fake_chat_response('Yes, we are open until 6pm!')
+        self.ollama.chat.side_effect = fake_ollama_chat('Yes, we are open until 6pm!')
         patcher = patch('chat_app.llm.get_client', return_value=self.ollama)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -405,16 +423,22 @@ class CustomerMessageAPITests(APITestCase):
         self.assertGreater(self.session.last_chat_time, self.created)
         self.assertEqual(self.session.last_chat_time.isoformat(), bot['message_time'])
         self.assertEqual(self.session.created_time, self.created)
-        self.assertEqual(self.session.chat_state_id, 2)  # not changed yet
+        self.assertEqual(self.session.chat_state_id, 2)  # nothing chosen yet, so still at product selection
 
-    def test_llm_gets_business_system_prompt_and_message(self):
+    def test_llm_gets_business_system_prompt_and_conversation(self):
         self.send(message='  Do you have kaya toast?  ')
-        messages = self.ollama.chat.call_args.kwargs['messages']
+        reply_call = self.ollama.chat.call_args.kwargs  # the reply is the last call
+        messages = reply_call['messages']
         self.assertEqual(messages[0]['role'], 'system')
-        for part in ('Kopi Café', 'Local kopi and toast.', 'Tiong Bahru'):
+        for part in ('Kopi Café', 'Local kopi and toast.', 'Tiong Bahru', 'Product selection'):
             self.assertIn(part, messages[0]['content'])
-        self.assertEqual(messages[1], {'role': 'user', 'content': 'Do you have kaya toast?'})
-        self.assertEqual(self.ollama.chat.call_args.kwargs['options'], llm.OLLAMA_OPTIONS)
+        # The whole conversation: the customer is `user`, the business (bot or person) `assistant`.
+        self.assertEqual(
+            [m['role'] for m in messages[1:]], ['user', 'assistant', 'assistant', 'user']
+        )
+        self.assertEqual(messages[-1], {'role': 'user', 'content': 'Do you have kaya toast?'})
+        self.assertEqual(reply_call['options'], llm.OLLAMA_OPTIONS)
+        self.assertNotIn('format', reply_call)
 
     def test_no_login_needed(self):
         # The customer isn't a logged-in user (it will be a webhook).
@@ -640,7 +664,7 @@ class SandboxChatMessageAPITests(APITestCase):
         self.sandbox = ChatSession.objects.create(business=self.cafe, is_sandbox=True, chat_state_id=1)
         self.other_sandbox = ChatSession.objects.create(business=self.cafe, is_sandbox=True)
         self.ollama = MagicMock()
-        self.ollama.chat.return_value = fake_chat_response('Hello from the café!')
+        self.ollama.chat.side_effect = fake_ollama_chat('Hello from the café!')
         patcher = patch('chat_app.llm.get_client', return_value=self.ollama)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -668,7 +692,7 @@ class SandboxChatMessageAPITests(APITestCase):
             [('customer', 'Are you open?'), ('business-automated', 'Hello from the café!')],
         )
         validate_chat_messages(self.sandbox.chat_message_json)
-        self.assertEqual(self.sandbox.chat_state_id, 1)
+        self.assertEqual(self.sandbox.chat_state_id, 1)  # only asked a question: still at the start
         self.assertIn('Kopi Café', self.ollama.chat.call_args.kwargs['messages'][0]['content'])
 
     def test_sessions_are_independent(self):

@@ -5,7 +5,12 @@ from django.db.models import Q
 from django.utils import timezone
 
 from .constants import START_BLOCK
-from .validators import is_valid_block_id, validate_chat_config, validate_chat_messages
+from .validators import (
+    is_valid_block_id,
+    validate_chat_config,
+    validate_chat_messages,
+    validate_chat_state_data,
+)
 
 PHONE_NUMBER_MAX_LENGTH = 16  # E.164: "+" and up to 15 digits
 DISPLAY_NAME_MAX_LENGTH = 150
@@ -35,9 +40,23 @@ class ChatConfiguration(models.Model):
         return f'Chat configuration for {self.business}'
 
     @property
+    def start_block(self) -> dict:
+        """The START_BLOCK (a valid config_json has exactly one)."""
+        return next(block for block in self.config_json if block['block_type'] == START_BLOCK)
+
+    @property
     def start_block_id(self):
-        """`id` of the START_BLOCK (a valid config_json has exactly one)."""
-        return next(block['id'] for block in self.config_json if block['block_type'] == START_BLOCK)
+        """`id` of the START_BLOCK."""
+        return self.start_block['id']
+
+    def get_block(self, block_id) -> dict | None:
+        """The block with this `id`, or None. Types must match too, so "1" doesn't find block 1."""
+        if block_id is None:
+            return None
+        return next(
+            (block for block in self.config_json if type(block['id']) is type(block_id) and block['id'] == block_id),
+            None,
+        )
 
 
 class ChatSession(models.Model):
@@ -78,6 +97,14 @@ class ChatSession(models.Model):
     is_sandbox = models.BooleanField(
         default=False,
         help_text='A test chat from the Chat Sandbox rather than a real customer.',
+    )
+    # What the chat flow has collected so far (chosen products, customer details, completed).
+    # See validators.validate_chat_state_data and flow.py.
+    chat_state_data = models.JSONField(
+        default=dict,
+        blank=True,
+        validators=[validate_chat_state_data],
+        help_text='Data collected by the chat flow so far: chosen products, customer details, completed.',
     )
 
     class Meta:

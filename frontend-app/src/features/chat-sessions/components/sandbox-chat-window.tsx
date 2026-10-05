@@ -1,16 +1,19 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { CircleAlert, FlaskConical, MessageSquareDashed, Trash2, SendHorizontal } from 'lucide-react'
+import { Bug, CircleAlert, FlaskConical, MessageSquareDashed, Trash2, SendHorizontal } from 'lucide-react'
 
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { getFormErrors } from '@/lib/form-errors'
 import type { ApiError } from '@/types/api'
 
 import { useDeleteSandboxSession, useIsSendingSandboxMessage, useSendSandboxMessage } from '../hooks/use-chat-sessions'
+import { useChatSteps } from '../hooks/use-chat-steps'
 import { CHAT_MESSAGE_MAX_LENGTH, sessionLabel } from '../sandbox'
 import type { ChatSession } from '../types'
 import { ChatMessageBubble, TypingBubble } from './chat-message-bubble'
+import { ChatStateSummary } from './chat-state-summary'
 
 const SUGGESTIONS = ['Hi! What do you sell?', 'Are you open today?', "I'd like to place an order."]
 
@@ -21,13 +24,25 @@ interface SandboxChatWindowProps {
   draft: string
   onDraftChange: (draft: string) => void
   onDeleted: () => void
+  /** Whether the debug panel (chat flow state) is open next to the chat. */
+  debugOpen: boolean
+  onDebugOpenChange: (open: boolean) => void
 }
 
 /** One sandbox chat: the conversation, the message box and a delete button. */
-export function SandboxChatWindow({ session, businessName, draft, onDraftChange, onDeleted }: SandboxChatWindowProps) {
+export function SandboxChatWindow({
+  session,
+  businessName,
+  draft,
+  onDraftChange,
+  onDeleted,
+  debugOpen,
+  onDebugOpenChange,
+}: SandboxChatWindowProps) {
   const send = useSendSandboxMessage(session.id)
   const isSending = useIsSendingSandboxMessage(session.id)
   const remove = useDeleteSandboxSession()
+  const { stepLabel } = useChatSteps()
   const [deleteOpen, setDeleteOpen] = useState(false)
   const endRef = useRef<HTMLDivElement>(null)
   const messages = session.chat_message_json
@@ -85,6 +100,16 @@ export function SandboxChatWindow({ session, businessName, draft, onDraftChange,
           </p>
         </div>
         <Button
+          variant={debugOpen ? 'secondary' : 'ghost'}
+          size="icon"
+          aria-label="Debug: show the chat flow state"
+          aria-pressed={debugOpen}
+          title="Debug: show the chat flow state"
+          onClick={() => onDebugOpenChange(!debugOpen)}
+        >
+          <Bug />
+        </Button>
+        <Button
           variant="ghost"
           size="icon"
           aria-label={`Delete ${label}`}
@@ -98,6 +123,15 @@ export function SandboxChatWindow({ session, businessName, draft, onDraftChange,
           <Trash2 className="text-destructive" />
         </Button>
       </header>
+
+      {/* Where the chat flow is, and what it has collected (updated after each reply). */}
+      <div className="bg-muted/30 flex flex-wrap items-center gap-x-4 gap-y-1 border-b px-4 py-2 text-xs">
+        <span className="flex items-center gap-1.5">
+          <span className="text-muted-foreground">Step</span>
+          <Badge variant="secondary">{stepLabel(session.chat_state_id) ?? '—'}</Badge>
+        </span>
+        <ChatStateSummary data={session.chat_state_data} />
+      </div>
 
       <div className="bg-muted/20 flex-1 overflow-y-auto px-4 py-4">
         {messages.length === 0 && !isSending ? (

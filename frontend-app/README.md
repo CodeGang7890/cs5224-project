@@ -110,7 +110,7 @@ The **Workflow** tab (login required) edits your business's chat configuration o
 The **Chats** tab (login required) is a **read-only** list of your business's chats from `GET /api/chat/sessions/`. There's no editing or deleting here.
 
 - **Columns:** customer (name, phone number, a *Sandbox* badge for test chats), current step in your workflow, number of messages, last message, last chat time and start date.
-- **Click a row** (or the eye icon) to read the whole conversation in a dialog. Business messages are on the right, labelled *Assistant* (automated) or *Business* (typed by a person).
+- **Click a row** (or the eye icon) to read the whole conversation in a dialog, with what the chat flow has collected (order and total, name, email, *Order confirmed*). Business messages are on the right, labelled *Assistant* (automated) or *Business* (typed by a person).
 - **Search** by name or phone number (as you type).
 - **Filters:** which chats (*Customer chats*, the default; *Customer + sandbox*; *Sandbox only*), current step (from your workflow), with or without messages, last-chat date range and start date range. **Clear filters** resets them.
 - **Sort by** most recent or oldest chat, newest or oldest started, name (A–Z / Z–A) or phone number.
@@ -124,9 +124,11 @@ The **Chat Sandbox** tab (login required) lets you test your chat assistant by p
 - **The left panel lists your sandbox chats**, most recent first, with the last message. `GET /api/chat/sandbox-sessions/` (20 at a time; **Load more** fetches the next page).
 - **New chat** creates one: `POST /api/chat/sandbox-sessions/`, named "Test chat N". It starts at your workflow's Start block, so **your business needs a saved workflow first**; otherwise you get a link to the Workflow tab.
 - **Click a chat to open it.** The open chat is kept in the URL (`?session=<id>`), so a refresh keeps it open. Each chat keeps its own unsent text.
-- **Send a message:** `POST /api/chat/sandbox-sessions/{id}/messages/`. The backend saves it, asks the LLM (local Ollama) for a reply, and saves and returns the reply. Your message appears straight away with a typing indicator. You can switch to another chat while waiting: the list shows "Waiting for reply…" and the reply lands in the right chat.
+- **Send a message:** `POST /api/chat/sandbox-sessions/{id}/messages/`. The backend saves it, runs the chat flow (which moves the chat through your workflow's blocks; see "Chat flow" in `../configuration-service/README.md`), and saves and returns the LLM's reply. Your message appears straight away with a typing indicator. You can switch to another chat while waiting: the list shows "Waiting for reply…" and the reply lands in the right chat.
+- **The strip under the chat's header** shows where the chat is in your workflow (*Step*: Start, Product selection, Details collection, Confirmation) and what it has collected: the order with its total, the customer's name and email, and *Order confirmed* at the end. It updates after each reply. To try the whole flow: ask to order, pick products and quantities, give a name and email, then reply YES to the summary.
+- **Debug panel:** the bug icon in the chat's header opens a panel beside the chat (kept in the URL as `?debug`). **Saved state** shows the raw `chat_state_id`, its block from your workflow and the `chat_state_data` JSON. **Latest turn** shows what happened inside the last message you sent: the state before → after, each block's extraction (what the LLM returned, whether the check passed, what's missing, problems, and the prompt sent), why it stopped, the reply prompt and any tool calls. The latest turn comes from the send response and isn't stored, so it's empty after a reload until you send another message.
 - **Delete a chat** with the bin icon in its header, after a confirmation: `DELETE /api/chat/sandbox-sessions/{id}/`.
-- Enter sends, Shift+Enter adds a new line. Messages can be up to 4,096 characters. Replies can take a while, so sending waits up to 150 seconds instead of the usual 15.
+- Enter sends, Shift+Enter adds a new line. Messages can be up to 4,096 characters. Replies can take a while (the backend may ask the LLM several times per message), so sending waits up to 5 minutes instead of the usual 15 seconds.
 - If the LLM fails, you see an error, but your message is still saved in the chat.
 - You need `configuration-service` and Ollama running (see `../configuration-service/README.md`).
 

@@ -429,3 +429,42 @@ AI Model Used: anthropic.claude-opus-5-5
 Original Prompt:
 /goal
 See messaging service, I want to change it so it uses FastAPI instead of Flask. Please change that entire thing, retaining the same functionality that it currently has.
+
+Date & Time (GMT+8): 2026-10-05 12:00:17
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+See chat_app/llm.py, now I want to draft the main chat flow incorporating the state. The goal is to have a simple end to end conversation in the Chat Sandbox tab in the frontend-app, from start to product selection state to details collection to confirmation and done. Please help me draft the code, it should go something like this:
+- Get config_json and chat_state_object
+    - You need to pass the phone_number and message. (or whatever such that I can test in the frontend-app right now)
+    - Get the BusinessConfiguration id from who I am authenticated as (one user = one business configuration)
+    - Get the BusinessConfiguration, ChatSession object from db.
+    - Get config_json from BusinessConfiguration.config_json, chat_state_id from ChatSession.chat_state_id
+    - Get the object in config_json called where id is equal to chat_state_id (if to id equal to it, please just make the chat_state_id to be the id of the START_BLOCK), call this chat_state_config
+- Build dynamic request to LLM
+    - A function to get system prompt based on the chat_state_object and config_json (to be specified in detail later)
+    - Now you can draft a mock prompt for each block_type first. So different block_type has different prompt and goal.
+    - Pass in tools to LLM (to be specified in detail later, only to GET data from db)
+    - LLM should return in some format, that determines whether the data required is gained or not; if say the goal is product selection and user selected a product, then it should return in some format what the user chooses, and let the next logic (deterministic check) determine to move it to the next state (e.g., go to details collection after product selection)
+- Update based on returned format
+    - Deterministic checks based on the output of the LLM -> if data completed, pass to next stage
+    - Update DB or chat session state, save conversation history etc
+- Get reply from LLM
+    - Based on the state (if it has move on to next state, or if it still stuck in current stage with whatever data user has), it should pass it to LLM and reply the user
+    - The system prompt of this should also be different based on the block_type. Say if in the details collection stage, you need name and email but the user only gives name, it should know about this information and knows how to prompt the user for the incomplete information.
+Please feel free to make assumptions and make sample prompt and goal for each stage. Say for details collection just need name and email as of now. Think of a way to store that information states in a “json” format somewhere in ChatSession, feel free to add a new field or add extra validators.
+
+Date & Time (GMT+8): 2026-10-05 13:47:28
+AI Model Used: claude-opus-5-5
+Original Prompt:
+Do you provide the tools for the llm to get the data? (e.g., all the products available) or no?
+
+Date & Time (GMT+8): 2026-10-05 13:48:33
+AI Model Used: claude-opus-5-5
+Original Prompt:
+For debugging purpose, can u please have a way to show in the Chat Sandbox the state we're in and whatever internal information there is (e.g., say we're in product selectino state, and what json data is being stored now in the ChatSession)
+
+Date & Time (GMT+8): 2026-10-05 13:54:20
+AI Model Used: claude-opus-5-5
+Original Prompt:
+[Image #2] Please fix this chat ui by adding max width and "..." when the message is too long, it looks bad if it can be scrolled for this long

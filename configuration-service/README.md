@@ -103,7 +103,7 @@ Notes:
 | `auth_app` | `BusinessUser` | Every field of Django's built-in user (username, password, email, first/last name, `is_staff`, `is_superuser`, `is_active`, groups, permissions, `last_login`, `date_joined`), plus `business` → `BusinessConfiguration` (optional) |
 | `product_app` | `Product` | `id`, `business` → `BusinessConfiguration`, `name` (≤150 chars), `description` (≤5,000 chars, optional), `price` (≥0, 2 decimal places, up to 99,999,999.99), `quantity_available` / `quantity_on_hold` / `quantity_sold` (whole numbers ≥0, default 0), `is_active` (default true) |
 | `product_app` | `FAQ` | `id`, `business` → `BusinessConfiguration`, `question` (≤300 chars), `answer` (≤10,000 chars) |
-| `chat_app` | `ChatSession` | `id`, `business` → `BusinessConfiguration`, `phone_number` (the customer's, international format e.g. `+6591234567`), `display_name` (≤150 chars, optional), `created_time` (defaults to now), `last_chat_time`, `chat_message_json` (the conversation, see below), `chat_state_id` (the flow block the customer is at, or empty), `is_sandbox` (a test chat from the Chat Sandbox; default false) |
+| `chat_app` | `ChatSession` | `id`, `business` → `BusinessConfiguration`, `phone_number` (the customer's, international format e.g. `+6591234567`), `display_name` (≤150 chars, optional), `created_time` (defaults to now), `last_chat_time`, `chat_message_json` (the conversation, see below), `chat_state_id` (the flow block the customer is at, or empty), `chat_state_data` (what the chat flow has collected so far, see below), `is_sandbox` (a test chat from the Chat Sandbox; default false) |
 | `chat_app` | `ChatConfiguration` | `id`, `business` → `BusinessConfiguration` (one per business), `config_json` (the chat flow, see below), `last_updated` (set automatically on every save) |
 
 Rules enforced by Django validation (e.g. in Django Admin) **and** by the database:
@@ -123,6 +123,7 @@ Rules enforced by Django validation (e.g. in Django Admin) **and** by the databa
 - **Sandbox sessions** (`is_sandbox = true`) are exempt: the phone number is optional (still validated if given), may repeat, and a business can have any number of them.
 - `chat_message_json` is a list of messages, oldest first: `{"message": "Hi", "sent_by": "customer", "message_time": "2026-09-01T09:00:00+08:00"}`. `validate_chat_messages` (`chat_app/validators.py`) checks that `message` is non-blank (≤4,096 chars), `sent_by` is `customer`, `business-manual` or `business-automated` (defined in `chat_app/constants.py`), and `message_time` is an ISO 8601 date-time with a timezone, in chronological order. An empty list is fine.
 - `chat_state_id` is empty, or the `id` of a block in the business's chat configuration (the type must match too: `"2"` is not block `2`). If the business has no chat configuration, it must be empty.
+- `chat_state_data` is an object; every key is optional (`{}` means nothing collected yet). `validate_chat_state_data` checks: `items`, a list of `{product_id, name, unit_price, quantity}` (the chosen products; `name` and `unit_price` are a snapshot, `unit_price` a decimal string like `"5.50"`, `quantity` ≥1); `details`, `{name?, email?}` (non-blank strings); `completed`, true once the customer confirmed the order. Example: `{"items": [{"product_id": 1, "name": "Kopi C", "unit_price": "1.80", "quantity": 2}], "details": {"name": "Alice"}}`.
 
 When a business is deleted:
 - Its **products, FAQs, chat configuration and chat sessions are deleted** with it.
@@ -219,10 +220,37 @@ The response is `{count, total_pages, current_page, page_size, has_next, has_pre
 
 1. Finds that business's session for that phone number (404 if there isn't one; create it first with `POST /api/chat/sessions/`).
 2. Appends the message as `{message, sent_by: "customer", message_time: now}` and sets `last_chat_time` to now.
-3. Asks the LLM (Ollama, see [Chat (temporary)](#chat-temporary)) for a reply, using a system prompt built from the business's name, description and location (`CUSTOMER_SYSTEM_PROMPT_TEMPLATE` in `chat_app/llm.py`). Only the new message is sent for now: no history, and `chat_state_id` isn't used or changed yet.
-4. Appends the reply as `{message, sent_by: "business-automated", message_time: now}`, sets `last_chat_time` again, and returns that reply object.
+3. Runs the [chat flow](#chat-flow): may move `chat_state_id` on to the next block and update `chat_state_data`.
+4. Asks the LLM for a reply, with the current block's prompt and the conversation so far.
+5. Appends the reply as `{message, sent_by: "business-automated", message_time: now}`, sets `last_chat_time` again, and returns that reply object.
 
 If Ollama fails (502/503/504), the customer's message is still saved, but there's no reply.
+
+### Chat flow
+
+Each customer message (real or sandbox) moves the chat through the business's chat configuration (`chat_app/flow.py`). It needs Ollama, like the [one-off chat](#chat-temporary).
+
+1. **Where is the chat?** The block whose `id` is the session's `chat_state_id`. If there's none (e.g. the block was deleted from the workflow), the Start block.
+2. **Extract.** The LLM reads the conversation and returns JSON in the block type's format (Ollama structured output, `temperature` 0). The prompts and formats are in `chat_app/prompts.py`:
+
+   | Block type | Goal | The LLM returns |
+   | --- | --- | --- |
+   | `START_BLOCK` | Welcome the customer, answer questions, find out if they want to order | `{"wants_to_order": true/false}` |
+   | `PRODUCT_SELECTION_BLOCK` | Which products, and how many of each | `{"items": [{"product_id", "quantity"}]}` |
+   | `DETAILS_COLLECTION_BLOCK` | The customer's name and email (`REQUIRED_CUSTOMER_DETAILS` in `constants.py`) | `{"name": …/null, "email": …/null}` |
+   | `CONFIRMATION_BLOCK` | Show the summary, get a confirmation | `{"decision": "confirm"/"change"/"none"}` |
+
+3. **Check deterministically** (in Python, not the LLM) whether that completes the block, and save what's valid in `chat_state_data`:
+   - Start: complete when `wants_to_order` is true.
+   - Product selection: every chosen product must be one of the business's active products, with a quantity from 1 up to `quantity_available`. Otherwise it stays, and the problem (e.g. "Only 3 Kaya Toast Set are available") goes into the reply prompt.
+   - Details collection: complete when both name and email are known and valid (Django's email validator). Values already known are kept when the customer doesn't repeat them.
+   - Confirmation: `confirm` completes it; `change` goes back to the block after Start, where the blocks run again with the data already collected (so only what changed needs re-entering). It is never checked in the same message it's reached: the customer must see the summary first.
+
+   When a block completes, the chat moves to its `next_block_id` and repeats steps 2–3 there, so one message can complete several blocks. When the last block completes, `chat_state_data.completed` becomes true and the chat stays at that block. (A workflow that's only a Start block never completes.) After that, messages get replies but no extraction.
+4. **Save** `chat_state_id` and `chat_state_data`. A collected name also fills in an empty `display_name`.
+5. **Reply.** The LLM writes the reply with a system prompt for the current block: the business's details, the step and its goal, what's known so far (order with total, details), what's still needed, problems to explain, and the products on sale (for Start and Product selection). The reply step can call **read-only tools** (`chat_app/tools.py`, only the chatting business's data): `list_products` and `list_faqs`.
+
+A message makes 2 or more LLM calls: one extraction per block it passes through, plus the reply (plus tool calls). Only the last 20 messages are sent (`HISTORY_MAX_MESSAGES`).
 
 ### Sandbox chat sessions
 
@@ -231,7 +259,7 @@ Test chats a business starts itself (e.g. from the Chat Sandbox), separate from 
 - `GET /api/chat/sandbox-sessions/`: your sandbox sessions, paginated, most recent chat first.
 - `POST /api/chat/sandbox-sessions/`: `{display_name?, phone_number?}`, both optional. Starts a sandbox session the same way as a real one (Start block, no messages, `created_time = last_chat_time = now`), so your business needs a chat configuration (400 otherwise). A business can have any number.
 - `DELETE /api/chat/sandbox-sessions/{id}/`: deletes the session and its conversation (204). Another business's session → 403; a real customer session → 400 ("Only sandbox chat sessions can be deleted here."); unknown ID → 404.
-- `POST /api/chat/sandbox-sessions/{id}/messages/`: `{message}`. Same flow as the customer message endpoint below (save the message as `customer`, ask the LLM, save and return the `business-automated` reply; the message is kept if the LLM fails), with the same 403/400/404 rules as delete. `frontend-app`'s Chat Sandbox uses this.
+- `POST /api/chat/sandbox-sessions/{id}/messages/`: `{message}`. Same flow as the customer message endpoint above (save the message as `customer`, run the [chat flow](#chat-flow), save and return the `business-automated` reply; the message is kept if the LLM fails), with the same 403/400/404 rules as delete. `frontend-app`'s Chat Sandbox uses this. For debugging, the response also has `debug` (not stored): the state before and after, each block's extraction (prompt, the LLM's JSON, the check result: complete / missing / issues), why the flow stopped, the reply system prompt and any tool calls.
 
 Sandbox sessions are left out of `GET /api/chat/sessions/` unless you ask for them with `sandbox=include` or `sandbox=only`, and `POST /api/chat/sessions/messages/` only finds real sessions.
 
@@ -324,8 +352,9 @@ Tests use a temporary database, so your `db.sqlite3` isn't touched.
 | `product_app/tests.py` | Product and FAQ model validation and database constraints |
 | `auth_app/tests.py` | `BusinessUser` model, Django Admin pages load |
 | `configuration_app/tests.py` | `BusinessConfiguration` model, random-number endpoint, CORS |
-| `chat_app/tests.py` | `validate_chat_config` and `validate_chat_messages` rules; `ChatConfiguration` and `ChatSession` models (validation, uniqueness, `chat_state_id` must match a block); sample fixtures are valid |
+| `chat_app/tests.py` | `validate_chat_config`, `validate_chat_messages` and `validate_chat_state_data` rules; `ChatConfiguration` and `ChatSession` models (validation, uniqueness, `chat_state_id` must match a block); sample fixtures are valid |
 | `chat_app/test_api.py` | Chat endpoint returns the reply, with the LLM mocked (no Ollama needed); chat configuration GET/PUT (401/403/404, create vs update, read-only fields, invalid `config_json` → 400); chat sessions create/list (filters, sorting and pagination on the sample fixtures) and customer messages (LLM mocked); sandbox sessions list/create/delete (only sandbox, only your business) |
+| `chat_app/test_flow.py` | The chat flow (LLM mocked): a whole conversation from Start to confirmed, going back on "change", invalid choices, unknown state → Start block, tool calls, invalid JSON → 502; each block's deterministic check |
 
 ### Resetting the local database
 
@@ -416,15 +445,19 @@ configuration-service/
 │   ├── fixtures/           # sample_chat_configurations.json, sample_chat_sessions.json
 │   ├── migrations/
 │   ├── admin.py
-│   ├── constants.py        # BLOCK_TYPES, MESSAGE_SENDERS
+│   ├── constants.py        # BLOCK_TYPES, MESSAGE_SENDERS, REQUIRED_CUSTOMER_DETAILS
 │   ├── models.py           # ChatConfiguration, ChatSession
-│   ├── validators.py       # validate_chat_config, validate_chat_messages
-│   ├── llm.py              # Ollama client, model, system prompt, hardcoded sampling options
+│   ├── validators.py       # validate_chat_config, validate_chat_messages, validate_chat_state_data
+│   ├── llm.py              # Ollama client, model, sampling options; structured output + tool-calling helpers
+│   ├── flow.py             # The chat flow: extraction → deterministic checks → state → reply
+│   ├── prompts.py          # Per-block-type goals, extraction prompts + JSON schemas, reply prompts
+│   ├── tools.py            # Read-only tools for the reply step (list_products, list_faqs)
 │   ├── serializers.py      # Chat request/response, ChatConfigurationSerializer
 │   ├── views.py            # ChatView, ChatConfigurationView
 │   ├── urls.py             # /api/chat/, /api/chat/configuration/
 │   ├── tests.py            # Validator + model tests
-│   └── test_api.py         # Chat API (mocked LLM) + chat configuration API tests
+│   ├── test_api.py         # Chat API (mocked LLM) + chat configuration API tests
+│   └── test_flow.py        # Chat flow tests (mocked LLM)
 ├── manage.py
 ├── requirements.txt
 └── .env.example

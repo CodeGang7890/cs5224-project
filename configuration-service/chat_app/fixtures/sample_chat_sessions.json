@@ -41,6 +41,25 @@
         }
       ],
       "chat_state_id": 4,
+      "chat_state_data": {
+        "items": [
+          {
+            "product_id": 2,
+            "name": "Kaya Toast Set",
+            "unit_price": "5.50",
+            "quantity": 2
+          },
+          {
+            "product_id": 1,
+            "name": "Kopi C",
+            "unit_price": "1.80",
+            "quantity": 2
+          }
+        ],
+        "details": {
+          "name": "Alice"
+        }
+      },
       "is_sandbox": false
     }
   },
@@ -66,6 +85,7 @@
         }
       ],
       "chat_state_id": 2,
+      "chat_state_data": {},
       "is_sandbox": false
     }
   },
@@ -86,6 +106,7 @@
         }
       ],
       "chat_state_id": 1,
+      "chat_state_data": {},
       "is_sandbox": false
     }
   },
@@ -116,6 +137,7 @@
         }
       ],
       "chat_state_id": null,
+      "chat_state_data": {},
       "is_sandbox": false
     }
   },
@@ -141,6 +163,7 @@
         }
       ],
       "chat_state_id": null,
+      "chat_state_data": {},
       "is_sandbox": false
     }
   },
@@ -166,6 +189,7 @@
         }
       ],
       "chat_state_id": null,
+      "chat_state_data": {},
       "is_sandbox": false
     }
   },
@@ -201,6 +225,16 @@
         }
       ],
       "chat_state_id": 3,
+      "chat_state_data": {
+        "items": [
+          {
+            "product_id": 3,
+            "name": "Seasonal Brunch Plate",
+            "unit_price": "16.00",
+            "quantity": 1
+          }
+        ]
+      },
       "is_sandbox": true
     }
   },
@@ -226,6 +260,7 @@
         }
       ],
       "chat_state_id": 1,
+      "chat_state_data": {},
       "is_sandbox": true
     }
   },
@@ -261,6 +296,19 @@
         }
       ],
       "chat_state_id": 4,
+      "chat_state_data": {
+        "items": [
+          {
+            "product_id": 1,
+            "name": "Kopi C",
+            "unit_price": "1.80",
+            "quantity": 3
+          }
+        ],
+        "details": {
+          "name": "Farah"
+        }
+      },
       "is_sandbox": false
     }
   },
@@ -286,6 +334,7 @@
         }
       ],
       "chat_state_id": 2,
+      "chat_state_data": {},
       "is_sandbox": false
     }
   },
@@ -316,6 +365,19 @@
         }
       ],
       "chat_state_id": 3,
+      "chat_state_data": {
+        "items": [
+          {
+            "product_id": 2,
+            "name": "Kaya Toast Set",
+            "unit_price": "5.50",
+            "quantity": 2
+          }
+        ],
+        "details": {
+          "name": "Hui Min"
+        }
+      },
       "is_sandbox": false
     }
   },
@@ -341,6 +403,7 @@
         }
       ],
       "chat_state_id": 1,
+      "chat_state_data": {},
       "is_sandbox": false
     }
   },
@@ -355,6 +418,7 @@
       "last_chat_time": "2026-09-09T07:55:00+08:00",
       "chat_message_json": [],
       "chat_state_id": 1,
+      "chat_state_data": {},
       "is_sandbox": false
     }
   },
@@ -400,6 +464,25 @@
         }
       ],
       "chat_state_id": 4,
+      "chat_state_data": {
+        "items": [
+          {
+            "product_id": 2,
+            "name": "Kaya Toast Set",
+            "unit_price": "5.50",
+            "quantity": 10
+          },
+          {
+            "product_id": 1,
+            "name": "Kopi C",
+            "unit_price": "1.80",
+            "quantity": 20
+          }
+        ],
+        "details": {
+          "name": "Jasmine"
+        }
+      },
       "is_sandbox": false
     }
   },
@@ -425,6 +508,7 @@
         }
       ],
       "chat_state_id": 2,
+      "chat_state_data": {},
       "is_sandbox": false
     }
   },
@@ -450,6 +534,16 @@
         }
       ],
       "chat_state_id": 3,
+      "chat_state_data": {
+        "items": [
+          {
+            "product_id": 3,
+            "name": "Seasonal Brunch Plate",
+            "unit_price": "16.00",
+            "quantity": 1
+          }
+        ]
+      },
       "is_sandbox": false
     }
   }

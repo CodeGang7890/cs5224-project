@@ -1,7 +1,7 @@
 import { configurationApiClient } from '@/lib/api-client'
 import type { DetailedPaginated, Paginated } from '@/types/api'
 
-import type { ChatMessage, ChatSession, ChatSessionListParams, SandboxChatSessionInput } from '../types'
+import type { ChatSession, ChatSessionListParams, SandboxChatSessionInput, SandboxMessageReply } from '../types'
 
 /** The logged-in business's chat sessions, filtered, sorted and paginated by the backend. */
 export async function listChatSessions(params: ChatSessionListParams): Promise<DetailedPaginated<ChatSession>> {
@@ -11,8 +11,9 @@ export async function listChatSessions(params: ChatSessionListParams): Promise<D
 
 // Sandbox (test) chat sessions of the logged-in user's business.
 
-// The backend waits up to 120 s for the local LLM, far longer than the client's 15 s default.
-const SEND_MESSAGE_TIMEOUT_MS = 150_000
+// The backend's chat flow makes several calls to the local LLM per message (one per block it
+// passes, plus the reply), far longer than the client's 15 s default.
+const SEND_MESSAGE_TIMEOUT_MS = 300_000
 
 export async function listSandboxSessions(page: number): Promise<Paginated<ChatSession>> {
   const { data } = await configurationApiClient.get<Paginated<ChatSession>>('/chat/sandbox-sessions/', {
@@ -30,9 +31,9 @@ export async function deleteSandboxSession(id: number): Promise<void> {
   await configurationApiClient.delete(`/chat/sandbox-sessions/${id}/`)
 }
 
-/** Sends a message as the pretend customer and returns the assistant's reply. */
-export async function sendSandboxMessage(id: number, message: string): Promise<ChatMessage> {
-  const { data } = await configurationApiClient.post<ChatMessage>(
+/** Sends a message as the pretend customer and returns the assistant's reply (with debug info). */
+export async function sendSandboxMessage(id: number, message: string): Promise<SandboxMessageReply> {
+  const { data } = await configurationApiClient.post<SandboxMessageReply>(
     `/chat/sandbox-sessions/${id}/messages/`,
     { message },
     { timeout: SEND_MESSAGE_TIMEOUT_MS },

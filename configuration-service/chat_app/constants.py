@@ -22,3 +22,6 @@ MESSAGE_SENDERS = [
     SENT_BY_BUSINESS_MANUAL,
     SENT_BY_BUSINESS_AUTOMATED,
 ]
+
+# Customer details a DETAILS_COLLECTION_BLOCK collects (keys of chat_state_data['details']).
+REQUIRED_CUSTOMER_DETAILS = ['name', 'email']

@@ -1,4 +1,3 @@
-from django.db import transaction
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, extend_schema
@@ -12,9 +11,8 @@ from rest_framework.views import APIView
 from auth_app.business_scope import NO_BUSINESS_MESSAGE, OTHER_BUSINESS_MESSAGE
 from config.pagination import DetailedPageNumberPagination
 
-from . import llm
+from . import flow, llm
 from .filters import ChatSessionFilter
-from .constants import SENT_BY_BUSINESS_AUTOMATED, SENT_BY_CUSTOMER
 from .models import ChatConfiguration, ChatSession
 from .serializers import (
     ChatConfigurationSerializer,
@@ -25,6 +23,7 @@ from .serializers import (
     CustomerMessageRequestSerializer,
     SandboxChatSessionSerializer,
     SandboxMessageRequestSerializer,
+    SandboxMessageResponseSerializer,
 )
 
 NO_CHAT_CONFIGURATION_MESSAGE = 'Your business has no chat configuration yet. Create one with PUT.'
@@ -271,41 +270,19 @@ class ChatSessionListView(generics.ListCreateAPIView):
         return create_chat_session(serializer, business, is_sandbox=False)
 
 
-def append_chat_message(session_id: int, message: str, sent_by: str) -> dict:
-    """Appends a message (timestamped now) to a session and updates its last_chat_time.
-
-    Row-locked in its own short transaction, so concurrent messages aren't lost. (The lock
-    isn't held during the LLM call, which can take a while.)
-    """
-    with transaction.atomic():
-        session = ChatSession.objects.select_for_update().get(pk=session_id)
-        now = timezone.now()
-        chat_message = {'message': message, 'sent_by': sent_by, 'message_time': now.isoformat()}
-        session.chat_message_json.append(chat_message)
-        session.last_chat_time = now
-        session.save(update_fields=['chat_message_json', 'last_chat_time'])
-    return chat_message
-
-
-def reply_to_customer_message(session: ChatSession, message: str) -> dict:
-    """Saves a customer message, gets the assistant's reply from the LLM, saves and returns it.
+def reply_to_customer_message(session: ChatSession, message: str) -> flow.TurnResult:
+    """Runs one turn of the chat flow (flow.py): the assistant's reply message, and debug info.
 
     The customer message is saved first, so it's kept even if the LLM call fails (502/503/504).
     """
-    append_chat_message(session.pk, message, SENT_BY_CUSTOMER)
-
-    # TODO: the core chat logic: use the conversation so far and the business's chat flow
-    # (move chat_state_id between blocks, use each block type's prompt) to decide the reply.
     try:
-        reply = llm.generate_customer_reply(session.business, message)
+        return flow.handle_customer_message(session.pk, message)
     except llm.LLMUnavailableError as exc:
         raise LLMUnavailable(str(exc)) from exc
     except llm.LLMTimeoutError as exc:
         raise LLMTimeout(str(exc)) from exc
     except llm.LLMError as exc:
         raise LLMBadGateway(str(exc)) from exc
-
-    return append_chat_message(session.pk, reply, SENT_BY_BUSINESS_AUTOMATED)
 
 
 class CustomerMessageView(APIView):
@@ -323,10 +300,10 @@ class CustomerMessageView(APIView):
         summary='Send a customer message and get the reply',
         description=(
             'Finds the chat session for `business_id` + `phone_number`, appends the message '
-            '(`sent_by: customer`), asks the LLM for a reply, appends the reply '
+            '(`sent_by: customer`), runs the chat flow (which may move `chat_state_id` to the next '
+            'block and update `chat_state_data`), asks the LLM for a reply, appends the reply '
             '(`sent_by: business-automated`) and returns it. `last_chat_time` is set to the time '
-            'of each appended message. `chat_state_id` is not changed yet. The customer message '
-            'is kept even if the LLM fails.'
+            'of each appended message. The customer message is kept even if the LLM fails.'
         ),
         request=CustomerMessageRequestSerializer,
         responses={
@@ -356,7 +333,7 @@ class CustomerMessageView(APIView):
         )
         if session is None:
             raise NotFound(NO_CHAT_SESSION_MESSAGE)
-        return Response(ChatMessageSerializer(reply_to_customer_message(session, data['message'])).data)
+        return Response(ChatMessageSerializer(reply_to_customer_message(session, data['message']).reply).data)
 
 
 def get_own_sandbox_session(request: Request, pk: int) -> ChatSession:
@@ -459,12 +436,15 @@ class SandboxChatMessageView(APIView):
         summary='Send a message in a sandbox chat and get the reply',
         description=(
             'Same flow as `POST /api/chat/sessions/messages/`, for one of your sandbox sessions: '
-            'appends the message (`sent_by: customer`), asks the LLM for a reply, appends it '
-            '(`sent_by: business-automated`) and returns it. The message is kept if the LLM fails.'
+            'appends the message (`sent_by: customer`), runs the chat flow (`chat_state_id` / '
+            '`chat_state_data`), asks the LLM for a reply, appends it (`sent_by: business-automated`) '
+            'and returns it, plus `debug`: what happened inside the turn (state before/after, each '
+            "block's extraction prompt, the LLM's JSON and the check result, the reply prompt and tool "
+            'calls), for the Chat Sandbox\'s debug panel. The message is kept if the LLM fails.'
         ),
         request=SandboxMessageRequestSerializer,
         responses={
-            200: ChatMessageSerializer,
+            200: SandboxMessageResponseSerializer,
             400: OpenApiResponse(description='Invalid message, or the session is a real customer session.'),
             403: OpenApiResponse(description="Another business's session, or your account has no business."),
             404: OpenApiResponse(description='No chat session with this ID.'),
@@ -478,5 +458,5 @@ class SandboxChatMessageView(APIView):
         session = get_own_sandbox_session(request, pk)
         serializer = SandboxMessageRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        reply = reply_to_customer_message(session, serializer.validated_data['message'])
-        return Response(ChatMessageSerializer(reply).data)
+        result = reply_to_customer_message(session, serializer.validated_data['message'])
+        return Response(SandboxMessageResponseSerializer({**result.reply, 'debug': result.debug}).data)

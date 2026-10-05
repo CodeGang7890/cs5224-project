@@ -154,3 +154,70 @@ def validate_chat_messages(value) -> None:
 
     if errors:
         raise ValidationError(errors)
+
+
+# --- ChatSession.chat_state_data ----------------------------------------------------------
+
+STATE_DATA_FIELDS = {'items', 'details', 'completed'}
+STATE_ITEM_FIELDS = {'product_id', 'name', 'unit_price', 'quantity'}
+STATE_DETAIL_FIELDS = {'name', 'email'}
+
+
+def _is_int(value) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def validate_chat_state_data(value) -> None:
+    """Validate a ChatSession.chat_state_data: what the chat flow has collected so far.
+
+    Every key is optional (an empty object means nothing collected yet):
+    - ``items``: the products the customer chose, each ``{product_id, name, unit_price, quantity}``
+      (``name`` / ``unit_price`` are a snapshot taken when chosen; ``unit_price`` is a decimal string
+      like ``"5.50"``; ``quantity`` is at least 1).
+    - ``details``: ``{name?, email?}``, non-blank strings.
+    - ``completed``: true once the customer confirmed and the flow reached its last block.
+
+    Raises a ``ValidationError`` listing every problem found.
+    """
+    if not isinstance(value, dict):
+        raise ValidationError('Chat state data must be an object.')
+
+    errors = []
+    unknown = value.keys() - STATE_DATA_FIELDS
+    if unknown:
+        errors.append(f'Unknown field(s) {", ".join(sorted(unknown))}.')
+
+    items = value.get('items', [])
+    if not isinstance(items, list):
+        errors.append('items must be a list.')
+        items = []
+    for index, item in enumerate(items):
+        prefix = f'Item {index}'
+        if not isinstance(item, dict) or item.keys() != STATE_ITEM_FIELDS:
+            errors.append(f'{prefix}: must be an object with exactly {", ".join(sorted(STATE_ITEM_FIELDS))}.')
+            continue
+        if not _is_int(item['product_id']):
+            errors.append(f'{prefix}: product_id must be an integer.')
+        if not isinstance(item['name'], str) or not item['name'].strip():
+            errors.append(f'{prefix}: name must be a non-blank string.')
+        if not isinstance(item['unit_price'], str):
+            errors.append(f'{prefix}: unit_price must be a decimal string, e.g. "5.50".')
+        if not _is_int(item['quantity']) or item['quantity'] < 1:
+            errors.append(f'{prefix}: quantity must be an integer of at least 1.')
+
+    details = value.get('details', {})
+    if not isinstance(details, dict):
+        errors.append('details must be an object.')
+    else:
+        unknown = details.keys() - STATE_DETAIL_FIELDS
+        if unknown:
+            errors.append(f'details: unknown field(s) {", ".join(sorted(unknown))}.')
+        for field in STATE_DETAIL_FIELDS & details.keys():
+            if not isinstance(details[field], str) or not details[field].strip():
+                errors.append(f'details: {field} must be a non-blank string.')
+
+    if not isinstance(value.get('completed', False), bool):
+        errors.append('completed must be true or false.')
+
+    if errors:
+        raise ValidationError(errors)

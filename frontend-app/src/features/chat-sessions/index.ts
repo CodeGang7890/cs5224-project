@@ -14,6 +14,8 @@ export type {
   ChatSession,
   ChatSessionListParams,
   ChatSessionOrdering,
+  ChatStateData,
+  ChatStateItem,
   SandboxChatSessionInput,
   SandboxFilter,
   SentBy,

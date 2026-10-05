@@ -10,7 +10,12 @@ from configuration_app.models import BusinessConfiguration
 
 from .constants import BLOCK_TYPES, MESSAGE_SENDERS
 from .models import ChatConfiguration, ChatSession
-from .validators import CHAT_MESSAGE_MAX_LENGTH, validate_chat_config, validate_chat_messages
+from .validators import (
+    CHAT_MESSAGE_MAX_LENGTH,
+    validate_chat_config,
+    validate_chat_messages,
+    validate_chat_state_data,
+)
 
 VALID_CONFIG = [
     {'id': 1, 'next_block_id': 2, 'block_type': 'START_BLOCK', 'position_x': 100, 'position_y': 100},
@@ -165,6 +170,16 @@ class ChatConfigurationModelTests(TestCase):
         ChatConfiguration.objects.create(business=self.business, config_json=VALID_CONFIG)
         self.business.delete()
         self.assertFalse(ChatConfiguration.objects.exists())
+
+    def test_get_block_matches_id_and_type(self):
+        blocks = config(b1={'next_block_id': 'x'}, b2={'id': 'x'})
+        chat_config = ChatConfiguration(business=self.business, config_json=blocks)
+        self.assertEqual(chat_config.get_block(1)['block_type'], 'START_BLOCK')
+        self.assertEqual(chat_config.get_block('x')['block_type'], 'CONFIRMATION_BLOCK')
+        self.assertIsNone(chat_config.get_block('1'))  # "1" is not block 1
+        self.assertIsNone(chat_config.get_block(None))
+        self.assertIsNone(chat_config.get_block(99))
+        self.assertEqual(chat_config.start_block['id'], 1)
 
 
 class SampleChatConfigurationFixtureTests(TestCase):
@@ -373,6 +388,55 @@ class ChatSessionModelTests(TestCase):
         self.make_session().save()
         self.business.delete()
         self.assertFalse(ChatSession.objects.exists())
+
+
+VALID_STATE_DATA = {
+    'items': [{'product_id': 1, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 2}],
+    'details': {'name': 'Alice', 'email': 'alice@example.com'},
+    'completed': False,
+}
+
+
+class ValidateChatStateDataTests(SimpleTestCase):
+    def assertInvalid(self, value, message_part):
+        with self.assertRaises(ValidationError) as ctx:
+            validate_chat_state_data(value)
+        self.assertTrue(
+            any(message_part in message for message in ctx.exception.messages),
+            f'{message_part!r} not in {ctx.exception.messages}',
+        )
+
+    def test_valid(self):
+        validate_chat_state_data(VALID_STATE_DATA)
+        validate_chat_state_data({})  # nothing collected yet
+        validate_chat_state_data({'details': {'name': 'Alice'}})  # partial details
+
+    def test_invalid(self):
+        item = VALID_STATE_DATA['items'][0]
+        cases = {
+            'not an object': ([], 'must be an object'),
+            'unknown field': ({'cart': []}, 'Unknown field(s) cart'),
+            'items not a list': ({'items': {}}, 'items must be a list'),
+            'item missing field': ({'items': [{'product_id': 1}]}, 'Item 0: must be an object with exactly'),
+            'product_id not int': ({'items': [{**item, 'product_id': '1'}]}, 'product_id must be an integer'),
+            'blank name': ({'items': [{**item, 'name': ' '}]}, 'name must be a non-blank string'),
+            'numeric price': ({'items': [{**item, 'unit_price': 1.8}]}, 'unit_price must be a decimal string'),
+            'zero quantity': ({'items': [{**item, 'quantity': 0}]}, 'quantity must be an integer of at least 1'),
+            'bool quantity': ({'items': [{**item, 'quantity': True}]}, 'quantity must be an integer of at least 1'),
+            'details not object': ({'details': 'Alice'}, 'details must be an object'),
+            'unknown detail': ({'details': {'phone': '+65'}}, 'details: unknown field(s) phone'),
+            'blank detail': ({'details': {'email': ''}}, 'details: email must be a non-blank string'),
+            'completed not bool': ({'completed': 'yes'}, 'completed must be true or false'),
+        }
+        for label, (value, message_part) in cases.items():
+            with self.subTest(label):
+                self.assertInvalid(value, message_part)
+
+    def test_rejected_by_model_full_clean(self):
+        session = ChatSession(business_id=1, phone_number='+6591234567', chat_state_data={'completed': 'yes'})
+        with self.assertRaises(ValidationError) as ctx:
+            session.clean_fields(exclude=['business'])
+        self.assertIn('chat_state_data', ctx.exception.message_dict)
 
 
 class SampleChatSessionFixtureTests(TestCase):

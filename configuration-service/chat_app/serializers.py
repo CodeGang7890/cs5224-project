@@ -82,6 +82,33 @@ class ChatMessagesJSONField(serializers.JSONField):
     pass
 
 
+class ChatStateItemSerializer(serializers.Serializer):
+    product_id = serializers.IntegerField()
+    name = serializers.CharField(help_text='Product name when it was chosen.')
+    unit_price = serializers.DecimalField(max_digits=10, decimal_places=2, help_text='Price when it was chosen.')
+    quantity = serializers.IntegerField(min_value=1)
+
+
+class ChatStateDetailsSerializer(serializers.Serializer):
+    name = serializers.CharField(required=False)
+    email = serializers.EmailField(required=False)
+
+
+class ChatStateDataSerializer(serializers.Serializer):
+    """ChatSession.chat_state_data (see validate_chat_state_data). Every key is optional."""
+
+    items = ChatStateItemSerializer(many=True, required=False, help_text='The products the customer chose.')
+    details = ChatStateDetailsSerializer(required=False, help_text="The customer's details collected so far.")
+    completed = serializers.BooleanField(
+        required=False, help_text='True once the customer confirmed and the flow reached its last block.'
+    )
+
+
+@extend_schema_field(ChatStateDataSerializer)
+class ChatStateDataJSONField(serializers.JSONField):
+    pass
+
+
 class ChatSessionSerializer(serializers.ModelSerializer):
     """A real customer's session. Create: only `phone_number` and `display_name` are writable;
     the rest is set by the backend."""
@@ -96,6 +123,9 @@ class ChatSessionSerializer(serializers.ModelSerializer):
     chat_state_id = _NextBlockIdSchemaField(
         read_only=True, help_text='`id` of the chat flow block the customer is at.'
     )
+    chat_state_data = ChatStateDataJSONField(
+        read_only=True, help_text='What the chat flow has collected so far.'
+    )
 
     class Meta:
         model = ChatSession
@@ -108,6 +138,7 @@ class ChatSessionSerializer(serializers.ModelSerializer):
             'last_chat_time',
             'chat_message_json',
             'chat_state_id',
+            'chat_state_data',
             'is_sandbox',
         ]
         read_only_fields = ['id', 'business', 'created_time', 'last_chat_time', 'is_sandbox']
@@ -150,6 +181,19 @@ class CustomerMessageRequestSerializer(serializers.Serializer):
     message = serializers.CharField(
         max_length=CHAT_MESSAGE_MAX_LENGTH,
         help_text=f"The customer's message (max {CHAT_MESSAGE_MAX_LENGTH} characters).",
+    )
+
+
+class SandboxMessageResponseSerializer(ChatMessageSerializer):
+    """The assistant's reply in a sandbox chat, plus what happened inside the turn (flow.py)."""
+
+    debug = serializers.JSONField(
+        help_text=(
+            'For debugging, not stored: `before` / `after` (`chat_state_id`, `chat_state_data`), '
+            '`steps` (per block: `block_id`, `block_type`, `system_prompt`, `extracted` (the LLM\'s '
+            'JSON), `complete`, `go_back`, `missing`, `issues`, `chat_state_data`), `stop_reason`, '
+            '`finished`, `missing`, `issues`, `reply_system_prompt` and `tool_calls` (`name`, `arguments`).'
+        ),
     )
 
 

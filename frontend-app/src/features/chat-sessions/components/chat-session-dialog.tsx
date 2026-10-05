@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 
 import type { ChatSession } from '../types'
 import { ChatMessageBubble } from './chat-message-bubble'
+import { ChatStateSummary } from './chat-state-summary'
 
 interface ChatSessionDialogProps {
   session: ChatSession | undefined
@@ -35,6 +36,8 @@ export function ChatSessionDialog({ session, stepLabel, onClose }: ChatSessionDi
               <Detail label="Started" value={new Date(session.created_time).toLocaleString()} />
               <Detail label="Last chat" value={new Date(session.last_chat_time).toLocaleString()} />
             </dl>
+
+            <ChatStateSummary data={session.chat_state_data} className="rounded-lg border px-3 py-2 text-sm" />
 
             <div className="bg-muted/20 min-h-0 flex-1 overflow-y-auto rounded-lg border p-4">
               {session.chat_message_json.length === 0 ? (

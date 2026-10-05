@@ -10,9 +10,12 @@ import { useCurrentUser } from '@/features/auth'
 import { useCreateSandboxSession, useSandboxSessions } from '../hooks/use-chat-sessions'
 import { isMissingChatConfiguration, nextSandboxChatName } from '../sandbox'
 import { SandboxChatWindow } from './sandbox-chat-window'
+import { SandboxDebugPanel } from './sandbox-debug-panel'
 import { SandboxSessionList } from './sandbox-session-list'
 
 const SESSION_PARAM = 'session'
+/** Present (`?debug`) while the debug panel is open. */
+const DEBUG_PARAM = 'debug'
 
 const panelClassName = 'flex h-[calc(100svh-16rem)] min-h-[520px] overflow-hidden rounded-xl border'
 
@@ -40,6 +43,7 @@ function SandboxChats({ businessName }: { businessName: string }) {
 
   const sessions = sessionsQuery.data?.pages.flatMap((page) => page.results) ?? []
   const requestedId = Number(searchParams.get(SESSION_PARAM))
+  const debugOpen = searchParams.has(DEBUG_PARAM)
   // Unknown or deleted ID (or none): fall back to the most recent chat.
   const selected = sessions.find((s) => s.id === requestedId) ?? sessions[0]
 
@@ -48,6 +52,16 @@ function SandboxChats({ businessName }: { businessName: string }) {
       (params) => {
         if (id === null) params.delete(SESSION_PARAM)
         else params.set(SESSION_PARAM, String(id))
+        return params
+      },
+      { replace: true },
+    )
+
+  const setDebugOpen = (open: boolean) =>
+    setSearchParams(
+      (params) => {
+        if (open) params.set(DEBUG_PARAM, '')
+        else params.delete(DEBUG_PARAM)
         return params
       },
       { replace: true },
@@ -124,14 +138,19 @@ function SandboxChats({ businessName }: { businessName: string }) {
       </aside>
 
       {selected ? (
-        <SandboxChatWindow
-          key={selected.id}
-          session={selected}
-          businessName={businessName}
-          draft={drafts[selected.id] ?? ''}
-          onDraftChange={(draft) => setDrafts((current) => ({ ...current, [selected.id]: draft }))}
-          onDeleted={() => select(null)}
-        />
+        <>
+          <SandboxChatWindow
+            key={selected.id}
+            session={selected}
+            businessName={businessName}
+            draft={drafts[selected.id] ?? ''}
+            onDraftChange={(draft) => setDrafts((current) => ({ ...current, [selected.id]: draft }))}
+            onDeleted={() => select(null)}
+            debugOpen={debugOpen}
+            onDebugOpenChange={setDebugOpen}
+          />
+          {debugOpen && <SandboxDebugPanel session={selected} onClose={() => setDebugOpen(false)} />}
+        </>
       ) : (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
           <FlaskConical className="text-muted-foreground size-10" />

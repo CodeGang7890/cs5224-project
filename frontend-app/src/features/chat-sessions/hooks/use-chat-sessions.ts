@@ -18,13 +18,22 @@ import {
   listSandboxSessions,
   sendSandboxMessage,
 } from '../api/chat-sessions-api'
-import type { ChatMessage, ChatSession, ChatSessionListParams, SandboxChatSessionInput } from '../types'
+import type {
+  ChatMessage,
+  ChatSession,
+  ChatSessionListParams,
+  SandboxChatSessionInput,
+  SandboxMessageReply,
+  SandboxTurnDebug,
+} from '../types'
 
 export const chatSessionKeys = {
   all: ['chat-sessions'] as const,
   list: (params: ChatSessionListParams) => [...chatSessionKeys.all, 'list', params] as const,
   sandboxList: () => [...chatSessionKeys.all, 'sandbox', 'list'] as const,
   sendSandboxMessage: (sessionId: number) => [...chatSessionKeys.all, 'sandbox', 'send', sessionId] as const,
+  /** Debug info of a session's latest turn: only ever set from send responses, never fetched. */
+  sandboxTurnDebug: (sessionId: number) => [...chatSessionKeys.all, 'sandbox', 'debug', sessionId] as const,
 }
 
 /** One page of chat sessions for the Chats tab (keeps showing the previous page while loading). */
@@ -102,7 +111,7 @@ export function useDeleteSandboxSession() {
  */
 export function useSendSandboxMessage(sessionId: number) {
   const queryClient = useQueryClient()
-  return useMutation<ChatMessage, ApiError, string>({
+  return useMutation<SandboxMessageReply, ApiError, string>({
     mutationKey: chatSessionKeys.sendSandboxMessage(sessionId),
     mutationFn: (message) => sendSandboxMessage(sessionId, message),
     onMutate: async (message) => {
@@ -111,9 +120,27 @@ export function useSendSandboxMessage(sessionId: number) {
         withMessage(session, { message, sent_by: 'customer', message_time: new Date().toISOString() }),
       )
     },
-    onSuccess: (reply) => updateCachedSession(queryClient, sessionId, (session) => withMessage(session, reply)),
+    onSuccess: ({ debug, ...reply }) => {
+      // Keep it until the page reloads, even while no debug panel is showing it.
+      queryClient.setQueryDefaults(chatSessionKeys.sandboxTurnDebug(sessionId), { gcTime: Infinity })
+      queryClient.setQueryData(chatSessionKeys.sandboxTurnDebug(sessionId), debug)
+      updateCachedSession(queryClient, sessionId, (session) => withMessage(session, reply))
+    },
     onSettled: () => queryClient.invalidateQueries({ queryKey: chatSessionKeys.sandboxList() }),
   })
+}
+
+/**
+ * What happened inside this session's latest turn (from the last send response), or undefined
+ * before any message was sent since the page loaded. It isn't stored on the backend.
+ */
+export function useSandboxTurnDebug(sessionId: number) {
+  return useQuery<SandboxTurnDebug | null>({
+    queryKey: chatSessionKeys.sandboxTurnDebug(sessionId),
+    queryFn: () => null, // never runs (enabled: false): the data only comes from setQueryData
+    enabled: false,
+    staleTime: Infinity,
+  }).data
 }
 
 /** Whether a message in this session is waiting for its reply (works across remounts). */

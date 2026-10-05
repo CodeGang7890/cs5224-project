@@ -34,8 +34,9 @@ export function SandboxSessionList({
   onLoadMore,
 }: SandboxSessionListProps) {
   return (
-    <div className="flex-1 overflow-y-auto">
-      <ul className="grid gap-0.5 p-2">
+    <div className="flex-1 overflow-x-hidden overflow-y-auto">
+      {/* A one-column grid track that can't grow past the panel, so long previews truncate instead. */}
+      <ul className="grid grid-cols-[minmax(0,1fr)] gap-0.5 p-2">
         {sessions.map((session) => (
           <SessionItem
             key={session.id}
@@ -79,17 +80,18 @@ function SessionItem({ session, selected, onSelect }: { session: ChatSession; se
             <p className="truncate text-sm font-medium">{sessionLabel(session)}</p>
             <span className="text-muted-foreground shrink-0 text-[11px]">{formatLastChat(session.last_chat_time)}</span>
           </div>
-          <p className="text-muted-foreground flex items-center gap-1 truncate text-xs">
-            {isSending ? (
-              <>
-                <Loader2 className="size-3 animate-spin" /> Waiting for reply…
-              </>
-            ) : lastMessage ? (
-              `${lastMessage.sent_by === 'customer' ? 'You: ' : ''}${lastMessage.message}`
-            ) : (
-              'No messages yet'
-            )}
-          </p>
+          {isSending ? (
+            <p className="text-muted-foreground flex items-center gap-1 text-xs">
+              <Loader2 className="size-3 shrink-0 animate-spin" /> Waiting for reply…
+            </p>
+          ) : (
+            // One line, cut with "…" (`truncate` needs a block element, not a flex container).
+            <p className="text-muted-foreground truncate text-xs" title={lastMessage?.message}>
+              {lastMessage
+                ? `${lastMessage.sent_by === 'customer' ? 'You: ' : ''}${lastMessage.message}`
+                : 'No messages yet'}
+            </p>
+          )}
         </div>
       </button>
     </li>

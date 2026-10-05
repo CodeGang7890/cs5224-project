@@ -1,9 +1,13 @@
-"""Thin wrapper around the Ollama client, so views deal with simple, typed errors.
+"""Thin wrapper around the Ollama client, so callers deal with simple, typed errors.
 
-Temporary home for the chat feature from ../messaging-service until that service has its own
-database. Everything is hardcoded here on purpose: edit these constants to change the model,
-system prompt or sampling hyperparameters.
+- generate_reply: the one-off chat (POST /api/chat/), moved from ../messaging-service.
+- generate_structured / generate_chat_reply: the two kinds of call the chat flow (flow.py) makes.
+
+Everything is hardcoded here on purpose: edit these constants to change the model, system prompt
+or sampling hyperparameters. The prompts for customer chats live in prompts.py.
 """
+
+import json
 
 import httpx
 from ollama import Client, ResponseError
@@ -37,12 +41,11 @@ OLLAMA_OPTIONS = {
 
 CHAT_PROMPT_MAX_LENGTH = 4000
 
-# System prompt for replies to customers (POST /api/chat/sessions/messages/). Filled in per business.
-CUSTOMER_SYSTEM_PROMPT_TEMPLATE = (
-    'You are the customer service assistant for {business_name}, replying to a customer over '
-    'WhatsApp. Business description: {business_description} Location: {business_location}. '
-    'Reply in a friendly, concise way, in plain text suitable for a chat message.'
-)
+# The extraction step (generate_structured) wants the most likely answer, not a creative one.
+STRUCTURED_OPTIONS = {**OLLAMA_OPTIONS, 'temperature': 0.0}
+
+# How many rounds of tool calls the reply step may make before it must answer.
+MAX_TOOL_ROUNDS = 3
 
 
 class LLMError(Exception):
@@ -70,32 +73,53 @@ def get_client() -> Client:
 
 def generate_reply(prompt: str) -> str:
     """One-off chat: sends SYSTEM_PROMPT + the user's prompt, returns the model's reply."""
-    return _chat(SYSTEM_PROMPT, prompt)
-
-
-def generate_customer_reply(business, message: str) -> str:
-    """Reply to a customer's message, as the given BusinessConfiguration's assistant.
-
-    For now it only sends the business-specific system prompt and this one message.
-    """
-    # TODO: send the conversation history (chat_message_json) and the current chat flow block
-    # (chat_state_id / the block type's prompt) instead of a single message.
-    system_prompt = CUSTOMER_SYSTEM_PROMPT_TEMPLATE.format(
-        business_name=business.business_name,
-        business_description=business.description or 'not provided.',
-        business_location=business.location,
-    )
-    return _chat(system_prompt, message)
-
-
-def _chat(system_prompt: str, user_message: str) -> str:
-    """Sends a system prompt + one user message to Ollama and returns the reply text."""
     messages = [
-        {'role': 'system', 'content': system_prompt},
-        {'role': 'user', 'content': user_message},
+        {'role': 'system', 'content': SYSTEM_PROMPT},
+        {'role': 'user', 'content': prompt},
     ]
+    return _chat(messages).content or ''
+
+
+def generate_structured(system_prompt: str, history: list[dict], schema: dict) -> dict:
+    """Asks for a JSON object matching `schema` (Ollama structured output), about the conversation.
+
+    `history` is the chat as `{role: user|assistant, content}` messages, oldest first.
+    """
+    messages = [{'role': 'system', 'content': system_prompt}, *history]
+    message = _chat(messages, format=schema, options=STRUCTURED_OPTIONS)
     try:
-        response = get_client().chat(model=OLLAMA_MODEL, messages=messages, options=OLLAMA_OPTIONS)
+        data = json.loads(message.content or '')
+    except json.JSONDecodeError as exc:
+        raise LLMError('The model did not return valid JSON.') from exc
+    if not isinstance(data, dict):
+        raise LLMError('The model did not return a JSON object.')
+    return data
+
+
+def generate_chat_reply(system_prompt: str, history: list[dict], toolbox=None) -> str:
+    """The assistant's next chat message. It may first call the toolbox's (read-only) tools."""
+    messages = [{'role': 'system', 'content': system_prompt}, *history]
+    for _ in range(MAX_TOOL_ROUNDS):
+        message = _chat(messages, tools=toolbox.specs if toolbox else None)
+        tool_calls = getattr(message, 'tool_calls', None)
+        if not tool_calls:
+            return message.content or ''
+        messages.append(message)
+        for call in tool_calls:
+            messages.append({
+                'role': 'tool',
+                'tool_name': call.function.name,
+                'content': toolbox.run(call.function.name, call.function.arguments),
+            })
+    # Out of tool rounds: answer with what it has.
+    return _chat(messages).content or ''
+
+
+def _chat(messages: list, **kwargs):
+    """Sends the messages to Ollama and returns the reply message, mapping failures to LLMError types."""
+    kwargs.setdefault('options', OLLAMA_OPTIONS)
+    try:
+        response = get_client().chat(model=OLLAMA_MODEL, messages=messages, **kwargs)
     except ConnectionError as exc:  # raised by ollama when the server can't be reached
         raise LLMUnavailableError(f'Could not connect to Ollama at {OLLAMA_HOST}.') from exc
     except httpx.TimeoutException as exc:
@@ -104,4 +128,4 @@ def _chat(system_prompt: str, user_message: str) -> str:
         ) from exc
     except ResponseError as exc:
         raise LLMError(f'Ollama error ({exc.status_code}): {exc.error}') from exc
-    return response.message.content or ''
+    return response.message
