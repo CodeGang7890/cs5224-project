@@ -1,0 +1,5 @@
+TODO: GCP Infra & Terraform
+- Set up free GCP account, preferably new Google account where access can be shared to everyone
+- Create the Terraform: Cloud Run, Cloud SQL (db), Container Registry, Pub/Sub (just need to modify, create the Pub/Sub, then run the commands)
+- Make sure to use the free tier, monitor the cost usage
+- LLM: Gemini tokens?

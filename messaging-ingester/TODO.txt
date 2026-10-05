@@ -1,0 +1,5 @@
+TODO: Messaging Ingester Service
+- Set up Meta & WhatsApp Business account
+- Explore the API to send message back to user (to be called by Messaging Service)
+- Create this ingester service that contain the webhook, make sure message can land here
+- Process the received message and publish it to Pub/Sub

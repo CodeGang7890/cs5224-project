@@ -1,0 +1,6 @@
+TODO: Messaging Service
+- Refactor LLM logic to Messaging Service
+- Improve LLM and chatbot state logic (still kinda buggy)
+- (if have time) Reservation feature (not only product)
+- Work with (Task 1) to call the WhatsApp API (reply chat) and to receive message from Pub/Sub
+- Work with (Task 2) to call Xendit API (create invoice)

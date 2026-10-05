@@ -1,0 +1,6 @@
+TODO: Processing Service
+- Accept successful payments / failed payments from Pub/Sub
+- Create invoice in PDF and upload it to Google Storage
+- Set up the buckets too in Google Storage?
+- Modify underlying database (make status to paid, etc.)
+- Send confirmation to user that payment received (get details from DB, call WhatsApp API also sending the invoice link, the user can open the link and see it from Google Storage)

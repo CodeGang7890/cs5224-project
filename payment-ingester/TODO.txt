@@ -1,0 +1,5 @@
+TODO: Payment Ingester Service
+- Set up Xendit account
+- Explore the API to create an invoice (to be called by Messaging Service)
+- Create this ingester service that contain webhook, make sure payment event land here
+- Process the event and publish it to Pub/Sub
