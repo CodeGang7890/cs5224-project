@@ -8,10 +8,11 @@ from django.test import SimpleTestCase, TestCase
 
 from configuration_app.models import BusinessConfiguration
 
-from .constants import BLOCK_TYPES, MESSAGE_SENDERS
-from .models import ChatConfiguration, ChatSession
-from .validators import (
+from ..constants import BLOCK_TYPES, MESSAGE_SENDERS
+from ..models import ChatConfiguration, ChatSession
+from ..validators import (
     CHAT_MESSAGE_MAX_LENGTH,
+    block_detail_fields,
     validate_chat_config,
     validate_chat_messages,
     validate_chat_state_data,
@@ -137,6 +138,95 @@ class ValidateChatConfigTests(SimpleTestCase):
         self.assertEqual(len(ctx.exception.messages), 4)  # block_type, position_y, duplicate id, dangling next id
 
 
+DETAIL_FIELDS = [
+    {'key': 'name', 'label': 'Receiver name', 'type': 'text', 'max_length': 150},
+    {'key': 'postal_code', 'label': 'Postal code', 'type': 'number', 'min_value': 100000, 'max_value': 999999},
+    {'key': 'notes', 'label': 'Customisation notes', 'type': 'text', 'max_length': 200, 'description': 'e.g. less sugar'},
+    {'key': 'email', 'label': 'Email', 'type': 'email'},
+    {'key': 'phone', 'label': 'Phone', 'type': 'phone', 'description': 'For delivery updates'},
+]
+
+
+def details_config(fields):
+    """VALID_CONFIG with a DETAILS_COLLECTION_BLOCK (id 4, between product selection and confirmation)."""
+    blocks = config(b1={'next_block_id': 4})
+    blocks.append({
+        'id': 4, 'next_block_id': 3, 'block_type': 'DETAILS_COLLECTION_BLOCK',
+        'position_x': 0, 'position_y': 0, 'fields': fields,
+    })
+    return blocks
+
+
+class ValidateDetailFieldsTests(SimpleTestCase):
+    """The optional `fields` of a DETAILS_COLLECTION_BLOCK (validate_chat_config)."""
+
+    def errors(self, value) -> list[str]:
+        try:
+            validate_chat_config(value)
+        except ValidationError as exc:
+            return exc.messages
+        return []
+
+    def assertInvalid(self, fields, message_part):
+        messages = self.errors(details_config(fields))
+        self.assertTrue(any(message_part in m for m in messages), f'{message_part!r} not in {messages}')
+
+    def test_valid_fields(self):
+        validate_chat_config(details_config(DETAIL_FIELDS))
+        validate_chat_config(details_config([{'key': 'a', 'label': 'A', 'type': 'number'}]))  # no bounds
+        validate_chat_config(details_config([{'key': 'x', 'label': 'X', 'type': 'number', 'min_value': 1.5, 'max_value': 1.5}]))
+
+    def test_fields_are_optional(self):
+        blocks = details_config(DETAIL_FIELDS)
+        del blocks[-1]['fields']
+        validate_chat_config(blocks)
+        self.assertEqual([f['key'] for f in block_detail_fields(blocks[-1])], ['name', 'email'])  # the defaults
+        self.assertEqual(block_detail_fields(details_config(DETAIL_FIELDS)[-1]), DETAIL_FIELDS)
+
+    def test_fields_only_on_details_blocks(self):
+        blocks = config(b1={'fields': DETAIL_FIELDS})
+        self.assertIn('Block 1: fields is only allowed on a DETAILS_COLLECTION_BLOCK.', self.errors(blocks))
+
+    def test_invalid_fields(self):
+        field = {'key': 'notes', 'label': 'Notes', 'type': 'text'}
+        cases = {
+            'not a list': ({'key': 'a'}, 'fields must be a list'),
+            'empty': ([], 'fields must have between 1 and 20 items'),
+            'too many': ([{**field, 'key': f'f{i}'} for i in range(21)], 'fields must have between 1 and 20 items'),
+            'field not an object': (['notes'], 'field 0: must be an object'),
+            'missing keys': ([{'key': 'notes'}], 'field 0: missing label, type'),
+            'uppercase key': ([{**field, 'key': 'Notes'}], 'key must be lowercase letters'),
+            'key with space': ([{**field, 'key': 'postal code'}], 'key must be lowercase letters'),
+            'key starting with digit': ([{**field, 'key': '1st'}], 'key must be lowercase letters'),
+            'key too long': ([{**field, 'key': 'k' * 41}], 'max 40 characters'),
+            'duplicate key': ([field, {**field, 'label': 'Other'}], "field 1: duplicate key 'notes'"),
+            'blank label': ([{**field, 'label': '  '}], 'label must be a non-blank string'),
+            'label too long': ([{**field, 'label': 'x' * 101}], 'at most 100 characters'),
+            'unknown type': ([{**field, 'type': 'date'}], 'type must be one of text, number, email, phone'),
+            'max_length on number': ([{**field, 'type': 'number', 'max_length': 5}], 'max_length not allowed for type number'),
+            'min_value on text': ([{**field, 'min_value': 1}], 'min_value not allowed for type text'),
+            'max_length on email': ([{**field, 'type': 'email', 'max_length': 5}], 'max_length not allowed for type email'),
+            'unknown key': ([{**field, 'required': True}], 'required not allowed for type text'),
+            'max_length zero': ([{**field, 'max_length': 0}], 'max_length must be an integer from 1 to 2000'),
+            'max_length too big': ([{**field, 'max_length': 2001}], 'max_length must be an integer from 1 to 2000'),
+            'max_length bool': ([{**field, 'max_length': True}], 'max_length must be an integer from 1 to 2000'),
+            'min greater than max': ([{**field, 'type': 'number', 'min_value': 10, 'max_value': 1}], 'min_value must not be greater'),
+            'bound not a number': ([{**field, 'type': 'number', 'min_value': '1'}], 'min_value and max_value must be numbers'),
+            'description too long': ([{**field, 'description': 'x' * 301}], 'description must be a string of at most 300'),
+            'description not a string': ([{**field, 'description': 5}], 'description must be a string'),
+        }
+        for label, (fields, message_part) in cases.items():
+            with self.subTest(label):
+                self.assertInvalid(fields, message_part)
+
+    def test_every_field_error_is_listed(self):
+        messages = self.errors(details_config([
+            {'key': 'Bad', 'label': '', 'type': 'text'},
+            {'key': 'ok', 'label': 'OK', 'type': 'number', 'min_value': 5, 'max_value': 1},
+        ]))
+        self.assertEqual(len(messages), 3, messages)
+
+
 class ChatConfigurationModelTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -192,6 +282,8 @@ class SampleChatConfigurationFixtureTests(TestCase):
             [block['block_type'] for block in chat_config.config_json],
             ['START_BLOCK', 'PRODUCT_SELECTION_BLOCK', 'DETAILS_COLLECTION_BLOCK', 'CONFIRMATION_BLOCK'],
         )
+        details = chat_config.config_json[2]
+        self.assertEqual([f['key'] for f in details['fields']], ['name', 'email', 'pickup_time'])
 
 
 # --- ChatSession ----------------------------------------------------------------------------
@@ -410,6 +502,7 @@ class ValidateChatStateDataTests(SimpleTestCase):
         validate_chat_state_data(VALID_STATE_DATA)
         validate_chat_state_data({})  # nothing collected yet
         validate_chat_state_data({'details': {'name': 'Alice'}})  # partial details
+        validate_chat_state_data({'details': {'postal_code': 123456, 'notes': 'No sugar', 'weight_kg': 1.5}})
 
     def test_invalid(self):
         item = VALID_STATE_DATA['items'][0]
@@ -424,8 +517,10 @@ class ValidateChatStateDataTests(SimpleTestCase):
             'zero quantity': ({'items': [{**item, 'quantity': 0}]}, 'quantity must be an integer of at least 1'),
             'bool quantity': ({'items': [{**item, 'quantity': True}]}, 'quantity must be an integer of at least 1'),
             'details not object': ({'details': 'Alice'}, 'details must be an object'),
-            'unknown detail': ({'details': {'phone': '+65'}}, 'details: unknown field(s) phone'),
-            'blank detail': ({'details': {'email': ''}}, 'details: email must be a non-blank string'),
+            'invalid detail key': ({'details': {'Postal Code': '123'}}, "details: invalid key 'Postal Code'"),
+            'blank detail': ({'details': {'email': ''}}, 'details: email must be a non-blank string or a number'),
+            'bool detail': ({'details': {'agreed': True}}, 'details: agreed must be a non-blank string or a number'),
+            'list detail': ({'details': {'notes': ['a']}}, 'details: notes must be a non-blank string or a number'),
             'completed not bool': ({'completed': 'yes'}, 'completed must be true or false'),
         }
         for label, (value, message_part) in cases.items():

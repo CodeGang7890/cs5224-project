@@ -112,18 +112,38 @@ Rules enforced by Django validation (e.g. in Django Admin) **and** by the databa
 - Product names and FAQ questions must be unique **within a business**. Different businesses can reuse them.
 
 `ChatConfiguration.config_json` is a list of blocks, e.g. `{"id": 1, "next_block_id": 2, "block_type": "START_BLOCK", "position_x": 100, "position_y": 100}`. `chat_app/validators.py` (`validate_chat_config`) checks it on every validated save, e.g. in Django Admin:
-- Every block has exactly those five fields.
+- Every block has exactly those five fields, plus an optional `fields` on a `DETAILS_COLLECTION_BLOCK` (see below).
 - `id` is an integer or a non-blank string (e.g. a UUID), unique within the list.
 - `next_block_id` is `null` or the `id` of another block in the list.
 - `block_type` is one of `START_BLOCK`, `PRODUCT_SELECTION_BLOCK`, `DETAILS_COLLECTION_BLOCK`, `CONFIRMATION_BLOCK` (defined in `chat_app/constants.py`). There must be exactly one `START_BLOCK`; other types can repeat.
 - `position_x` / `position_y` are numbers.
+
+A `DETAILS_COLLECTION_BLOCK`'s `fields` lists the customer details it asks for (set in the frontend's Workflow editor by clicking the block). Without it, the block asks for name and email (`DEFAULT_DETAIL_FIELDS` in `chat_app/constants.py`). Example:
+
+```json
+"fields": [
+  {"key": "name", "label": "Receiver name", "type": "text", "max_length": 150},
+  {"key": "email", "label": "Email", "type": "email"},
+  {"key": "postal_code", "label": "Postal code", "type": "number", "min_value": 100000, "max_value": 999999},
+  {"key": "notes", "label": "Customisation notes", "type": "text", "max_length": 200, "description": "e.g. less sugar"}
+]
+```
+
+- 1 to 20 fields. Each has `key`, `label` and `type`, and only the optional keys its type allows.
+- `key`: lowercase letters, digits and underscores, starting with a letter, at most 40 characters, unique in the block. The customer's answer is stored under it in `chat_state_data.details`.
+- `label`: non-blank, at most 100 characters. It's what the assistant asks for.
+- `type`: `text`, `number`, `email` or `phone`.
+- `description` (any type, optional): a hint for the assistant, at most 300 characters.
+- `max_length` (`text` only, optional): 1–2,000 (default 500).
+- `min_value` / `max_value` (`number` only, optional): numbers, minimum ≤ maximum.
+- `fields` on any other block type is rejected. Like the other rules, every problem is listed.
 
 `ChatSession` rules (checked by Django validation, e.g. in Django Admin):
 - `phone_number` is required and unique **within a business** (both also enforced by the database). Different businesses can each have a chat with the same number.
 - **Sandbox sessions** (`is_sandbox = true`) are exempt: the phone number is optional (still validated if given), may repeat, and a business can have any number of them.
 - `chat_message_json` is a list of messages, oldest first: `{"message": "Hi", "sent_by": "customer", "message_time": "2026-09-01T09:00:00+08:00"}`. `validate_chat_messages` (`chat_app/validators.py`) checks that `message` is non-blank (≤4,096 chars), `sent_by` is `customer`, `business-manual` or `business-automated` (defined in `chat_app/constants.py`), and `message_time` is an ISO 8601 date-time with a timezone, in chronological order. An empty list is fine.
 - `chat_state_id` is empty, or the `id` of a block in the business's chat configuration (the type must match too: `"2"` is not block `2`). If the business has no chat configuration, it must be empty.
-- `chat_state_data` is an object; every key is optional (`{}` means nothing collected yet). `validate_chat_state_data` checks: `items`, a list of `{product_id, name, unit_price, quantity}` (the chosen products; `name` and `unit_price` are a snapshot, `unit_price` a decimal string like `"5.50"`, `quantity` ≥1); `details`, `{name?, email?}` (non-blank strings); `completed`, true once the customer confirmed the order. Example: `{"items": [{"product_id": 1, "name": "Kopi C", "unit_price": "1.80", "quantity": 2}], "details": {"name": "Alice"}}`.
+- `chat_state_data` is an object; every key is optional (`{}` means nothing collected yet). `validate_chat_state_data` checks: `items`, a list of `{product_id, name, unit_price, quantity}` (the chosen products; `name` and `unit_price` are a snapshot, `unit_price` a decimal string like `"5.50"`, `quantity` ≥1); `details`, the customer details collected so far by field key (non-blank strings or numbers, e.g. `{"name": "Alice", "postal_code": 238801}`); `completed`, true once the customer confirmed the order. Example: `{"items": [{"product_id": 1, "name": "Kopi C", "unit_price": "1.80", "quantity": 2}], "details": {"name": "Alice"}}`.
 
 When a business is deleted:
 - Its **products, FAQs, chat configuration and chat sessions are deleted** with it.
@@ -237,13 +257,13 @@ Each customer message (real or sandbox) moves the chat through the business's ch
    | --- | --- | --- |
    | `START_BLOCK` | Welcome the customer, answer questions, find out if they want to order | `{"wants_to_order": true/false}` |
    | `PRODUCT_SELECTION_BLOCK` | Which products, and how many of each | `{"items": [{"product_id", "quantity"}]}` |
-   | `DETAILS_COLLECTION_BLOCK` | The customer's name and email (`REQUIRED_CUSTOMER_DETAILS` in `constants.py`) | `{"name": …/null, "email": …/null}` |
+   | `DETAILS_COLLECTION_BLOCK` | The details in the block's `fields` (default: name and email) | One key per field, e.g. `{"name": …/null, "postal_code": 238801/null}` (numbers as numbers) |
    | `CONFIRMATION_BLOCK` | Show the summary, get a confirmation | `{"decision": "confirm"/"change"/"none"}` |
 
 3. **Check deterministically** (in Python, not the LLM) whether that completes the block, and save what's valid in `chat_state_data`:
    - Start: complete when `wants_to_order` is true.
    - Product selection: every chosen product must be one of the business's active products, with a quantity from 1 up to `quantity_available`. Otherwise it stays, and the problem (e.g. "Only 3 Kaya Toast Set are available") goes into the reply prompt.
-   - Details collection: complete when both name and email are known and valid (Django's email validator). Values already known are kept when the customer doesn't repeat them.
+   - Details collection: complete only when **every** field is known and valid for its type. Text: at most `max_length`. Number: a number (text like `"238,801"` is accepted), within `min_value`–`max_value`. Email: Django's email validator. Phone: digits, spaces, `+`, `-` and brackets, with 6–15 digits. Invalid values are explained to the customer (e.g. "Postal code must be at least 100000.") and never replace a valid one. Values already known are kept when the customer doesn't repeat them. The reply prompt lists every field with its type and limits under "Details to collect", and what's still needed.
    - Confirmation: `confirm` completes it; `change` goes back to the block after Start, where the blocks run again with the data already collected (so only what changed needs re-entering). It is never checked in the same message it's reached: the customer must see the summary first.
 
    When a block completes, the chat moves to its `next_block_id` and repeats steps 2–3 there, so one message can complete several blocks. When the last block completes, `chat_state_data.completed` becomes true and the chat stays at that block. (A workflow that's only a Start block never completes.) After that, messages get replies but no extraction.
@@ -352,9 +372,9 @@ Tests use a temporary database, so your `db.sqlite3` isn't touched.
 | `product_app/tests.py` | Product and FAQ model validation and database constraints |
 | `auth_app/tests.py` | `BusinessUser` model, Django Admin pages load |
 | `configuration_app/tests.py` | `BusinessConfiguration` model, random-number endpoint, CORS |
-| `chat_app/tests.py` | `validate_chat_config`, `validate_chat_messages` and `validate_chat_state_data` rules; `ChatConfiguration` and `ChatSession` models (validation, uniqueness, `chat_state_id` must match a block); sample fixtures are valid |
-| `chat_app/test_api.py` | Chat endpoint returns the reply, with the LLM mocked (no Ollama needed); chat configuration GET/PUT (401/403/404, create vs update, read-only fields, invalid `config_json` → 400); chat sessions create/list (filters, sorting and pagination on the sample fixtures) and customer messages (LLM mocked); sandbox sessions list/create/delete (only sandbox, only your business) |
-| `chat_app/test_flow.py` | The chat flow (LLM mocked): a whole conversation from Start to confirmed, going back on "change", invalid choices, unknown state → Start block, tool calls, invalid JSON → 502; each block's deterministic check |
+| `chat_app/tests/test_models.py` | `validate_chat_config` (including Details collection `fields`), `validate_chat_messages` and `validate_chat_state_data` rules; `ChatConfiguration` and `ChatSession` models (validation, uniqueness, `chat_state_id` must match a block); sample fixtures are valid |
+| `chat_app/tests/test_api.py` | Chat endpoint returns the reply, with the LLM mocked (no Ollama needed); chat configuration GET/PUT (401/403/404, create vs update, read-only fields, saving Details collection `fields`, invalid `config_json` → 400); chat sessions create/list (filters, sorting and pagination on the sample fixtures) and customer messages (LLM mocked); sandbox sessions list/create/delete (only sandbox, only your business) |
+| `chat_app/tests/test_flow.py` | The chat flow (LLM mocked): a whole conversation from Start to confirmed, going back on "change", invalid choices, unknown state → Start block, tool calls, invalid JSON → 502; custom Details collection fields (asks for every field, only moves on when all are valid); each block's deterministic check and each detail type's value check |
 
 ### Resetting the local database
 
@@ -445,7 +465,7 @@ configuration-service/
 │   ├── fixtures/           # sample_chat_configurations.json, sample_chat_sessions.json
 │   ├── migrations/
 │   ├── admin.py
-│   ├── constants.py        # BLOCK_TYPES, MESSAGE_SENDERS, REQUIRED_CUSTOMER_DETAILS
+│   ├── constants.py        # BLOCK_TYPES, MESSAGE_SENDERS, DETAIL_FIELD_TYPES, DEFAULT_DETAIL_FIELDS
 │   ├── models.py           # ChatConfiguration, ChatSession
 │   ├── validators.py       # validate_chat_config, validate_chat_messages, validate_chat_state_data
 │   ├── llm.py              # Ollama client, model, sampling options; structured output + tool-calling helpers
@@ -455,9 +475,10 @@ configuration-service/
 │   ├── serializers.py      # Chat request/response, ChatConfigurationSerializer
 │   ├── views.py            # ChatView, ChatConfigurationView
 │   ├── urls.py             # /api/chat/, /api/chat/configuration/
-│   ├── tests.py            # Validator + model tests
-│   ├── test_api.py         # Chat API (mocked LLM) + chat configuration API tests
-│   └── test_flow.py        # Chat flow tests (mocked LLM)
+│   └── tests/
+│       ├── test_models.py  # Validator + model tests
+│       ├── test_api.py     # Chat API (mocked LLM) + chat configuration API tests
+│       └── test_flow.py    # Chat flow tests (mocked LLM)
 ├── manage.py
 ├── requirements.txt
 └── .env.example

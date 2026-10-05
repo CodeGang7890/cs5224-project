@@ -16,6 +16,28 @@ export const ADDABLE_BLOCK_TYPES = BLOCK_TYPES.filter((type) => type !== START_B
 /** Block IDs are integers or non-blank strings (new blocks get UUIDs). */
 export type BlockId = number | string
 
+export const DETAILS_COLLECTION_BLOCK: BlockType = 'DETAILS_COLLECTION_BLOCK'
+
+/** Types of customer detail, mirrored from configuration-service `chat_app/constants.py`. */
+export const DETAIL_FIELD_TYPES = ['text', 'number', 'email', 'phone'] as const
+
+export type DetailFieldType = (typeof DETAIL_FIELD_TYPES)[number]
+
+/** One customer detail a DETAILS_COLLECTION_BLOCK asks for (see `details.ts` for the rules). */
+export interface DetailField {
+  /** e.g. `postal_code`: the key in `ChatSession.chat_state_data.details`. */
+  key: string
+  label: string
+  type: DetailFieldType
+  /** Optional hint for the assistant, e.g. "6 digits". */
+  description?: string
+  /** `text` only. */
+  max_length?: number
+  /** `number` only. */
+  min_value?: number
+  max_value?: number
+}
+
 /** One block of the chat flow, as stored in `ChatConfiguration.config_json`. */
 export interface ChatBlock {
   id: BlockId
@@ -23,6 +45,8 @@ export interface ChatBlock {
   block_type: BlockType
   position_x: number
   position_y: number
+  /** DETAILS_COLLECTION_BLOCK only; without it, the block asks for the default name and email. */
+  fields?: DetailField[]
 }
 
 /** A business's chat configuration (`/api/chat/configuration/`). Each business has at most one. */

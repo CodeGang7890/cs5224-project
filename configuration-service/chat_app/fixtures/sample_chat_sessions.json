@@ -57,7 +57,8 @@
           }
         ],
         "details": {
-          "name": "Alice"
+          "name": "Alice",
+          "pickup_time": "9:30am"
         }
       },
       "is_sandbox": false
@@ -306,7 +307,8 @@
           }
         ],
         "details": {
-          "name": "Farah"
+          "name": "Farah",
+          "pickup_time": "8:45am"
         }
       },
       "is_sandbox": false
@@ -375,7 +377,8 @@
           }
         ],
         "details": {
-          "name": "Hui Min"
+          "name": "Hui Min",
+          "pickup_time": "10:15"
         }
       },
       "is_sandbox": false
@@ -480,7 +483,8 @@
           }
         ],
         "details": {
-          "name": "Jasmine"
+          "name": "Jasmine",
+          "pickup_time": "Saturday 9am"
         }
       },
       "is_sandbox": false

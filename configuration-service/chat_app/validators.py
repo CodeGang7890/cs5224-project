@@ -1,10 +1,45 @@
+import copy
+import re
+
 from django.core.exceptions import ValidationError
 from django.utils.dateparse import parse_datetime
 from django.utils.timezone import is_aware
 
-from .constants import BLOCK_TYPES, MESSAGE_SENDERS, START_BLOCK
+from .constants import (
+    BLOCK_TYPES,
+    DEFAULT_DETAIL_FIELDS,
+    DETAIL_FIELD_TYPES,
+    DETAIL_TYPE_NUMBER,
+    DETAIL_TYPE_TEXT,
+    DETAILS_COLLECTION_BLOCK,
+    MESSAGE_SENDERS,
+    START_BLOCK,
+)
 
 BLOCK_FIELDS = {'id', 'next_block_id', 'block_type', 'position_x', 'position_y'}
+# Optional extra block keys, and the block type each is allowed on.
+OPTIONAL_BLOCK_FIELDS = {'fields': DETAILS_COLLECTION_BLOCK}
+
+# --- DETAILS_COLLECTION_BLOCK `fields`: the customer details it asks for --------------------
+DETAIL_FIELDS_MAX = 20
+DETAIL_KEY_MAX_LENGTH = 40
+DETAIL_KEY_PATTERN = re.compile(r'^[a-z][a-z0-9_]*$')  # e.g. postal_code
+DETAIL_LABEL_MAX_LENGTH = 100
+DETAIL_DESCRIPTION_MAX_LENGTH = 300
+DETAIL_TEXT_MAX_LENGTH = 2000  # the most a text field's max_length can be
+DETAIL_TEXT_DEFAULT_MAX_LENGTH = 500  # when a text field has no max_length
+DETAIL_FIELD_KEYS = {'key', 'label', 'type'}
+# Optional keys of a field, by type.
+DETAIL_FIELD_OPTIONAL_KEYS = {
+    DETAIL_TYPE_TEXT: {'description', 'max_length'},
+    DETAIL_TYPE_NUMBER: {'description', 'min_value', 'max_value'},
+}
+DETAIL_FIELD_OPTIONAL_KEYS_DEFAULT = {'description'}  # email, phone
+
+
+def block_detail_fields(block: dict) -> list[dict]:
+    """The customer details a DETAILS_COLLECTION_BLOCK asks for: its `fields`, or the defaults."""
+    return block.get('fields') or copy.deepcopy(DEFAULT_DETAIL_FIELDS)
 
 
 def _is_number(value) -> bool:
@@ -22,7 +57,8 @@ def is_valid_block_id(value) -> bool:
 def validate_chat_config(value) -> None:
     """Validate a ChatConfiguration.config_json: a list of flow blocks.
 
-    Each block is ``{id, next_block_id, block_type, position_x, position_y}``. Rules:
+    Each block is ``{id, next_block_id, block_type, position_x, position_y}``, plus an optional
+    ``fields`` on a DETAILS_COLLECTION_BLOCK (see ``_detail_field_errors``). Rules:
     - ``id`` is an int or non-blank string (e.g. a UUID), unique across blocks.
     - ``next_block_id`` is null or the ``id`` of another block in the list.
     - ``block_type`` is one of ``BLOCK_TYPES``; there must be exactly one ``START_BLOCK``.
@@ -42,13 +78,18 @@ def validate_chat_config(value) -> None:
             errors.append(f'{prefix}: must be an object.')
             continue
         missing = BLOCK_FIELDS - block.keys()
-        unknown = block.keys() - BLOCK_FIELDS
+        unknown = block.keys() - BLOCK_FIELDS - OPTIONAL_BLOCK_FIELDS.keys()
         if missing:
             errors.append(f'{prefix}: missing field(s) {", ".join(sorted(missing))}.')
         if unknown:
             errors.append(f'{prefix}: unknown field(s) {", ".join(sorted(unknown))}.')
         if missing:
             continue
+        for key, allowed_type in OPTIONAL_BLOCK_FIELDS.items():
+            if key in block and block['block_type'] != allowed_type:
+                errors.append(f'{prefix}: {key} is only allowed on a {allowed_type}.')
+        if 'fields' in block and block['block_type'] == DETAILS_COLLECTION_BLOCK:
+            errors.extend(_detail_field_errors(block['fields'], prefix))
 
         block_id = block['id']
         if not is_valid_block_id(block_id):
@@ -88,6 +129,78 @@ def validate_chat_config(value) -> None:
 
     if errors:
         raise ValidationError(errors)
+
+
+def _detail_field_errors(fields, prefix: str) -> list[str]:
+    """Errors in a DETAILS_COLLECTION_BLOCK's `fields`: the customer details it asks for.
+
+    A list of 1 to DETAIL_FIELDS_MAX fields, each ``{key, label, type}`` plus optional keys:
+    - ``key``: lowercase letters, digits and underscores, starting with a letter (e.g.
+      ``postal_code``), unique in the block. It's the key in chat_state_data['details'].
+    - ``label``: non-blank, what the customer is asked for (e.g. "Postal code").
+    - ``type``: one of DETAIL_FIELD_TYPES.
+    - ``description`` (any type): a hint for the assistant, e.g. "6 digits".
+    - ``max_length`` (text only): 1 to DETAIL_TEXT_MAX_LENGTH.
+    - ``min_value`` / ``max_value`` (number only): numbers, min ≤ max.
+    """
+    if not isinstance(fields, list):
+        return [f'{prefix}: fields must be a list.']
+    if not 1 <= len(fields) <= DETAIL_FIELDS_MAX:
+        return [f'{prefix}: fields must have between 1 and {DETAIL_FIELDS_MAX} items.']
+
+    errors = []
+    keys = set()
+    for index, item in enumerate(fields):
+        where = f'{prefix}, field {index}'
+        if not isinstance(item, dict):
+            errors.append(f'{where}: must be an object.')
+            continue
+        missing = DETAIL_FIELD_KEYS - item.keys()
+        if missing:
+            errors.append(f'{where}: missing {", ".join(sorted(missing))}.')
+            continue
+
+        key, label, field_type = item['key'], item['label'], item['type']
+        if not isinstance(key, str) or not DETAIL_KEY_PATTERN.match(key) or len(key) > DETAIL_KEY_MAX_LENGTH:
+            errors.append(
+                f'{where}: key must be lowercase letters, digits and underscores, starting with a '
+                f'letter (max {DETAIL_KEY_MAX_LENGTH} characters).'
+            )
+        elif key in keys:
+            errors.append(f'{where}: duplicate key {key!r}.')
+        else:
+            keys.add(key)
+        if not isinstance(label, str) or not label.strip() or len(label) > DETAIL_LABEL_MAX_LENGTH:
+            errors.append(
+                f'{where}: label must be a non-blank string of at most {DETAIL_LABEL_MAX_LENGTH} characters.'
+            )
+        if field_type not in DETAIL_FIELD_TYPES:
+            errors.append(
+                f'{where}: type must be one of {", ".join(DETAIL_FIELD_TYPES)} (got {field_type!r}).'
+            )
+            continue
+
+        allowed = DETAIL_FIELD_OPTIONAL_KEYS.get(field_type, DETAIL_FIELD_OPTIONAL_KEYS_DEFAULT)
+        unknown = item.keys() - DETAIL_FIELD_KEYS - allowed
+        if unknown:
+            errors.append(f'{where}: {", ".join(sorted(unknown))} not allowed for type {field_type}.')
+        description = item.get('description')
+        if description is not None and (
+            not isinstance(description, str) or len(description) > DETAIL_DESCRIPTION_MAX_LENGTH
+        ):
+            errors.append(
+                f'{where}: description must be a string of at most {DETAIL_DESCRIPTION_MAX_LENGTH} characters.'
+            )
+        if 'max_length' in item and 'max_length' in allowed:
+            max_length = item['max_length']
+            if not _is_int(max_length) or not 1 <= max_length <= DETAIL_TEXT_MAX_LENGTH:
+                errors.append(f'{where}: max_length must be an integer from 1 to {DETAIL_TEXT_MAX_LENGTH}.')
+        bounds = [item[k] for k in ('min_value', 'max_value') if k in item and k in allowed]
+        if any(not _is_number(bound) for bound in bounds):
+            errors.append(f'{where}: min_value and max_value must be numbers.')
+        elif len(bounds) == 2 and bounds[0] > bounds[1]:
+            errors.append(f'{where}: min_value must not be greater than max_value.')
+    return errors
 
 
 # --- ChatSession.chat_message_json --------------------------------------------------------
@@ -160,7 +273,6 @@ def validate_chat_messages(value) -> None:
 
 STATE_DATA_FIELDS = {'items', 'details', 'completed'}
 STATE_ITEM_FIELDS = {'product_id', 'name', 'unit_price', 'quantity'}
-STATE_DETAIL_FIELDS = {'name', 'email'}
 
 
 def _is_int(value) -> bool:
@@ -174,7 +286,8 @@ def validate_chat_state_data(value) -> None:
     - ``items``: the products the customer chose, each ``{product_id, name, unit_price, quantity}``
       (``name`` / ``unit_price`` are a snapshot taken when chosen; ``unit_price`` is a decimal string
       like ``"5.50"``; ``quantity`` is at least 1).
-    - ``details``: ``{name?, email?}``, non-blank strings.
+    - ``details``: the collected customer details, by field key (e.g. ``{"name": "Alice",
+      "postal_code": 123456}``): non-blank strings or numbers.
     - ``completed``: true once the customer confirmed and the flow reached its last block.
 
     Raises a ``ValidationError`` listing every problem found.
@@ -209,12 +322,11 @@ def validate_chat_state_data(value) -> None:
     if not isinstance(details, dict):
         errors.append('details must be an object.')
     else:
-        unknown = details.keys() - STATE_DETAIL_FIELDS
-        if unknown:
-            errors.append(f'details: unknown field(s) {", ".join(sorted(unknown))}.')
-        for field in STATE_DETAIL_FIELDS & details.keys():
-            if not isinstance(details[field], str) or not details[field].strip():
-                errors.append(f'details: {field} must be a non-blank string.')
+        for key, detail in details.items():
+            if not DETAIL_KEY_PATTERN.match(key):
+                errors.append(f'details: invalid key {key!r}.')
+            elif not (_is_number(detail) or (isinstance(detail, str) and detail.strip())):
+                errors.append(f'details: {key} must be a non-blank string or a number.')
 
     if not isinstance(value.get('completed', False), bool):
         errors.append('completed must be true or false.')

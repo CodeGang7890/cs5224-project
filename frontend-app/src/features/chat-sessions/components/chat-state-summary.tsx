@@ -4,6 +4,7 @@ import { CircleCheck } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 
+import { useDetailLabels } from '../hooks/use-chat-steps'
 import type { ChatStateData, ChatStateItem } from '../types'
 
 /** Order total as a "12.34" string (summed in cents, so 3 × 1.10 is 3.30). */
@@ -17,10 +18,11 @@ interface ChatStateSummaryProps {
   className?: string
 }
 
-/** What the chat flow has collected (order, name, email), and whether the order is confirmed. */
+/** What the chat flow has collected (order, customer details), and whether the order is confirmed. */
 export function ChatStateSummary({ data, className }: ChatStateSummaryProps) {
+  const labels = useDetailLabels()
   const items = data.items ?? []
-  const details = data.details ?? {}
+  const details = Object.entries(data.details ?? {})
   return (
     <dl className={cn('flex flex-wrap items-center gap-x-4 gap-y-1 text-xs', className)}>
       <Field label="Order">
@@ -28,8 +30,16 @@ export function ChatStateSummary({ data, className }: ChatStateSummaryProps) {
           ? `${items.map((item) => `${item.quantity} × ${item.name}`).join(', ')} · $${orderTotal(items)}`
           : '—'}
       </Field>
-      <Field label="Name">{details.name ?? '—'}</Field>
-      <Field label="Email">{details.email ?? '—'}</Field>
+      {details.length === 0 ? (
+        <Field label="Details">—</Field>
+      ) : (
+        // Labels from the current workflow; a detail whose field was since removed shows its key.
+        details.map(([key, value]) => (
+          <Field key={key} label={labels[key] ?? key}>
+            {String(value)}
+          </Field>
+        ))
+      )}
       {data.completed && (
         <Badge variant="outline" className="border-emerald-500/50 text-emerald-700 dark:text-emerald-400">
           <CircleCheck /> Order confirmed

@@ -1,11 +1,12 @@
 import { Handle, Position, useReactFlow, type NodeProps } from '@xyflow/react'
-import { X } from 'lucide-react'
+import { Pencil, X } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
 import { BLOCK_META } from '../blocks'
+import { blockDetailFields } from '../details'
 import type { BlockNode } from '../flow'
-import { START_BLOCK, type BlockType } from '../types'
+import { DETAILS_COLLECTION_BLOCK, START_BLOCK, type BlockType } from '../types'
 
 const handleClassName = 'size-3! border-2! border-background! bg-primary!'
 
@@ -44,13 +45,31 @@ export function BlockNodeView({ id, data, selected }: NodeProps<BlockNode>) {
       <div className={cn(!isStart && 'pr-5')}>
         <BlockSummary blockType={data.blockType} />
       </div>
+      {data.blockType === DETAILS_COLLECTION_BLOCK && (
+        // The whole node is clickable (WorkflowEditor's onNodeClick opens the details dialog).
+        <div className="mt-2.5 grid gap-1.5 border-t pt-2">
+          <ul className="flex flex-wrap gap-1" aria-label="Details collected">
+            {blockDetailFields(data.fields).map((field) => (
+              <li key={field.key} className="bg-muted max-w-full truncate rounded px-1.5 py-0.5 text-[11px]">
+                {field.label}
+              </li>
+            ))}
+          </ul>
+          <p className="text-muted-foreground flex items-center gap-1 text-[11px]">
+            <Pencil className="size-3" /> Click to edit the details
+          </p>
+        </div>
+      )}
       {!isStart && (
         <button
           type="button"
           aria-label={`Delete ${meta.label} block`}
           title="Delete block"
           className="nodrag text-muted-foreground hover:bg-destructive/10 hover:text-destructive absolute top-1.5 right-1.5 rounded-md p-1 transition-colors"
-          onClick={() => deleteElements({ nodes: [{ id }] })}
+          onClick={(event) => {
+            event.stopPropagation() // not a click on the block itself (which opens its settings)
+            void deleteElements({ nodes: [{ id }] })
+          }}
         >
           <X className="size-3.5" />
         </button>

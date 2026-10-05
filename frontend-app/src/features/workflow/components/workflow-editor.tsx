@@ -25,17 +25,25 @@ import { BLOCK_HEIGHT, BLOCK_WIDTH } from '../blocks'
 import {
   configToFlow,
   countUnreachableBlocks,
-  createBlockNode,
   createEdge,
+  createNewBlockNode,
   DEFAULT_CONFIG,
   flowToConfig,
   type BlockNode,
 } from '../flow'
 import { useSaveChatConfiguration } from '../hooks/use-chat-configuration'
-import { ADDABLE_BLOCK_TYPES, type BlockType, type ChatBlock, type ChatConfiguration } from '../types'
+import {
+  ADDABLE_BLOCK_TYPES,
+  DETAILS_COLLECTION_BLOCK,
+  type BlockType,
+  type ChatBlock,
+  type ChatConfiguration,
+  type DetailField,
+} from '../types'
 import { BLOCK_DRAG_TYPE, BlockPalette } from './block-palette'
 import { BlockNodeView } from './block-node'
 import { DeletableEdge } from './deletable-edge'
+import { DetailFieldsDialog } from './detail-fields-dialog'
 
 // Defined outside the component so React Flow doesn't see new types on every render.
 const nodeTypes = { block: BlockNodeView }
@@ -80,7 +88,7 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
 
   const addBlock = useCallback(
     (blockType: BlockType, position: { x: number; y: number }) => {
-      setNodes((current) => [...current, createBlockNode(crypto.randomUUID(), blockType, position)])
+      setNodes((current) => [...current, createNewBlockNode(blockType, position)])
     },
     [setNodes],
   )
@@ -116,6 +124,16 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
     },
     [setEdges],
   )
+
+  // Clicking a Details collection block edits the customer details it asks for.
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
+  const editingNode = nodes.find((node) => node.id === editingNodeId)
+
+  const applyDetailFields = (fields: DetailField[]) => {
+    setNodes((current) =>
+      current.map((node) => (node.id === editingNodeId ? { ...node, data: { ...node.data, fields } } : node)),
+    )
+  }
 
   // --- Save / discard -------------------------------------------------------------------
 
@@ -225,6 +243,9 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onNodeClick={(_event, node) => {
+              if (node.data.blockType === DETAILS_COLLECTION_BLOCK) setEditingNodeId(node.id)
+            }}
             isValidConnection={(connection) => connection.source !== connection.target}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
@@ -239,6 +260,13 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
           </ReactFlow>
         </div>
       </div>
+
+      <DetailFieldsDialog
+        open={editingNode !== undefined}
+        onOpenChange={(open) => !open && setEditingNodeId(null)}
+        fields={editingNode?.data.fields}
+        onApply={applyDetailFields}
+      />
 
       <ConfirmDialog
         open={saveOpen}

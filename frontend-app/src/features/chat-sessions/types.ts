@@ -21,7 +21,8 @@ export interface ChatStateItem {
 /** `ChatSession.chat_state_data`: what the chat flow has collected so far. Every key is optional. */
 export interface ChatStateData {
   items?: ChatStateItem[]
-  details?: { name?: string; email?: string }
+  /** Collected customer details by field key (the workflow's Details collection fields), e.g. `postal_code`. */
+  details?: Record<string, string | number>
   /** True once the customer confirmed and the flow reached its last block. */
   completed?: boolean
 }

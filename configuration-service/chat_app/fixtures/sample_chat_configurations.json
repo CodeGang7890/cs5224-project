@@ -25,7 +25,27 @@
           "next_block_id": 4,
           "block_type": "DETAILS_COLLECTION_BLOCK",
           "position_x": 700,
-          "position_y": 100
+          "position_y": 100,
+          "fields": [
+            {
+              "key": "name",
+              "label": "Name",
+              "type": "text",
+              "max_length": 150
+            },
+            {
+              "key": "email",
+              "label": "Email",
+              "type": "email"
+            },
+            {
+              "key": "pickup_time",
+              "label": "Pickup time",
+              "type": "text",
+              "max_length": 50,
+              "description": "When they will collect the order, e.g. 9:30am today"
+            }
+          ]
         },
         {
           "id": 4,

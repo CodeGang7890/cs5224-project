@@ -11,10 +11,10 @@ from rest_framework.test import APITestCase
 from auth_app.models import BusinessUser
 from configuration_app.models import BusinessConfiguration
 
-from . import llm
-from .models import ChatConfiguration, ChatSession
-from .tests import VALID_CONFIG, VALID_MESSAGES, config
-from .validators import validate_chat_messages
+from .. import llm
+from ..models import ChatConfiguration, ChatSession
+from ..validators import validate_chat_messages
+from .test_models import DETAIL_FIELDS, VALID_CONFIG, VALID_MESSAGES, config, details_config
 
 
 class ChatViewTests(APITestCase):
@@ -102,6 +102,32 @@ class ChatConfigurationAPITests(APITestCase):
         self.assertEqual(self.florist_config.config_json, new_config)
         self.assertGreater(self.florist_config.last_updated, before)
         self.assertEqual(ChatConfiguration.objects.count(), 1)
+
+    def test_put_saves_detail_fields(self):
+        self.client.force_authenticate(self.florist_user)
+        new_config = details_config(DETAIL_FIELDS)
+        response = self.put_config(new_config)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()['config_json'][-1]['fields'], DETAIL_FIELDS)
+        self.florist_config.refresh_from_db()
+        self.assertEqual(self.florist_config.config_json, new_config)
+
+    def test_put_rejects_invalid_detail_fields(self):
+        self.client.force_authenticate(self.florist_user)
+        cases = {
+            'fields on a product selection block': config(b1={'fields': DETAIL_FIELDS}),
+            'no fields': details_config([]),
+            'bad key': details_config([{'key': 'Postal Code', 'label': 'Postal code', 'type': 'number'}]),
+            'unknown type': details_config([{'key': 'dob', 'label': 'Birthday', 'type': 'date'}]),
+            'max_length on a number': details_config([{'key': 'n', 'label': 'N', 'type': 'number', 'max_length': 3}]),
+        }
+        for label, bad_config in cases.items():
+            with self.subTest(label):
+                response = self.put_config(bad_config)
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn('config_json', response.json())
+        self.florist_config.refresh_from_db()
+        self.assertEqual(self.florist_config.config_json, VALID_CONFIG)
 
     def test_put_creates_configuration_if_missing(self):
         self.client.force_authenticate(self.cafe_user)

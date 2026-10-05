@@ -468,3 +468,13 @@ Date & Time (GMT+8): 2026-10-05 13:54:20
 AI Model Used: claude-opus-5-5
 Original Prompt:
 [Image #2] Please fix this chat ui by adding max width and "..." when the message is too long, it looks bad if it can be scrolled for this long
+
+Date & Time (GMT+8): 2026-10-05 14:03:56
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+For the “Details collection” block, I want a mechanism that the business owner can click on the block, and specify what fields they need and the type. By default add the basic ones like receiver name or email (that the business owner can choose to deselect), and option to add new fields (e.g., customisation notes (string with max count), postal code (number), etc.).
+Those options should be stored in the config_json of ChatConfiguration model, be sure to add extra backend validation for those, and test cases.
+When a ChatSession is created using the newly updated ChatConfiguration, the LLM should now ask for those informations during the “Details Collection” state.
+Also add test to this flow to ensure it will ask user for all the details specified, and will only proceed when all the details are given.
+Additionally, can you please move the test_flow, test_api files in chat_app to under its own “tests” folder under chat_app, to not clutter this folder root with too many test files.

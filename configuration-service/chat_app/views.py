@@ -38,7 +38,15 @@ NOT_SANDBOX_MESSAGE = 'This is a real customer chat session; only sandbox chat s
 SAMPLE_CONFIG_JSON = [
     {'id': 1, 'next_block_id': 2, 'block_type': 'START_BLOCK', 'position_x': 100, 'position_y': 100},
     {'id': 2, 'next_block_id': 3, 'block_type': 'PRODUCT_SELECTION_BLOCK', 'position_x': 300, 'position_y': 100},
-    {'id': 3, 'next_block_id': 4, 'block_type': 'DETAILS_COLLECTION_BLOCK', 'position_x': 500, 'position_y': 100},
+    {
+        'id': 3, 'next_block_id': 4, 'block_type': 'DETAILS_COLLECTION_BLOCK', 'position_x': 500, 'position_y': 100,
+        'fields': [
+            {'key': 'name', 'label': 'Name', 'type': 'text', 'max_length': 150},
+            {'key': 'email', 'label': 'Email', 'type': 'email'},
+            {'key': 'postal_code', 'label': 'Postal code', 'type': 'number', 'min_value': 10000, 'max_value': 999999},
+            {'key': 'notes', 'label': 'Customisation notes', 'type': 'text', 'max_length': 200},
+        ],
+    },
     {'id': 4, 'next_block_id': None, 'block_type': 'CONFIRMATION_BLOCK', 'position_x': 700, 'position_y': 100},
 ]
 

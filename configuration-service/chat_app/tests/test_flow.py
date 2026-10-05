@@ -10,10 +10,16 @@ from auth_app.models import BusinessUser
 from configuration_app.models import BusinessConfiguration
 from product_app.models import FAQ, Product
 
-from .flow import check_confirmation, check_details_collection, check_product_selection, check_start
-from .models import ChatConfiguration, ChatSession
+from ..flow import (
+    check_confirmation,
+    check_details_collection,
+    check_product_selection,
+    check_start,
+    clean_detail_value,
+)
+from ..models import ChatConfiguration, ChatSession
+from ..validators import validate_chat_messages, validate_chat_state_data
 from .test_api import fake_chat_response, fake_ollama_chat
-from .validators import validate_chat_messages, validate_chat_state_data
 
 FULL_CONFIG = [
     {'id': 1, 'next_block_id': 2, 'block_type': 'START_BLOCK', 'position_x': 0, 'position_y': 0},
@@ -21,6 +27,9 @@ FULL_CONFIG = [
     {'id': 'details', 'next_block_id': 4, 'block_type': 'DETAILS_COLLECTION_BLOCK', 'position_x': 0, 'position_y': 0},
     {'id': 4, 'next_block_id': None, 'block_type': 'CONFIRMATION_BLOCK', 'position_x': 0, 'position_y': 0},
 ]
+
+# A DETAILS_COLLECTION_BLOCK without `fields`: it asks for the default name and email.
+DEFAULT_DETAILS_BLOCK = FULL_CONFIG[2]
 
 PRODUCTS = [
     {'id': 1, 'name': 'Kopi C', 'description': '', 'price': '1.80', 'quantity_available': 200},
@@ -93,7 +102,8 @@ class ChatFlowAPITests(APITestCase):
         self.assertIn('Current step: Details collection', prompt)
         self.assertIn('just completed: Start, Product selection', prompt)
         self.assertIn('2 × Kopi C ($1.80 each). Total: $3.60', prompt)
-        self.assertIn('- name\n- email address', prompt)
+        self.assertIn('## Still needed\n- Name\n- Email', prompt)
+        self.assertIn('## Details to collect\n- Name (text, at most 150 characters)\n- Email (an email address)', prompt)
         # The sandbox reply also says what happened inside the turn, for the debug panel.
         debug = response.json()['debug']
         self.assertEqual(debug['before'], {'chat_state_id': 1, 'chat_state_data': {}})
@@ -104,7 +114,7 @@ class ChatFlowAPITests(APITestCase):
         )
         self.assertEqual(debug['steps'][1]['extracted'], {'items': [{'product_id': self.kopi.pk, 'quantity': 2}]})
         self.assertIn('Products on sale', debug['steps'][1]['system_prompt'])
-        self.assertEqual(debug['steps'][2]['missing'], ['name', 'email address'])
+        self.assertEqual(debug['steps'][2]['missing'], ['Name', 'Email'])
         self.assertEqual(debug['stop_reason'], 'This block is not complete yet: waiting for the customer.')
         self.assertEqual(debug['reply_system_prompt'], prompt)
         self.assertEqual(debug['tool_calls'], [])
@@ -114,7 +124,7 @@ class ChatFlowAPITests(APITestCase):
         self.assertEqual(self.session.chat_state_id, 'details')
         self.assertEqual(self.session.chat_state_data['details'], {'name': 'Alice'})
         self.assertEqual(self.session.display_name, 'Alice')
-        self.assertIn('## Still needed\n- email address', self.reply_prompt())
+        self.assertIn('## Still needed\n- Email', self.reply_prompt())
 
         # 4. The email: moves to confirmation, without asking the LLM about confirmation yet.
         response = self.send('alice@example.com', {'name': None, 'email': 'alice@example.com'})
@@ -123,7 +133,7 @@ class ChatFlowAPITests(APITestCase):
         self.assertEqual(self.session.chat_state_data['details'], {'name': 'Alice', 'email': 'alice@example.com'})
         self.assertEqual(len(self.calls(structured=True)), 1)
         self.assertIn('Current step: Confirmation', self.reply_prompt())
-        self.assertIn('name: Alice, email address: alice@example.com', self.reply_prompt())
+        self.assertIn('Name: Alice, Email: alice@example.com', self.reply_prompt())
 
         # 5. Confirms: the flow is completed, at the last block.
         self.send('Yes', {'decision': 'confirm'}, reply='Thanks Alice, your order is confirmed!')
@@ -225,18 +235,171 @@ class ChatFlowAPITests(APITestCase):
         self.assertNotIn('debug', self.session.chat_message_json[-1])  # debug info isn't stored
 
 
+class CustomDetailFieldsFlowTests(APITestCase):
+    """A Details collection block with business-chosen fields: the flow asks for exactly those."""
+
+    FIELDS = [
+        {'key': 'name', 'label': 'Receiver name', 'type': 'text', 'max_length': 150},
+        {'key': 'postal_code', 'label': 'Postal code', 'type': 'number', 'min_value': 100000, 'max_value': 999999},
+        {'key': 'notes', 'label': 'Customisation notes', 'type': 'text', 'max_length': 20, 'description': 'e.g. less sugar'},
+    ]  # no email: the business deselected it
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.cafe = BusinessConfiguration.objects.create(business_name='Kopi Café', location='Tiong Bahru')
+        cls.user = BusinessUser.objects.create_user(username='cafe', password='123', business=cls.cafe)
+        blocks = [dict(block) for block in FULL_CONFIG]
+        blocks[2]['fields'] = cls.FIELDS
+        cls.chat_config = ChatConfiguration.objects.create(business=cls.cafe, config_json=blocks)
+        cls.chat_config.full_clean()
+        cls.kopi = Product.objects.create(business=cls.cafe, name='Kopi C', price='1.80', quantity_available=200)
+
+    def setUp(self):
+        self.session = ChatSession.objects.create(
+            business=self.cafe,
+            is_sandbox=True,
+            chat_state_id='details',
+            chat_state_data={'items': [{'product_id': self.kopi.pk, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 1}]},
+        )
+        self.ollama = MagicMock()
+        patcher = patch('chat_app.llm.get_client', return_value=self.ollama)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.client.force_authenticate(self.user)
+
+    send = ChatFlowAPITests.send
+    calls = ChatFlowAPITests.calls
+    reply_prompt = ChatFlowAPITests.reply_prompt
+
+    def test_asks_for_every_field_and_only_proceeds_when_all_are_valid(self):
+        # Nothing given yet: asks for all three, with their formats.
+        self.send('Hi', {'name': None, 'postal_code': None, 'notes': None})
+        self.assertEqual(self.session.chat_state_id, 'details')
+        prompt = self.reply_prompt()
+        self.assertIn('## Still needed\n- Receiver name\n- Postal code\n- Customisation notes', prompt)
+        self.assertIn(
+            '## Details to collect\n'
+            '- Receiver name (text, at most 150 characters)\n'
+            '- Postal code (a number from 100000 to 999999)\n'
+            '- Customisation notes (text, at most 20 characters). e.g. less sugar',
+            prompt,
+        )
+        self.assertNotIn('Email', prompt)
+
+        # The extraction asks for exactly these keys, with the number field typed as a number.
+        extraction = self.calls(structured=True)[0]
+        self.assertEqual(
+            extraction['format']['properties'],
+            {
+                'name': {'anyOf': [{'type': 'string'}, {'type': 'null'}]},
+                'postal_code': {'anyOf': [{'type': 'number'}, {'type': 'null'}]},
+                'notes': {'anyOf': [{'type': 'string'}, {'type': 'null'}]},
+            },
+        )
+        self.assertEqual(extraction['format']['required'], ['name', 'postal_code', 'notes'])
+        self.assertIn('"postal_code": Postal code (a number from 100000 to 999999)', extraction['messages'][0]['content'])
+
+        # Some given, some invalid: keeps the valid ones, explains the problems, stays.
+        self.send('Alice, 12, extra extra extra sweet please', {'name': 'Alice', 'postal_code': 12, 'notes': 'extra extra extra sweet please'})
+        self.assertEqual(self.session.chat_state_id, 'details')
+        self.assertEqual(self.session.chat_state_data['details'], {'name': 'Alice'})
+        prompt = self.reply_prompt()
+        self.assertIn('## Still needed\n- Postal code\n- Customisation notes', prompt)
+        self.assertIn('- Postal code must be at least 100000.', prompt)
+        self.assertIn('- Customisation notes is too long (max 20 characters).', prompt)
+        self.assertIn('Customer details: Receiver name: Alice.', prompt)
+
+        # One still missing: stays.
+        self.send('Postal code 238801', {'name': None, 'postal_code': 238801, 'notes': None})
+        self.assertEqual(self.session.chat_state_id, 'details')
+        self.assertIn('## Still needed\n- Customisation notes', self.reply_prompt())
+
+        # All valid (the number even as text): moves on to confirmation.
+        self.send('Less sugar', {'name': None, 'postal_code': None, 'notes': 'Less sugar'})
+        self.assertEqual(self.session.chat_state_id, 4)
+        self.assertEqual(
+            self.session.chat_state_data['details'], {'name': 'Alice', 'postal_code': 238801, 'notes': 'Less sugar'}
+        )
+        self.assertIn(
+            'Customer details: Receiver name: Alice, Postal code: 238801, Customisation notes: Less sugar.',
+            self.reply_prompt(),
+        )
+        self.session.full_clean()
+
+    def test_number_given_as_text_is_accepted(self):
+        self.send('x', {'name': 'Bob', 'postal_code': '238,801', 'notes': 'none'})
+        self.assertEqual(self.session.chat_state_id, 4)
+        self.assertEqual(self.session.chat_state_data['details']['postal_code'], 238801)
+
+    def test_new_session_from_updated_configuration_asks_for_new_fields(self):
+        # A session created through the API after the configuration changed starts at Start and,
+        # once there, asks for the business's fields.
+        response = self.client.post(reverse('chat_app:sandbox-session-list'), {}, format='json')
+        self.session = ChatSession.objects.get(pk=response.json()['id'])
+        self.send(
+            'I want 1 Kopi C',
+            {'wants_to_order': True},
+            {'items': [{'product_id': self.kopi.pk, 'quantity': 1}]},
+            {'name': None, 'postal_code': None, 'notes': None},
+        )
+        self.assertEqual(self.session.chat_state_id, 'details')
+        self.assertIn('## Still needed\n- Receiver name\n- Postal code\n- Customisation notes', self.reply_prompt())
+
+
+class CleanDetailValueTests(SimpleTestCase):
+    def check(self, detail_field, raw):
+        return clean_detail_value(detail_field, raw)
+
+    def test_not_given(self):
+        for raw in (None, '', '   ', True):
+            with self.subTest(raw=raw):
+                self.assertEqual(self.check({'key': 'a', 'label': 'A', 'type': 'text'}, raw), (None, None))
+
+    def test_text(self):
+        text = {'key': 'notes', 'label': 'Notes', 'type': 'text', 'max_length': 5}
+        self.assertEqual(self.check(text, '  hello '), ('hello', None))
+        self.assertEqual(self.check(text, 'too long'), (None, 'Notes is too long (max 5 characters).'))
+        self.assertEqual(self.check({**text, 'max_length': 500}, 42), ('42', None))  # numbers become text
+        self.assertEqual(self.check({'key': 'n', 'label': 'N', 'type': 'text'}, 'x' * 501)[0], None)  # default 500
+
+    def test_number(self):
+        number = {'key': 'qty', 'label': 'Guests', 'type': 'number', 'min_value': 1, 'max_value': 50}
+        self.assertEqual(self.check(number, 20), (20, None))
+        self.assertEqual(self.check(number, 2.0), (2, None))
+        self.assertEqual(self.check(number, 2.5), (2.5, None))
+        self.assertEqual(self.check(number, ' 12 '), (12, None))
+        self.assertEqual(self.check(number, 'twelve'), (None, 'Guests must be a number (got "twelve").'))
+        self.assertEqual(self.check(number, 'nan'), (None, 'Guests must be a number (got "nan").'))
+        self.assertEqual(self.check(number, 0), (None, 'Guests must be at least 1.'))
+        self.assertEqual(self.check(number, 51), (None, 'Guests must be at most 50.'))
+
+    def test_email(self):
+        email = {'key': 'email', 'label': 'Email', 'type': 'email'}
+        self.assertEqual(self.check(email, ' a@b.co '), ('a@b.co', None))
+        self.assertEqual(self.check(email, 'nope'), (None, '"nope" is not a valid email address.'))
+
+    def test_phone(self):
+        phone = {'key': 'phone', 'label': 'Phone', 'type': 'phone'}
+        for valid in ('+65 9123 4567', '91234567', '(65) 9123-4567'):
+            with self.subTest(valid):
+                self.assertEqual(self.check(phone, valid), (valid, None))
+        for invalid in ('12345', 'call me', '+65 9123 4567 8901 2345'):
+            with self.subTest(invalid):
+                self.assertIn('is not a valid phone number', self.check(phone, invalid)[1])
+
+
 class FlowCheckTests(SimpleTestCase):
     """The deterministic checks of the LLM's extraction, one per block type."""
 
     def test_start(self):
-        self.assertTrue(check_start({'wants_to_order': True}, {}, PRODUCTS).complete)
+        self.assertTrue(check_start({'wants_to_order': True}, {}, PRODUCTS, {}).complete)
         for extracted in ({'wants_to_order': False}, {}, {'wants_to_order': 'yes'}):
-            self.assertFalse(check_start(extracted, {}, PRODUCTS).complete)
+            self.assertFalse(check_start(extracted, {}, PRODUCTS, {}).complete)
 
     def test_product_selection_valid_choice(self):
         data = {}
         result = check_product_selection(
-            {'items': [{'product_id': 1, 'quantity': 2}, {'product_id': 2, 'quantity': 3}]}, data, PRODUCTS
+            {'items': [{'product_id': 1, 'quantity': 2}, {'product_id': 2, 'quantity': 3}]}, data, PRODUCTS, {}
         )
         self.assertTrue(result.complete)
         self.assertEqual([(i['name'], i['quantity'], i['unit_price']) for i in data['items']],
@@ -252,38 +415,38 @@ class FlowCheckTests(SimpleTestCase):
         }
         for label, (item, issue) in cases.items():
             with self.subTest(label):
-                result = check_product_selection({'items': [item]}, {}, PRODUCTS)
+                result = check_product_selection({'items': [item]}, {}, PRODUCTS, {})
                 self.assertFalse(result.complete)
                 self.assertIn(issue, result.issues[0])
 
     def test_product_selection_keeps_earlier_choice_when_nothing_new(self):
         earlier = {'items': [{'product_id': 1, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 1}]}
-        self.assertTrue(check_product_selection({'items': []}, earlier, PRODUCTS).complete)
-        result = check_product_selection({'items': []}, {}, PRODUCTS)
+        self.assertTrue(check_product_selection({'items': []}, earlier, PRODUCTS, {}).complete)
+        result = check_product_selection({'items': []}, {}, PRODUCTS, {})
         self.assertFalse(result.complete)
         self.assertEqual(result.missing, ['which products, and how many of each'])
 
     def test_details_collection(self):
         data = {}
-        result = check_details_collection({'name': ' Alice ', 'email': None}, data, PRODUCTS)
-        self.assertEqual((result.complete, result.missing), (False, ['email address']))
+        result = check_details_collection({'name': ' Alice ', 'email': None}, data, PRODUCTS, DEFAULT_DETAILS_BLOCK)
+        self.assertEqual((result.complete, result.missing), (False, ['Email']))
         self.assertEqual(data, {'details': {'name': 'Alice'}})
 
-        result = check_details_collection({'name': None, 'email': 'not-an-email'}, data, PRODUCTS)
+        result = check_details_collection({'name': None, 'email': 'not-an-email'}, data, PRODUCTS, DEFAULT_DETAILS_BLOCK)
         self.assertFalse(result.complete)
         self.assertIn('not a valid email address', result.issues[0])
 
-        result = check_details_collection({'name': None, 'email': 'alice@example.com'}, data, PRODUCTS)
+        result = check_details_collection({'name': None, 'email': 'alice@example.com'}, data, PRODUCTS, DEFAULT_DETAILS_BLOCK)
         self.assertTrue(result.complete)
         self.assertEqual(data['details'], {'name': 'Alice', 'email': 'alice@example.com'})
 
     def test_details_collection_nothing_given_adds_no_key(self):
         data = {}
-        check_details_collection({'name': '', 'email': None}, data, PRODUCTS)
+        check_details_collection({'name': '', 'email': None}, data, PRODUCTS, DEFAULT_DETAILS_BLOCK)
         self.assertEqual(data, {})
 
     def test_confirmation(self):
-        self.assertTrue(check_confirmation({'decision': 'confirm'}, {}, PRODUCTS).complete)
-        self.assertTrue(check_confirmation({'decision': 'change'}, {}, PRODUCTS).go_back)
-        result = check_confirmation({'decision': 'none'}, {}, PRODUCTS)
+        self.assertTrue(check_confirmation({'decision': 'confirm'}, {}, PRODUCTS, {}).complete)
+        self.assertTrue(check_confirmation({'decision': 'change'}, {}, PRODUCTS, {}).go_back)
+        result = check_confirmation({'decision': 'none'}, {}, PRODUCTS, {})
         self.assertFalse(result.complete or result.go_back)

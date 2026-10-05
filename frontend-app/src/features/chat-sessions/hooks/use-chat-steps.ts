@@ -1,4 +1,4 @@
-import { BLOCK_META, useChatConfiguration } from '@/features/workflow'
+import { BLOCK_META, blockDetailFields, DETAILS_COLLECTION_BLOCK, useChatConfiguration } from '@/features/workflow'
 
 import type { ChatSession } from '../types'
 
@@ -31,4 +31,15 @@ export function useChatSteps() {
   }
 
   return { steps, stepLabel }
+}
+
+/** Detail field key → label, from the workflow's Details collection blocks (like the backend's `detail_labels`). */
+export function useDetailLabels(): Record<string, string> {
+  const { data } = useChatConfiguration()
+  const labels: Record<string, string> = {}
+  for (const block of data?.config_json ?? []) {
+    if (block.block_type !== DETAILS_COLLECTION_BLOCK) continue
+    for (const field of blockDetailFields(block.fields)) labels[field.key] = field.label
+  }
+  return labels
 }

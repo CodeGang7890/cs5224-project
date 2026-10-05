@@ -12,10 +12,13 @@ from decimal import Decimal
 from .constants import (
     CONFIRMATION_BLOCK,
     DETAILS_COLLECTION_BLOCK,
+    DETAIL_TYPE_EMAIL,
+    DETAIL_TYPE_NUMBER,
+    DETAIL_TYPE_PHONE,
     PRODUCT_SELECTION_BLOCK,
-    REQUIRED_CUSTOMER_DETAILS,
     START_BLOCK,
 )
+from .validators import DETAIL_TEXT_DEFAULT_MAX_LENGTH, block_detail_fields
 
 BLOCK_LABELS = {
     START_BLOCK: 'Start',
@@ -27,15 +30,16 @@ BLOCK_LABELS = {
 BLOCK_GOALS = {
     START_BLOCK: 'Welcome the customer, answer their questions and find out whether they want to order.',
     PRODUCT_SELECTION_BLOCK: 'Find out which products the customer wants, and how many of each.',
-    DETAILS_COLLECTION_BLOCK: f"Collect the customer's {' and '.join(REQUIRED_CUSTOMER_DETAILS)}.",
+    DETAILS_COLLECTION_BLOCK: 'Collect the customer details listed under "Details to collect".',
     CONFIRMATION_BLOCK: 'Show the order summary and get the customer to confirm it.',
 }
-
-DETAIL_LABELS = {'name': 'name', 'email': 'email address'}
 
 # --- Extraction (generate_structured) -----------------------------------------------------
 
 _NULLABLE_STRING = {'anyOf': [{'type': 'string'}, {'type': 'null'}]}
+_NULLABLE_NUMBER = {'anyOf': [{'type': 'number'}, {'type': 'null'}]}
+
+# The DETAILS_COLLECTION_BLOCK's schema depends on its fields: see extraction_schema().
 
 EXTRACTION_SCHEMAS = {
     START_BLOCK: {
@@ -60,11 +64,6 @@ EXTRACTION_SCHEMAS = {
         },
         'required': ['items'],
     },
-    DETAILS_COLLECTION_BLOCK: {
-        'type': 'object',
-        'properties': {field: _NULLABLE_STRING for field in REQUIRED_CUSTOMER_DETAILS},
-        'required': list(REQUIRED_CUSTOMER_DETAILS),
-    },
     CONFIRMATION_BLOCK: {
         'type': 'object',
         'properties': {'decision': {'type': 'string', 'enum': ['confirm', 'change', 'none']}},
@@ -87,8 +86,10 @@ _EXTRACTION_TASKS = {
         'updated list. Return an empty list if they have not chosen any product yet.'
     ),
     DETAILS_COLLECTION_BLOCK: (
-        "Extract the customer's own {fields} if they gave them anywhere in the conversation. Use "
-        'null for anything they have not given. Copy them exactly; never make them up.\n\n'
+        'Extract these details about the customer, if they gave them anywhere in the conversation '
+        '(JSON key: what it is):\n{fields}\n\n'
+        'Use null for anything they have not given. Copy text exactly and never make anything up. '
+        'Give numbers as JSON numbers.\n\n'
         'Already known: {known}'
     ),
     CONFIRMATION_BLOCK: (
@@ -100,12 +101,28 @@ _EXTRACTION_TASKS = {
 }
 
 
-def build_extraction_prompt(business, block_type: str, data: dict, products: list[dict]) -> str:
-    task = _EXTRACTION_TASKS[block_type].format(
+def extraction_schema(block: dict) -> dict:
+    """JSON schema the LLM's extraction must follow at this block."""
+    if block['block_type'] != DETAILS_COLLECTION_BLOCK:
+        return EXTRACTION_SCHEMAS[block['block_type']]
+    fields = block_detail_fields(block)
+    return {
+        'type': 'object',
+        'properties': {
+            f['key']: _NULLABLE_NUMBER if f['type'] == DETAIL_TYPE_NUMBER else _NULLABLE_STRING for f in fields
+        },
+        'required': [f['key'] for f in fields],
+    }
+
+
+def build_extraction_prompt(business, block: dict, data: dict, products: list[dict], labels: dict) -> str:
+    """System prompt for the extraction at `block`. `labels`: detail field key → label (detail_labels)."""
+    is_details = block['block_type'] == DETAILS_COLLECTION_BLOCK
+    task = _EXTRACTION_TASKS[block['block_type']].format(
         catalog=format_catalog(products),
         chosen=format_items(data.get('items', [])) or 'nothing yet',
-        fields=' and '.join(DETAIL_LABELS[field] for field in REQUIRED_CUSTOMER_DETAILS),
-        known=format_details(data.get('details', {})) or 'nothing yet',
+        fields=describe_detail_fields(block_detail_fields(block), with_keys=True) if is_details else '',
+        known=format_details(data.get('details', {}), labels) or 'nothing yet',
     )
     return (
         f'You read a WhatsApp conversation between {business.business_name} and a customer, and '
@@ -150,19 +167,23 @@ _NO_FLOW_INSTRUCTIONS = 'Answer the customer\'s message helpfully, using the inf
 
 def build_reply_prompt(
     business,
-    block_type: str | None,
+    block: dict | None,
     data: dict,
     *,
     products: list[dict],
+    labels: dict | None = None,
     missing: list[str] = (),
     issues: list[str] = (),
     finished: list[str] = (),
 ) -> str:
-    """System prompt for the customer reply at `block_type` (None: the business has no chat flow).
+    """System prompt for the customer reply at `block` (None: the business has no chat flow).
 
     `missing` / `issues` come from the deterministic checks in flow.py, and `finished` lists the
     blocks the customer completed with this message, so the reply can move the conversation on.
+    `labels` maps detail field keys to labels (detail_labels), to show the collected details.
     """
+    block_type = block['block_type'] if block else None
+    labels = labels or {}
     sections = [
         f'You are the customer service assistant for {business.business_name}, replying to a customer '
         f'over WhatsApp. Business description: {business.description or "not provided."} '
@@ -181,7 +202,9 @@ def build_reply_prompt(
         if finished:
             status.append(f'The customer just completed: {", ".join(finished)}.')
         sections.append('## Where the conversation is\n' + '\n'.join(status))
-        sections.append('## What we know so far\n' + format_collected(data))
+        sections.append('## What we know so far\n' + format_collected(data, labels))
+        if block_type == DETAILS_COLLECTION_BLOCK and not completed:
+            sections.append('## Details to collect\n' + describe_detail_fields(block_detail_fields(block)))
         if missing and not completed:
             sections.append('## Still needed\n' + '\n'.join(f'- {item}' for item in missing))
         if issues:
@@ -219,14 +242,52 @@ def format_items(items: list[dict]) -> str:
     return ', '.join(f'{item["quantity"]} × {item["name"]} (${item["unit_price"]} each)' for item in items)
 
 
-def format_details(details: dict) -> str:
-    return ', '.join(f'{DETAIL_LABELS.get(field, field)}: {value}' for field, value in details.items())
+def detail_labels(config_json: list[dict]) -> dict[str, str]:
+    """Detail field key → label, from every DETAILS_COLLECTION_BLOCK of a chat configuration."""
+    return {
+        detail_field['key']: detail_field['label']
+        for block in config_json
+        if block['block_type'] == DETAILS_COLLECTION_BLOCK
+        for detail_field in block_detail_fields(block)
+    }
 
 
-def format_collected(data: dict) -> str:
+def describe_detail_fields(fields: list[dict], with_keys: bool = False) -> str:
+    """One line per field, e.g. `- Postal code: a number from 100000 to 999999. 6 digits.`"""
+    lines = []
+    for detail_field in fields:
+        field_type = detail_field['type']
+        if field_type == DETAIL_TYPE_NUMBER:
+            kind = 'a number'
+            low, high = detail_field.get('min_value'), detail_field.get('max_value')
+            if low is not None and high is not None:
+                kind += f' from {low} to {high}'
+            elif low is not None:
+                kind += f' of at least {low}'
+            elif high is not None:
+                kind += f' of at most {high}'
+        elif field_type == DETAIL_TYPE_EMAIL:
+            kind = 'an email address'
+        elif field_type == DETAIL_TYPE_PHONE:
+            kind = 'a phone number'
+        else:
+            kind = f'text, at most {detail_field.get("max_length", DETAIL_TEXT_DEFAULT_MAX_LENGTH)} characters'
+        name = f'"{detail_field["key"]}": {detail_field["label"]}' if with_keys else detail_field['label']
+        line = f'- {name} ({kind})'
+        if detail_field.get('description'):
+            line += f'. {detail_field["description"]}'
+        lines.append(line)
+    return '\n'.join(lines)
+
+
+def format_details(details: dict, labels: dict) -> str:
+    return ', '.join(f'{labels.get(key, key)}: {value}' for key, value in details.items())
+
+
+def format_collected(data: dict, labels: dict) -> str:
     items = data.get('items', [])
     lines = [
         f'Order: {format_items(items)}. Total: ${order_total(items)}.' if items else 'Order: nothing chosen yet.',
-        f'Customer details: {format_details(data.get("details", {})) or "none yet"}.',
+        f'Customer details: {format_details(data.get("details", {}), labels) or "none yet"}.',
     ]
     return '\n'.join(lines)

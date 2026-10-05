@@ -1,10 +1,19 @@
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from .constants import BLOCK_TYPES, MESSAGE_SENDERS, START_BLOCK
+from .constants import BLOCK_TYPES, DETAIL_FIELD_TYPES, DETAILS_COLLECTION_BLOCK, MESSAGE_SENDERS, START_BLOCK
 from .llm import CHAT_PROMPT_MAX_LENGTH, OLLAMA_MODEL, OLLAMA_OPTIONS
 from .models import PHONE_NUMBER_MAX_LENGTH, ChatConfiguration, ChatSession, phone_number_validator
-from .validators import CHAT_MESSAGE_MAX_LENGTH, validate_chat_config
+from .validators import (
+    CHAT_MESSAGE_MAX_LENGTH,
+    DETAIL_DESCRIPTION_MAX_LENGTH,
+    DETAIL_FIELDS_MAX,
+    DETAIL_KEY_MAX_LENGTH,
+    DETAIL_LABEL_MAX_LENGTH,
+    DETAIL_TEXT_DEFAULT_MAX_LENGTH,
+    DETAIL_TEXT_MAX_LENGTH,
+    validate_chat_config,
+)
 
 
 class ChatRequestSerializer(serializers.Serializer):
@@ -40,6 +49,29 @@ class _NextBlockIdSchemaField(serializers.JSONField):
     pass
 
 
+class ChatDetailFieldSerializer(serializers.Serializer):
+    """One customer detail a DETAILS_COLLECTION_BLOCK asks for."""
+
+    key = serializers.RegexField(
+        r'^[a-z][a-z0-9_]*$',
+        max_length=DETAIL_KEY_MAX_LENGTH,
+        help_text='Unique in the block, e.g. `postal_code`: the key in `chat_state_data.details`.',
+    )
+    label = serializers.CharField(max_length=DETAIL_LABEL_MAX_LENGTH, help_text='What the customer is asked for.')
+    type = serializers.ChoiceField(choices=DETAIL_FIELD_TYPES)
+    description = serializers.CharField(
+        required=False, max_length=DETAIL_DESCRIPTION_MAX_LENGTH, help_text='Optional hint for the assistant.'
+    )
+    max_length = serializers.IntegerField(
+        required=False,
+        min_value=1,
+        max_value=DETAIL_TEXT_MAX_LENGTH,
+        help_text=f'`text` only (default {DETAIL_TEXT_DEFAULT_MAX_LENGTH}).',
+    )
+    min_value = serializers.FloatField(required=False, help_text='`number` only.')
+    max_value = serializers.FloatField(required=False, help_text='`number` only; at least `min_value`.')
+
+
 class ChatBlockSerializer(serializers.Serializer):
     id = _BlockIdSchemaField(help_text='Integer or non-blank string (e.g. a UUID), unique in the list.')
     next_block_id = _NextBlockIdSchemaField(help_text='`id` of the next block, or null for the last one.')
@@ -48,6 +80,14 @@ class ChatBlockSerializer(serializers.Serializer):
     )
     position_x = serializers.FloatField()
     position_y = serializers.FloatField()
+    fields = ChatDetailFieldSerializer(
+        many=True,
+        required=False,
+        help_text=(
+            f'`{DETAILS_COLLECTION_BLOCK}` only: the customer details it asks for (1 to '
+            f'{DETAIL_FIELDS_MAX}). Without it, the block asks for name and email.'
+        ),
+    )
 
 
 @extend_schema_field(ChatBlockSerializer(many=True))
@@ -89,16 +129,14 @@ class ChatStateItemSerializer(serializers.Serializer):
     quantity = serializers.IntegerField(min_value=1)
 
 
-class ChatStateDetailsSerializer(serializers.Serializer):
-    name = serializers.CharField(required=False)
-    email = serializers.EmailField(required=False)
-
-
 class ChatStateDataSerializer(serializers.Serializer):
     """ChatSession.chat_state_data (see validate_chat_state_data). Every key is optional."""
 
     items = ChatStateItemSerializer(many=True, required=False, help_text='The products the customer chose.')
-    details = ChatStateDetailsSerializer(required=False, help_text="The customer's details collected so far.")
+    details = serializers.DictField(
+        required=False,
+        help_text="The customer's details collected so far, by field key (strings or numbers).",
+    )
     completed = serializers.BooleanField(
         required=False, help_text='True once the customer confirmed and the flow reached its last block.'
     )

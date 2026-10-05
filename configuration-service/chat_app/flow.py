@@ -4,7 +4,7 @@ handle_customer_message() runs one turn:
 1. Save the customer message.
 2. Find where the chat is: the ChatConfiguration block whose `id` is ChatSession.chat_state_id
    (the START_BLOCK if there's none, e.g. the block was deleted from the workflow).
-3. Extract: ask the LLM for the block's JSON output (prompts.EXTRACTION_SCHEMAS) about the
+3. Extract: ask the LLM for the block's JSON output (prompts.extraction_schema) about the
    conversation so far.
 4. Check deterministically (the CHECKS below) whether that completes the block, updating
    ChatSession.chat_state_data. If it does, move to `next_block_id` and repeat 3–4 there, so one
@@ -15,6 +15,8 @@ handle_customer_message() runs one turn:
 """
 
 import copy
+import math
+import re
 from dataclasses import dataclass, field
 
 from django.core.exceptions import ValidationError
@@ -27,14 +29,16 @@ from .constants import (
     CONFIRMATION_BLOCK,
     DETAILS_COLLECTION_BLOCK,
     PRODUCT_SELECTION_BLOCK,
-    REQUIRED_CUSTOMER_DETAILS,
+    DETAIL_TYPE_EMAIL,
+    DETAIL_TYPE_NUMBER,
+    DETAIL_TYPE_PHONE,
     SENT_BY_BUSINESS_AUTOMATED,
     SENT_BY_CUSTOMER,
     START_BLOCK,
 )
 from .models import DISPLAY_NAME_MAX_LENGTH, ChatConfiguration, ChatSession
 from .tools import Toolbox, active_products
-from .validators import validate_chat_state_data
+from .validators import DETAIL_TEXT_DEFAULT_MAX_LENGTH, block_detail_fields, validate_chat_state_data
 
 # How many of the latest messages the LLM sees (keeps the prompt within the context window).
 HISTORY_MAX_MESSAGES = 20
@@ -94,9 +98,10 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
         save_flow_state(session_id, turn)
         system_prompt = prompts.build_reply_prompt(
             business,
-            turn.block['block_type'],
+            turn.block,
             turn.data,
             products=products,
+            labels=prompts.detail_labels(chat_config.config_json),
             missing=turn.missing,
             issues=turn.issues,
             finished=turn.finished,
@@ -132,6 +137,7 @@ def advance(
         turn.stop_reason = 'The flow was already completed: no extraction, reply only.'
         return turn
 
+    labels = prompts.detail_labels(chat_config.config_json)
     entered_now = False
     # Each block is visited at most twice (once more after a "change" at confirmation).
     for _ in range(2 * len(chat_config.config_json) + 1):
@@ -146,11 +152,9 @@ def advance(
                 'Confirmation reached with this message: not checked until the customer has seen the summary.'
             )
             break
-        system_prompt = prompts.build_extraction_prompt(
-            chat_config.business, block_type, turn.data, products
-        )
-        extracted = llm.generate_structured(system_prompt, history, prompts.EXTRACTION_SCHEMAS[block_type])
-        result = check(extracted, turn.data, products)
+        system_prompt = prompts.build_extraction_prompt(chat_config.business, block, turn.data, products, labels)
+        extracted = llm.generate_structured(system_prompt, history, prompts.extraction_schema(block))
+        result = check(extracted, turn.data, products, block)
         turn.missing, turn.issues = result.missing, result.issues
         turn.steps.append({
             'block_id': block['id'],
@@ -187,13 +191,14 @@ def advance(
 
 
 # --- Deterministic checks, one per block type ---------------------------------------------
-# Each takes the LLM's extraction, the chat_state_data (updated in place) and the products on sale.
+# Each takes the LLM's extraction, the chat_state_data (updated in place), the products on sale
+# and the block being checked.
 
-def check_start(extracted: dict, data: dict, products: list[dict]) -> CheckResult:
+def check_start(extracted: dict, data: dict, products: list[dict], block: dict) -> CheckResult:
     return CheckResult(complete=extracted.get('wants_to_order') is True)
 
 
-def check_product_selection(extracted: dict, data: dict, products: list[dict]) -> CheckResult:
+def check_product_selection(extracted: dict, data: dict, products: list[dict], block: dict) -> CheckResult:
     """Complete when every chosen product is on sale, with a quantity that's in stock."""
     by_id = {product['id']: product for product in products}
     raw_items = extracted.get('items')
@@ -228,27 +233,28 @@ def check_product_selection(extracted: dict, data: dict, products: list[dict]) -
     return CheckResult(complete=complete, missing=[] if complete else [PRODUCTS_MISSING], issues=issues)
 
 
-def check_details_collection(extracted: dict, data: dict, products: list[dict]) -> CheckResult:
-    """Complete when every REQUIRED_CUSTOMER_DETAILS is known and valid. Known values are kept."""
+def check_details_collection(extracted: dict, data: dict, products: list[dict], block: dict) -> CheckResult:
+    """Complete when every one of the block's fields (block_detail_fields) is known and valid.
+
+    Values are checked by field type (clean_detail_value); known values are kept when the LLM
+    returns nothing for them, and an invalid value never replaces a valid one.
+    """
+    fields = block_detail_fields(block)
     details = data.setdefault('details', {})
     issues = []
-    for name in REQUIRED_CUSTOMER_DETAILS:
-        value = extracted.get(name)
-        if not isinstance(value, str) or not value.strip():
-            continue  # not given (this time): keep what's known
-        value = value.strip()
-        problem = _detail_problem(name, value)
+    for detail_field in fields:
+        value, problem = clean_detail_value(detail_field, extracted.get(detail_field['key']))
         if problem:
             issues.append(problem)
-        else:
-            details[name] = value
+        elif value is not None:
+            details[detail_field['key']] = value
     if not details:
         del data['details']
-    missing = [prompts.DETAIL_LABELS[name] for name in REQUIRED_CUSTOMER_DETAILS if name not in details]
+    missing = [f['label'] for f in fields if f['key'] not in details]
     return CheckResult(complete=not missing and not issues, missing=missing, issues=issues)
 
 
-def check_confirmation(extracted: dict, data: dict, products: list[dict]) -> CheckResult:
+def check_confirmation(extracted: dict, data: dict, products: list[dict], block: dict) -> CheckResult:
     decision = extracted.get('decision')
     return CheckResult(complete=decision == 'confirm', go_back=decision == 'change')
 
@@ -265,17 +271,51 @@ def _as_int(value) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
-def _detail_problem(name: str, value: str) -> str | None:
-    if name == 'name' and len(value) > DISPLAY_NAME_MAX_LENGTH:
-        return f'The name is too long (max {DISPLAY_NAME_MAX_LENGTH} characters).'
-    if name == 'email':
+PHONE_PATTERN = re.compile(r'^\+?[\d\s()\-]+$')
+
+
+def clean_detail_value(detail_field: dict, raw) -> tuple[str | int | float | None, str | None]:
+    """The LLM's value for one detail field, checked against its type: (value, None) if valid,
+    (None, problem) if not, or (None, None) if it wasn't given."""
+    if raw is None or isinstance(raw, bool) or (isinstance(raw, str) and not raw.strip()):
+        return None, None
+    label, field_type = detail_field['label'], detail_field['type']
+
+    if field_type == DETAIL_TYPE_NUMBER:
+        number = raw if isinstance(raw, (int, float)) else _parse_number(str(raw))
+        if number is None:
+            return None, f'{label} must be a number (got "{raw}").'
+        if 'min_value' in detail_field and number < detail_field['min_value']:
+            return None, f'{label} must be at least {detail_field["min_value"]}.'
+        if 'max_value' in detail_field and number > detail_field['max_value']:
+            return None, f'{label} must be at most {detail_field["max_value"]}.'
+        return (int(number) if float(number).is_integer() else number), None
+
+    value = str(raw).strip()
+    if field_type == DETAIL_TYPE_EMAIL:
         try:
             EmailValidator()(value)
         except ValidationError:
-            return f'"{value}" is not a valid email address.'
+            return None, f'"{value}" is not a valid email address.'
         if len(value) > EMAIL_MAX_LENGTH:
-            return 'The email address is too long.'
-    return None
+            return None, f'{label} is too long.'
+    elif field_type == DETAIL_TYPE_PHONE:
+        digits = sum(char.isdigit() for char in value)
+        if not PHONE_PATTERN.match(value) or not 6 <= digits <= 15:
+            return None, f'"{value}" is not a valid phone number.'
+    else:  # text
+        max_length = detail_field.get('max_length', DETAIL_TEXT_DEFAULT_MAX_LENGTH)
+        if len(value) > max_length:
+            return None, f'{label} is too long (max {max_length} characters).'
+    return value, None
+
+
+def _parse_number(text: str) -> int | float | None:
+    try:
+        number = float(text.replace(',', '').strip())
+    except ValueError:
+        return None
+    return number if math.isfinite(number) else None
 
 
 # --- Persistence --------------------------------------------------------------------------
@@ -315,8 +355,8 @@ def save_flow_state(session_id: int, turn: Turn) -> None:
         session.chat_state_id = turn.block['id']
         session.chat_state_data = turn.data
         fields = ['chat_state_id', 'chat_state_data']
-        name = turn.data.get('details', {}).get('name')
-        if name and not session.display_name:
-            session.display_name = name
+        name = turn.data.get('details', {}).get('name')  # a field with the key `name`, if any
+        if isinstance(name, str) and not session.display_name:
+            session.display_name = name[:DISPLAY_NAME_MAX_LENGTH]
             fields.append('display_name')
         session.save(update_fields=fields)

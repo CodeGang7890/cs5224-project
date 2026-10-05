@@ -23,5 +23,22 @@ MESSAGE_SENDERS = [
     SENT_BY_BUSINESS_AUTOMATED,
 ]
 
-# Customer details a DETAILS_COLLECTION_BLOCK collects (keys of chat_state_data['details']).
-REQUIRED_CUSTOMER_DETAILS = ['name', 'email']
+# Types of customer detail a DETAILS_COLLECTION_BLOCK can ask for (its `fields[].type`).
+DETAIL_TYPE_TEXT = 'text'
+DETAIL_TYPE_NUMBER = 'number'
+DETAIL_TYPE_EMAIL = 'email'
+DETAIL_TYPE_PHONE = 'phone'
+
+DETAIL_FIELD_TYPES = [
+    DETAIL_TYPE_TEXT,
+    DETAIL_TYPE_NUMBER,
+    DETAIL_TYPE_EMAIL,
+    DETAIL_TYPE_PHONE,
+]
+
+# The details a DETAILS_COLLECTION_BLOCK asks for when it has no `fields` (e.g. saved before
+# fields existed). New blocks in the frontend's workflow editor start with the same two.
+DEFAULT_DETAIL_FIELDS = [
+    {'key': 'name', 'label': 'Name', 'type': DETAIL_TYPE_TEXT, 'max_length': 150},
+    {'key': 'email', 'label': 'Email', 'type': DETAIL_TYPE_EMAIL},
+]

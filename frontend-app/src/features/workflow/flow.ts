@@ -1,11 +1,13 @@
 import { MarkerType, type Edge, type Node } from '@xyflow/react'
 
-import { START_BLOCK, type BlockId, type BlockType, type ChatBlock } from './types'
+import { DEFAULT_DETAIL_FIELDS, normalizeDetailField } from './details'
+import { DETAILS_COLLECTION_BLOCK, START_BLOCK, type BlockId, type BlockType, type ChatBlock, type DetailField } from './types'
 
 // Converts between the API's `config_json` (a list of blocks with `next_block_id`) and
 // React Flow's nodes + edges. Each block has at most one outgoing arrow.
 
-export type BlockNodeData = { blockId: BlockId; blockType: BlockType }
+/** `fields`: a DETAILS_COLLECTION_BLOCK's customer details (undefined: the backend's defaults). */
+export type BlockNodeData = { blockId: BlockId; blockType: BlockType; fields?: DetailField[] }
 export type BlockNode = Node<BlockNodeData, 'block'>
 
 /** React Flow IDs must be strings; include the type so block IDs 1 and "1" stay distinct. */
@@ -17,14 +19,21 @@ export function createBlockNode(
   blockId: BlockId,
   blockType: BlockType,
   position: { x: number; y: number },
+  fields?: DetailField[],
 ): BlockNode {
   return {
     id: toNodeId(blockId),
     type: 'block',
     position,
-    data: { blockId, blockType },
+    data: fields ? { blockId, blockType, fields } : { blockId, blockType },
     deletable: blockType !== START_BLOCK,
   }
+}
+
+/** A block added from the palette. A new DETAILS_COLLECTION_BLOCK starts with the default fields. */
+export function createNewBlockNode(blockType: BlockType, position: { x: number; y: number }): BlockNode {
+  const fields = blockType === DETAILS_COLLECTION_BLOCK ? DEFAULT_DETAIL_FIELDS.map((f) => ({ ...f })) : undefined
+  return createBlockNode(crypto.randomUUID(), blockType, position, fields)
 }
 
 /** The arrow from `source` to `target`. Its ID comes from the source, as each block has one next block. */
@@ -40,7 +49,7 @@ export function createEdge(source: string, target: string): Edge {
 
 export function configToFlow(config: ChatBlock[]): { nodes: BlockNode[]; edges: Edge[] } {
   const nodes = config.map((block) =>
-    createBlockNode(block.id, block.block_type, { x: block.position_x, y: block.position_y }),
+    createBlockNode(block.id, block.block_type, { x: block.position_x, y: block.position_y }, block.fields),
   )
   const nodeIds = new Set(nodes.map((node) => node.id))
   const edges = config.flatMap((block) => {
@@ -58,13 +67,17 @@ export function flowToConfig(nodes: BlockNode[], edges: Edge[]): ChatBlock[] {
   return nodes.map((node) => {
     const target = targetBySource.get(node.id)
     const nextBlockId = target === undefined ? undefined : blockIdByNodeId.get(target)
-    return {
+    const block: ChatBlock = {
       id: node.data.blockId,
       next_block_id: nextBlockId ?? null,
       block_type: node.data.blockType,
       position_x: Math.round(node.position.x),
       position_y: Math.round(node.position.y),
     }
+    if (node.data.blockType === DETAILS_COLLECTION_BLOCK && node.data.fields) {
+      block.fields = node.data.fields.map(normalizeDetailField)
+    }
+    return block
   })
 }
 
