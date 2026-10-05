@@ -6,4 +6,5 @@
 
 ```bash
 docker compose up --build
+RESET_DB=true docker compose up --build   # reset the database to the sample data
 ```

@@ -1,5 +1,7 @@
 # Local development: PostgreSQL + configuration-service (Django, http://localhost:8000).
-# Every start resets the database and loads all sample fixtures (configuration-service/docker-entrypoint.sh).
+# The database is kept in the postgres-data volume between runs; the sample fixtures are loaded the
+# first time. To wipe it and reload them: RESET_DB=true docker compose up
+# (see configuration-service/docker-entrypoint.sh).
 
 x-postgres-env: &postgres-env
   POSTGRES_DB: configuration_service
@@ -26,6 +28,8 @@ services:
       - "8000:8000"
     environment:
       <<: *postgres-env
+      # true: flush the database and reload every sample fixture on start. false (default): keep the data.
+      RESET_DB: ${RESET_DB:-false}
       DJANGO_DB_ENGINE: postgresql
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"

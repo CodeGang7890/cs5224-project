@@ -561,7 +561,6 @@ And also a docker-compose in the root directory.
 The docker-compose should also include a PostgreSQL instance too, running on docker with volume mounted.
 Add the command to run the docker-compose file in the README.md in the root directory, keep it brief just say the docker command to run it.
 Running the docker compose should automatically spin up the configuration-service Django app instance (just 1 replicas, nothing fancy now), and automatically connect it to the PostgreSQL.
-Running with the docker compose should also reset the database (flush) and run all the fixtures that we have, so we always have a clean initial state for local development purpose.
 You may need to change settings.py in the Django app to configure the database connection based on some env variable.
 Be sure to have default fallback when running without Docker, to run just using the local SQL.
 
@@ -570,3 +569,9 @@ AI Model Used: claude-opus-5-5
 Original Prompt:
 michael_andrew_chan@Michaels-MacBook-Pro cs5224-project % docker compose up --build
 unable to get image 'cs5224-project-configuration-service': error during connect: Get "https://192.168.64.2:2376/v1.51/images/cs5224-project-configuration-service/json": dial tcp 192.168.64.2:2376: connect: host is down
+
+Date & Time (GMT+8): 2026-10-05 19:44:08
+AI Model Used: claude-opus-5-5
+Original Prompt:
+Please dont make it flush the db for every docker compose run, maybe make it optional in a variable in docker-compose, by default it's False.                                                                                                                        
+So when I restart my laptop and rerun docker compose, the db mounted is still not gone.                                                                                                                                                                           But optionally I can set it to true to remove everything.
