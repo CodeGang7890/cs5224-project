@@ -1,7 +1,14 @@
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from .constants import BLOCK_TYPES, DETAIL_FIELD_TYPES, DETAILS_COLLECTION_BLOCK, MESSAGE_SENDERS, START_BLOCK
+from .constants import (
+    BLOCK_TYPES,
+    DETAIL_FIELD_TYPES,
+    DETAILS_COLLECTION_BLOCK,
+    MESSAGE_SENDERS,
+    SEND_MESSAGE_BLOCK,
+    START_BLOCK,
+)
 from .llm import CHAT_PROMPT_MAX_LENGTH, OLLAMA_MODEL, OLLAMA_OPTIONS
 from .models import PHONE_NUMBER_MAX_LENGTH, ChatConfiguration, ChatSession, phone_number_validator
 from .validators import (
@@ -87,6 +94,11 @@ class ChatBlockSerializer(serializers.Serializer):
             f'`{DETAILS_COLLECTION_BLOCK}` only: the customer details it asks for (1 to '
             f'{DETAIL_FIELDS_MAX}). Without it, the block asks for name and email.'
         ),
+    )
+    message = serializers.CharField(
+        required=False,
+        max_length=CHAT_MESSAGE_MAX_LENGTH,
+        help_text=f'`{SEND_MESSAGE_BLOCK}` only, and required there: the message it sends the customer.',
     )
 
 

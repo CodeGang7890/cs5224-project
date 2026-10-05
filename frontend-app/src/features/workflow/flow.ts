@@ -1,13 +1,25 @@
 import { MarkerType, type Edge, type Node } from '@xyflow/react'
 
+import { DEFAULT_SEND_MESSAGE } from './blocks'
 import { DEFAULT_DETAIL_FIELDS, normalizeDetailField } from './details'
-import { DETAILS_COLLECTION_BLOCK, START_BLOCK, type BlockId, type BlockType, type ChatBlock, type DetailField } from './types'
+import {
+  DETAILS_COLLECTION_BLOCK,
+  SEND_MESSAGE_BLOCK,
+  START_BLOCK,
+  type BlockId,
+  type BlockType,
+  type ChatBlock,
+  type DetailField,
+} from './types'
 
 // Converts between the API's `config_json` (a list of blocks with `next_block_id`) and
 // React Flow's nodes + edges. Each block has at most one outgoing arrow.
 
-/** `fields`: a DETAILS_COLLECTION_BLOCK's customer details (undefined: the backend's defaults). */
-export type BlockNodeData = { blockId: BlockId; blockType: BlockType; fields?: DetailField[] }
+/** Block settings that some types have: a DETAILS_COLLECTION_BLOCK's `fields` (undefined: the
+ * backend's defaults) and a SEND_MESSAGE_BLOCK's `message`. */
+export type BlockSettings = { fields?: DetailField[]; message?: string }
+
+export type BlockNodeData = { blockId: BlockId; blockType: BlockType } & BlockSettings
 export type BlockNode = Node<BlockNodeData, 'block'>
 
 /** React Flow IDs must be strings; include the type so block IDs 1 and "1" stay distinct. */
@@ -19,21 +31,21 @@ export function createBlockNode(
   blockId: BlockId,
   blockType: BlockType,
   position: { x: number; y: number },
-  fields?: DetailField[],
+  settings: BlockSettings = {},
 ): BlockNode {
-  return {
-    id: toNodeId(blockId),
-    type: 'block',
-    position,
-    data: fields ? { blockId, blockType, fields } : { blockId, blockType },
-    deletable: blockType !== START_BLOCK,
-  }
+  const data: BlockNodeData = { blockId, blockType }
+  if (settings.fields) data.fields = settings.fields
+  if (settings.message !== undefined) data.message = settings.message
+  return { id: toNodeId(blockId), type: 'block', position, data, deletable: blockType !== START_BLOCK }
 }
 
-/** A block added from the palette. A new DETAILS_COLLECTION_BLOCK starts with the default fields. */
+/** A block added from the palette, with default settings: fields for a DETAILS_COLLECTION_BLOCK,
+ * a message for a SEND_MESSAGE_BLOCK. */
 export function createNewBlockNode(blockType: BlockType, position: { x: number; y: number }): BlockNode {
-  const fields = blockType === DETAILS_COLLECTION_BLOCK ? DEFAULT_DETAIL_FIELDS.map((f) => ({ ...f })) : undefined
-  return createBlockNode(crypto.randomUUID(), blockType, position, fields)
+  const settings: BlockSettings = {}
+  if (blockType === DETAILS_COLLECTION_BLOCK) settings.fields = DEFAULT_DETAIL_FIELDS.map((f) => ({ ...f }))
+  if (blockType === SEND_MESSAGE_BLOCK) settings.message = DEFAULT_SEND_MESSAGE
+  return createBlockNode(crypto.randomUUID(), blockType, position, settings)
 }
 
 /** The arrow from `source` to `target`. Its ID comes from the source, as each block has one next block. */
@@ -49,7 +61,10 @@ export function createEdge(source: string, target: string): Edge {
 
 export function configToFlow(config: ChatBlock[]): { nodes: BlockNode[]; edges: Edge[] } {
   const nodes = config.map((block) =>
-    createBlockNode(block.id, block.block_type, { x: block.position_x, y: block.position_y }, block.fields),
+    createBlockNode(block.id, block.block_type, { x: block.position_x, y: block.position_y }, {
+      fields: block.fields,
+      message: block.message,
+    }),
   )
   const nodeIds = new Set(nodes.map((node) => node.id))
   const edges = config.flatMap((block) => {
@@ -76,6 +91,9 @@ export function flowToConfig(nodes: BlockNode[], edges: Edge[]): ChatBlock[] {
     }
     if (node.data.blockType === DETAILS_COLLECTION_BLOCK && node.data.fields) {
       block.fields = node.data.fields.map(normalizeDetailField)
+    }
+    if (node.data.blockType === SEND_MESSAGE_BLOCK && node.data.message !== undefined) {
+      block.message = node.data.message
     }
     return block
   })

@@ -74,6 +74,8 @@ export interface SandboxTurnDebug {
   finished: string[]
   /** `chat_state_data.order_id` after the turn (placed now or earlier), or null. */
   order_id: number | null
+  /** Send message blocks passed: their fixed messages, sent before the reply. */
+  sent_messages: { block_id: number | string; message: string }[]
   missing: string[]
   issues: string[]
   reply_system_prompt: string

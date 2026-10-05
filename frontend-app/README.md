@@ -97,13 +97,14 @@ When you're logged in, the **Product** and **FAQ** tabs list your business's rec
 The **Workflow** tab (login required) edits your business's chat configuration on `configuration-service` (`GET` / `PUT /api/chat/configuration/`).
 
 - **Opening the tab loads the saved workflow.** If your business hasn't saved one yet, you start with just the **Start** block.
-- **Add blocks** by dragging **Product selection**, **Details collection** or **Confirmation** from the left panel onto the canvas, or by clicking their **+**. There is always exactly one Start block: it can't be added or deleted.
+- **Add blocks** by dragging **Product selection**, **Details collection**, **Confirmation** or **Send message** from the left panel onto the canvas, or by clicking their **+**. There is always exactly one Start block: it can't be added or deleted.
 - **Connect blocks** by dragging from a block's right dot to another block. Each block leads to at most one next block, so a new arrow replaces the old one. To remove an arrow, click it and press the **×** (or Delete/Backspace).
 - **Delete a block** with the **×** in its top-right corner (or select it and press Delete/Backspace). Its arrows go with it.
 - **Choose the details to collect:** click a **Details collection** block (it lists the details it asks for). In the dialog:
   - **Basic details:** Name and Email are on by default; Phone number and Delivery address can be switched on. Switch any of them off, or rename them (e.g. "Receiver name").
   - **Custom details:** **Add a detail** with a label, a type (Text, Number, Email address or Phone number), limits (max characters for text; minimum / maximum for numbers) and an optional hint for the assistant (e.g. "6 digits"). Use Text for codes with leading zeros, like postal code `018956`.
   - **Apply** updates the block, then **Save changes** saves the workflow. The assistant asks the customer for every detail, and the chat only moves on once all of them are given and valid.
+- **Write a Send message block's message:** click the block (it shows the start of its message) and edit the text in the dialog (up to 4,096 characters; line breaks are kept). New blocks start with "Thank you! We have received your message." When a chat reaches the block, the customer gets exactly that message and the chat moves straight on to the next block. If it's the last block, its message ends the conversation flow. **Apply**, then **Save changes**.
 - **Move blocks** by dragging them. Pan by dragging the background, and zoom with the mouse wheel or the controls in the corner.
 - **Save / Discard** appear once you change something, and both ask for confirmation. **Save** sends the whole workflow (`PUT`). **Discard** re-fetches the saved workflow from the server. The backend validates every save; its errors appear in the save dialog.
 - The toolbar warns about blocks that can't be reached from Start. They can still be saved.

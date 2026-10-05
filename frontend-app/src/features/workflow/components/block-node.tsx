@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 import { BLOCK_META } from '../blocks'
 import { blockDetailFields } from '../details'
 import type { BlockNode } from '../flow'
-import { DETAILS_COLLECTION_BLOCK, START_BLOCK, type BlockType } from '../types'
+import { DETAILS_COLLECTION_BLOCK, SEND_MESSAGE_BLOCK, START_BLOCK, type BlockType } from '../types'
 
 const handleClassName = 'size-3! border-2! border-background! bg-primary!'
 
@@ -57,6 +57,17 @@ export function BlockNodeView({ id, data, selected }: NodeProps<BlockNode>) {
           </ul>
           <p className="text-muted-foreground flex items-center gap-1 text-[11px]">
             <Pencil className="size-3" /> Click to edit the details
+          </p>
+        </div>
+      )}
+      {data.blockType === SEND_MESSAGE_BLOCK && (
+        // Clickable like the details block: WorkflowEditor's onNodeClick opens the message dialog.
+        <div className="mt-2.5 grid gap-1.5 border-t pt-2">
+          <p className="bg-muted line-clamp-3 rounded px-2 py-1 text-[11px] break-words whitespace-pre-wrap">
+            {data.message?.trim() || <span className="text-destructive">No message yet</span>}
+          </p>
+          <p className="text-muted-foreground flex items-center gap-1 text-[11px]">
+            <Pencil className="size-3" /> Click to edit the message
           </p>
         </div>
       )}

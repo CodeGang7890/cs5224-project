@@ -12,8 +12,10 @@ handle_customer_message() runs one turn:
    The last block completing marks the flow `completed`.
 5. Save chat_state_id / chat_state_data (commit_turn). If the customer confirmed, this also places
    the order (checkout_app: an OrderItem, with its stock reserved) in the same transaction.
-6. Ask the LLM for the reply, with the block's reply prompt (what's known, what's still missing,
-   what went wrong), and save it.
+6. Send the fixed messages of the SEND_MESSAGE_BLOCKs passed (no LLM: the chat moves straight
+   on past them in step 4). Then ask the LLM for the reply, with the block's reply prompt (what's
+   known, what's still missing, what went wrong, what was just sent), and save it; unless the
+   flow ended on a Send message block, whose message is then the last word.
 """
 
 import copy
@@ -34,6 +36,7 @@ from .constants import (
     DETAIL_TYPE_EMAIL,
     DETAIL_TYPE_NUMBER,
     DETAIL_TYPE_PHONE,
+    SEND_MESSAGE_BLOCK,
     SENT_BY_BUSINESS_AUTOMATED,
     SENT_BY_CUSTOMER,
     START_BLOCK,
@@ -75,14 +78,17 @@ class Turn:
     # For debugging (the Chat Sandbox shows them): each extraction + check, and why the loop stopped.
     steps: list[dict] = field(default_factory=list)
     stop_reason: str = ''
-    # Set when a CONFIRMATION_BLOCK passed with this message: (that block, chat_state_data at that
-    # moment). commit_turn() then places the order, or undoes the confirmation if it can't.
-    confirmation: tuple[dict, dict] | None = None
+    # Fixed messages of the SEND_MESSAGE_BLOCKs passed with this message: {block_id, message}.
+    sent_messages: list[dict] = field(default_factory=list)
+    # Set when a CONFIRMATION_BLOCK passed with this message: (that block, chat_state_data and the
+    # number of sent_messages at that moment). commit_turn() then places the order, or undoes the
+    # confirmation (and drops the messages queued after it) if it can't.
+    confirmation: tuple[dict, dict, int] | None = None
 
 
 @dataclass
 class TurnResult:
-    reply: dict  # the saved chat message
+    reply: dict  # the last chat message saved (the LLM's reply, or a Send message block's message)
     debug: dict  # what happened inside the turn, for the Chat Sandbox's debug panel
 
 
@@ -115,10 +121,21 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
             missing=turn.missing,
             issues=turn.issues,
             finished=turn.finished,
+            just_sent=[sent['message'] for sent in turn.sent_messages],
         )
+
+    # Send message blocks' fixed messages go out first, in order. The LLM sees them as its own.
+    saved = None
+    for sent in turn.sent_messages if turn else []:
+        saved = append_chat_message(session_id, sent['message'], SENT_BY_BUSINESS_AUTOMATED)
+        history.append({'role': 'assistant', 'content': sent['message']})
     toolbox = Toolbox(business)
-    reply = llm.generate_chat_reply(system_prompt, history, toolbox)
-    saved = append_chat_message(session_id, reply.strip() or '…', SENT_BY_BUSINESS_AUTOMATED)
+    if turn and turn.sent_messages and turn.block['block_type'] == SEND_MESSAGE_BLOCK:
+        # The flow ended on a Send message block: its message is the last word, no LLM reply.
+        system_prompt = ''
+    else:
+        reply = llm.generate_chat_reply(system_prompt, history, toolbox)
+        saved = append_chat_message(session_id, reply.strip() or '…', SENT_BY_BUSINESS_AUTOMATED)
     debug = {
         'before': before,
         'after': {
@@ -130,6 +147,7 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
         'stop_reason': turn.stop_reason if turn else 'The business has no chat configuration: reply only.',
         'finished': turn.finished if turn else [],
         'order_id': turn.data.get('order_id') if turn else None,
+        'sent_messages': turn.sent_messages if turn else [],
         'missing': turn.missing if turn else [],
         'issues': turn.issues if turn else [],
         'reply_system_prompt': system_prompt,
@@ -150,9 +168,28 @@ def advance(
 
     labels = prompts.detail_labels(chat_config.config_json)
     entered_now = False
+    sent_block_ids = set()
     # Each block is visited at most twice (once more after a "change" at confirmation).
     for _ in range(2 * len(chat_config.config_json) + 1):
         block_type = block['block_type']
+        if block_type == SEND_MESSAGE_BLOCK:
+            # No LLM: queue the fixed message and move straight on to the next block.
+            block_key = (type(block['id']), block['id'])  # 1 and "1" are different blocks
+            if block_key in sent_block_ids:
+                turn.stop_reason = 'Send message blocks lead back to one already sent: stopped.'
+                break
+            sent_block_ids.add(block_key)
+            turn.sent_messages.append({'block_id': block['id'], 'message': block['message']})
+            turn.finished.append(prompts.BLOCK_LABELS[SEND_MESSAGE_BLOCK])
+            next_block = chat_config.get_block(block['next_block_id'])
+            if next_block is None:
+                turn.data['completed'] = True
+                turn.stop_reason = 'The last block (Send message) sent its message: the flow is completed.'
+                break
+            block = next_block
+            entered_now = True
+            turn.missing, turn.issues = [], []
+            continue
         check = CHECKS.get(block_type)
         # A confirmation reached with this message hasn't shown the customer the summary yet.
         if check is None:
@@ -187,7 +224,7 @@ def advance(
                 turn.stop_reason = 'A lone Start block has nothing to complete: staying there.'
                 break
             if block_type == CONFIRMATION_BLOCK and 'order_id' not in turn.data and turn.confirmation is None:
-                turn.confirmation = (block, copy.deepcopy(turn.data))
+                turn.confirmation = (block, copy.deepcopy(turn.data), len(turn.sent_messages))
             turn.finished.append(prompts.BLOCK_LABELS.get(block_type, block_type))
             if next_block is None:
                 turn.data['completed'] = True
@@ -389,7 +426,7 @@ def commit_turn(session_id: int, turn: Turn) -> None:
     with transaction.atomic():
         session = ChatSession.objects.select_for_update().select_related('business').get(pk=session_id)
         if turn.confirmation is not None:
-            block, data = turn.confirmation
+            block, data, sent_count = turn.confirmation
             if not data.get('items'):
                 turn.stop_reason += ' Nothing was chosen, so no order was placed.'
             else:
@@ -404,6 +441,7 @@ def commit_turn(session_id: int, turn: Turn) -> None:
                 except OrderError as exc:
                     label = prompts.BLOCK_LABELS[CONFIRMATION_BLOCK]
                     turn.block, turn.data = block, data
+                    turn.sent_messages = turn.sent_messages[:sent_count]  # not past the confirmation
                     turn.finished = [f for f in turn.finished if f != label]
                     turn.missing = []
                     turn.issues = [*exc.problems, 'The order was not placed: ask the customer what to change.']

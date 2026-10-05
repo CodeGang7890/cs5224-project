@@ -505,3 +505,13 @@ What happens now is once the user say anything, it automatically takes the order
 What I want is pause, reiterate what the user orders, ask if the user wants anything else and confirm if they still want to add more things or they’re done before going to the next state which is details collection.
 You may want to add a new field in the json that indicates from customers message whether they're done or not, and use the deterministic checks after it.
 Please change the system prompt for that stage to do this functionality.
+
+Date & Time (GMT+8): 2026-10-05 14:54:55
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+Add a new block type “SEND_MESSAGE” in the Workflow tab.
+The block does one thing, basically when it goes to that block, simply send a message to the user, then move on the next block.
+No extra functionality.
+When that block is clicked from the UI, allow the business owner to customise a message to be sent to the user, and make that be saved in the JSON.
+Please update the JSON validation scripts too for this SEND_MESSAGE state, and add test cases for this too.

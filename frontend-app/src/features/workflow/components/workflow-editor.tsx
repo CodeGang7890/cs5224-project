@@ -35,6 +35,7 @@ import { useSaveChatConfiguration } from '../hooks/use-chat-configuration'
 import {
   ADDABLE_BLOCK_TYPES,
   DETAILS_COLLECTION_BLOCK,
+  SEND_MESSAGE_BLOCK,
   type BlockType,
   type ChatBlock,
   type ChatConfiguration,
@@ -44,6 +45,7 @@ import { BLOCK_DRAG_TYPE, BlockPalette } from './block-palette'
 import { BlockNodeView } from './block-node'
 import { DeletableEdge } from './deletable-edge'
 import { DetailFieldsDialog } from './detail-fields-dialog'
+import { SendMessageDialog } from './send-message-dialog'
 
 // Defined outside the component so React Flow doesn't see new types on every render.
 const nodeTypes = { block: BlockNodeView }
@@ -125,15 +127,17 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
     [setEdges],
   )
 
-  // Clicking a Details collection block edits the customer details it asks for.
+  // Clicking a Details collection block edits the customer details it asks for; clicking a Send
+  // message block edits its message.
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
   const editingNode = nodes.find((node) => node.id === editingNodeId)
 
-  const applyDetailFields = (fields: DetailField[]) => {
+  const updateEditingNode = (changes: Partial<BlockNode['data']>) => {
     setNodes((current) =>
-      current.map((node) => (node.id === editingNodeId ? { ...node, data: { ...node.data, fields } } : node)),
+      current.map((node) => (node.id === editingNodeId ? { ...node, data: { ...node.data, ...changes } } : node)),
     )
   }
+  const applyDetailFields = (fields: DetailField[]) => updateEditingNode({ fields })
 
   // --- Save / discard -------------------------------------------------------------------
 
@@ -244,7 +248,9 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onNodeClick={(_event, node) => {
-              if (node.data.blockType === DETAILS_COLLECTION_BLOCK) setEditingNodeId(node.id)
+              if (node.data.blockType === DETAILS_COLLECTION_BLOCK || node.data.blockType === SEND_MESSAGE_BLOCK) {
+                setEditingNodeId(node.id)
+              }
             }}
             isValidConnection={(connection) => connection.source !== connection.target}
             nodeTypes={nodeTypes}
@@ -261,8 +267,15 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
         </div>
       </div>
 
+      <SendMessageDialog
+        open={editingNode?.data.blockType === SEND_MESSAGE_BLOCK}
+        onOpenChange={(open) => !open && setEditingNodeId(null)}
+        message={editingNode?.data.message}
+        onApply={(message) => updateEditingNode({ message })}
+      />
+
       <DetailFieldsDialog
-        open={editingNode !== undefined}
+        open={editingNode?.data.blockType === DETAILS_COLLECTION_BLOCK}
         onOpenChange={(open) => !open && setEditingNodeId(null)}
         fields={editingNode?.data.fields}
         onApply={applyDetailFields}

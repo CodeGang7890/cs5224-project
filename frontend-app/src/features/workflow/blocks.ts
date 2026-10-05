@@ -1,4 +1,4 @@
-import { CircleCheck, ClipboardList, Play, ShoppingBag, type LucideIcon } from 'lucide-react'
+import { CircleCheck, ClipboardList, MessageSquareText, Play, ShoppingBag, type LucideIcon } from 'lucide-react'
 
 import type { BlockType } from './types'
 
@@ -42,7 +42,20 @@ export const BLOCK_META: Record<BlockType, BlockMeta> = {
     accentClassName: 'border-t-violet-500',
     iconClassName: 'bg-violet-500/15 text-violet-600 dark:text-violet-400',
   },
+  SEND_MESSAGE_BLOCK: {
+    label: 'Send message',
+    description: 'Sends your message, then moves on.',
+    icon: MessageSquareText,
+    accentClassName: 'border-t-rose-500',
+    iconClassName: 'bg-rose-500/15 text-rose-600 dark:text-rose-400',
+  },
 }
+
+/** Longest Send message text (configuration-service `CHAT_MESSAGE_MAX_LENGTH`, WhatsApp's limit). */
+export const SEND_MESSAGE_MAX_LENGTH = 4096
+
+/** What a new Send message block says until the business edits it. */
+export const DEFAULT_SEND_MESSAGE = 'Thank you! We have received your message.'
 
 /** Block size on the canvas (the node is `w-56`); used to centre dropped blocks on the cursor. */
 export const BLOCK_WIDTH = 224

@@ -114,10 +114,10 @@ Rules enforced by Django validation (e.g. in Django Admin) **and** by the databa
 - Product names and FAQ questions must be unique **within a business**. Different businesses can reuse them.
 
 `ChatConfiguration.config_json` is a list of blocks, e.g. `{"id": 1, "next_block_id": 2, "block_type": "START_BLOCK", "position_x": 100, "position_y": 100}`. `chat_app/validators.py` (`validate_chat_config`) checks it on every validated save, e.g. in Django Admin:
-- Every block has exactly those five fields, plus an optional `fields` on a `DETAILS_COLLECTION_BLOCK` (see below).
+- Every block has exactly those five fields, plus an optional `fields` on a `DETAILS_COLLECTION_BLOCK` (see below) and a required `message` on a `SEND_MESSAGE_BLOCK`: a non-blank string of at most 4,096 characters (the message it sends). `message` on any other block type is rejected.
 - `id` is an integer or a non-blank string (e.g. a UUID), unique within the list.
 - `next_block_id` is `null` or the `id` of another block in the list.
-- `block_type` is one of `START_BLOCK`, `PRODUCT_SELECTION_BLOCK`, `DETAILS_COLLECTION_BLOCK`, `CONFIRMATION_BLOCK` (defined in `chat_app/constants.py`). There must be exactly one `START_BLOCK`; other types can repeat.
+- `block_type` is one of `START_BLOCK`, `PRODUCT_SELECTION_BLOCK`, `DETAILS_COLLECTION_BLOCK`, `CONFIRMATION_BLOCK`, `SEND_MESSAGE_BLOCK` (defined in `chat_app/constants.py`). There must be exactly one `START_BLOCK`; other types can repeat.
 - `position_x` / `position_y` are numbers.
 
 A `DETAILS_COLLECTION_BLOCK`'s `fields` lists the customer details it asks for (set in the frontend's Workflow editor by clicking the block). Without it, the block asks for name and email (`DEFAULT_DETAIL_FIELDS` in `chat_app/constants.py`). Example:
@@ -268,6 +268,7 @@ Each customer message (real or sandbox) moves the chat through the business's ch
    | `PRODUCT_SELECTION_BLOCK` | Which products, and how many of each, confirmed as everything the customer wants | `{"items": [{"product_id", "quantity"}], "done_choosing": true/false}` |
    | `DETAILS_COLLECTION_BLOCK` | The details in the block's `fields` (default: name and email) | One key per field, e.g. `{"name": …/null, "postal_code": 238801/null}` (numbers as numbers) |
    | `CONFIRMATION_BLOCK` | Show the summary, get a confirmation | `{"decision": "confirm"/"change"/"none"}` |
+   | `SEND_MESSAGE_BLOCK` | Send the block's fixed `message` | Nothing: no LLM call (see below) |
 
 3. **Check deterministically** (in Python, not the LLM) whether that completes the block, and save what's valid in `chat_state_data`:
    - Start: complete when `wants_to_order` is true.
@@ -275,9 +276,12 @@ Each customer message (real or sandbox) moves the chat through the business's ch
    - Details collection: complete only when **every** field is known and valid for its type. Text: at most `max_length`. Number: a number (text like `"238,801"` is accepted), within `min_value`–`max_value`. Email: Django's email validator. Phone: digits, spaces, `+`, `-` and brackets, with 6–15 digits. Invalid values are explained to the customer (e.g. "Postal code must be at least 100000.") and never replace a valid one. Values already known are kept when the customer doesn't repeat them. The reply prompt lists every field with its type and limits under "Details to collect", and what's still needed.
    - Confirmation: `confirm` completes it; `change` goes back to the block after Start, where the blocks run again with the data already collected (so only what changed needs re-entering). It is never checked in the same message it's reached: the customer must see the summary first.
 
+   - Send message: no extraction or check. Reaching it queues its fixed `message` and moves straight on to `next_block_id`. Each Send message block sends at most once per customer message, so blocks that lead back to each other can't loop.
+
    When a block completes, the chat moves to its `next_block_id` and repeats steps 2–3 there, so one message can complete several blocks. When the last block completes, `chat_state_data.completed` becomes true and the chat stays at that block. (A workflow that's only a Start block never completes.) After that, messages get replies but no extraction.
 4. **Save** `chat_state_id` and `chat_state_data`. A collected name also fills in an empty `display_name`.
-5. **Reply.** The LLM writes the reply with a system prompt for the current block: the business's details, the step and its goal, what's known so far (order with total, details), what's still needed, problems to explain, and the products on sale (for Start and Product selection). The reply step can call **read-only tools** (`chat_app/tools.py`, only the chatting business's data): `list_products` and `list_faqs`.
+5. **Send message blocks' messages** go out first (`sent_by: business-automated`), in order. If the flow ended on a Send message block (the last block), its message is the last word: the flow is completed and there's no LLM reply. If the order fails at a Confirmation before it, the messages after that Confirmation aren't sent.
+6. **Reply.** The LLM writes the reply with a system prompt for the current block: the business's details, the step and its goal, what's known so far (order with total, details), what's still needed, problems to explain, and the products on sale (for Start and Product selection). The reply step can call **read-only tools** (`chat_app/tools.py`, only the chatting business's data): `list_products` and `list_faqs`.
 
 A message makes 2 or more LLM calls: one extraction per block it passes through, plus the reply (plus tool calls). Only the last 20 messages are sent (`HISTORY_MAX_MESSAGES`).
 
@@ -288,7 +292,7 @@ Test chats a business starts itself (e.g. from the Chat Sandbox), separate from 
 - `GET /api/chat/sandbox-sessions/`: your sandbox sessions, paginated, most recent chat first.
 - `POST /api/chat/sandbox-sessions/`: `{display_name?, phone_number?}`, both optional. Starts a sandbox session the same way as a real one (Start block, no messages, `created_time = last_chat_time = now`), so your business needs a chat configuration (400 otherwise). A business can have any number.
 - `DELETE /api/chat/sandbox-sessions/{id}/`: deletes the session and its conversation (204). Another business's session → 403; a real customer session → 400 ("Only sandbox chat sessions can be deleted here."); unknown ID → 404.
-- `POST /api/chat/sandbox-sessions/{id}/messages/`: `{message}`. Same flow as the customer message endpoint above (save the message as `customer`, run the [chat flow](#chat-flow), save and return the `business-automated` reply; the message is kept if the LLM fails), with the same 403/400/404 rules as delete. `frontend-app`'s Chat Sandbox uses this. For debugging, the response also has `debug` (not stored): the state before and after, each block's extraction (prompt, the LLM's JSON, the check result: complete / missing / issues), why the flow stopped, the reply system prompt and any tool calls.
+- `POST /api/chat/sandbox-sessions/{id}/messages/`: `{message}`. Same flow as the customer message endpoint above (save the message as `customer`, run the [chat flow](#chat-flow), save and return the `business-automated` reply; the message is kept if the LLM fails), with the same 403/400/404 rules as delete. `frontend-app`'s Chat Sandbox uses this. For debugging, the response also has `debug` (not stored): the state before and after, each block's extraction (prompt, the LLM's JSON, the check result: complete / missing / issues), why the flow stopped, the reply system prompt, any tool calls and the Send message blocks' messages.
 
 Sandbox sessions are left out of `GET /api/chat/sessions/` unless you ask for them with `sandbox=include` or `sandbox=only`, and `POST /api/chat/sessions/messages/` only finds real sessions.
 

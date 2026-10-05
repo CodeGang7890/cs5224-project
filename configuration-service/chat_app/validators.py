@@ -13,12 +13,13 @@ from .constants import (
     DETAIL_TYPE_TEXT,
     DETAILS_COLLECTION_BLOCK,
     MESSAGE_SENDERS,
+    SEND_MESSAGE_BLOCK,
     START_BLOCK,
 )
 
 BLOCK_FIELDS = {'id', 'next_block_id', 'block_type', 'position_x', 'position_y'}
-# Optional extra block keys, and the block type each is allowed on.
-OPTIONAL_BLOCK_FIELDS = {'fields': DETAILS_COLLECTION_BLOCK}
+# Extra block keys, and the block type each is allowed on. `message` is required on its type.
+OPTIONAL_BLOCK_FIELDS = {'fields': DETAILS_COLLECTION_BLOCK, 'message': SEND_MESSAGE_BLOCK}
 
 # --- DETAILS_COLLECTION_BLOCK `fields`: the customer details it asks for --------------------
 DETAIL_FIELDS_MAX = 20
@@ -58,7 +59,9 @@ def validate_chat_config(value) -> None:
     """Validate a ChatConfiguration.config_json: a list of flow blocks.
 
     Each block is ``{id, next_block_id, block_type, position_x, position_y}``, plus an optional
-    ``fields`` on a DETAILS_COLLECTION_BLOCK (see ``_detail_field_errors``). Rules:
+    ``fields`` on a DETAILS_COLLECTION_BLOCK (see ``_detail_field_errors``) and a required
+    ``message`` on a SEND_MESSAGE_BLOCK (a non-blank string of at most CHAT_MESSAGE_MAX_LENGTH
+    characters: what it sends the customer). Rules:
     - ``id`` is an int or non-blank string (e.g. a UUID), unique across blocks.
     - ``next_block_id`` is null or the ``id`` of another block in the list.
     - ``block_type`` is one of ``BLOCK_TYPES``; there must be exactly one ``START_BLOCK``.
@@ -90,6 +93,12 @@ def validate_chat_config(value) -> None:
                 errors.append(f'{prefix}: {key} is only allowed on a {allowed_type}.')
         if 'fields' in block and block['block_type'] == DETAILS_COLLECTION_BLOCK:
             errors.extend(_detail_field_errors(block['fields'], prefix))
+        if block['block_type'] == SEND_MESSAGE_BLOCK:
+            message = block.get('message')
+            if not isinstance(message, str) or not message.strip():
+                errors.append(f'{prefix}: a {SEND_MESSAGE_BLOCK} needs a non-blank message.')
+            elif len(message) > CHAT_MESSAGE_MAX_LENGTH:
+                errors.append(f'{prefix}: message must be at most {CHAT_MESSAGE_MAX_LENGTH} characters.')
 
         block_id = block['id']
         if not is_valid_block_id(block_id):

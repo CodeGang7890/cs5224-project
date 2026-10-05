@@ -14,7 +14,7 @@ from configuration_app.models import BusinessConfiguration
 from .. import llm
 from ..models import ChatConfiguration, ChatSession
 from ..validators import validate_chat_messages
-from .test_models import DETAIL_FIELDS, VALID_CONFIG, VALID_MESSAGES, config, details_config
+from .test_models import DETAIL_FIELDS, VALID_CONFIG, VALID_MESSAGES, config, details_config, send_message_config
 
 
 class ChatViewTests(APITestCase):
@@ -126,6 +126,25 @@ class ChatConfigurationAPITests(APITestCase):
                 response = self.put_config(bad_config)
                 self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
                 self.assertIn('config_json', response.json())
+        self.florist_config.refresh_from_db()
+        self.assertEqual(self.florist_config.config_json, VALID_CONFIG)
+
+    def test_put_saves_send_message_block(self):
+        self.client.force_authenticate(self.florist_user)
+        new_config = send_message_config()
+        response = self.put_config(new_config)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()['config_json'][-1]['message'], 'Great choice! Just a few more questions.')
+        self.florist_config.refresh_from_db()
+        self.assertEqual(self.florist_config.config_json, new_config)
+
+    def test_put_rejects_send_message_block_without_message(self):
+        self.client.force_authenticate(self.florist_user)
+        blocks = send_message_config()
+        del blocks[-1]['message']
+        response = self.put_config(blocks)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('Block 3: a SEND_MESSAGE_BLOCK needs a non-blank message.', response.json()['config_json'])
         self.florist_config.refresh_from_db()
         self.assertEqual(self.florist_config.config_json, VALID_CONFIG)
 

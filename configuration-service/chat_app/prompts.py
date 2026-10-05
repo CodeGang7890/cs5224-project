@@ -16,6 +16,7 @@ from .constants import (
     DETAIL_TYPE_NUMBER,
     DETAIL_TYPE_PHONE,
     PRODUCT_SELECTION_BLOCK,
+    SEND_MESSAGE_BLOCK,
     START_BLOCK,
 )
 from .validators import DETAIL_TEXT_DEFAULT_MAX_LENGTH, block_detail_fields
@@ -25,6 +26,7 @@ BLOCK_LABELS = {
     PRODUCT_SELECTION_BLOCK: 'Product selection',
     DETAILS_COLLECTION_BLOCK: 'Details collection',
     CONFIRMATION_BLOCK: 'Confirmation',
+    SEND_MESSAGE_BLOCK: 'Send message',
 }
 
 BLOCK_GOALS = {
@@ -32,6 +34,7 @@ BLOCK_GOALS = {
     PRODUCT_SELECTION_BLOCK: 'Find out which products the customer wants, and how many of each.',
     DETAILS_COLLECTION_BLOCK: 'Collect the customer details listed under "Details to collect".',
     CONFIRMATION_BLOCK: 'Show the order summary and get the customer to confirm it.',
+    SEND_MESSAGE_BLOCK: "Send the business's fixed message (done automatically, without you).",
 }
 
 # --- Extraction (generate_structured) -----------------------------------------------------
@@ -186,12 +189,14 @@ def build_reply_prompt(
     missing: list[str] = (),
     issues: list[str] = (),
     finished: list[str] = (),
+    just_sent: list[str] = (),
 ) -> str:
     """System prompt for the customer reply at `block` (None: the business has no chat flow).
 
     `missing` / `issues` come from the deterministic checks in flow.py, and `finished` lists the
     blocks the customer completed with this message, so the reply can move the conversation on.
     `labels` maps detail field keys to labels (detail_labels), to show the collected details.
+    `just_sent`: Send message blocks' fixed messages sent just before this reply.
     """
     block_type = block['block_type'] if block else None
     labels = labels or {}
@@ -220,6 +225,12 @@ def build_reply_prompt(
             sections.append('## Still needed\n' + '\n'.join(f'- {item}' for item in missing))
         if issues:
             sections.append('## Problems to tell the customer about\n' + '\n'.join(f'- {i}' for i in issues))
+        if just_sent:
+            sections.append(
+                '## Just sent\nThese automated messages were just sent to the customer, right before your '
+                'reply (they are the last assistant messages in the conversation). Carry on from them; do '
+                'not repeat them:\n' + '\n'.join(f'- "{message}"' for message in just_sent)
+            )
         if completed:
             instructions = _COMPLETED_INSTRUCTIONS
         else:

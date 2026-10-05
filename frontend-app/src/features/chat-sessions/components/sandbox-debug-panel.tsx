@@ -76,6 +76,20 @@ export function SandboxDebugPanel({ session, onClose }: SandboxDebugPanelProps) 
                 </ol>
               )}
 
+              {debug.sent_messages.length > 0 && (
+                <>
+                  <p className="text-muted-foreground mt-1">Sent by Send message blocks (no LLM)</p>
+                  <ul className="grid gap-1">
+                    {debug.sent_messages.map((sent, index) => (
+                      <li key={index} className="rounded-md border p-2">
+                        <span className="text-muted-foreground font-mono">{JSON.stringify(sent.block_id)}: </span>
+                        <span className="break-words whitespace-pre-wrap">{sent.message}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+
               <p className="text-muted-foreground mt-1">Reply</p>
               {debug.missing.length > 0 && <KeyValue label="Still needed" value={debug.missing.join(', ')} />}
               {debug.issues.length > 0 && <KeyValue label="Issues" value={debug.issues.join(' ')} />}
@@ -84,9 +98,13 @@ export function SandboxDebugPanel({ session, onClose }: SandboxDebugPanelProps) 
                 value={debug.tool_calls.length ? debug.tool_calls.map((call) => call.name).join(', ') : 'none'}
                 mono
               />
-              <Collapsible summary="Reply system prompt">
-                <Pre>{debug.reply_system_prompt}</Pre>
-              </Collapsible>
+              {debug.reply_system_prompt ? (
+                <Collapsible summary="Reply system prompt">
+                  <Pre>{debug.reply_system_prompt}</Pre>
+                </Collapsible>
+              ) : (
+                <p className="text-muted-foreground italic">No LLM reply: the flow ended on a Send message block.</p>
+              )}
             </>
           ) : (
             <p className="text-muted-foreground italic">Send a message to see what happens inside its turn.</p>

@@ -501,6 +501,130 @@ class OrderPlacementFlowTests(APITestCase):
         self.assertEqual(order.chat_session, real)
 
 
+SEND_MESSAGE_CONFIG = [
+    {'id': 1, 'next_block_id': 2, 'block_type': 'START_BLOCK', 'position_x': 0, 'position_y': 0},
+    {'id': 2, 'next_block_id': 5, 'block_type': 'PRODUCT_SELECTION_BLOCK', 'position_x': 0, 'position_y': 0},
+    {'id': 5, 'next_block_id': 'details', 'block_type': 'SEND_MESSAGE_BLOCK', 'position_x': 0, 'position_y': 0,
+     'message': 'Great choice! Now a couple of quick questions.'},
+    {'id': 'details', 'next_block_id': 4, 'block_type': 'DETAILS_COLLECTION_BLOCK', 'position_x': 0, 'position_y': 0},
+    {'id': 4, 'next_block_id': 6, 'block_type': 'CONFIRMATION_BLOCK', 'position_x': 0, 'position_y': 0},
+    {'id': 6, 'next_block_id': None, 'block_type': 'SEND_MESSAGE_BLOCK', 'position_x': 0, 'position_y': 0,
+     'message': 'Thank you! We have received your order.'},
+]
+
+
+class SendMessageFlowTests(APITestCase):
+    """A Send message block sends its fixed message (no LLM), then the chat moves straight on."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.cafe = BusinessConfiguration.objects.create(business_name='Kopi Café', location='Tiong Bahru')
+        cls.user = BusinessUser.objects.create_user(username='cafe', password='123', business=cls.cafe)
+        cls.chat_config = ChatConfiguration.objects.create(business=cls.cafe, config_json=SEND_MESSAGE_CONFIG)
+        cls.chat_config.full_clean()
+
+    def setUp(self):
+        self.kopi = Product.objects.create(business=self.cafe, name='Kopi C', price='1.80', quantity_available=10)
+        self.kopi_line = {'product_id': self.kopi.pk, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 2}
+        self.session = ChatSession.objects.create(
+            business=self.cafe, is_sandbox=True, chat_state_id=2, chat_state_data={'items': [self.kopi_line]}
+        )
+        self.ollama = MagicMock()
+        patcher = patch('chat_app.llm.get_client', return_value=self.ollama)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.client.force_authenticate(self.user)
+
+    send = ChatFlowAPITests.send
+    calls = ChatFlowAPITests.calls
+    reply_prompt = ChatFlowAPITests.reply_prompt
+
+    def new_messages(self, count):
+        return [(m['sent_by'], m['message']) for m in self.session.chat_message_json[-count:]]
+
+    def test_sends_its_message_then_moves_on_in_the_same_turn(self):
+        response = self.send(
+            "That's all",
+            {'items': [{'product_id': self.kopi.pk, 'quantity': 2}], 'done_choosing': True},
+            {'name': None, 'email': None},
+            reply='May I have your name and email?',
+        )
+        # Product selection → Send message (sent) → Details collection, all with one customer message.
+        self.assertEqual(self.session.chat_state_id, 'details')
+        self.assertEqual(
+            self.new_messages(3),
+            [
+                ('customer', "That's all"),
+                ('business-automated', 'Great choice! Now a couple of quick questions.'),
+                ('business-automated', 'May I have your name and email?'),
+            ],
+        )
+        validate_chat_messages(self.session.chat_message_json)
+        self.assertEqual(response.json()['message'], 'May I have your name and email?')
+        # No LLM call for the block itself: one extraction each for product selection and details.
+        self.assertEqual([c['format']['required'] for c in self.calls(structured=True)], [['items', 'done_choosing'], ['name', 'email']])
+        # The reply knows what was just sent, and sees it as the last assistant message.
+        prompt = self.reply_prompt()
+        self.assertIn('## Just sent', prompt)
+        self.assertIn('- "Great choice! Now a couple of quick questions."', prompt)
+        self.assertIn('just completed: Product selection, Send message', prompt)
+        reply_history = self.calls(structured=False)[-1]['messages']
+        self.assertEqual(reply_history[-1], {'role': 'assistant', 'content': 'Great choice! Now a couple of quick questions.'})
+        debug = response.json()['debug']
+        self.assertEqual(debug['sent_messages'], [{'block_id': 5, 'message': 'Great choice! Now a couple of quick questions.'}])
+
+    def test_last_block_message_is_the_last_word(self):
+        self.session.chat_state_id = 4
+        self.session.chat_state_data = {
+            'items': [self.kopi_line], 'items_confirmed': True, 'details': {'name': 'Alice', 'email': 'a@b.co'},
+        }
+        self.session.save()
+        response = self.send('Yes', {'decision': 'confirm'})
+        # Confirmation → the last block (Send message): order placed, flow completed, no LLM reply.
+        self.assertEqual(self.session.chat_state_id, 6)
+        self.assertIs(self.session.chat_state_data['completed'], True)
+        self.assertEqual(OrderItem.objects.count(), 1)
+        self.assertEqual(self.calls(structured=False), [])
+        self.assertEqual(response.json()['message'], 'Thank you! We have received your order.')
+        self.assertEqual(self.new_messages(2), [('customer', 'Yes'), ('business-automated', 'Thank you! We have received your order.')])
+        self.assertEqual(response.json()['debug']['reply_system_prompt'], '')
+
+        # Later messages: a normal reply, and the message isn't sent again.
+        self.send('When will it be ready?', reply='In about 10 minutes!')
+        self.assertEqual(self.new_messages(2), [('customer', 'When will it be ready?'), ('business-automated', 'In about 10 minutes!')])
+        texts = [m['message'] for m in self.session.chat_message_json]
+        self.assertEqual(texts.count('Thank you! We have received your order.'), 1)
+
+    def test_failed_order_does_not_send_the_message_after_confirmation(self):
+        self.session.chat_state_id = 4
+        self.session.chat_state_data = {
+            'items': [self.kopi_line], 'items_confirmed': True, 'details': {'name': 'Alice', 'email': 'a@b.co'},
+        }
+        self.session.save()
+        Product.objects.filter(pk=self.kopi.pk).update(quantity_available=1)
+        response = self.send('Yes', {'decision': 'confirm'}, reply='Sorry, only 1 Kopi C is left.')
+        self.assertEqual(self.session.chat_state_id, 4)
+        self.assertFalse(OrderItem.objects.exists())
+        self.assertEqual(self.new_messages(2), [('customer', 'Yes'), ('business-automated', 'Sorry, only 1 Kopi C is left.')])
+        self.assertEqual(response.json()['debug']['sent_messages'], [])
+
+    def test_send_message_blocks_in_a_loop_send_each_once(self):
+        blocks = [
+            {'id': 1, 'next_block_id': 'a', 'block_type': 'START_BLOCK', 'position_x': 0, 'position_y': 0},
+            {'id': 'a', 'next_block_id': 'b', 'block_type': 'SEND_MESSAGE_BLOCK', 'position_x': 0, 'position_y': 0, 'message': 'A'},
+            {'id': 'b', 'next_block_id': 'a', 'block_type': 'SEND_MESSAGE_BLOCK', 'position_x': 0, 'position_y': 0, 'message': 'B'},
+        ]
+        self.chat_config.config_json = blocks
+        self.chat_config.full_clean()
+        self.chat_config.save()
+        self.session.chat_state_id, self.session.chat_state_data = 1, {}
+        self.session.save()
+        response = self.send('I want to order', {'wants_to_order': True})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.new_messages(3), [('customer', 'I want to order'), ('business-automated', 'A'), ('business-automated', 'B')])
+        self.assertIn('lead back to one already sent', response.json()['debug']['stop_reason'])
+
+
 class CleanDetailValueTests(SimpleTestCase):
     def check(self, detail_field, raw):
         return clean_detail_value(detail_field, raw)

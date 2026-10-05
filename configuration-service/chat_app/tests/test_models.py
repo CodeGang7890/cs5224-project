@@ -48,7 +48,7 @@ class ValidateChatConfigTests(SimpleTestCase):
     def test_block_types_constant(self):
         self.assertEqual(
             BLOCK_TYPES,
-            ['START_BLOCK', 'PRODUCT_SELECTION_BLOCK', 'DETAILS_COLLECTION_BLOCK', 'CONFIRMATION_BLOCK'],
+            ['START_BLOCK', 'PRODUCT_SELECTION_BLOCK', 'DETAILS_COLLECTION_BLOCK', 'CONFIRMATION_BLOCK', 'SEND_MESSAGE_BLOCK'],
         )
 
     def test_every_block_type_accepted(self):
@@ -56,6 +56,7 @@ class ValidateChatConfigTests(SimpleTestCase):
             {'id': str(i), 'next_block_id': None, 'block_type': t, 'position_x': 0, 'position_y': 0}
             for i, t in enumerate(BLOCK_TYPES)
         ]
+        blocks[-1]['message'] = 'Thanks for your order!'  # SEND_MESSAGE_BLOCK requires one
         validate_chat_config(blocks)
 
     def test_non_start_blocks_can_repeat(self):
@@ -225,6 +226,58 @@ class ValidateDetailFieldsTests(SimpleTestCase):
             {'key': 'ok', 'label': 'OK', 'type': 'number', 'min_value': 5, 'max_value': 1},
         ]))
         self.assertEqual(len(messages), 3, messages)
+
+
+def send_message_config(**block_changes):
+    """VALID_CONFIG with a SEND_MESSAGE_BLOCK (id 5) between product selection and confirmation."""
+    blocks = config(b1={'next_block_id': 5})
+    blocks.append({
+        'id': 5, 'next_block_id': 3, 'block_type': 'SEND_MESSAGE_BLOCK', 'position_x': 0, 'position_y': 0,
+        'message': 'Great choice! Just a few more questions.', **block_changes,
+    })
+    return blocks
+
+
+class ValidateSendMessageBlockTests(SimpleTestCase):
+    """A SEND_MESSAGE_BLOCK's required `message` (validate_chat_config)."""
+
+    def assertInvalid(self, value, message_part):
+        with self.assertRaises(ValidationError) as ctx:
+            validate_chat_config(value)
+        self.assertTrue(
+            any(message_part in message for message in ctx.exception.messages),
+            f'{message_part!r} not in {ctx.exception.messages}',
+        )
+
+    def test_valid(self):
+        validate_chat_config(send_message_config())
+        validate_chat_config(send_message_config(message='x' * CHAT_MESSAGE_MAX_LENGTH))
+        validate_chat_config(send_message_config(message='Line 1\nLine 2 🎉'))
+
+    def test_invalid_message(self):
+        blocks = send_message_config()
+        del blocks[-1]['message']
+        cases = {
+            'missing': (blocks, 'Block 3: a SEND_MESSAGE_BLOCK needs a non-blank message.'),
+            'empty': (send_message_config(message=''), 'needs a non-blank message'),
+            'blank': (send_message_config(message='  \n '), 'needs a non-blank message'),
+            'not a string': (send_message_config(message=['hi']), 'needs a non-blank message'),
+            'null': (send_message_config(message=None), 'needs a non-blank message'),
+            'too long': (send_message_config(message='x' * (CHAT_MESSAGE_MAX_LENGTH + 1)), 'message must be at most 4096 characters'),
+        }
+        for label, (value, message_part) in cases.items():
+            with self.subTest(label):
+                self.assertInvalid(value, message_part)
+
+    def test_message_only_on_send_message_blocks(self):
+        self.assertInvalid(config(b1={'message': 'Hi'}), 'Block 1: message is only allowed on a SEND_MESSAGE_BLOCK.')
+
+    def test_send_message_block_can_be_last_and_repeat(self):
+        blocks = send_message_config()
+        blocks[2]['next_block_id'] = 6
+        blocks.append({'id': 6, 'next_block_id': None, 'block_type': 'SEND_MESSAGE_BLOCK',
+                       'position_x': 0, 'position_y': 0, 'message': 'Thank you!'})
+        validate_chat_config(blocks)
 
 
 class ChatConfigurationModelTests(TestCase):

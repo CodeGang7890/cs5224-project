@@ -4,6 +4,7 @@ export const BLOCK_TYPES = [
   'PRODUCT_SELECTION_BLOCK',
   'DETAILS_COLLECTION_BLOCK',
   'CONFIRMATION_BLOCK',
+  'SEND_MESSAGE_BLOCK',
 ] as const
 
 export type BlockType = (typeof BLOCK_TYPES)[number]
@@ -17,6 +18,8 @@ export const ADDABLE_BLOCK_TYPES = BLOCK_TYPES.filter((type) => type !== START_B
 export type BlockId = number | string
 
 export const DETAILS_COLLECTION_BLOCK: BlockType = 'DETAILS_COLLECTION_BLOCK'
+/** Sends its fixed `message` to the customer, then the chat moves straight on to the next block. */
+export const SEND_MESSAGE_BLOCK: BlockType = 'SEND_MESSAGE_BLOCK'
 
 /** Types of customer detail, mirrored from configuration-service `chat_app/constants.py`. */
 export const DETAIL_FIELD_TYPES = ['text', 'number', 'email', 'phone'] as const
@@ -47,6 +50,8 @@ export interface ChatBlock {
   position_y: number
   /** DETAILS_COLLECTION_BLOCK only; without it, the block asks for the default name and email. */
   fields?: DetailField[]
+  /** SEND_MESSAGE_BLOCK only, and required there: the message it sends the customer. */
+  message?: string
 }
 
 /** A business's chat configuration (`/api/chat/configuration/`). Each business has at most one. */
