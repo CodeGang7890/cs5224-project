@@ -1,1 +1,3 @@
-# cs5224-project
+# CS5224 Project
+
+![Architecture Diagram](docs/arch-diagram.png)
