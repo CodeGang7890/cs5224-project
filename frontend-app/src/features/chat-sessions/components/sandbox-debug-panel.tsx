@@ -60,6 +60,7 @@ export function SandboxDebugPanel({ session, onClose }: SandboxDebugPanelProps) 
                 mono
               />
               {debug.finished.length > 0 && <KeyValue label="Completed" value={debug.finished.join(', ')} />}
+              {debug.order_id !== null && <KeyValue label="Order" value={`#${debug.order_id}`} mono />}
               <KeyValue label="Stopped" value={debug.stop_reason} />
 
               <p className="text-muted-foreground mt-1">

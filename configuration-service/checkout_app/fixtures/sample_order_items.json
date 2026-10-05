@@ -1,0 +1,148 @@
+[
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 1,
+    "fields": {
+      "business": 1,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 1,
+            "name": "Kopi C",
+            "unit_price": "1.80",
+            "quantity": 2
+          },
+          {
+            "product_id": 2,
+            "name": "Kaya Toast Set",
+            "unit_price": "5.50",
+            "quantity": 2
+          }
+        ],
+        "details": {
+          "name": "Daniel Ong",
+          "email": "daniel@example.com",
+          "pickup_time": "8:45am"
+        }
+      },
+      "created_time": "2026-09-02T08:20:00+08:00",
+      "updated_time": "2026-09-02T08:20:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 2,
+    "fields": {
+      "business": 1,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "payment_received",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 2,
+            "name": "Kaya Toast Set",
+            "unit_price": "5.50",
+            "quantity": 10
+          },
+          {
+            "product_id": 1,
+            "name": "Kopi C",
+            "unit_price": "1.80",
+            "quantity": 20
+          }
+        ],
+        "details": {
+          "name": "Mei Ling",
+          "email": "meiling@example.com",
+          "pickup_time": "Saturday 9am"
+        }
+      },
+      "created_time": "2026-09-08T12:05:00+08:00",
+      "updated_time": "2026-09-08T12:05:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 3,
+    "fields": {
+      "business": 1,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "pending_payment",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 1,
+            "name": "Kopi C",
+            "unit_price": "1.80",
+            "quantity": 3
+          }
+        ],
+        "details": {
+          "name": "Farah Ismail",
+          "email": "farah@example.com",
+          "pickup_time": "10am"
+        }
+      },
+      "created_time": "2026-09-12T09:40:00+08:00",
+      "updated_time": "2026-09-12T09:40:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 4,
+    "fields": {
+      "business": 1,
+      "chat_session": null,
+      "is_sandbox": true,
+      "order_status": "pending_payment",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 2,
+            "name": "Kaya Toast Set",
+            "unit_price": "5.50",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Test Customer",
+          "email": "test@example.com",
+          "pickup_time": "4pm"
+        }
+      },
+      "created_time": "2026-09-12T15:00:00+08:00",
+      "updated_time": "2026-09-12T15:00:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 5,
+    "fields": {
+      "business": 2,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "pending_payment",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 4,
+            "name": "Classic Rose Bouquet (12 stems)",
+            "unit_price": "68.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Ryan Koh",
+          "email": "ryan@example.com"
+        }
+      },
+      "created_time": "2026-09-10T17:30:00+08:00",
+      "updated_time": "2026-09-10T17:30:00+08:00"
+    }
+  }
+]

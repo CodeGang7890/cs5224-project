@@ -152,13 +152,14 @@ _REPLY_INSTRUCTIONS = {
     CONFIRMATION_BLOCK: (
         'Show the order summary from "What we know so far" (items, quantities, prices, total and '
         'customer details) and ask the customer to reply YES to confirm, or to tell you what to '
-        'change. If they asked a question, answer it first.'
+        'change. If they asked a question, answer it first. If there are problems listed above (e.g. '
+        'a product sold out), the order was NOT placed: explain them and ask what they would like to change.'
     ),
 }
 
 _COMPLETED_INSTRUCTIONS = (
-    'The order is confirmed and complete. If it was confirmed just now, thank the customer and recap '
-    'the order. Otherwise answer their follow-up questions. Do not collect order details again; if '
+    'The order is confirmed and complete. If it was confirmed just now, thank the customer, recap '
+    'the order and give them the order number. Otherwise answer their follow-up questions. Do not collect order details again; if '
     'they want to change or add to the order, tell them a team member will follow up.'
 )
 
@@ -290,4 +291,6 @@ def format_collected(data: dict, labels: dict) -> str:
         f'Order: {format_items(items)}. Total: ${order_total(items)}.' if items else 'Order: nothing chosen yet.',
         f'Customer details: {format_details(data.get("details", {}), labels) or "none yet"}.',
     ]
+    if data.get('order_id'):
+        lines.append(f'Order number: #{data["order_id"]} (placed; payment pending).')
     return '\n'.join(lines)

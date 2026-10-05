@@ -1,10 +1,12 @@
 import type { ReactNode } from 'react'
-import { CircleCheck } from 'lucide-react'
+import { CircleCheck, ReceiptText } from 'lucide-react'
+import { Link } from 'react-router'
 
 import { Badge } from '@/components/ui/badge'
+import { paths } from '@/config/navigation'
+import { useDetailLabels } from '@/features/workflow'
 import { cn } from '@/lib/utils'
 
-import { useDetailLabels } from '../hooks/use-chat-steps'
 import type { ChatStateData, ChatStateItem } from '../types'
 
 /** Order total as a "12.34" string (summed in cents, so 3 × 1.10 is 3.30). */
@@ -43,6 +45,13 @@ export function ChatStateSummary({ data, className }: ChatStateSummaryProps) {
       {data.completed && (
         <Badge variant="outline" className="border-emerald-500/50 text-emerald-700 dark:text-emerald-400">
           <CircleCheck /> Order confirmed
+        </Badge>
+      )}
+      {data.order_id && (
+        <Badge variant="outline" asChild>
+          <Link to={`${paths.orders}?order=${data.order_id}`} title="Open this order in the Orders tab">
+            <ReceiptText /> Order #{data.order_id}
+          </Link>
         </Badge>
       )}
     </dl>

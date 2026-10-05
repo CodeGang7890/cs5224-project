@@ -7,5 +7,6 @@ export {
   useChatConfiguration,
   useSaveChatConfiguration,
 } from './hooks/use-chat-configuration'
+export { useDetailLabels } from './hooks/use-detail-labels'
 export { DETAILS_COLLECTION_BLOCK } from './types'
 export type { BlockType, ChatBlock, ChatConfiguration, ChatConfigurationInput, DetailField, DetailFieldType } from './types'

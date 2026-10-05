@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     'auth_app',
     'product_app',
     'chat_app',
+    'checkout_app',
 ]
 
 # Custom user model. Must be set before the first migration; don't change it afterwards.

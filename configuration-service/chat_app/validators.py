@@ -271,7 +271,7 @@ def validate_chat_messages(value) -> None:
 
 # --- ChatSession.chat_state_data ----------------------------------------------------------
 
-STATE_DATA_FIELDS = {'items', 'details', 'completed'}
+STATE_DATA_FIELDS = {'items', 'details', 'completed', 'order_id'}
 STATE_ITEM_FIELDS = {'product_id', 'name', 'unit_price', 'quantity'}
 
 
@@ -289,6 +289,7 @@ def validate_chat_state_data(value) -> None:
     - ``details``: the collected customer details, by field key (e.g. ``{"name": "Alice",
       "postal_code": 123456}``): non-blank strings or numbers.
     - ``completed``: true once the customer confirmed and the flow reached its last block.
+    - ``order_id``: the checkout_app OrderItem placed when the customer confirmed.
 
     Raises a ``ValidationError`` listing every problem found.
     """
@@ -330,6 +331,8 @@ def validate_chat_state_data(value) -> None:
 
     if not isinstance(value.get('completed', False), bool):
         errors.append('completed must be true or false.')
+    if 'order_id' in value and (not _is_int(value['order_id']) or value['order_id'] < 1):
+        errors.append('order_id must be a positive integer.')
 
     if errors:
         raise ValidationError(errors)

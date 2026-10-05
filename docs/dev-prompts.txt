@@ -478,3 +478,20 @@ Those options should be stored in the config_json of ChatConfiguration model, be
 When a ChatSession is created using the newly updated ChatConfiguration, the LLM should now ask for those informations during the “Details Collection” state.
 Also add test to this flow to ensure it will ask user for all the details specified, and will only proceed when all the details are given.
 Additionally, can you please move the test_flow, test_api files in chat_app to under its own “tests” folder under chat_app, to not clutter this folder root with too many test files.
+
+Date & Time (GMT+8): 2026-10-05 14:33:50
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Now I want you to make a new checkout_app.
+Add 1 model there named OrderItem.
+This should have a FK to BusinessConfiguration, and a JSON containing orders data.
+This orders data should specify the item ordered and the quantity, and the details collected during the details collection phase.
+Be sure to add validation to this JSON too.
+When a user confirms an order, it should make a new OrderItem object and update the quantity of the Product too.
+Be sure to use a proper locking mechanism in case of race conditions.
+OrderItem should have order_status that default to pending_payment.
+order_status can also be payment_received and order_completed, but we’ll get through this later once the payment service etc is completed.
+In the frontend, add a new tab called “Orders”.
+Make it so business owners can see all the Orders for their business through the frontend-app.
+Add proper test cases to the API as always, to make sure handle 403 or 404 errors.

@@ -25,6 +25,8 @@ export interface ChatStateData {
   details?: Record<string, string | number>
   /** True once the customer confirmed and the flow reached its last block. */
   completed?: boolean
+  /** The order (Orders tab) placed when the customer confirmed. */
+  order_id?: number
 }
 
 /** A conversation between a business and one customer, or a sandbox (test) chat. */
@@ -68,6 +70,8 @@ export interface SandboxTurnDebug {
   steps: FlowStepDebug[]
   stop_reason: string
   finished: string[]
+  /** `chat_state_data.order_id` after the turn (placed now or earlier), or null. */
+  order_id: number | null
   missing: string[]
   issues: string[]
   reply_system_prompt: string

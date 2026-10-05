@@ -1,6 +1,6 @@
 # Configuration Service
 
-Django REST API backend for Ansera Business Admin. It has four Django apps: `configuration_app`, `auth_app`, `product_app` and `chat_app`. So far they contain the data models, Django Admin screens, sample fixtures, CRUD APIs for products and FAQs, a chat endpoint backed by a local LLM (Ollama), and one sample endpoint. It uses a local SQLite database for now.
+Django REST API backend for Ansera Business Admin. It has five Django apps: `configuration_app`, `auth_app`, `product_app`, `chat_app` and `checkout_app`. So far they contain the data models, Django Admin screens, sample fixtures, CRUD APIs for products and FAQs, a chat endpoint backed by a local LLM (Ollama), and one sample endpoint. It uses a local SQLite database for now.
 
 ## Tech stack
 
@@ -37,7 +37,7 @@ pip install -r requirements.txt
 python manage.py migrate
 
 # 4. Load sample data (businesses, business users, products, FAQs)
-python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions
+python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions sample_order_items
 
 # 5. Create the local admin superuser (username: superuser, password: 123)
 DJANGO_SUPERUSER_PASSWORD=123 python manage.py createsuperuser --noinput --username superuser --email superuser@example.com
@@ -66,7 +66,7 @@ python manage.py runserver
 The fixtures are JSON files in each app's `fixtures/` folder. Load them all with:
 
 ```bash
-python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions
+python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions sample_order_items
 ```
 
 | Fixture | File | Contents |
@@ -77,6 +77,7 @@ python manage.py loaddata sample_business_configurations sample_business_users s
 | `sample_faqs` | `product_app/fixtures/` | 6 FAQs |
 | `sample_chat_configurations` | `chat_app/fixtures/` | 1 chat flow for Kopi & Co. Café: start → product selection → details collection → confirmation |
 | `sample_chat_sessions` | `chat_app/fixtures/` | 14 customer chats: 11 with Kopi & Co. Café (at different steps of its flow, over 1–12 Sep, one with no messages yet), 2 with Bloom Florist Studio, 1 with FitLab. `+6591234567` chats with both the café and the florist. Plus 2 sandbox (test) chats for Kopi & Co. Café, one without a phone number |
+| `sample_order_items` | `checkout_app/fixtures/` | 5 orders: 4 for Kopi & Co. Café (one per status, plus a pending sandbox order) and 1 for Bloom Florist Studio. They aren't linked to chats, and their stock wasn't reserved |
 
 Every sample account uses the password **`123`**, so you can log in as anyone while testing:
 
@@ -105,6 +106,7 @@ Notes:
 | `product_app` | `FAQ` | `id`, `business` → `BusinessConfiguration`, `question` (≤300 chars), `answer` (≤10,000 chars) |
 | `chat_app` | `ChatSession` | `id`, `business` → `BusinessConfiguration`, `phone_number` (the customer's, international format e.g. `+6591234567`), `display_name` (≤150 chars, optional), `created_time` (defaults to now), `last_chat_time`, `chat_message_json` (the conversation, see below), `chat_state_id` (the flow block the customer is at, or empty), `chat_state_data` (what the chat flow has collected so far, see below), `is_sandbox` (a test chat from the Chat Sandbox; default false) |
 | `chat_app` | `ChatConfiguration` | `id`, `business` → `BusinessConfiguration` (one per business), `config_json` (the chat flow, see below), `last_updated` (set automatically on every save) |
+| `checkout_app` | `OrderItem` | `id`, `business` → `BusinessConfiguration`, `chat_session` → `ChatSession` (the chat it was placed in; cleared if the chat is deleted), `is_sandbox`, `order_data` (what was ordered and the customer details, see below), `order_status` (`pending_payment` (default), `payment_received` or `order_completed`), `created_time`, `updated_time` |
 
 Rules enforced by Django validation (e.g. in Django Admin) **and** by the database:
 - Price and quantities can't be negative.
@@ -145,8 +147,13 @@ A `DETAILS_COLLECTION_BLOCK`'s `fields` lists the customer details it asks for (
 - `chat_state_id` is empty, or the `id` of a block in the business's chat configuration (the type must match too: `"2"` is not block `2`). If the business has no chat configuration, it must be empty.
 - `chat_state_data` is an object; every key is optional (`{}` means nothing collected yet). `validate_chat_state_data` checks: `items`, a list of `{product_id, name, unit_price, quantity}` (the chosen products; `name` and `unit_price` are a snapshot, `unit_price` a decimal string like `"5.50"`, `quantity` ≥1); `details`, the customer details collected so far by field key (non-blank strings or numbers, e.g. `{"name": "Alice", "postal_code": 238801}`); `completed`, true once the customer confirmed the order. Example: `{"items": [{"product_id": 1, "name": "Kopi C", "unit_price": "1.80", "quantity": 2}], "details": {"name": "Alice"}}`.
 
+`OrderItem.order_data` is `{"items": [...], "details": {...}}`, checked by `validate_order_data` (`checkout_app/validators.py`):
+- `items`: at least one `{product_id, name, unit_price, quantity}`, one per product. `name` and `unit_price` are what the customer was shown (`unit_price` a decimal string like `"5.50"`: ≥0, at most 2 decimal places); `quantity` is 1–1,000,000.
+- `details`: the customer details collected in the chat, by field key (non-blank strings or numbers). Can be empty if the flow has no Details collection block.
+- `order_status` must be one of the three statuses (also enforced by the database).
+
 When a business is deleted:
-- Its **products, FAQs, chat configuration and chat sessions are deleted** with it.
+- Its **products, FAQs, chat configuration, chat sessions and orders are deleted** with it.
 - Its **users are kept**, with their business link cleared.
 
 `BusinessUser` is the project's user model (`AUTH_USER_MODEL = 'auth_app.BusinessUser'`). In code, refer to it with `django.contrib.auth.get_user_model()` or `settings.AUTH_USER_MODEL`.
@@ -193,6 +200,8 @@ All of these require you to be logged in.
 | `POST` | `/api/chat/sessions/messages/` | `{business_id, phone_number, message}` → the assistant's reply. Public (no login), for the Chat Sandbox / future webhook. See [Chat sessions](#chat-sessions) |
 | `POST` | `/api/chat/sessions/` | `{phone_number, display_name}` → the new chat session (201). See [Chat sessions](#chat-sessions) |
 | `PUT` | `/api/chat/configuration/` | `{config_json}`: replace your business's chat flow (validated). Creates it (201) if missing, otherwise 200 |
+| `GET` | `/api/orders/` | Your business's orders, newest first, with filters, sorting and pagination. Read only. See [Orders](#orders) |
+| `GET` | `/api/orders/{id}/` | One of your orders (403 another business's, 404 unknown) |
 
 ### Chat (temporary)
 
@@ -283,6 +292,17 @@ Test chats a business starts itself (e.g. from the Chat Sandbox), separate from 
 
 Sandbox sessions are left out of `GET /api/chat/sessions/` unless you ask for them with `sandbox=include` or `sandbox=only`, and `POST /api/chat/sessions/messages/` only finds real sessions.
 
+### Orders
+
+When a customer confirms at the Confirmation block (a real or sandbox chat), the [chat flow](#chat-flow) calls `checkout_app.services.place_order()`, which creates an `OrderItem` (`pending_payment`) and **reserves the stock**: each product's `quantity_available` goes down and `quantity_on_hold` goes up by the quantity. (Moving it on to `quantity_sold` is for the payment step, later.) The chat's `chat_state_data` gets `order_id`, and the reply gives the customer the order number.
+
+- **All or nothing, safe under concurrency.** It runs in one transaction with the chat session's row locked. The product rows are locked with `SELECT … FOR UPDATE`, in id order so two orders can't deadlock. Stock is checked again (still on sale, enough left), and each update is guarded with `quantity_available >= quantity`, so stock can't go negative even on SQLite (which ignores `FOR UPDATE` and locks the whole database instead).
+- **If it fails** (e.g. another customer bought the last ones since this customer chose, or the product was deactivated), nothing changes: no order, no stock change, and the chat stays at Confirmation with the problem in the reply ("Only 2 Kopi C are left."), so the customer can change their order.
+- The price is the one the customer was shown when choosing (it isn't re-read). Later messages in the same chat don't order again.
+- Sandbox chats place orders too, flagged `is_sandbox`, and they reserve stock like real ones.
+
+`GET /api/orders/` (login required) lists your business's orders, newest first, **including sandbox orders** (they hold real stock). Each has `order_data`, `order_status`, `total` (computed) and the `chat_session` it came from. Optional parameters: `order_status`, `sandbox` (`include` (default), `exclude` or `only`), `created_time_after` / `created_time_before`, `ordering` (`created_time`, `order_status` or `id`; `-` for descending), `page` and `page_size` (max 100). The response is paginated like chat sessions. `GET /api/orders/{id}/` returns one order. Orders are read only for now (no create, edit or delete: 405).
+
 ### Access rules
 
 - **Not logged in:** `401 Unauthorized`.
@@ -346,7 +366,7 @@ You can also use your Django Admin login instead (**cookieAuth**). If you're log
 | `python manage.py makemigrations` | Creates migration files after you change models |
 | `python manage.py migrate` | Applies migrations to the database |
 | `python manage.py createsuperuser` | Creates an admin user |
-| `python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions` | Loads the sample data |
+| `python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions sample_order_items` | Loads the sample data |
 | `python manage.py flush --noinput` | Deletes all rows from every table (keeps the tables); see [Resetting the local database](#resetting-the-local-database) |
 | `python manage.py test` | Runs all tests (see [Running tests](#running-tests)) |
 | `python manage.py check` | Checks the project configuration for problems |
@@ -374,7 +394,10 @@ Tests use a temporary database, so your `db.sqlite3` isn't touched.
 | `configuration_app/tests.py` | `BusinessConfiguration` model, random-number endpoint, CORS |
 | `chat_app/tests/test_models.py` | `validate_chat_config` (including Details collection `fields`), `validate_chat_messages` and `validate_chat_state_data` rules; `ChatConfiguration` and `ChatSession` models (validation, uniqueness, `chat_state_id` must match a block); sample fixtures are valid |
 | `chat_app/tests/test_api.py` | Chat endpoint returns the reply, with the LLM mocked (no Ollama needed); chat configuration GET/PUT (401/403/404, create vs update, read-only fields, saving Details collection `fields`, invalid `config_json` → 400); chat sessions create/list (filters, sorting and pagination on the sample fixtures) and customer messages (LLM mocked); sandbox sessions list/create/delete (only sandbox, only your business) |
-| `chat_app/tests/test_flow.py` | The chat flow (LLM mocked): a whole conversation from Start to confirmed, going back on "change", invalid choices, unknown state → Start block, tool calls, invalid JSON → 502; custom Details collection fields (asks for every field, only moves on when all are valid); each block's deterministic check and each detail type's value check |
+| `chat_app/tests/test_flow.py` | The chat flow (LLM mocked): a whole conversation from Start to confirmed, going back on "change", invalid choices, unknown state → Start block, tool calls, invalid JSON → 502; custom Details collection fields (asks for every field, only moves on when all are valid); confirming places an order and reserves stock (once), and a product sold out since it was chosen undoes the confirmation; each block's deterministic check and each detail type's value check |
+| `checkout_app/tests/test_models.py` | `validate_order_data` rules; `OrderItem` defaults (`pending_payment`), statuses (also the database constraint), total; sample fixture is valid |
+| `checkout_app/tests/test_services.py` | `place_order`: creates the order and reserves stock; all or nothing when any item fails (sold out, inactive, another business's or deleted product); can't oversell; a simulated lost race is stopped by the guarded update and rolled back; product rows locked in id order |
+| `checkout_app/tests/test_api.py` | Orders list/detail: 401, 403 (no business, another business's order), 404 (unknown order, page past the end), 405 (read only), filters, sorting, pagination |
 
 ### Resetting the local database
 
@@ -382,7 +405,7 @@ To put the data back to the sample state, delete every row (the tables and migra
 
 ```bash
 python manage.py flush --noinput
-python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions
+python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions sample_order_items
 DJANGO_SUPERUSER_PASSWORD=123 python manage.py createsuperuser --noinput --username superuser --email superuser@example.com
 ```
 
@@ -394,7 +417,7 @@ To delete the database file itself and rebuild it from the migrations (e.g. afte
 ```bash
 rm db.sqlite3
 python manage.py migrate
-python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions
+python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions sample_order_items
 DJANGO_SUPERUSER_PASSWORD=123 python manage.py createsuperuser --noinput --username superuser --email superuser@example.com
 ```
 
@@ -479,6 +502,18 @@ configuration-service/
 │       ├── test_models.py  # Validator + model tests
 │       ├── test_api.py     # Chat API (mocked LLM) + chat configuration API tests
 │       └── test_flow.py    # Chat flow tests (mocked LLM)
+├── checkout_app/           # Orders placed when customers confirm in a chat
+│   ├── fixtures/           # sample_order_items.json
+│   ├── migrations/
+│   ├── admin.py
+│   ├── models.py           # OrderItem, OrderStatus
+│   ├── validators.py       # validate_order_data
+│   ├── services.py         # place_order(): creates the order + reserves stock (locked, all or nothing)
+│   ├── serializers.py      # OrderItemSerializer (read only)
+│   ├── filters.py          # OrderItemFilter
+│   ├── views.py            # OrderItemListView, OrderItemDetailView
+│   ├── urls.py             # /api/orders/, /api/orders/{id}/
+│   └── tests/              # test_models.py, test_services.py, test_api.py
 ├── manage.py
 ├── requirements.txt
 └── .env.example

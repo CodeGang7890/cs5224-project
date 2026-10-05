@@ -9,6 +9,7 @@ import { ErrorPage } from '@/pages/error-page'
 import { FaqPage } from '@/pages/faq-page'
 import { HomePage } from '@/pages/home-page'
 import { NotFoundPage } from '@/pages/not-found-page'
+import { OrdersPage } from '@/pages/orders-page'
 import { PaymentPage } from '@/pages/payment-page'
 import { ProductPage } from '@/pages/product-page'
 import { SchedulePage } from '@/pages/schedule-page'
@@ -32,6 +33,7 @@ export const routes: RouteObject[] = [
         children: [
           { path: paths.workflow, element: <WorkflowPage /> },
           { path: paths.product, element: <ProductPage /> },
+          { path: paths.orders, element: <OrdersPage /> },
           { path: paths.faq, element: <FaqPage /> },
           { path: paths.chats, element: <ChatsPage /> },
           { path: paths.chatSandbox, element: <ChatSandboxPage /> },

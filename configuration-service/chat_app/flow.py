@@ -10,8 +10,10 @@ handle_customer_message() runs one turn:
    ChatSession.chat_state_data. If it does, move to `next_block_id` and repeat 3–4 there, so one
    message can complete several blocks ("2 Kopi C please, I'm Alice, alice@example.com").
    The last block completing marks the flow `completed`.
-5. Save chat_state_id / chat_state_data, then ask the LLM for the reply, with the block's reply
-   prompt (what's known, what's still missing, what went wrong), and save it.
+5. Save chat_state_id / chat_state_data (commit_turn). If the customer confirmed, this also places
+   the order (checkout_app: an OrderItem, with its stock reserved) in the same transaction.
+6. Ask the LLM for the reply, with the block's reply prompt (what's known, what's still missing,
+   what went wrong), and save it.
 """
 
 import copy
@@ -36,6 +38,8 @@ from .constants import (
     SENT_BY_CUSTOMER,
     START_BLOCK,
 )
+from checkout_app.services import OrderError, place_order
+
 from .models import DISPLAY_NAME_MAX_LENGTH, ChatConfiguration, ChatSession
 from .tools import Toolbox, active_products
 from .validators import DETAIL_TEXT_DEFAULT_MAX_LENGTH, block_detail_fields, validate_chat_state_data
@@ -68,6 +72,9 @@ class Turn:
     # For debugging (the Chat Sandbox shows them): each extraction + check, and why the loop stopped.
     steps: list[dict] = field(default_factory=list)
     stop_reason: str = ''
+    # Set when a CONFIRMATION_BLOCK passed with this message: (that block, chat_state_data at that
+    # moment). commit_turn() then places the order, or undoes the confirmation if it can't.
+    confirmation: tuple[dict, dict] | None = None
 
 
 @dataclass
@@ -95,7 +102,7 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
         system_prompt = prompts.build_reply_prompt(business, None, {}, products=products)
     else:
         turn = advance(chat_config, session.chat_state_id, session.chat_state_data, history, products)
-        save_flow_state(session_id, turn)
+        commit_turn(session_id, turn)
         system_prompt = prompts.build_reply_prompt(
             business,
             turn.block,
@@ -119,6 +126,7 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
         'steps': turn.steps if turn else [],
         'stop_reason': turn.stop_reason if turn else 'The business has no chat configuration: reply only.',
         'finished': turn.finished if turn else [],
+        'order_id': turn.data.get('order_id') if turn else None,
         'missing': turn.missing if turn else [],
         'issues': turn.issues if turn else [],
         'reply_system_prompt': system_prompt,
@@ -175,6 +183,8 @@ def advance(
             if next_block is None and block_type == START_BLOCK:
                 turn.stop_reason = 'A lone Start block has nothing to complete: staying there.'
                 break
+            if block_type == CONFIRMATION_BLOCK and 'order_id' not in turn.data and turn.confirmation is None:
+                turn.confirmation = (block, copy.deepcopy(turn.data))
             turn.finished.append(prompts.BLOCK_LABELS.get(block_type, block_type))
             if next_block is None:
                 turn.data['completed'] = True
@@ -344,14 +354,40 @@ def append_chat_message(session_id: int, message: str, sent_by: str) -> dict:
     return chat_message
 
 
-def save_flow_state(session_id: int, turn: Turn) -> None:
-    """Saves where the chat is and what it has collected.
+def commit_turn(session_id: int, turn: Turn) -> None:
+    """Saves where the chat is and what it has collected, placing the order if the customer confirmed.
 
-    A collected name also fills in an empty display_name.
+    One transaction, with the session row locked: the order (checkout_app.services.place_order,
+    which locks the products and reserves their stock) and the saved state can't disagree. If the
+    order can't be placed (e.g. sold out since it was chosen), the confirmation is undone: the
+    chat stays at the confirmation block, and the problems go into the reply prompt. A collected
+    name also fills in an empty display_name.
     """
-    validate_chat_state_data(turn.data)
     with transaction.atomic():
-        session = ChatSession.objects.select_for_update().get(pk=session_id)
+        session = ChatSession.objects.select_for_update().select_related('business').get(pk=session_id)
+        if turn.confirmation is not None:
+            block, data = turn.confirmation
+            if not data.get('items'):
+                turn.stop_reason += ' Nothing was chosen, so no order was placed.'
+            else:
+                try:
+                    order = place_order(
+                        session.business,
+                        data['items'],
+                        data.get('details', {}),
+                        chat_session=session,
+                        is_sandbox=session.is_sandbox,
+                    )
+                except OrderError as exc:
+                    label = prompts.BLOCK_LABELS[CONFIRMATION_BLOCK]
+                    turn.block, turn.data = block, data
+                    turn.finished = [f for f in turn.finished if f != label]
+                    turn.missing = []
+                    turn.issues = [*exc.problems, 'The order was not placed: ask the customer what to change.']
+                    turn.stop_reason = f'The order could not be placed: {exc}'
+                else:
+                    turn.data['order_id'] = order.pk
+        validate_chat_state_data(turn.data)
         session.chat_state_id = turn.block['id']
         session.chat_state_data = turn.data
         fields = ['chat_state_id', 'chat_state_data']

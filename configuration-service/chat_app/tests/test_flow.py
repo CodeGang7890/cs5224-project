@@ -8,6 +8,7 @@ from rest_framework.test import APITestCase
 
 from auth_app.models import BusinessUser
 from configuration_app.models import BusinessConfiguration
+from checkout_app.models import OrderItem, OrderStatus
 from product_app.models import FAQ, Product
 
 from ..flow import (
@@ -344,6 +345,112 @@ class CustomDetailFieldsFlowTests(APITestCase):
         )
         self.assertEqual(self.session.chat_state_id, 'details')
         self.assertIn('## Still needed\n- Receiver name\n- Postal code\n- Customisation notes', self.reply_prompt())
+
+
+class OrderPlacementFlowTests(APITestCase):
+    """Confirming at the Confirmation block places an order (checkout_app) and reserves its stock."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.cafe = BusinessConfiguration.objects.create(business_name='Kopi Café', location='Tiong Bahru')
+        cls.user = BusinessUser.objects.create_user(username='cafe', password='123', business=cls.cafe)
+        ChatConfiguration.objects.create(business=cls.cafe, config_json=FULL_CONFIG)
+
+    def setUp(self):
+        self.kopi = Product.objects.create(business=self.cafe, name='Kopi C', price='1.80', quantity_available=10)
+        self.session = ChatSession.objects.create(
+            business=self.cafe,
+            is_sandbox=True,
+            chat_state_id=4,  # at confirmation, with the summary already shown
+            chat_state_data={
+                'items': [{'product_id': self.kopi.pk, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 3}],
+                'details': {'name': 'Alice', 'email': 'alice@example.com'},
+            },
+        )
+        self.ollama = MagicMock()
+        patcher = patch('chat_app.llm.get_client', return_value=self.ollama)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.client.force_authenticate(self.user)
+
+    send = ChatFlowAPITests.send
+    reply_prompt = ChatFlowAPITests.reply_prompt
+    calls = ChatFlowAPITests.calls
+
+    def test_confirming_places_the_order_and_reserves_stock(self):
+        response = self.send('Yes', {'decision': 'confirm'})
+        order = OrderItem.objects.get()
+        self.assertEqual(order.business, self.cafe)
+        self.assertEqual(order.chat_session, self.session)
+        self.assertTrue(order.is_sandbox)
+        self.assertEqual(order.order_status, OrderStatus.PENDING_PAYMENT)
+        self.assertEqual(
+            order.order_data,
+            {
+                'items': [{'product_id': self.kopi.pk, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 3}],
+                'details': {'name': 'Alice', 'email': 'alice@example.com'},
+            },
+        )
+        self.kopi.refresh_from_db()
+        self.assertEqual((self.kopi.quantity_available, self.kopi.quantity_on_hold), (7, 3))
+
+        self.assertIs(self.session.chat_state_data['completed'], True)
+        self.assertEqual(self.session.chat_state_data['order_id'], order.pk)
+        self.assertIn(f'Order number: #{order.pk} (placed; payment pending).', self.reply_prompt())
+        self.assertEqual(response.json()['debug']['order_id'], order.pk)
+
+        # Later messages don't order again.
+        self.send('Thanks!')
+        self.send('When is it ready?')
+        self.assertEqual(OrderItem.objects.count(), 1)
+        self.kopi.refresh_from_db()
+        self.assertEqual(self.kopi.quantity_available, 7)
+
+    def test_not_confirming_places_nothing(self):
+        for decision in ('none', 'change'):
+            with self.subTest(decision):
+                self.send('Hmm', {'decision': decision}, {'items': []}, {'name': None, 'email': None})
+        self.assertFalse(OrderItem.objects.exists())
+
+    def test_sold_out_since_chosen_undoes_the_confirmation(self):
+        Product.objects.filter(pk=self.kopi.pk).update(quantity_available=2)  # someone else bought some
+        response = self.send('Yes', {'decision': 'confirm'})
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(OrderItem.objects.exists())
+        self.kopi.refresh_from_db()
+        self.assertEqual((self.kopi.quantity_available, self.kopi.quantity_on_hold), (2, 0))
+        # Still at confirmation, not completed, and the reply explains why.
+        self.assertEqual(self.session.chat_state_id, 4)
+        self.assertNotIn('completed', self.session.chat_state_data)
+        self.assertNotIn('order_id', self.session.chat_state_data)
+        prompt = self.reply_prompt()
+        self.assertIn('Current step: Confirmation', prompt)
+        self.assertIn('- Only 2 Kopi C are left.', prompt)
+        self.assertIn('the order was NOT placed', prompt)
+        self.assertNotIn('just completed: Confirmation', prompt)
+        self.assertIn('The order could not be placed', response.json()['debug']['stop_reason'])
+
+    def test_product_deactivated_since_chosen(self):
+        Product.objects.filter(pk=self.kopi.pk).update(is_active=False)
+        self.send('Yes', {'decision': 'confirm'})
+        self.assertFalse(OrderItem.objects.exists())
+        self.assertIn('- Kopi C is no longer available.', self.reply_prompt())
+
+    def test_real_customer_chat_places_a_real_order(self):
+        real = ChatSession.objects.create(
+            business=self.cafe, phone_number='+6591234567', chat_state_id=4, chat_state_data=self.session.chat_state_data
+        )
+        self.ollama.chat.side_effect = fake_ollama_chat('Confirmed!', [{'decision': 'confirm'}])
+        response = self.client.post(
+            reverse('chat_app:customer-message'),
+            {'business_id': self.cafe.pk, 'phone_number': '+6591234567', 'message': 'YES'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('debug', response.json())
+        order = OrderItem.objects.get()
+        self.assertFalse(order.is_sandbox)
+        self.assertEqual(order.chat_session, real)
 
 
 class CleanDetailValueTests(SimpleTestCase):
