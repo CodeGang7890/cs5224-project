@@ -1,3 +1,5 @@
-Flask>=3.1,<4
-flask-smorest>=0.47,<0.48
+fastapi>=0.142,<0.143
+uvicorn>=0.54,<1
 ollama>=0.6,<0.7
+# Used by FastAPI's TestClient in the tests.
+httpx2>=2.13,<3

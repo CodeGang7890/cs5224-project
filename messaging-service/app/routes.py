@@ -1,12 +1,10 @@
-from flask_smorest import Blueprint
+from fastapi import APIRouter
 
-from .schemas import MessageSchema
+from .schemas import Message
 
-bp = Blueprint('main', __name__, description='Service health / hello world')
+router = APIRouter(tags=['main'])
 
 
-@bp.get('/')
-@bp.response(200, MessageSchema)
-def index():
-    """Hello world"""
-    return {'message': 'Hello, World!'}
+@router.get('/', summary='Hello world')
+def index() -> Message:
+    return Message(message='Hello, World!')

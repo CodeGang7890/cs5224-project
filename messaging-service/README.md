@@ -1,6 +1,6 @@
 # Messaging Service
 
-Flask backend for Ansera Business Admin. It runs on **port 8001**, because 8000 is used by `configuration-service` (Django).
+FastAPI backend for Ansera Business Admin. It runs on **port 8001**, because 8000 is used by `configuration-service` (Django).
 
 It currently offers a one-off **chat** endpoint backed by a local LLM through [Ollama](https://ollama.com). It has no database.
 
@@ -8,14 +8,15 @@ It currently offers a one-off **chat** endpoint backed by a local LLM through [O
 
 | Concern | Library |
 | --- | --- |
-| Web framework | [Flask](https://flask.palletsprojects.com/) 3.1 |
-| API docs + validation | [flask-smorest](https://flask-smorest.readthedocs.io/) (OpenAPI 3, Swagger UI, marshmallow schemas) |
+| Web framework | [FastAPI](https://fastapi.tiangolo.com/) 0.142 |
+| API docs + validation | FastAPI's built-in OpenAPI 3 + Swagger UI, [pydantic](https://docs.pydantic.dev/) v2 models |
+| Server | [uvicorn](https://www.uvicorn.org/) (ASGI) |
 | LLM | [ollama](https://github.com/ollama/ollama-python) Python client → a local Ollama server |
-| Tests | Python's built-in `unittest` + Flask's test client (Ollama is mocked) |
+| Tests | Python's built-in `unittest` + FastAPI's `TestClient` (Ollama is mocked) |
 
 ## Prerequisites
 
-- **Python 3.9+** (developed with 3.14). Check with `python3 --version`.
+- **Python 3.10+** (developed with 3.14). Check with `python3 --version`.
 - **Ollama** running on port **11434** (the default), with the model pulled:
 
   ```bash
@@ -50,6 +51,9 @@ source .venv/bin/activate
 python run.py
 ```
 
+> [!NOTE]
+> Moving from the old Flask version? Re-run `pip install -r requirements.txt`. You can remove the old packages with `pip uninstall flask flask-smorest marshmallow`.
+
 ## Configuration
 
 All settings are constants in **`app/config.py`**. Edit them there:
@@ -70,13 +74,12 @@ All settings are constants in **`app/config.py`**. Edit them there:
 | --- | --- | --- |
 | `PORT` | `PORT` constant (`8001`) | e.g. `PORT=8002 python run.py` |
 | `HOST` | `127.0.0.1` | Use `0.0.0.0` to accept connections from other machines or containers |
-| `FLASK_DEBUG` | `1` | `1` enables debug mode (auto-reload and a detailed error page) |
+| `RELOAD` | `1` | `1` restarts the server automatically when the code changes; `0` turns that off |
 
-You can also use Flask's CLI, which finds the `create_app()` factory automatically:
+You can also run uvicorn directly. `--factory` tells it to call the `create_app()` factory:
 
 ```bash
-flask --app app run --port 8001 --debug
-flask --app app routes              # list all routes
+uvicorn app:create_app --factory --port 8001 --reload
 ```
 
 ## API
@@ -86,7 +89,7 @@ flask --app app routes              # list all routes
 | `GET` | `/` | Health check: `{"message": "Hello, World!"}` |
 | `POST` | `/chat` | One-off chat: send one prompt, get one reply |
 | `GET` | `/docs` | Swagger UI (interactive API docs) |
-| `GET` | `/openapi.json` | OpenAPI 3 spec |
+| `GET` | `/openapi.json` | OpenAPI 3 spec, which also lists every route |
 
 ### `POST /chat`
 
@@ -105,12 +108,18 @@ curl -X POST http://127.0.0.1:8001/chat \
 | Status | When |
 | --- | --- |
 | `200` | Success: `{reply, model}` |
-| `422` | Invalid body: missing, blank, non-string or too-long `prompt`, or unknown fields. Details are under `errors.json`. |
+| `422` | Invalid body: missing, blank, non-string or too-long `prompt`, unknown fields, or a body that isn't a JSON object. Details are under `errors.json`. |
 | `502` | Ollama returned an error, e.g. the model isn't pulled (`ollama pull …`) |
 | `503` | Ollama isn't reachable. Is it running on `OLLAMA_PORT`? |
 | `504` | Ollama didn't answer within `OLLAMA_TIMEOUT_SECONDS` |
 
 Error responses look like `{"code": 503, "status": "Service Unavailable", "message": "Could not connect to Ollama at http://localhost:11434."}`.
+
+Validation errors (422) list the messages by location (`json` is the request body) and then by field:
+
+```json
+{ "code": 422, "status": "Unprocessable Content", "errors": { "json": { "prompt": ["Field required"] } } }
+```
 
 > [!TIP]
 > The first request after Ollama starts can take a while, because it loads the model into memory. Later requests are faster.
@@ -138,35 +147,33 @@ The tests mock the Ollama client, so they **don't need Ollama running**. They co
 ```
 messaging-service/
 ├── app/
-│   ├── __init__.py     # create_app(): Flask app + flask-smorest Api, registers blueprints
+│   ├── __init__.py     # create_app(): FastAPI app, error handlers, includes the routers
 │   ├── config.py       # ALL settings: ports, Ollama host/model, system prompt, limits
+│   ├── errors.py       # JSON error bodies: {code, status, message} and {code, status, errors} (422)
 │   ├── llm.py          # Ollama client wrapper: generate_reply(), maps failures to LLMError types
-│   ├── schemas.py      # marshmallow request/response schemas (also drive the Swagger docs)
-│   ├── routes.py       # Blueprint "main": GET /
-│   └── chat.py         # Blueprint "chat": POST /chat
+│   ├── schemas.py      # pydantic request/response models (also drive the Swagger docs)
+│   ├── routes.py       # Router "main": GET /
+│   └── chat.py         # Router "chat": POST /chat
 ├── tests/
 │   ├── test_routes.py
 │   └── test_chat.py    # /chat (Ollama mocked) + API docs
-├── run.py              # Dev server entry point (port from config.PORT)
+├── run.py              # Dev server entry point: uvicorn on config.PORT
 └── requirements.txt
 ```
 
 ## Adding an endpoint
 
-1. Define request/response schemas in `app/schemas.py`.
-2. Add a route to a flask-smorest `Blueprint`, either an existing one or a new module registered in `create_app()`:
+1. Define request/response models in `app/schemas.py`.
+2. Add a route to an `APIRouter`, either an existing one or a new module included in `create_app()`:
 
    ```python
-   @bp.route('/ping')
-   class Ping(MethodView):
-       @bp.response(200, MessageSchema)
-       def get(self):
-           """Ping"""
-           return {'message': 'pong'}
+   @router.get('/ping', summary='Ping')
+   def ping() -> Message:
+       return Message(message='pong')
    ```
 
-The `@bp.arguments(...)` and `@bp.response(...)` decorators validate requests and serialise responses, and they generate the Swagger docs automatically.
+FastAPI validates the request against the parameter types and the response against the return type, and generates the Swagger docs from both. Use a plain `def` for routes that make blocking calls (like Ollama's client): FastAPI runs them in a thread pool.
 
 > [!NOTE]
 > - Swagger UI loads its scripts from the jsDelivr CDN, so the browser needs internet access for `/docs`.
-> - Deployment: `python run.py` / `flask run` start Flask's development server, which isn't meant for production. Use a WSGI server such as gunicorn in production (`gunicorn "app:create_app()" -b 0.0.0.0:8001`) once it's added as a dependency.
+> - Deployment: run uvicorn without `--reload`, e.g. `uvicorn app:create_app --factory --host 0.0.0.0 --port 8001 --workers 2`.

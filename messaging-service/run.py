@@ -2,14 +2,15 @@
 
 import os
 
-from app import create_app
+import uvicorn
+
 from app.config import PORT
 
-app = create_app()
-
 if __name__ == '__main__':
-    app.run(
+    uvicorn.run(
+        'app:create_app',
+        factory=True,
         host=os.getenv('HOST', '127.0.0.1'),
         port=int(os.getenv('PORT', PORT)),
-        debug=os.getenv('FLASK_DEBUG', '1') == '1',
+        reload=os.getenv('RELOAD', '1') == '1',
     )

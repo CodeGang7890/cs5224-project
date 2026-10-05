@@ -1,31 +1,28 @@
-from flask import Flask
-from flask_smorest import Api
+from fastapi import FastAPI
 
 from . import config
+from .errors import register_error_handlers
 
 
-def create_app(overrides: dict | None = None) -> Flask:
-    """Application factory: builds and configures the Flask app."""
-    app = Flask(__name__)
-    app.json.sort_keys = False  # keep JSON keys in the order we write them
-    app.config.update(
-        # flask-smorest: OpenAPI spec at /openapi.json, Swagger UI at /docs
-        API_TITLE=config.API_TITLE,
-        API_VERSION=config.API_VERSION,
-        OPENAPI_VERSION='3.0.3',
-        OPENAPI_URL_PREFIX='/',
-        OPENAPI_JSON_PATH='openapi.json',
-        OPENAPI_SWAGGER_UI_PATH='/docs',
-        OPENAPI_SWAGGER_UI_URL='https://cdn.jsdelivr.net/npm/swagger-ui-dist/',
+def create_app() -> FastAPI:
+    """Application factory: builds and configures the FastAPI app."""
+    app = FastAPI(
+        title=config.API_TITLE,
+        version=config.API_VERSION,
+        # OpenAPI spec at /openapi.json, Swagger UI at /docs (assets from the jsDelivr CDN).
+        openapi_url='/openapi.json',
+        docs_url='/docs',
+        redoc_url=None,
+        openapi_tags=[
+            {'name': 'main', 'description': 'Service health / hello world'},
+            {'name': 'chat', 'description': 'One-off chat with the LLM (Ollama)'},
+        ],
     )
-    if overrides:
-        app.config.update(overrides)
+    register_error_handlers(app)
 
-    api = Api(app)
+    from .chat import router as chat_router
+    from .routes import router as main_router
 
-    from .chat import bp as chat_bp
-    from .routes import bp as main_bp
-
-    api.register_blueprint(main_bp)
-    api.register_blueprint(chat_bp)
+    app.include_router(main_router)
+    app.include_router(chat_router)
     return app

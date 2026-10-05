@@ -1,8 +1,10 @@
 import unittest
+from http import HTTPStatus
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import httpx
+from fastapi.testclient import TestClient
 from ollama import ResponseError
 
 from app import config, create_app
@@ -15,7 +17,7 @@ def fake_chat_response(content: str):
 
 class ChatRouteTests(unittest.TestCase):
     def setUp(self):
-        self.client = create_app({'TESTING': True}).test_client()
+        self.client = TestClient(create_app())
         # Replace the Ollama client so tests never need a running model.
         self.ollama = MagicMock()
         patcher = patch('app.llm.get_client', return_value=self.ollama)
@@ -31,7 +33,7 @@ class ChatRouteTests(unittest.TestCase):
         self.ollama.chat.return_value = fake_chat_response('Hi there!')
         response = self.post_chat({'prompt': 'Hello'})
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.get_json(), {'reply': 'Hi there!', 'model': config.OLLAMA_MODEL})
+        self.assertEqual(response.json(), {'reply': 'Hi there!', 'model': config.OLLAMA_MODEL})
 
     def test_sends_model_system_prompt_and_user_prompt(self):
         self.ollama.chat.return_value = fake_chat_response('ok')
@@ -55,22 +57,36 @@ class ChatRouteTests(unittest.TestCase):
 
     def test_invalid_requests_return_422(self):
         cases = {
-            'missing prompt': {},
-            'empty prompt': {'prompt': ''},
-            'blank prompt': {'prompt': '   '},
-            'too long': {'prompt': 'x' * (config.CHAT_PROMPT_MAX_LENGTH + 1)},
-            'not a string': {'prompt': 123},
-            'unknown field': {'prompt': 'hi', 'history': []},
+            'missing prompt': ({}, 'prompt'),
+            'empty prompt': ({'prompt': ''}, 'prompt'),
+            'blank prompt': ({'prompt': '   '}, 'prompt'),
+            'too long': ({'prompt': 'x' * (config.CHAT_PROMPT_MAX_LENGTH + 1)}, 'prompt'),
+            'not a string': ({'prompt': 123}, 'prompt'),
+            'unknown field': ({'prompt': 'hi', 'history': []}, 'history'),
         }
-        for label, body in cases.items():
+        for label, (body, field) in cases.items():
             with self.subTest(label):
                 response = self.post_chat(body)
                 self.assertEqual(response.status_code, 422)
-                self.assertIn('json', response.get_json()['errors'])
+                data = response.json()
+                self.assertEqual((data['code'], data['status']), (422, HTTPStatus(422).phrase))
+                self.assertIn(field, data['errors']['json'])
         self.ollama.chat.assert_not_called()
 
+    def test_blank_prompt_error_message(self):
+        response = self.post_chat({'prompt': '   '})
+        self.assertIn('Must not be blank.', response.json()['errors']['json']['prompt'][0])
+
     def test_non_json_body_returns_422(self):
-        response = self.client.post('/chat', data='hello', content_type='text/plain')
+        response = self.client.post('/chat', content='hello', headers={'Content-Type': 'text/plain'})
+        self.assertEqual(response.status_code, 422)
+        self.assertIn('json', response.json()['errors'])
+        self.ollama.chat.assert_not_called()
+
+    def test_malformed_json_returns_422(self):
+        response = self.client.post(
+            '/chat', content='{"prompt": ', headers={'Content-Type': 'application/json'}
+        )
         self.assertEqual(response.status_code, 422)
         self.ollama.chat.assert_not_called()
 
@@ -88,7 +104,9 @@ class ChatRouteTests(unittest.TestCase):
         self.ollama.chat.side_effect = ConnectionError('Failed to connect to Ollama.')
         response = self.post_chat({'prompt': 'Hello'})
         self.assertEqual(response.status_code, 503)
-        self.assertIn(config.OLLAMA_HOST, response.get_json()['message'])
+        data = response.json()
+        self.assertEqual((data['code'], data['status']), (503, 'Service Unavailable'))
+        self.assertIn(config.OLLAMA_HOST, data['message'])
 
     def test_ollama_timeout_returns_504(self):
         self.ollama.chat.side_effect = httpx.ReadTimeout('timed out')
@@ -99,20 +117,20 @@ class ChatRouteTests(unittest.TestCase):
         self.ollama.chat.side_effect = ResponseError("model 'qwen2.5:7b-instruct-q4_K_M' not found", 404)
         response = self.post_chat({'prompt': 'Hello'})
         self.assertEqual(response.status_code, 502)
-        self.assertIn('not found', response.get_json()['message'])
+        self.assertIn('not found', response.json()['message'])
 
 
 class ApiDocsTests(unittest.TestCase):
     def setUp(self):
-        self.client = create_app({'TESTING': True}).test_client()
+        self.client = TestClient(create_app())
 
     def test_swagger_ui_page(self):
         response = self.client.get('/docs')
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b'swagger-ui', response.data)
+        self.assertIn(b'swagger-ui', response.content)
 
     def test_openapi_spec_documents_chat(self):
-        spec = self.client.get('/openapi.json').get_json()
+        spec = self.client.get('/openapi.json').json()
         self.assertEqual(spec['info']['title'], config.API_TITLE)
         chat = spec['paths']['/chat']['post']
         self.assertEqual(
@@ -120,6 +138,10 @@ class ApiDocsTests(unittest.TestCase):
             '#/components/schemas/ChatRequest',
         )
         self.assertTrue({'200', '422', '502', '503', '504'} <= set(chat['responses']))
+        self.assertEqual(
+            chat['responses']['422']['content']['application/json']['schema']['$ref'],
+            '#/components/schemas/ValidationErrorResponse',
+        )
         self.assertIn('/', spec['paths'])
 
 
