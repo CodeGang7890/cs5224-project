@@ -539,3 +539,14 @@ Add in the prompt that you’re not allowed to confirm the orders yet while you�
 Add a feature where it allows you to specify if a field is optional or not in “Details to collect”.
 Add to the prompt that if the field is not optional, then you have to keep ask for it until the user gives it.
 Add to the prompt if there’s a strange field like “Boo”, you should say the field as it is and do not paraphrase what to ask from the user (ask what’s needed as it is, don’t make assumptions on what the field is).
+
+Date & Time (GMT+8): 2026-10-05 15:29:02
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+I want a mechanism where in any blocks the user is in, allow it to go back to specific blocks without losing the data.
+Now I see that there’s mechanism already in CONFIRMATION block only.
+This should be extended to other blocks.
+I think you need to have another field in the json returned from the first LLM, to have this option to go to previous block or something.
+Let’s say you are already in details collection stage, but suddenly you miss something (e.g., forget to order something else, or realise the quantity is wrong).
+Also add more guardrails / instructions to the prompt to focus on the task of the current state and not easily distracted with non-sense prompts that is completely unrelated.

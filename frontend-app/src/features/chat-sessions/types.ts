@@ -59,6 +59,8 @@ export interface FlowStepDebug {
   extracted: Record<string, unknown>
   complete: boolean
   go_back: boolean
+  /** The earlier step the customer went back to from this block (the LLM's `go_back_to`), or null. */
+  go_back_to: string | null
   missing: string[]
   issues: string[]
   /** `chat_state_data` after this step's check. */

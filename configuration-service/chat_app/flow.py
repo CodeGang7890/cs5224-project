@@ -6,6 +6,8 @@ handle_customer_message() runs one turn:
    (the START_BLOCK if there's none, e.g. the block was deleted from the workflow).
 3. Extract: ask the LLM for the block's JSON output (prompts.extraction_schema) about the
    conversation so far.
+   Any block's extraction can also say `go_back_to` an earlier step (go_back_targets): the chat
+   then returns there, keeping all its data, and that step runs on the same message.
 4. Check deterministically (the CHECKS below) whether that completes the block, updating
    ChatSession.chat_state_data. If it does, move to `next_block_id` and repeat 3–4 there, so one
    message can complete several blocks ("2 Kopi C please, I'm Alice, alice@example.com").
@@ -83,6 +85,8 @@ class Turn:
     # For debugging (the Chat Sandbox shows them): each extraction + check, and why the loop stopped.
     steps: list[dict] = field(default_factory=list)
     stop_reason: str = ''
+    # The earlier block the customer went back to with this message (go_back_to), if any.
+    went_back_to: dict | None = None
     # Fixed messages of the SEND_MESSAGE_BLOCKs passed with this message: {block_id, message}.
     sent_messages: list[dict] = field(default_factory=list)
     # Set when a CONFIRMATION_BLOCK passed with this message: (that block, chat_state_data and the
@@ -127,6 +131,7 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
             issues=turn.issues,
             finished=turn.finished,
             just_sent=[sent['message'] for sent in turn.sent_messages],
+            went_back=turn.went_back_to is not None and _same_block(turn.went_back_to, turn.block),
         )
 
     # Send message blocks' fixed messages go out first, in order. The LLM sees them as its own.
@@ -205,8 +210,39 @@ def advance(
                 'Confirmation reached with this message: not checked until the customer has seen the summary.'
             )
             break
-        system_prompt = prompts.build_extraction_prompt(chat_config.business, block, turn.data, products, labels)
-        extracted = llm.generate_structured(system_prompt, history, prompts.extraction_schema(block))
+        # One go-back per message, so it can't bounce between steps.
+        targets = [] if turn.went_back_to else go_back_targets(chat_config, block)
+        system_prompt = prompts.build_extraction_prompt(
+            chat_config.business, block, turn.data, products, labels, go_back=targets
+        )
+        extracted = llm.generate_structured(
+            system_prompt, history, prompts.extraction_schema(block, [key for key, _ in targets])
+        )
+        target_key = extracted.get('go_back_to')
+        target = dict(targets).get(target_key) if isinstance(target_key, str) else None
+        if target is not None:
+            # Back to an earlier step, keeping everything. It runs on this same message, so "I also
+            # want a Kaya Toast" updates the order straight away.
+            if target['block_type'] == PRODUCT_SELECTION_BLOCK:
+                turn.data.pop('items_confirmed', None)  # the order must be recapped and confirmed again
+            turn.steps.append({
+                'block_id': block['id'],
+                'block_type': block_type,
+                'system_prompt': system_prompt,
+                'extracted': extracted,
+                'complete': False,
+                'go_back': True,
+                'go_back_to': target_key,
+                'missing': [],
+                'issues': [],
+                'chat_state_data': copy.deepcopy(turn.data),
+            })
+            turn.went_back_to = target
+            block = target
+            entered_now = True
+            turn.missing, turn.issues = [], []
+            continue
+
         result = check(extracted, turn.data, products, block)
         turn.missing, turn.issues = result.missing, result.issues
         turn.steps.append({
@@ -216,6 +252,7 @@ def advance(
             'extracted': extracted,
             'complete': result.complete,
             'go_back': result.go_back,
+            'go_back_to': None,
             'missing': result.missing,
             'issues': result.issues,
             'chat_state_data': copy.deepcopy(turn.data),
@@ -243,6 +280,39 @@ def advance(
         turn.missing, turn.issues = [], []
     turn.block = block
     return turn
+
+
+# Kinds of earlier step the customer can go back to (to change what was collected there).
+GO_BACK_BLOCK_TYPES = (PRODUCT_SELECTION_BLOCK, DETAILS_COLLECTION_BLOCK, CONFIRMATION_BLOCK)
+
+
+def _same_block(a: dict, b: dict) -> bool:
+    return type(a['id']) is type(b['id']) and a['id'] == b['id']  # 1 and "1" are different blocks
+
+
+def go_back_targets(chat_config: ChatConfiguration, block: dict) -> list[tuple[str, dict]]:
+    """The earlier steps the customer can go back to from `block`: (key, block) pairs.
+
+    They're the GO_BACK_BLOCK_TYPES blocks passed on the way from the START_BLOCK to `block`
+    (following next_block_id), oldest first. Keys are readable for the LLM, e.g.
+    "product_selection", with "_2", "_3"... for repeats. None if `block` isn't reachable from Start.
+    """
+    path, current = [], chat_config.start_block
+    while current is not None and not _same_block(current, block):
+        if any(_same_block(current, seen) for seen in path):
+            return []  # a loop that never reaches `block`
+        path.append(current)
+        current = chat_config.get_block(current['next_block_id'])
+    if current is None:
+        return []
+    targets, counts = [], {}
+    for earlier in path:
+        if earlier['block_type'] not in GO_BACK_BLOCK_TYPES:
+            continue
+        slug = earlier['block_type'].removesuffix('_BLOCK').lower()
+        counts[slug] = counts.get(slug, 0) + 1
+        targets.append((slug if counts[slug] == 1 else f'{slug}_{counts[slug]}', earlier))
+    return targets
 
 
 # --- Deterministic checks, one per block type ---------------------------------------------

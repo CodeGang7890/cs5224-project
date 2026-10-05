@@ -125,7 +125,7 @@ function StepCard({ index, step }: { index: number; step: FlowStepDebug }) {
         </span>
         {step.go_back ? (
           <Badge variant="outline" className="border-amber-500/50 text-amber-700 dark:text-amber-400">
-            <Undo2 /> Go back
+            <Undo2 /> {step.go_back_to ? `Went back to ${step.go_back_to}` : 'Go back'}
           </Badge>
         ) : step.complete ? (
           <Badge variant="outline" className="border-emerald-500/50 text-emerald-700 dark:text-emerald-400">
