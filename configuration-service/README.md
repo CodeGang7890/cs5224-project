@@ -447,6 +447,9 @@ DJANGO_SUPERUSER_PASSWORD=123 python manage.py createsuperuser --noinput --usern
 | `DJANGO_SECRET_KEY` | insecure dev key (only when `DEBUG` is on) | Must be set when `DEBUG` is off. |
 | `DJANGO_ALLOWED_HOSTS` | `localhost,127.0.0.1` | Comma-separated hostnames the server responds to. |
 | `DJANGO_CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Comma-separated origins allowed to call the API from a browser. The default is the `frontend-app` Vite dev server. |
+| `DJANGO_DB_ENGINE` | `sqlite` | `sqlite` (`db.sqlite3`, for running without Docker) or `postgresql` (used by `docker-compose.yml`). |
+| `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT` | `configuration_service`, `postgres`, empty, `localhost`, `5432` | The PostgreSQL connection, when `DJANGO_DB_ENGINE=postgresql`. |
+| `OLLAMA_HOST` | `http://localhost:11434` | The Ollama server for chat (Docker uses `http://host.docker.internal:11434`, the host machine). |
 
 ## Connecting from frontend-app
 

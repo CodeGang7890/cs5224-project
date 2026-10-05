@@ -14,6 +14,8 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -103,12 +105,31 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+# DJANGO_DB_ENGINE picks the database: `sqlite` (the default: db.sqlite3, for running locally
+# without Docker) or `postgresql` (e.g. in docker-compose), configured by the POSTGRES_* variables
+# (the same names the official postgres image uses).
+DB_ENGINE = os.getenv('DJANGO_DB_ENGINE', 'sqlite').lower()
+
+if DB_ENGINE == 'postgresql':
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('POSTGRES_DB', 'configuration_service'),
+            'USER': os.getenv('POSTGRES_USER', 'postgres'),
+            'PASSWORD': os.getenv('POSTGRES_PASSWORD', ''),
+            'HOST': os.getenv('POSTGRES_HOST', 'localhost'),
+            'PORT': os.getenv('POSTGRES_PORT', '5432'),
+        }
     }
-}
+elif DB_ENGINE == 'sqlite':
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
+else:
+    raise ImproperlyConfigured(f"DJANGO_DB_ENGINE must be 'sqlite' or 'postgresql', not {DB_ENGINE!r}.")
 
 
 # Password validation

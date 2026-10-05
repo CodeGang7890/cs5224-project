@@ -1,0 +1,41 @@
+# Local development: PostgreSQL + configuration-service (Django, http://localhost:8000).
+# Every start resets the database and loads all sample fixtures (configuration-service/docker-entrypoint.sh).
+
+x-postgres-env: &postgres-env
+  POSTGRES_DB: configuration_service
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: postgres
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment: *postgres-env
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"  # 5433 on the host, so it doesn't clash with a local PostgreSQL
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d configuration_service"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
+  configuration-service:
+    build: ./configuration-service
+    ports:
+      - "8000:8000"
+    environment:
+      <<: *postgres-env
+      DJANGO_DB_ENGINE: postgresql
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      # Ollama runs on the host machine, not in Docker.
+      OLLAMA_HOST: http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # for Linux; Docker Desktop has it already
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres-data:

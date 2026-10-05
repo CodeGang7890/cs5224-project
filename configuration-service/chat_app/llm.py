@@ -8,12 +8,14 @@ or sampling hyperparameters. The prompts for customer chats live in prompts.py.
 """
 
 import json
+import os
 
 import httpx
 from ollama import Client, ResponseError
 
 # --- Ollama (local LLM server) ------------------------------------------------------------
-OLLAMA_HOST = 'http://localhost:11434'
+# OLLAMA_HOST overrides it, e.g. http://host.docker.internal:11434 to reach the host from Docker.
+OLLAMA_HOST = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
 OLLAMA_MODEL = 'qwen2.5:7b-instruct-q4_K_M'
 # Local models can be slow, especially on the first request while the model loads.
 OLLAMA_TIMEOUT_SECONDS = 120
