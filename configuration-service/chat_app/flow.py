@@ -210,8 +210,11 @@ def advance(
                 'Confirmation reached with this message: not checked until the customer has seen the summary.'
             )
             break
-        # One go-back per message, so it can't bounce between steps.
-        targets = [] if turn.went_back_to else go_back_targets(chat_config, block)
+        # Going back is only offered at the block the chat was at when this message arrived. A block
+        # reached during this message (e.g. Details collection, right after "That's all" finished
+        # Product selection) would otherwise read the message that completed the earlier step as a
+        # request to go back to it. This also means one go-back per message at most.
+        targets = [] if entered_now else go_back_targets(chat_config, block)
         system_prompt = prompts.build_extraction_prompt(
             chat_config.business, block, turn.data, products, labels, go_back=targets
         )

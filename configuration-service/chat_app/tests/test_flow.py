@@ -570,7 +570,7 @@ class SendMessageFlowTests(APITestCase):
         validate_chat_messages(self.session.chat_message_json)
         self.assertEqual(response.json()['message'], 'May I have your name and email?')
         # No LLM call for the block itself: one extraction each for product selection and details.
-        self.assertEqual([c['format']['required'] for c in self.calls(structured=True)], [['items', 'done_choosing'], ['name', 'email', 'go_back_to']])
+        self.assertEqual([c['format']['required'] for c in self.calls(structured=True)], [['items', 'done_choosing'], ['name', 'email']])  # no going back from a block reached this turn
         # The reply knows what was just sent, and sees it as the last assistant message.
         prompt = self.reply_prompt()
         self.assertIn('## Just sent', prompt)
@@ -580,6 +580,29 @@ class SendMessageFlowTests(APITestCase):
         self.assertEqual(reply_history[-1], {'role': 'assistant', 'content': 'Great choice! Now a couple of quick questions.'})
         debug = response.json()['debug']
         self.assertEqual(debug['sent_messages'], [{'block_id': 5, 'message': 'Great choice! Now a couple of quick questions.'}])
+
+    def test_does_not_go_back_from_details_right_after_product_selection(self):
+        # Regression: "That's all" finished Product selection, the Send message went out, and the
+        # Details collection extraction (same message) read it as "go back to product selection".
+        response = self.send(
+            "That's all",
+            {'items': [{'product_id': self.kopi.pk, 'quantity': 2}], 'done_choosing': True},
+            {'name': None, 'email': None, 'go_back_to': 'product_selection'},  # even if the model says so
+            reply='May I have your name and email?',
+        )
+        self.assertEqual(self.session.chat_state_id, 'details')
+        self.assertTrue(self.session.chat_state_data['items_confirmed'])
+        details_extraction = self.calls(structured=True)[1]
+        self.assertNotIn('go_back_to', details_extraction['format']['properties'])
+        self.assertNotIn('Going back', details_extraction['messages'][0]['content'])
+        self.assertEqual([step['go_back_to'] for step in response.json()['debug']['steps']], [None, None])
+        self.assertIn('Current step: Details collection', self.reply_prompt())
+        self.assertIn('## Still needed\n- Name\n- Email', self.reply_prompt())
+
+        # On the next message, from Details collection, going back is offered again.
+        self.send('Alice', {'name': 'Alice', 'email': None, 'go_back_to': None})
+        properties = self.calls(structured=True)[0]['format']['properties']
+        self.assertEqual(properties['go_back_to']['anyOf'][0]['enum'], ['product_selection'])
 
     def test_last_block_message_is_the_last_word(self):
         self.session.chat_state_id = 4
