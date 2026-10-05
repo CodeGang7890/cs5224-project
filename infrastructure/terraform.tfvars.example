@@ -1,0 +1,6 @@
+# Copy to terraform.tfvars and fill in tags as images get pushed.
+# Services left out run the placeholder "hello" image.
+image_tags = {
+  # "configuration-service" = "abc1234"
+  # "messaging-service"     = "abc1234"
+}

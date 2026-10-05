@@ -575,3 +575,16 @@ AI Model Used: claude-opus-5-5
 Original Prompt:
 Please dont make it flush the db for every docker compose run, maybe make it optional in a variable in docker-compose, by default it's False.                                                                                                                        
 So when I restart my laptop and rerun docker compose, the db mounted is still not gone.                                                                                                                                                                           But optionally I can set it to true to remove everything.
+
+Date & Time (GMT+8): 2026-10-05 19:45:40
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+I now want to use Terraform for IaaC in GCP.
+Use asia-southeast1 (Singapore_ region for everything.
+I just want single environment for now (no separate dev/test/prod).
+Create a folder “infrastructure”, inside I want you to write Terraform code for these:
+- Artefact Registry that holds images for 5 different applications: configuration-service, messaging-service, processing-service, payment-ingester, messaging-ingester; configure the cleanup policy to only keep say the recent 3 image versions and delete if unused after 7 days
+- Cloud SQL (please use the lowest tier like micro or something), no need backup or anything fancy as of now, just as basic as it can gets, stores password as cloud-sql-db-password or something in secret manager
+- Secret Manager as of now should contain the db password only, other things like Django secret key etc can go later
+- 5 Cloud Run services, for the applications listed in the artefacts registry above, use the lowest possible memory and cpu as for now, make the max_instance_count = 1 for everything except for messaging-service (make it have max instance of 2); use variable map to know the docker image but have a placeholder docker image as a fallback (like a hello world app or anything would do); ignore security first as of now and configure the ingress and egress to allow everything

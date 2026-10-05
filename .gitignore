@@ -69,6 +69,16 @@ dist-ssr/
 .eslintcache
 coverage/
 
+# --- Terraform --------------------------------------------------------------------------
+# .terraform.lock.hcl stays tracked so everyone gets the same provider versions.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+*.tfplan
+
 # --- Logs and temporary files -----------------------------------------------------------
 logs/
 *.log
