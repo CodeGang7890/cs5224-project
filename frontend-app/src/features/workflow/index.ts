@@ -1,4 +1,5 @@
 // Public API of the workflow (chat configuration) feature.
+export { BLOCK_META } from './blocks'
 export { WorkflowBuilder } from './components/workflow-builder'
 export {
   chatConfigurationKeys,

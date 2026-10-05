@@ -168,7 +168,7 @@ All of these require you to be logged in.
 | `GET` / `POST` | `/api/chat/sandbox-sessions/` | List / start your business's sandbox (test) chat sessions |
 | `DELETE` | `/api/chat/sandbox-sessions/{id}/` | Delete one of your sandbox chat sessions |
 | `POST` | `/api/chat/sandbox-sessions/{id}/messages/` | `{message}` → the assistant's reply, in one of your sandbox chat sessions |
-| `GET` | `/api/chat/sessions/` | Your business's real (non-sandbox) chat sessions, with filters, sorting and pagination. See [Chat sessions](#chat-sessions) |
+| `GET` | `/api/chat/sessions/` | Your business's chat sessions (real ones by default; `sandbox=include` or `only` for test chats), with filters, sorting and pagination. See [Chat sessions](#chat-sessions) |
 | `POST` | `/api/chat/sessions/messages/` | `{business_id, phone_number, message}` → the assistant's reply. Public (no login), for the Chat Sandbox / future webhook. See [Chat sessions](#chat-sessions) |
 | `POST` | `/api/chat/sessions/` | `{phone_number, display_name}` → the new chat session (201). See [Chat sessions](#chat-sessions) |
 | `PUT` | `/api/chat/configuration/` | `{config_json}`: replace your business's chat flow (validated). Creates it (201) if missing, otherwise 200 |
@@ -197,10 +197,11 @@ Each business has at most one chat configuration. Both endpoints need a login an
 
 Errors: 400 for an invalid phone number, a phone number that already has a session with your business, or a business with no chat configuration yet (set up the workflow first). 403 if your account isn't linked to a business.
 
-`GET /api/chat/sessions/` (login required) lists your business's real (non-sandbox) sessions, including each conversation. All query parameters are optional and combine:
+`GET /api/chat/sessions/` (login required) lists your business's sessions, including each conversation. By default only real customer chats; `frontend-app`'s Chats tab uses it. All query parameters are optional and combine:
 
 | Parameter | What it does |
 | --- | --- |
+| `sandbox` | `exclude` (default: real customer chats only), `include` (real and sandbox chats) or `only` (sandbox chats only) |
 | `phone_number` | Exact phone number, e.g. `%2B6591234567` (URL-encode the `+`) |
 | `search` | Case-insensitive text in the display name or phone number |
 | `display_name` | Case-insensitive text in the display name |
@@ -232,7 +233,7 @@ Test chats a business starts itself (e.g. from the Chat Sandbox), separate from 
 - `DELETE /api/chat/sandbox-sessions/{id}/`: deletes the session and its conversation (204). Another business's session → 403; a real customer session → 400 ("Only sandbox chat sessions can be deleted here."); unknown ID → 404.
 - `POST /api/chat/sandbox-sessions/{id}/messages/`: `{message}`. Same flow as the customer message endpoint below (save the message as `customer`, ask the LLM, save and return the `business-automated` reply; the message is kept if the LLM fails), with the same 403/400/404 rules as delete. `frontend-app`'s Chat Sandbox uses this.
 
-Sandbox sessions are left out of `GET /api/chat/sessions/`, and `POST /api/chat/sessions/messages/` only finds real sessions.
+Sandbox sessions are left out of `GET /api/chat/sessions/` unless you ask for them with `sandbox=include` or `sandbox=only`, and `POST /api/chat/sessions/messages/` only finds real sessions.
 
 ### Access rules
 

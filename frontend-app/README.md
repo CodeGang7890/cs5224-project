@@ -55,7 +55,7 @@ Then open the URL Vite prints, usually <http://localhost:5173>.
 | Chats | `/chats` |
 | Chat Sandbox | `/chat-sandbox` |
 
-Home shows a random number fetched from `configuration-service` (see [Connecting to configuration-service](#connecting-to-configuration-service)). **Product** and **FAQ** let you add, edit and delete your business's products and FAQs (see [Managing products and FAQs](#managing-products-and-faqs)). **Workflow** is a drag-and-drop editor for your business's chat flow (see [Editing the chat workflow](#editing-the-chat-workflow)). **Chat Sandbox** lets you chat with your assistant as a pretend customer (see [Chat Sandbox](#chat-sandbox)). The other pages are placeholders for now. Workflow, Product, FAQ and Chat Sandbox require login: when you're logged out, they show "You need to be logged in to access this page" with a Log In button (see [Login-protected pages](#login-protected-pages)).
+Home shows a random number fetched from `configuration-service` (see [Connecting to configuration-service](#connecting-to-configuration-service)). **Product** and **FAQ** let you add, edit and delete your business's products and FAQs (see [Managing products and FAQs](#managing-products-and-faqs)). **Workflow** is a drag-and-drop editor for your business's chat flow (see [Editing the chat workflow](#editing-the-chat-workflow)). **Chats** lists your business's conversations, read only (see [Chats](#chats)). **Chat Sandbox** lets you chat with your assistant as a pretend customer (see [Chat Sandbox](#chat-sandbox)). The other pages are placeholders for now. Workflow, Product, FAQ, Chats and Chat Sandbox require login: when you're logged out, they show "You need to be logged in to access this page" with a Log In button (see [Login-protected pages](#login-protected-pages)).
 
 The top right shows **Log In** when you're logged out. When you're logged in, it shows your username, a profile icon and **Log Out** (see [Authentication](#authentication)). The profile modal's open state is kept in the URL as `?profile`, so you can link to it directly and the browser's back button closes it.
 
@@ -104,6 +104,18 @@ The **Workflow** tab (login required) edits your business's chat configuration o
 - The toolbar warns about blocks that can't be reached from Start. They can still be saved.
 - Leaving the tab, or closing or reloading the page, with unsaved changes asks you to confirm first.
 - Accounts without a business (e.g. `superuser`) see a message instead of the editor.
+
+## Chats
+
+The **Chats** tab (login required) is a **read-only** list of your business's chats from `GET /api/chat/sessions/`. There's no editing or deleting here.
+
+- **Columns:** customer (name, phone number, a *Sandbox* badge for test chats), current step in your workflow, number of messages, last message, last chat time and start date.
+- **Click a row** (or the eye icon) to read the whole conversation in a dialog. Business messages are on the right, labelled *Assistant* (automated) or *Business* (typed by a person).
+- **Search** by name or phone number (as you type).
+- **Filters:** which chats (*Customer chats*, the default; *Customer + sandbox*; *Sandbox only*), current step (from your workflow), with or without messages, last-chat date range and start date range. **Clear filters** resets them.
+- **Sort by** most recent or oldest chat, newest or oldest started, name (A–Z / Z–A) or phone number.
+- **Pagination:** previous / next, "Page X of Y", and 10, 20, 50 or 100 per page.
+- Everything is kept in the URL (e.g. `/chats?sandbox=include&ordering=display_name&page=2`), so you can refresh, share a link or use the back button. The open conversation is `?chat=<id>`.
 
 ## Chat Sandbox
 

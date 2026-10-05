@@ -753,6 +753,23 @@ class ChatSessionListFilteringAPITests(APITestCase):
         self.client.force_authenticate(BusinessUser.objects.get(username='bloom_owner'))
         self.assertEqual(self.ids(), [5, 4])
 
+    def test_sandbox_filter(self):
+        self.assertEqual(self.ids({'sandbox': 'exclude'}), self.ALL)
+        self.assertEqual(self.ids({'sandbox': 'only'}), [8, 7])
+        # Sandbox chats 8 (6 Sep 15:30) and 7 (5 Sep 10:01) slot in by last chat time.
+        self.assertEqual(self.ids({'sandbox': 'include'}), [16, 15, 14, 13, 12, 11, 8, 10, 7, 9, 3, 2, 1])
+
+    def test_sandbox_filter_combines_with_others(self):
+        self.assertEqual(self.ids({'sandbox': 'include', 'chat_state_id': 1}), [13, 12, 8, 3])
+        self.assertEqual(self.ids({'sandbox': 'only', 'search': 'sandbox'}), [7])
+        body = self.client.get(self.url, {'sandbox': 'include', 'page_size': 5}).json()
+        self.assertEqual((body['count'], body['total_pages']), (13, 3))
+
+    def test_invalid_sandbox_value_returns_400(self):
+        response = self.client.get(self.url, {'sandbox': 'yes'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('sandbox', response.json())
+
     # --- Pagination -----------------------------------------------------------------
 
     def test_first_page(self):

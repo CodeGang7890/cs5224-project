@@ -12,3 +12,12 @@ export interface Paginated<T> {
   previous: string | null
   results: T[]
 }
+
+/** configuration-service `DetailedPageNumberPagination` (lists with `page` + `page_size`). */
+export interface DetailedPaginated<T> extends Paginated<T> {
+  total_pages: number
+  current_page: number
+  page_size: number
+  has_next: boolean
+  has_previous: boolean
+}

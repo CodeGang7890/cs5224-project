@@ -1,26 +1,39 @@
 import {
+  keepPreviousData,
   useInfiniteQuery,
   useIsMutating,
   useMutation,
+  useQuery,
   useQueryClient,
   type InfiniteData,
   type QueryClient,
 } from '@tanstack/react-query'
 
-import type { ApiError, Paginated } from '@/types/api'
+import type { ApiError, DetailedPaginated, Paginated } from '@/types/api'
 
 import {
   createSandboxSession,
   deleteSandboxSession,
+  listChatSessions,
   listSandboxSessions,
   sendSandboxMessage,
 } from '../api/chat-sessions-api'
-import type { ChatMessage, ChatSession, SandboxChatSessionInput } from '../types'
+import type { ChatMessage, ChatSession, ChatSessionListParams, SandboxChatSessionInput } from '../types'
 
 export const chatSessionKeys = {
   all: ['chat-sessions'] as const,
+  list: (params: ChatSessionListParams) => [...chatSessionKeys.all, 'list', params] as const,
   sandboxList: () => [...chatSessionKeys.all, 'sandbox', 'list'] as const,
   sendSandboxMessage: (sessionId: number) => [...chatSessionKeys.all, 'sandbox', 'send', sessionId] as const,
+}
+
+/** One page of chat sessions for the Chats tab (keeps showing the previous page while loading). */
+export function useChatSessions(params: ChatSessionListParams) {
+  return useQuery<DetailedPaginated<ChatSession>, ApiError>({
+    queryKey: chatSessionKeys.list(params),
+    queryFn: () => listChatSessions(params),
+    placeholderData: keepPreviousData,
+  })
 }
 
 type SessionPages = InfiniteData<Paginated<ChatSession>, number>

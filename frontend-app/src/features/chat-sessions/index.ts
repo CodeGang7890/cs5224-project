@@ -1,10 +1,20 @@
-// Public API of the chat sessions feature (Chat Sandbox for now).
+// Public API of the chat sessions feature (Chats tab + Chat Sandbox).
 export { ChatSandbox } from './components/chat-sandbox'
+export { ChatSessionBrowser } from './components/chat-session-browser'
 export {
   chatSessionKeys,
+  useChatSessions,
   useCreateSandboxSession,
   useDeleteSandboxSession,
   useSandboxSessions,
   useSendSandboxMessage,
 } from './hooks/use-chat-sessions'
-export type { ChatMessage, ChatSession, SandboxChatSessionInput, SentBy } from './types'
+export type {
+  ChatMessage,
+  ChatSession,
+  ChatSessionListParams,
+  ChatSessionOrdering,
+  SandboxChatSessionInput,
+  SandboxFilter,
+  SentBy,
+} from './types'

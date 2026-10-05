@@ -208,18 +208,18 @@ class ChatSessionListView(generics.ListCreateAPIView):
         if getattr(self, 'swagger_fake_view', False):  # schema generation: no real user
             return ChatSession.objects.none()
         business = get_user_business(self.request)
-        # Default order; `?ordering=` (ChatSessionFilter) replaces it.
-        return ChatSession.objects.filter(business=business, is_sandbox=False).order_by(
-            '-last_chat_time', '-id'
-        )
+        # Default order; `?ordering=` (ChatSessionFilter) replaces it. Sandbox sessions are
+        # excluded by ChatSessionFilter unless `?sandbox=include|only`.
+        return ChatSession.objects.filter(business=business).order_by('-last_chat_time', '-id')
 
     @extend_schema(
         tags=['Chat sessions'],
-        summary="List your business's chat sessions",
+        summary="List your business's chat sessions (filter, sort, paginate)",
         description=(
-            'Real (non-sandbox) chat sessions of your business, including each conversation '
-            '(`chat_message_json`). Most recent chat first unless `ordering` is given.\n\n'
-            '**Filters** (optional, combined with AND): `phone_number` (exact), `search`, '
+            'Chat sessions of your business, including each conversation (`chat_message_json`). '
+            'Real customer chats only, unless `sandbox=include` (real and sandbox) or `sandbox=only`. '
+            'Most recent chat first unless `ordering` is given.\n\n'
+            '**Filters** (optional, combined with AND): `sandbox`, `phone_number` (exact), `search`, '
             '`display_name`, `chat_state_id`, `has_messages`, `created_time_after` / '
             '`created_time_before`, `last_chat_time_after` / `last_chat_time_before`.\n\n'
             '**Sorting:** `ordering`, e.g. `display_name` or `-created_time`.\n\n'

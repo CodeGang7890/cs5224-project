@@ -1,7 +1,13 @@
 import { configurationApiClient } from '@/lib/api-client'
-import type { Paginated } from '@/types/api'
+import type { DetailedPaginated, Paginated } from '@/types/api'
 
-import type { ChatMessage, ChatSession, SandboxChatSessionInput } from '../types'
+import type { ChatMessage, ChatSession, ChatSessionListParams, SandboxChatSessionInput } from '../types'
+
+/** The logged-in business's chat sessions, filtered, sorted and paginated by the backend. */
+export async function listChatSessions(params: ChatSessionListParams): Promise<DetailedPaginated<ChatSession>> {
+  const { data } = await configurationApiClient.get<DetailedPaginated<ChatSession>>('/chat/sessions/', { params })
+  return data
+}
 
 // Sandbox (test) chat sessions of the logged-in user's business.
 

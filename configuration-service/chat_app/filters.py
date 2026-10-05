@@ -15,8 +15,25 @@ class StableOrderingFilter(django_filters.OrderingFilter):
         return qs
 
 
+SANDBOX_EXCLUDE = 'exclude'
+SANDBOX_INCLUDE = 'include'
+SANDBOX_ONLY = 'only'
+
+
 class ChatSessionFilter(django_filters.FilterSet):
-    """Filters and sorting for GET /api/chat/sessions/. All parameters are optional and combine (AND)."""
+    """Filters and sorting for GET /api/chat/sessions/. All parameters are optional and combine (AND).
+
+    Sandbox (test) sessions are left out unless `sandbox=include` or `sandbox=only`.
+    """
+
+    sandbox = django_filters.ChoiceFilter(
+        choices=[(SANDBOX_EXCLUDE, SANDBOX_EXCLUDE), (SANDBOX_INCLUDE, SANDBOX_INCLUDE), (SANDBOX_ONLY, SANDBOX_ONLY)],
+        method='filter_sandbox',
+        help_text=(
+            'Sandbox (test) chats: `exclude` (the default: real customer chats only), `include` '
+            '(real and sandbox chats) or `only` (sandbox chats only).'
+        ),
+    )
 
     phone_number = django_filters.CharFilter(help_text='Exact phone number, e.g. `+6591234567` (URL-encode `+` as `%2B`).')
     search = django_filters.CharFilter(
@@ -51,6 +68,20 @@ class ChatSessionFilter(django_filters.FilterSet):
     class Meta:
         model = ChatSession
         fields = ['phone_number', 'display_name', 'chat_state_id', 'created_time', 'last_chat_time']
+
+    def filter_queryset(self, queryset):
+        queryset = super().filter_queryset(queryset)
+        # No `sandbox` parameter: same as `sandbox=exclude`.
+        if not self.form.cleaned_data.get('sandbox'):
+            queryset = queryset.filter(is_sandbox=False)
+        return queryset
+
+    def filter_sandbox(self, queryset, name, value):
+        if value == SANDBOX_ONLY:
+            return queryset.filter(is_sandbox=True)
+        if value == SANDBOX_EXCLUDE:
+            return queryset.filter(is_sandbox=False)
+        return queryset  # include
 
     def filter_search(self, queryset, name, value):
         return queryset.filter(Q(display_name__icontains=value) | Q(phone_number__icontains=value))

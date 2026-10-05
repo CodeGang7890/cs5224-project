@@ -411,3 +411,15 @@ Make me a .gitignore, putting .idea etc inside it.
 Also put .claude.local file inside it.
 Also add other common files and folders that are usually included in a gitignore there too.
 This is the .gitignore in the root directory. There’re already .gitignore for specific applications already inside the folder.
+
+Date & Time (GMT+8): 2026-09-29 20:00:16
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+Work on frontend-app and configuration-service (whenever extra API change is required).
+Now on the “Chats” tab, make it only accessible when you’re logged in.
+Now on that tab retrieve all ChatSession (both sandbox and not sandbox).
+Add pagination, filter, and sort on that page, based on whatever capabilities the backend allows you to do.
+Currently it is a READ ONLY page.
+No edit or delete functionality is allowed here.
+By default, sandbox chat is filtered out.

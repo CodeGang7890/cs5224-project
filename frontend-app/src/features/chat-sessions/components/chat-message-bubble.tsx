@@ -1,26 +1,38 @@
-import { Bot, UserRound } from 'lucide-react'
+import { Bot, Store, UserRound } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
-import type { ChatMessage } from '../types'
+import type { ChatMessage, SentBy } from '../types'
 
-const BUSINESS_SENDER = {
+const SENDER: Record<SentBy, { label: string; icon: typeof Bot }> = {
+  customer: { label: 'Customer', icon: UserRound },
   'business-automated': { label: 'Assistant', icon: Bot },
-  'business-manual': { label: 'Business', icon: UserRound },
-} as const
+  'business-manual': { label: 'Business', icon: Store },
+}
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-/** One message. The customer (you, in the sandbox) is on the right; the business on the left. */
-export function ChatMessageBubble({ message }: { message: ChatMessage }) {
+interface ChatMessageBubbleProps {
+  message: ChatMessage
+  /**
+   * Whose side "you" are on. `customer` (Chat Sandbox): your customer messages on the right.
+   * `business` (Chats tab): the business's messages on the right, each labelled Assistant or Business.
+   */
+  perspective?: 'customer' | 'business'
+}
+
+/** One chat message bubble. */
+export function ChatMessageBubble({ message, perspective = 'customer' }: ChatMessageBubbleProps) {
   const fromCustomer = message.sent_by === 'customer'
-  const sender = message.sent_by === 'customer' ? null : BUSINESS_SENDER[message.sent_by]
+  const onRight = perspective === 'customer' ? fromCustomer : !fromCustomer
+  const sender = SENDER[message.sent_by]
+  const showSender = !onRight || perspective === 'business'
 
   return (
-    <li className={cn('flex gap-2', fromCustomer ? 'justify-end' : 'justify-start')}>
-      {sender && (
+    <li className={cn('flex gap-2', onRight ? 'flex-row-reverse' : 'flex-row')}>
+      {showSender && (
         <div className="bg-muted text-muted-foreground mt-auto flex size-7 shrink-0 items-center justify-center rounded-full">
           <sender.icon className="size-4" />
         </div>
@@ -28,16 +40,17 @@ export function ChatMessageBubble({ message }: { message: ChatMessage }) {
       <div
         className={cn(
           'max-w-[75%] rounded-2xl px-3.5 py-2 text-sm shadow-xs',
-          fromCustomer ? 'bg-primary text-primary-foreground rounded-br-sm' : 'bg-muted rounded-bl-sm',
+          onRight ? 'bg-primary text-primary-foreground rounded-br-sm' : 'bg-muted rounded-bl-sm',
         )}
       >
-        {sender && <p className="text-muted-foreground mb-0.5 text-xs font-medium">{sender.label}</p>}
+        {showSender && (
+          <p className={cn('mb-0.5 text-xs font-medium', onRight ? 'text-primary-foreground/70' : 'text-muted-foreground')}>
+            {sender.label}
+          </p>
+        )}
         <p className="break-words whitespace-pre-wrap">{message.message}</p>
         <p
-          className={cn(
-            'mt-1 text-right text-[11px]',
-            fromCustomer ? 'text-primary-foreground/70' : 'text-muted-foreground',
-          )}
+          className={cn('mt-1 text-right text-[11px]', onRight ? 'text-primary-foreground/70' : 'text-muted-foreground')}
           title={new Date(message.message_time).toLocaleString()}
         >
           {formatTime(message.message_time)}
