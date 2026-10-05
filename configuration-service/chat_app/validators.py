@@ -271,7 +271,7 @@ def validate_chat_messages(value) -> None:
 
 # --- ChatSession.chat_state_data ----------------------------------------------------------
 
-STATE_DATA_FIELDS = {'items', 'details', 'completed', 'order_id'}
+STATE_DATA_FIELDS = {'items', 'items_confirmed', 'details', 'completed', 'order_id'}
 STATE_ITEM_FIELDS = {'product_id', 'name', 'unit_price', 'quantity'}
 
 
@@ -286,6 +286,8 @@ def validate_chat_state_data(value) -> None:
     - ``items``: the products the customer chose, each ``{product_id, name, unit_price, quantity}``
       (``name`` / ``unit_price`` are a snapshot taken when chosen; ``unit_price`` is a decimal string
       like ``"5.50"``; ``quantity`` is at least 1).
+    - ``items_confirmed``: true once the customer said the items are everything they want (cleared
+      when the items change).
     - ``details``: the collected customer details, by field key (e.g. ``{"name": "Alice",
       "postal_code": 123456}``): non-blank strings or numbers.
     - ``completed``: true once the customer confirmed and the flow reached its last block.
@@ -329,8 +331,9 @@ def validate_chat_state_data(value) -> None:
             elif not (_is_number(detail) or (isinstance(detail, str) and detail.strip())):
                 errors.append(f'details: {key} must be a non-blank string or a number.')
 
-    if not isinstance(value.get('completed', False), bool):
-        errors.append('completed must be true or false.')
+    for flag in ('items_confirmed', 'completed'):
+        if not isinstance(value.get(flag, False), bool):
+            errors.append(f'{flag} must be true or false.')
     if 'order_id' in value and (not _is_int(value['order_id']) or value['order_id'] < 1):
         errors.append('order_id must be a positive integer.')
 

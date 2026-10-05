@@ -485,6 +485,7 @@ class ChatSessionModelTests(TestCase):
 VALID_STATE_DATA = {
     'items': [{'product_id': 1, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 2}],
     'details': {'name': 'Alice', 'email': 'alice@example.com'},
+    'items_confirmed': True,
     'completed': False,
 }
 
@@ -522,6 +523,7 @@ class ValidateChatStateDataTests(SimpleTestCase):
             'bool detail': ({'details': {'agreed': True}}, 'details: agreed must be a non-blank string or a number'),
             'list detail': ({'details': {'notes': ['a']}}, 'details: notes must be a non-blank string or a number'),
             'completed not bool': ({'completed': 'yes'}, 'completed must be true or false'),
+            'items_confirmed not bool': ({'items_confirmed': 1}, 'items_confirmed must be true or false'),
         }
         for label, (value, message_part) in cases.items():
             with self.subTest(label):

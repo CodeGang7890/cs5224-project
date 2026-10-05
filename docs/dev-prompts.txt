@@ -495,3 +495,13 @@ order_status can also be payment_received and order_completed, but we’ll get t
 In the frontend, add a new tab called “Orders”.
 Make it so business owners can see all the Orders for their business through the frontend-app.
 Add proper test cases to the API as always, to make sure handle 403 or 404 errors.
+
+Date & Time (GMT+8): 2026-10-05 14:50:27
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+For the PRODUCT_SELECTION state, I want you to add in the prompt to ask a confirmation first to the user whether all the products is ok before proceeding to the next state.
+What happens now is once the user say anything, it automatically takes the order and go to “DETAILS_COLLECTION” state.
+What I want is pause, reiterate what the user orders, ask if the user wants anything else and confirm if they still want to add more things or they’re done before going to the next state which is details collection.
+You may want to add a new field in the json that indicates from customers message whether they're done or not, and use the deterministic checks after it.
+Please change the system prompt for that stage to do this functionality.

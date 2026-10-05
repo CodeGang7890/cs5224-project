@@ -48,6 +48,9 @@ from .validators import DETAIL_TEXT_DEFAULT_MAX_LENGTH, block_detail_fields, val
 HISTORY_MAX_MESSAGES = 20
 EMAIL_MAX_LENGTH = 254
 PRODUCTS_MISSING = 'which products, and how many of each'
+PRODUCTS_CONFIRMATION_MISSING = (
+    'the customer to confirm that this is everything they want (recap the order and ask if they want anything else)'
+)
 
 
 @dataclass
@@ -209,38 +212,58 @@ def check_start(extracted: dict, data: dict, products: list[dict], block: dict) 
 
 
 def check_product_selection(extracted: dict, data: dict, products: list[dict], block: dict) -> CheckResult:
-    """Complete when every chosen product is on sale, with a quantity that's in stock."""
-    by_id = {product['id']: product for product in products}
-    raw_items = extracted.get('items')
-    if not isinstance(raw_items, list) or not raw_items:
-        # Nothing (new) chosen: keep an earlier choice, e.g. when coming back after a "change".
-        if data.get('items'):
-            return CheckResult(complete=True)
-        return CheckResult(complete=False, missing=[PRODUCTS_MISSING])
+    """Complete when the customer has confirmed a valid order is everything they want.
 
-    items, issues = [], []
-    for raw in raw_items:
-        if not isinstance(raw, dict):
-            continue
-        product = by_id.get(_as_int(raw.get('product_id')))
-        quantity = _as_int(raw.get('quantity'))
-        if product is None:
-            issues.append('One of the products the customer asked for is not on sale.')
-        elif quantity is None or quantity < 1:
-            issues.append(f'The customer has not said how many {product["name"]} they want.')
-        elif quantity > product['quantity_available']:
-            issues.append(f'Only {product["quantity_available"]} {product["name"]} are available.')
-        else:
-            items.append({
-                'product_id': product['id'],
-                'name': product['name'],
-                'unit_price': product['price'],
-                'quantity': quantity,
-            })
-    if items:
-        data['items'] = items
-    complete = bool(items) and not issues
-    return CheckResult(complete=complete, missing=[] if complete else [PRODUCTS_MISSING], issues=issues)
+    Every chosen product must be on sale, with a quantity that's in stock. Then the customer must
+    say they're done (`done_choosing`) about the cart as it already was, so they've seen it
+    recapped: a message that adds or changes items ("2 Kopi C, that's all") gets a recap first.
+    Once confirmed, `items_confirmed` is kept until the cart changes, so coming back here after a
+    "change" at confirmation (e.g. to fix an email) passes straight through.
+    """
+    by_id = {product['id']: product for product in products}
+    previous = data.get('items', [])
+    raw_items = extracted.get('items')
+    issues = []
+    if isinstance(raw_items, list) and raw_items:
+        items = []
+        for raw in raw_items:
+            if not isinstance(raw, dict):
+                continue
+            product = by_id.get(_as_int(raw.get('product_id')))
+            quantity = _as_int(raw.get('quantity'))
+            if product is None:
+                issues.append('One of the products the customer asked for is not on sale.')
+            elif quantity is None or quantity < 1:
+                issues.append(f'The customer has not said how many {product["name"]} they want.')
+            elif quantity > product['quantity_available']:
+                issues.append(f'Only {product["quantity_available"]} {product["name"]} are available.')
+            else:
+                items.append({
+                    'product_id': product['id'],
+                    'name': product['name'],
+                    'unit_price': product['price'],
+                    'quantity': quantity,
+                })
+        if items:
+            data['items'] = items
+    # Nothing (new) chosen: the earlier choice stands.
+
+    if _cart(data.get('items', [])) != _cart(previous):
+        data.pop('items_confirmed', None)  # a changed cart must be confirmed again
+        changed = True
+    else:
+        changed = False
+    if not data.get('items') or issues:
+        return CheckResult(complete=False, missing=[PRODUCTS_MISSING], issues=issues)
+    if not changed and (extracted.get('done_choosing') is True or data.get('items_confirmed')):
+        data['items_confirmed'] = True
+        return CheckResult(complete=True)
+    return CheckResult(complete=False, missing=[PRODUCTS_CONFIRMATION_MISSING])
+
+
+def _cart(items: list[dict]) -> list[tuple[int, int]]:
+    """What a cart contains, for comparing: (product_id, quantity) pairs, in product order."""
+    return sorted((item['product_id'], item['quantity']) for item in items)
 
 
 def check_details_collection(extracted: dict, data: dict, products: list[dict], block: dict) -> CheckResult:

@@ -61,8 +61,9 @@ EXTRACTION_SCHEMAS = {
                     'required': ['product_id', 'quantity'],
                 },
             },
+            'done_choosing': {'type': 'boolean'},
         },
-        'required': ['items'],
+        'required': ['items', 'done_choosing'],
     },
     CONFIRMATION_BLOCK: {
         'type': 'object',
@@ -83,7 +84,12 @@ _EXTRACTION_TASKS = {
         'Return in "items" every product the customer wants to order, each as {{"product_id", '
         '"quantity"}}. Use only ids from the list above. "quantity" is the number the customer asked '
         'for, or null if they have not said. If the customer changed their mind, return the full '
-        'updated list. Return an empty list if they have not chosen any product yet.'
+        'updated list. Return an empty list if they have not chosen any product yet.\n\n'
+        'Set "done_choosing" to true only if the customer\'s latest message says they do not want '
+        'anything else, or agrees that the order recapped by the assistant is complete (e.g. "that\'s '
+        'all", "no, that\'s it", "yes, that\'s everything"). Set it to false if they are still adding, '
+        'removing or changing products, asked a question, or have not answered whether they want '
+        'anything else.'
     ),
     DETAILS_COLLECTION_BLOCK: (
         'Extract these details about the customer, if they gave them anywhere in the conversation '
@@ -143,7 +149,11 @@ _REPLY_INSTRUCTIONS = {
         'Help the customer choose. If they have not chosen anything yet, briefly list the available '
         'products with their prices and ask what they would like and how many. If there are '
         'problems listed above (e.g. a missing quantity or an unavailable product), explain them '
-        'and ask again. Only offer products from the list.'
+        'and ask again. Only offer products from the list.\n'
+        'Once they have chosen something, do NOT move on yet: recap their order exactly as in "What we '
+        'know so far" (each item with its quantity and price, and the total), then ask whether they '
+        'would like anything else or whether that is everything. Do not ask for their name, contact '
+        'or other details yet: that comes after they confirm their order is complete.'
     ),
     DETAILS_COLLECTION_BLOCK: (
         'Briefly acknowledge their order, then ask only for the details listed under "Still needed". '

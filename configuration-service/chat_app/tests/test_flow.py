@@ -86,39 +86,52 @@ class ChatFlowAPITests(APITestCase):
         self.assertNotIn('Old Special', self.reply_prompt())  # inactive products aren't offered
         self.assertNotIn('Rose Bouquet', self.reply_prompt())  # nor another business's
 
-        # 2. Wants to order and picks a product in one message: start → product selection → details.
+        # 2. Wants to order and picks a product in one message: start → product selection, which
+        #    pauses to recap the order and ask if they want anything else (no details yet).
         response = self.send(
             "I'd like 2 Kopi C",
             {'wants_to_order': True},
-            {'items': [{'product_id': self.kopi.pk, 'quantity': 2}]},
-            {'name': None, 'email': None},
+            {'items': [{'product_id': self.kopi.pk, 'quantity': 2}], 'done_choosing': False},
         )
-        self.assertEqual(self.session.chat_state_id, 'details')
-        self.assertEqual(
-            self.session.chat_state_data,
-            {'items': [{'product_id': self.kopi.pk, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 2}]},
-        )
-        self.assertEqual(len(self.calls(structured=True)), 3)
+        self.assertEqual(self.session.chat_state_id, 2)
+        self.assertEqual(self.session.chat_state_data, {'items': [{'product_id': self.kopi.pk, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 2}]})
+        self.assertEqual(len(self.calls(structured=True)), 2)
         prompt = self.reply_prompt()
-        self.assertIn('Current step: Details collection', prompt)
-        self.assertIn('just completed: Start, Product selection', prompt)
+        self.assertIn('Current step: Product selection', prompt)
+        self.assertIn('just completed: Start', prompt)
         self.assertIn('2 × Kopi C ($1.80 each). Total: $3.60', prompt)
-        self.assertIn('## Still needed\n- Name\n- Email', prompt)
-        self.assertIn('## Details to collect\n- Name (text, at most 150 characters)\n- Email (an email address)', prompt)
+        self.assertIn('## Still needed\n- the customer to confirm that this is everything they want', prompt)
+        self.assertIn('ask whether they would like anything else', prompt)
+        self.assertNotIn('## Details to collect', prompt)
         # The sandbox reply also says what happened inside the turn, for the debug panel.
         debug = response.json()['debug']
         self.assertEqual(debug['before'], {'chat_state_id': 1, 'chat_state_data': {}})
-        self.assertEqual(debug['after']['chat_state_id'], 'details')
-        self.assertEqual(debug['after']['block_type'], 'DETAILS_COLLECTION_BLOCK')
+        self.assertEqual(debug['after']['chat_state_id'], 2)
+        self.assertEqual(debug['after']['block_type'], 'PRODUCT_SELECTION_BLOCK')
+        self.assertEqual([(step['block_id'], step['complete']) for step in debug['steps']], [(1, True), (2, False)])
         self.assertEqual(
-            [(step['block_id'], step['complete']) for step in debug['steps']], [(1, True), (2, True), ('details', False)]
+            debug['steps'][1]['extracted'], {'items': [{'product_id': self.kopi.pk, 'quantity': 2}], 'done_choosing': False}
         )
-        self.assertEqual(debug['steps'][1]['extracted'], {'items': [{'product_id': self.kopi.pk, 'quantity': 2}]})
         self.assertIn('Products on sale', debug['steps'][1]['system_prompt'])
-        self.assertEqual(debug['steps'][2]['missing'], ['Name', 'Email'])
+        self.assertIn('"done_choosing"', debug['steps'][1]['system_prompt'])
         self.assertEqual(debug['stop_reason'], 'This block is not complete yet: waiting for the customer.')
         self.assertEqual(debug['reply_system_prompt'], prompt)
         self.assertEqual(debug['tool_calls'], [])
+
+        # 2b. That's everything: product selection completes, on to details.
+        response = self.send(
+            "No, that's all",
+            {'items': [{'product_id': self.kopi.pk, 'quantity': 2}], 'done_choosing': True},
+            {'name': None, 'email': None},
+        )
+        self.assertEqual(self.session.chat_state_id, 'details')
+        self.assertEqual(self.session.chat_state_data, {'items': [{'product_id': self.kopi.pk, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 2}], 'items_confirmed': True})
+        prompt = self.reply_prompt()
+        self.assertIn('Current step: Details collection', prompt)
+        self.assertIn('just completed: Product selection', prompt)
+        self.assertIn('## Still needed\n- Name\n- Email', prompt)
+        self.assertIn('## Details to collect\n- Name (text, at most 150 characters)\n- Email (an email address)', prompt)
+        self.assertEqual(response.json()['debug']['steps'][1]['missing'], ['Name', 'Email'])
 
         # 3. Only the name: still at details, asks for the email. The name fills in display_name.
         self.send("I'm Alice", {'name': 'Alice', 'email': None})
@@ -149,8 +162,8 @@ class ChatFlowAPITests(APITestCase):
         self.assertIn('The order is confirmed and complete', self.reply_prompt())
 
         messages = self.session.chat_message_json
-        self.assertEqual(len(messages), 12)
-        self.assertEqual(messages[9]['message'], 'Thanks Alice, your order is confirmed!')
+        self.assertEqual(len(messages), 14)
+        self.assertEqual(messages[11]['message'], 'Thanks Alice, your order is confirmed!')
         validate_chat_messages(messages)
         validate_chat_state_data(self.session.chat_state_data)
         self.session.full_clean()
@@ -159,20 +172,50 @@ class ChatFlowAPITests(APITestCase):
         self.session.chat_state_id = 4
         self.session.chat_state_data = {
             'items': [{'product_id': self.kopi.pk, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 2}],
+            'items_confirmed': True,
             'details': {'name': 'Alice', 'email': 'alice@example.com'},
         }
         self.session.save()
         self.send(
             'Actually make it 3 Kaya Toast Sets',
             {'decision': 'change'},
-            {'items': [{'product_id': self.toast.pk, 'quantity': 3}]},
+            {'items': [{'product_id': self.toast.pk, 'quantity': 3}], 'done_choosing': False},
+        )
+        # A changed order: back at product selection, to recap it and ask if that's everything.
+        self.assertEqual(self.session.chat_state_id, 2)
+        self.assertEqual(self.session.chat_state_data['items'][0]['name'], 'Kaya Toast Set')
+        self.assertNotIn('items_confirmed', self.session.chat_state_data)
+        self.assertIn('3 × Kaya Toast Set ($5.50 each). Total: $16.50', self.reply_prompt())
+        self.assertIn('Current step: Product selection', self.reply_prompt())
+
+        self.send(
+            "That's it",
+            {'items': [{'product_id': self.toast.pk, 'quantity': 3}], 'done_choosing': True},
             {'name': None, 'email': None},  # details already known: passes straight through
         )
         # Back at confirmation, with the new order, to show the updated summary.
         self.assertEqual(self.session.chat_state_id, 4)
-        self.assertEqual(self.session.chat_state_data['items'][0]['name'], 'Kaya Toast Set')
         self.assertNotIn('completed', self.session.chat_state_data)
-        self.assertIn('3 × Kaya Toast Set ($5.50 each). Total: $16.50', self.reply_prompt())
+        self.assertIn('Current step: Confirmation', self.reply_prompt())
+
+    def test_change_of_details_at_confirmation_keeps_the_confirmed_order(self):
+        self.session.chat_state_id = 4
+        self.session.chat_state_data = {
+            'items': [{'product_id': self.kopi.pk, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 2}],
+            'items_confirmed': True,
+            'details': {'name': 'Alice', 'email': 'alice@example.com'},
+        }
+        self.session.save()
+        self.send(
+            'Please change my email to alice@work.com',
+            {'decision': 'change'},
+            {'items': [{'product_id': self.kopi.pk, 'quantity': 2}], 'done_choosing': False},  # same order
+            {'name': None, 'email': 'alice@work.com'},
+        )
+        # The order was already confirmed and didn't change: no "anything else?" again.
+        self.assertEqual(self.session.chat_state_id, 4)
+        self.assertEqual(self.session.chat_state_data['details']['email'], 'alice@work.com')
+        self.assertTrue(self.session.chat_state_data['items_confirmed'])
 
     def test_invalid_choice_stays_and_explains(self):
         self.session.chat_state_id = 2
@@ -340,7 +383,12 @@ class CustomDetailFieldsFlowTests(APITestCase):
         self.send(
             'I want 1 Kopi C',
             {'wants_to_order': True},
-            {'items': [{'product_id': self.kopi.pk, 'quantity': 1}]},
+            {'items': [{'product_id': self.kopi.pk, 'quantity': 1}], 'done_choosing': False},
+        )
+        self.assertEqual(self.session.chat_state_id, 2)  # recaps the order first
+        self.send(
+            "That's all",
+            {'items': [{'product_id': self.kopi.pk, 'quantity': 1}], 'done_choosing': True},
             {'name': None, 'postal_code': None, 'notes': None},
         )
         self.assertEqual(self.session.chat_state_id, 'details')
@@ -503,14 +551,37 @@ class FlowCheckTests(SimpleTestCase):
         for extracted in ({'wants_to_order': False}, {}, {'wants_to_order': 'yes'}):
             self.assertFalse(check_start(extracted, {}, PRODUCTS, {}).complete)
 
-    def test_product_selection_valid_choice(self):
+    def test_product_selection_valid_choice_needs_confirming(self):
         data = {}
-        result = check_product_selection(
-            {'items': [{'product_id': 1, 'quantity': 2}, {'product_id': 2, 'quantity': 3}]}, data, PRODUCTS, {}
-        )
-        self.assertTrue(result.complete)
+        chosen = {'items': [{'product_id': 1, 'quantity': 2}, {'product_id': 2, 'quantity': 3}]}
+        # Chosen (even with "that's all" in the same message): recap first.
+        result = check_product_selection({**chosen, 'done_choosing': True}, data, PRODUCTS, {})
+        self.assertFalse(result.complete)
+        self.assertIn('confirm that this is everything', result.missing[0])
         self.assertEqual([(i['name'], i['quantity'], i['unit_price']) for i in data['items']],
                          [('Kopi C', 2, '1.80'), ('Kaya Toast Set', 3, '5.50')])
+        # Not done yet: still waiting.
+        self.assertFalse(check_product_selection({**chosen, 'done_choosing': False}, data, PRODUCTS, {}).complete)
+        # Done with the same cart (in any order): complete, and remembered.
+        same = {'items': chosen['items'][::-1], 'done_choosing': True}
+        self.assertTrue(check_product_selection(same, data, PRODUCTS, {}).complete)
+        self.assertIs(data['items_confirmed'], True)
+
+    def test_product_selection_change_clears_confirmation(self):
+        data = {'items': [{'product_id': 1, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 1}], 'items_confirmed': True}
+        result = check_product_selection({'items': [{'product_id': 1, 'quantity': 2}], 'done_choosing': True}, data, PRODUCTS, {})
+        self.assertFalse(result.complete)
+        self.assertNotIn('items_confirmed', data)
+        self.assertEqual(data['items'][0]['quantity'], 2)
+
+    def test_product_selection_problem_blocks_completion(self):
+        data = {'items': [{'product_id': 1, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 1}], 'items_confirmed': True}
+        result = check_product_selection(
+            {'items': [{'product_id': 1, 'quantity': 1}, {'product_id': 2, 'quantity': 9}], 'done_choosing': True},
+            data, PRODUCTS, {},
+        )
+        self.assertFalse(result.complete)
+        self.assertIn('Only 3 Kaya Toast Set', result.issues[0])
 
     def test_product_selection_problems(self):
         cases = {
@@ -528,8 +599,13 @@ class FlowCheckTests(SimpleTestCase):
 
     def test_product_selection_keeps_earlier_choice_when_nothing_new(self):
         earlier = {'items': [{'product_id': 1, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 1}]}
-        self.assertTrue(check_product_selection({'items': []}, earlier, PRODUCTS, {}).complete)
-        result = check_product_selection({'items': []}, {}, PRODUCTS, {})
+        # Not confirmed yet: needs "that's all".
+        self.assertFalse(check_product_selection({'items': [], 'done_choosing': False}, dict(earlier), PRODUCTS, {}).complete)
+        self.assertTrue(check_product_selection({'items': [], 'done_choosing': True}, dict(earlier), PRODUCTS, {}).complete)
+        # Already confirmed (e.g. back here after a "change" at confirmation): passes.
+        confirmed = {**earlier, 'items_confirmed': True}
+        self.assertTrue(check_product_selection({'items': [], 'done_choosing': False}, confirmed, PRODUCTS, {}).complete)
+        result = check_product_selection({'items': [], 'done_choosing': True}, {}, PRODUCTS, {})
         self.assertFalse(result.complete)
         self.assertEqual(result.missing, ['which products, and how many of each'])
 
