@@ -19,6 +19,7 @@ from .constants import (
     SEND_MESSAGE_BLOCK,
     START_BLOCK,
 )
+from .tools import description_preview
 from .validators import DETAIL_TEXT_DEFAULT_MAX_LENGTH, block_detail_fields
 
 BLOCK_LABELS = {
@@ -205,7 +206,14 @@ def build_reply_prompt(
         f'over WhatsApp. Business description: {business.description or "not provided."} '
         f'Location: {business.location}. Reply in a friendly, concise way, in plain text suitable '
         'for a chat message. Never make up products, prices, opening hours or policies: use the '
-        'information below, or your tools (list_products, list_faqs).'
+        'information below, or your tools.\n'
+        '- When the customer asks about a specific product (what is in it, size, options, allergens, '
+        'how it is made, etc.), call get_product_description with its name, and answer only from '
+        'what it returns. The product list below only shows the start of each description.\n'
+        '- For questions about the business (opening hours, delivery, payment, policies, etc.), call '
+        'list_faqs.\n'
+        '- If the answer is not in what you find, say honestly that you do not know (you can offer to '
+        'check with the team). Never guess or make up details, such as ingredients or allergens.'
     ]
     completed = bool(data.get('completed'))
     if block_type is None:
@@ -255,7 +263,7 @@ def format_catalog(products: list[dict]) -> str:
         stock = f'{product["quantity_available"]} available' if product['quantity_available'] else 'sold out'
         line = f'- id {product["id"]}: {product["name"]}, ${product["price"]} ({stock})'
         if product['description']:
-            line += f'. {product["description"]}'
+            line += f'. {description_preview(product["description"])}'
         lines.append(line)
     return '\n'.join(lines)
 

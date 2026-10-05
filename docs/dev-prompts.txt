@@ -515,3 +515,16 @@ The block does one thing, basically when it goes to that block, simply send a me
 No extra functionality.
 When that block is clicked from the UI, allow the business owner to customise a message to be sent to the user, and make that be saved in the JSON.
 Please update the JSON validation scripts too for this SEND_MESSAGE state, and add test cases for this too.
+
+Date & Time (GMT+8): 2026-10-05 15:12:15
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+I see there’s already a tool to get a product, but no tool to only get a single product item.
+Please add that tool to get only the description of a single product item.
+The use case if say there’s so many products, and user is asking about a product, it should use this tool to try answer it if it’s in the product description somewhere there.
+Product description itself can be quite long in real life.
+Please add to the prompt, that if you can’t find the description there, you should genuinely say don’t know instead of making it up.
+Also please update the fixtures, especially for “Kopi & Co. Café” so it includes a more lengthy description for the product.
+Please also add 2 more product items there.
+Please also add more FAQs for this business, I am using it for testing purpose.

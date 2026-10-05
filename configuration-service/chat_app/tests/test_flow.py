@@ -1,3 +1,4 @@
+import json
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -269,7 +270,8 @@ class ChatFlowAPITests(APITestCase):
         self.assertEqual(response.json()['message'], 'We are open 8am to 7pm daily.')
         reply_calls = self.ollama.chat.call_args_list[1:]
         self.assertEqual(
-            {spec['function']['name'] for spec in reply_calls[0].kwargs['tools']}, {'list_products', 'list_faqs'}
+            {spec['function']['name'] for spec in reply_calls[0].kwargs['tools']},
+            {'list_products', 'get_product_description', 'list_faqs'},
         )
         tool_message = reply_calls[1].kwargs['messages'][-1]
         self.assertEqual((tool_message['role'], tool_message['tool_name']), ('tool', 'list_faqs'))
@@ -665,6 +667,60 @@ class CleanDetailValueTests(SimpleTestCase):
         for invalid in ('12345', 'call me', '+65 9123 4567 8901 2345'):
             with self.subTest(invalid):
                 self.assertIn('is not a valid phone number', self.check(phone, invalid)[1])
+
+
+class ProductDescriptionToolFlowTests(APITestCase):
+    """Asking about one product: the reply looks up its full description with get_product_description."""
+
+    LONG_DESCRIPTION = (
+        'Our signature kopi, brewed the traditional way. ' + 'Robusta beans roasted with butter and sugar. ' * 30
+        + 'Contains dairy (evaporated milk). Ask for kopi-o if you would like it without milk.'
+    )
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.cafe = BusinessConfiguration.objects.create(business_name='Kopi Café', location='Tiong Bahru')
+        cls.user = BusinessUser.objects.create_user(username='cafe', password='123', business=cls.cafe)
+        ChatConfiguration.objects.create(business=cls.cafe, config_json=FULL_CONFIG)
+        cls.kopi = Product.objects.create(
+            business=cls.cafe, name='Kopi C', price='1.80', quantity_available=20, description=cls.LONG_DESCRIPTION
+        )
+
+    def setUp(self):
+        self.session = ChatSession.objects.create(business=self.cafe, is_sandbox=True, chat_state_id=1)
+        self.ollama = MagicMock()
+        patcher = patch('chat_app.llm.get_client', return_value=self.ollama)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.client.force_authenticate(self.user)
+
+    def test_reply_looks_up_the_full_description(self):
+        tool_call = SimpleNamespace(function=SimpleNamespace(name='get_product_description', arguments={'product': 'kopi c'}))
+        responses = iter([
+            fake_chat_response('{"wants_to_order": false}'),
+            SimpleNamespace(message=SimpleNamespace(content='', tool_calls=[tool_call])),
+            fake_chat_response('Yes, it contains dairy (evaporated milk).'),
+        ])
+        self.ollama.chat.side_effect = lambda **kwargs: next(responses)
+        response = self.client.post(
+            reverse('chat_app:sandbox-session-messages', args=[self.session.pk]),
+            {'message': 'Does the Kopi C have milk in it?'},
+            format='json',
+        )
+        self.assertEqual(response.json()['message'], 'Yes, it contains dairy (evaporated milk).')
+        reply_calls = self.ollama.chat.call_args_list[1:]
+        # The prompt only has the start of the description, and says how to get the rest honestly.
+        prompt = reply_calls[0].kwargs['messages'][0]['content']
+        self.assertIn('call get_product_description', prompt)
+        self.assertIn('say honestly that you do not know', prompt)
+        self.assertNotIn('Contains dairy', prompt)
+        # The tool returned the whole description.
+        tool_message = reply_calls[1].kwargs['messages'][-1]
+        self.assertEqual(tool_message['tool_name'], 'get_product_description')
+        self.assertEqual(json.loads(tool_message['content'])['description'], self.LONG_DESCRIPTION)
+        self.assertEqual(
+            response.json()['debug']['tool_calls'], [{'name': 'get_product_description', 'arguments': {'product': 'kopi c'}}]
+        )
 
 
 class FlowCheckTests(SimpleTestCase):

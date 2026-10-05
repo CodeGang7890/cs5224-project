@@ -52,5 +52,95 @@
       "question": "What is your cancellation policy?",
       "answer": "Please cancel or reschedule at least 24 hours before your session. Late cancellations are counted as a used session."
     }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 7,
+    "fields": {
+      "business": 1,
+      "question": "Is your food halal?",
+      "answer": "We aren't halal-certified. We don't use pork or lard in any of our food or drinks, but our kitchen isn't certified and our suppliers aren't all certified either."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 8,
+    "fields": {
+      "business": 1,
+      "question": "Do you deliver?",
+      "answer": "We don't run our own delivery. You can order pickup through this chat, or find us on GrabFood and Foodpanda for delivery within about 5 km of Tiong Bahru (their prices are slightly higher)."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 9,
+    "fields": {
+      "business": 1,
+      "question": "What payment methods do you accept?",
+      "answer": "For orders placed in this chat, we'll send you a PayNow QR code once your order is confirmed. In the café we accept cash, PayNow, NETS and Visa/Mastercard. We don't accept American Express."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 10,
+    "fields": {
+      "business": 1,
+      "question": "Do you have vegetarian or vegan options?",
+      "answer": "Our Kaya Toast Set is vegetarian (it contains eggs and dairy). The Pandan Chiffon Cake is dairy-free but contains eggs. We don't have fully vegan food at the moment, but kopi O or teh O (without milk) can be made without dairy in the drink itself."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 11,
+    "fields": {
+      "business": 1,
+      "question": "Can I change the sugar level of my drink?",
+      "answer": "Yes. Just tell us: siew dai (less sweet), kosong (no sugar) or ga dai (extra sweet). Teh tarik can only be made less sweet, not sugar-free, because it's made with condensed milk."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 12,
+    "fields": {
+      "business": 1,
+      "question": "Do you cater for events or large orders?",
+      "answer": "Yes, for orders of 20 items or more, please message us at least 3 days ahead. We can do kopi and teh in airpots (serves about 20 cups each) and kaya toast platters. A $30 deposit is needed to confirm large orders."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 13,
+    "fields": {
+      "business": 1,
+      "question": "Is there parking nearby?",
+      "answer": "There's no parking at the café itself. The nearest carpark is the HDB carpark at Block 55 Tiong Bahru Road, about 2 minutes' walk away, with coupon or Parking.sg parking."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 14,
+    "fields": {
+      "business": 1,
+      "question": "Do you have Wi-Fi and power sockets?",
+      "answer": "Yes, free Wi-Fi is available (ask our staff for the password) and there are power sockets at the counter seats. On weekends from 9am to 1pm we ask laptop users to limit their stay to 1 hour when it's busy."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 15,
+    "fields": {
+      "business": 1,
+      "question": "Are pets allowed?",
+      "answer": "Well-behaved dogs on a leash are welcome at our outdoor tables. Only service animals are allowed inside."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 16,
+    "fields": {
+      "business": 1,
+      "question": "Can I cancel or change my order?",
+      "answer": "You can change or cancel a pickup order through this chat up to 30 minutes before your pickup time. Pandan chiffon cake orders can be cancelled up to 12 hours before pickup, because we bake them to order."
+    }
   }
 ]

@@ -9,6 +9,12 @@ from collections.abc import Callable
 
 from product_app.models import FAQ, Product
 
+# Product descriptions can be long. Lists (the prompt's catalog, list_products) show only this much
+# of each; get_product_description returns the whole thing for one product.
+DESCRIPTION_PREVIEW_LENGTH = 160
+# At most this many product names in a "no such product" answer.
+PRODUCT_NAMES_MAX = 50
+
 
 def active_products(business) -> list[dict]:
     """The business's orderable products, as plain dicts (also used by the prompts and flow.py)."""
@@ -24,6 +30,21 @@ def active_products(business) -> list[dict]:
     ]
 
 
+def description_preview(description: str) -> str:
+    """The start of a description, cut at a word and ending in "…" if it's longer than the preview."""
+    text = ' '.join(description.split())
+    if len(text) <= DESCRIPTION_PREVIEW_LENGTH:
+        return text
+    return text[:DESCRIPTION_PREVIEW_LENGTH].rsplit(' ', 1)[0].rstrip('.,;:') + '…'
+
+
+def _product_list(business) -> list[dict]:
+    return [
+        {**product, 'description': description_preview(product['description'])}
+        for product in active_products(business)
+    ]
+
+
 def _faqs(business) -> list[dict]:
     return [
         {'question': faq.question, 'answer': faq.answer}
@@ -31,22 +52,80 @@ def _faqs(business) -> list[dict]:
     ]
 
 
+def find_product_description(business, product) -> dict:
+    """One active product's full description, by name (case-insensitive) or id.
+
+    A name matches exactly, or else by containing / being contained in a product name, if that
+    matches only one product. Otherwise the result has an `error` (and the candidate names), so the
+    model can ask the customer which product they mean, or say it isn't sold.
+    """
+    is_text = isinstance(product, (str, int)) and not isinstance(product, bool)
+    query = str(product).strip() if is_text else ''
+    if not query:
+        return {'error': 'Give the name of the product.'}
+    products = active_products(business)
+    lowered = query.casefold()
+    matches = [p for p in products if query.isdigit() and p['id'] == int(query)]
+    matches = matches or [p for p in products if p['name'].casefold() == lowered]
+    matches = matches or [
+        p for p in products if lowered in p['name'].casefold() or p['name'].casefold() in lowered
+    ]
+    if len(matches) == 1:
+        found = matches[0]
+        return {
+            'id': found['id'],
+            'name': found['name'],
+            'price': found['price'],
+            'quantity_available': found['quantity_available'],
+            'description': found['description'] or 'No description has been written for this product.',
+        }
+    if matches:
+        return {'error': f'Several products match "{query}".', 'matches': [p['name'] for p in matches]}
+    inactive = Product.objects.filter(business=business, is_active=False, name__iexact=query).first()
+    if inactive is not None:
+        return {'error': f'{inactive.name} is not on sale at the moment.'}
+    return {
+        'error': f'No product called "{query}" is on sale.',
+        'products_on_sale': [p['name'] for p in products[:PRODUCT_NAMES_MAX]],
+    }
+
+
 class Toolbox:
     """Tool specs to send to the model, and `run()` to execute the calls it makes."""
 
     def __init__(self, business):
         self.calls: list[dict] = []  # every call the model made, for debugging
-        # name → (description, function). None of these tools take arguments yet.
-        self._tools: dict[str, tuple[str, Callable[[], list]]] = {
+        # name → (description, JSON schema of the arguments, function(arguments)).
+        no_arguments = {'type': 'object', 'properties': {}, 'required': []}
+        self._tools: dict[str, tuple[str, dict, Callable[[dict], object]]] = {
             'list_products': (
-                'List the products the business sells, with id, name, description, price (SGD) '
-                'and quantity_available.',
-                lambda: active_products(business),
+                'List the products the business sells, with id, name, price (SGD), quantity_available '
+                'and the start of each description. For everything about one product, use '
+                'get_product_description.',
+                no_arguments,
+                lambda arguments: _product_list(business),
+            ),
+            'get_product_description': (
+                "Get one product's full description (ingredients, size, options, allergens, how it's "
+                'made, etc.), plus its price and stock. Use it whenever the customer asks about a '
+                'specific product.',
+                {
+                    'type': 'object',
+                    'properties': {
+                        'product': {
+                            'type': 'string',
+                            'description': 'The product name (or its id), e.g. "Kopi C".',
+                        },
+                    },
+                    'required': ['product'],
+                },
+                lambda arguments: find_product_description(business, arguments.get('product')),
             ),
             'list_faqs': (
                 "List the business's frequently asked questions and their answers (opening "
                 'hours, policies, etc.).',
-                lambda: _faqs(business),
+                no_arguments,
+                lambda arguments: _faqs(business),
             ),
         }
 
@@ -55,19 +134,16 @@ class Toolbox:
         return [
             {
                 'type': 'function',
-                'function': {
-                    'name': name,
-                    'description': description,
-                    'parameters': {'type': 'object', 'properties': {}, 'required': []},
-                },
+                'function': {'name': name, 'description': description, 'parameters': parameters},
             }
-            for name, (description, _) in self._tools.items()
+            for name, (description, parameters, _) in self._tools.items()
         ]
 
     def run(self, name: str, arguments: dict | None = None) -> str:
         """Runs a tool and returns its result as JSON text (an `error` object for unknown tools)."""
-        self.calls.append({'name': name, 'arguments': arguments or {}})
+        arguments = arguments if isinstance(arguments, dict) else {}
+        self.calls.append({'name': name, 'arguments': arguments})
         tool = self._tools.get(name)
         if tool is None:
             return json.dumps({'error': f'Unknown tool {name!r}.'})
-        return json.dumps(tool[1](), ensure_ascii=False)
+        return json.dumps(tool[2](arguments), ensure_ascii=False)

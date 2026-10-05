@@ -73,8 +73,8 @@ python manage.py loaddata sample_business_configurations sample_business_users s
 | --- | --- | --- |
 | `sample_business_configurations` | `configuration_app/fixtures/` | 3 businesses: Kopi & Co. Café, Bloom Florist Studio, FitLab Personal Training |
 | `sample_business_users` | `auth_app/fixtures/` | 4 business users linked to those businesses |
-| `sample_products` | `product_app/fixtures/` | 8 products (one of them inactive) |
-| `sample_faqs` | `product_app/fixtures/` | 6 FAQs |
+| `sample_products` | `product_app/fixtures/` | 10 products (one of them inactive). Kopi & Co. Café's 5 have long, detailed descriptions (ingredients, sizes, options, allergens, storage) for testing `get_product_description`, with some details deliberately left out to test "I don't know" |
+| `sample_faqs` | `product_app/fixtures/` | 16 FAQs: 12 for Kopi & Co. Café (hours, reservations, halal, delivery, payment, vegetarian options, sugar levels, catering, parking, Wi-Fi, pets, cancellations), 2 each for the others |
 | `sample_chat_configurations` | `chat_app/fixtures/` | 1 chat flow for Kopi & Co. Café: start → product selection → details collection → confirmation |
 | `sample_chat_sessions` | `chat_app/fixtures/` | 14 customer chats: 11 with Kopi & Co. Café (at different steps of its flow, over 1–12 Sep, one with no messages yet), 2 with Bloom Florist Studio, 1 with FitLab. `+6591234567` chats with both the café and the florist. Plus 2 sandbox (test) chats for Kopi & Co. Café, one without a phone number |
 | `sample_order_items` | `checkout_app/fixtures/` | 5 orders: 4 for Kopi & Co. Café (one per status, plus a pending sandbox order) and 1 for Bloom Florist Studio. They aren't linked to chats, and their stock wasn't reserved |
@@ -281,7 +281,12 @@ Each customer message (real or sandbox) moves the chat through the business's ch
    When a block completes, the chat moves to its `next_block_id` and repeats steps 2–3 there, so one message can complete several blocks. When the last block completes, `chat_state_data.completed` becomes true and the chat stays at that block. (A workflow that's only a Start block never completes.) After that, messages get replies but no extraction.
 4. **Save** `chat_state_id` and `chat_state_data`. A collected name also fills in an empty `display_name`.
 5. **Send message blocks' messages** go out first (`sent_by: business-automated`), in order. If the flow ended on a Send message block (the last block), its message is the last word: the flow is completed and there's no LLM reply. If the order fails at a Confirmation before it, the messages after that Confirmation aren't sent.
-6. **Reply.** The LLM writes the reply with a system prompt for the current block: the business's details, the step and its goal, what's known so far (order with total, details), what's still needed, problems to explain, and the products on sale (for Start and Product selection). The reply step can call **read-only tools** (`chat_app/tools.py`, only the chatting business's data): `list_products` and `list_faqs`.
+6. **Reply.** The LLM writes the reply with a system prompt for the current block: the business's details, the step and its goal, what's known so far (order with total, details), what's still needed, problems to explain, and the products on sale (for Start and Product selection; each description cut to its first ~160 characters, since real descriptions can be long). The reply step can call **read-only tools** (`chat_app/tools.py`, only the chatting business's data):
+   - `get_product_description(product)`: one product's **full** description, price and stock, by name (any case; a partial name works if it matches one product) or id. Ambiguous names list the matches; unknown names list what's on sale; inactive products are "not on sale at the moment".
+   - `list_products`: every active product, with the start of each description.
+   - `list_faqs`: the business's FAQs.
+
+   The prompt tells the assistant to look product questions up with `get_product_description` and business questions with `list_faqs`, to answer only from what it finds, and otherwise to **say honestly that it doesn't know** (offering to check with the team) rather than make anything up.
 
 A message makes 2 or more LLM calls: one extraction per block it passes through, plus the reply (plus tool calls). Only the last 20 messages are sent (`HISTORY_MAX_MESSAGES`).
 
@@ -393,11 +398,12 @@ Tests use a temporary database, so your `db.sqlite3` isn't touched.
 | --- | --- |
 | `auth_app/test_api.py` | JWT login, refresh + rotation, verify, logout (blacklist), `/api/auth/me/`, CORS for the `Authorization` header |
 | `product_app/test_api.py` | Product and FAQ APIs: login required, business scoping and 403s, CRUD, read-only `quantity_sold`, validation; list-by-business endpoints (200 / 400 unknown ID / 401 / 403 other business, pagination, read-only) |
-| `product_app/tests.py` | Product and FAQ model validation and database constraints |
+| `product_app/tests.py` | Product and FAQ model validation and database constraints; sample products and FAQs are valid |
 | `auth_app/tests.py` | `BusinessUser` model, Django Admin pages load |
 | `configuration_app/tests.py` | `BusinessConfiguration` model, random-number endpoint, CORS |
 | `chat_app/tests/test_models.py` | `validate_chat_config` (including Details collection `fields`), `validate_chat_messages` and `validate_chat_state_data` rules; `ChatConfiguration` and `ChatSession` models (validation, uniqueness, `chat_state_id` must match a block); sample fixtures are valid |
 | `chat_app/tests/test_api.py` | Chat endpoint returns the reply, with the LLM mocked (no Ollama needed); chat configuration GET/PUT (401/403/404, create vs update, read-only fields, saving Details collection `fields`, invalid `config_json` → 400); chat sessions create/list (filters, sorting and pagination on the sample fixtures) and customer messages (LLM mocked); sandbox sessions list/create/delete (only sandbox, only your business) |
+| `chat_app/tests/test_tools.py` | The reply step's tools: `get_product_description` (name in any case, partial name, id, ambiguous names, no description, inactive / unknown / another business's products, bad arguments), `list_products` previews, `list_faqs`, unknown tools; description previews in the prompt's catalog |
 | `chat_app/tests/test_flow.py` | The chat flow (LLM mocked): a whole conversation from Start to confirmed, going back on "change", invalid choices, unknown state → Start block, tool calls, invalid JSON → 502; custom Details collection fields (asks for every field, only moves on when all are valid); confirming places an order and reserves stock (once), and a product sold out since it was chosen undoes the confirmation; each block's deterministic check and each detail type's value check |
 | `checkout_app/tests/test_models.py` | `validate_order_data` rules; `OrderItem` defaults (`pending_payment`), statuses (also the database constraint), total; sample fixture is valid |
 | `checkout_app/tests/test_services.py` | `place_order`: creates the order and reserves stock; all or nothing when any item fails (sold out, inactive, another business's or deleted product); can't oversell; a simulated lost race is stopped by the guarded update and rolled back; product rows locked in id order |
@@ -498,7 +504,7 @@ configuration-service/
 │   ├── llm.py              # Ollama client, model, sampling options; structured output + tool-calling helpers
 │   ├── flow.py             # The chat flow: extraction → deterministic checks → state → reply
 │   ├── prompts.py          # Per-block-type goals, extraction prompts + JSON schemas, reply prompts
-│   ├── tools.py            # Read-only tools for the reply step (list_products, list_faqs)
+│   ├── tools.py            # Read-only tools for the reply step (get_product_description, list_products, list_faqs)
 │   ├── serializers.py      # Chat request/response, ChatConfigurationSerializer
 │   ├── views.py            # ChatView, ChatConfigurationView
 │   ├── urls.py             # /api/chat/, /api/chat/configuration/

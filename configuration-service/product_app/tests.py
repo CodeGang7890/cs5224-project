@@ -91,3 +91,26 @@ class FAQModelTests(TestCase):
         self.business.delete()
         self.assertEqual(Product.objects.count(), 0)
         self.assertEqual(FAQ.objects.count(), 0)
+
+
+class SampleProductAndFAQFixtureTests(TestCase):
+    fixtures = ['sample_business_configurations', 'sample_products', 'sample_faqs']
+
+    def test_fixtures_are_valid(self):
+        self.assertEqual(Product.objects.count(), 10)
+        self.assertEqual(FAQ.objects.count(), 16)
+        for record in [*Product.objects.all(), *FAQ.objects.all()]:
+            with self.subTest(record=str(record)):
+                record.full_clean()  # loaddata skips validation
+
+    def test_cafe_has_detailed_products_and_faqs(self):
+        # Kopi & Co. Café (business 1) is the main test business for the chat assistant.
+        cafe_products = Product.objects.filter(business_id=1, is_active=True)
+        self.assertEqual(
+            sorted(cafe_products.values_list('name', flat=True)),
+            ['Iced Teh Tarik', 'Kaya Toast Set', 'Kopi C', 'Pandan Chiffon Cake (Whole)'],
+        )
+        for product in cafe_products:
+            with self.subTest(product=product.name):
+                self.assertGreater(len(product.description), 500)  # long enough to need get_product_description
+        self.assertEqual(FAQ.objects.filter(business_id=1).count(), 12)

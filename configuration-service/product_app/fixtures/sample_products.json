@@ -5,7 +5,7 @@
     "fields": {
       "business": 1,
       "name": "Kopi C",
-      "description": "Traditional coffee with evaporated milk and sugar.",
+      "description": "Our everyday kopi C, brewed the traditional Nanyang way. We roast a blend of Robusta and a little Liberica beans with butter and sugar, then brew it in a cloth sock filter (the \"kopi sock\") and pull it between two pots to cool it slightly and give it body. It's finished with evaporated milk and a spoon of sugar, so it's creamy, smooth and only mildly sweet.\n\nSize: one 8 oz (240 ml) cup, served hot. Iced kopi C (kopi C peng) is available at the same price, served in a 16 oz cup with ice.\n\nSweetness: regular sugar by default. Ask for siew dai (less sweet), kosong (no sugar) or ga dai (extra sweet) at no extra cost.\n\nAllergens and dietary notes: contains dairy (evaporated milk). The beans are roasted with butter, so even kopi O (without milk) isn't dairy-free. No nuts are used in the drink itself, but our kitchen handles peanuts. One cup has roughly the caffeine of a double espresso.\n\nBest enjoyed straight away; we don't recommend keeping it for later.",
       "price": "1.80",
       "quantity_available": 200,
       "quantity_on_hold": 0,
@@ -19,7 +19,7 @@
     "fields": {
       "business": 1,
       "name": "Kaya Toast Set",
-      "description": "Kaya butter toast, two soft-boiled eggs and a hot drink.",
+      "description": "Our classic breakfast set, the way Singaporeans have started the day for generations.\n\nWhat's in the set:\n- Two slices of charcoal-grilled white bread, crisp on the outside, with a thick slab of cold salted butter and our house-made kaya.\n- Two soft-boiled eggs (cooked for about 6 minutes, still runny), served with light soy sauce and white pepper on the side.\n- One hot drink: kopi C or teh C (tea with evaporated milk). You can swap it for an iced drink for $0.50 more.\n\nAbout our kaya: we cook it in small batches every morning from fresh coconut milk, eggs, sugar and pandan leaves, stirring it for about two hours until it's thick and caramel-brown. It has no preservatives, so it's best on the day.\n\nOptions: ask for wholemeal bread at no extra cost, or extra kaya for $0.80.\n\nAllergens: contains wheat (gluten), eggs, dairy (butter, evaporated milk) and soy (soy sauce). The kaya contains coconut. Our kitchen also handles peanuts and sesame.\n\nTakeaway: the eggs are packed separately so they don't overcook. Available all day.",
       "price": "5.50",
       "quantity_available": 80,
       "quantity_on_hold": 5,
@@ -33,7 +33,7 @@
     "fields": {
       "business": 1,
       "name": "Seasonal Brunch Plate",
-      "description": "Rotating weekend special. Currently unavailable.",
+      "description": "A rotating weekend special from our chef, served on Saturdays and Sundays from 9am to 2pm while stocks last. It's currently not on sale while we plan the next menu.\n\nThe last version was nasi lemak-inspired: coconut rice cooked with pandan, a crispy chicken thigh marinated in turmeric and lemongrass, a sunny-side-up egg, cucumber, roasted peanuts, ikan bilis (fried anchovies) and our house sambal, which is fairly spicy.\n\nAllergens of the last version: peanuts, fish (anchovies, and shrimp paste in the sambal), egg and coconut.",
       "price": "16.00",
       "quantity_available": 0,
       "quantity_on_hold": 0,
@@ -108,6 +108,34 @@
       "quantity_available": 15,
       "quantity_on_hold": 1,
       "quantity_sold": 58,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 9,
+    "fields": {
+      "business": 1,
+      "name": "Iced Teh Tarik",
+      "description": "Our pulled milk tea, served over ice. We brew strong black tea from a blend of Ceylon and Assam leaves, sweeten it with condensed milk and evaporated milk, then \"pull\" it: pour it from a height between two jugs until it's frothy and smooth.\n\nSize: 16 oz (470 ml) cup with ice. The hot version (8 oz) is the same price.\n\nSweetness: it's on the sweet side by default; ask for siew dai (less sweet). We can't make it with no sugar, because the condensed milk is part of the recipe.\n\nAllergens: contains dairy (condensed and evaporated milk). It has caffeine from the tea, about half a cup of coffee's worth.",
+      "price": "2.80",
+      "quantity_available": 150,
+      "quantity_on_hold": 0,
+      "quantity_sold": 980,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 10,
+    "fields": {
+      "business": 1,
+      "name": "Pandan Chiffon Cake (Whole)",
+      "description": "A whole pandan chiffon cake, light and springy, baked fresh every morning in a 20 cm tube pan (about 8 to 10 slices).\n\nWe blend fresh pandan leaves into juice for the flavour and natural green colour, with no artificial colouring or flavouring. The batter is made with eggs, sugar, cake flour, coconut milk and vegetable oil, and lifted with whipped egg whites instead of butter, so it's dairy-free.\n\nAllergens: contains eggs, wheat (gluten) and coconut. Made in a kitchen that also handles dairy, peanuts and sesame.\n\nOrdering: we bake a limited number each day, so please order at least one day ahead for a specific pickup time. It comes in a cake box.\n\nStorage: keep it covered at room temperature and eat it within 2 days, or refrigerate for up to 4 days. Don't freeze it, as the texture suffers.",
+      "price": "28.00",
+      "quantity_available": 6,
+      "quantity_on_hold": 0,
+      "quantity_sold": 75,
       "is_active": true
     }
   }
