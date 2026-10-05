@@ -131,7 +131,10 @@ class ChatFlowAPITests(APITestCase):
         self.assertIn('Current step: Details collection', prompt)
         self.assertIn('just completed: Product selection', prompt)
         self.assertIn('## Still needed\n- Name\n- Email', prompt)
-        self.assertIn('## Details to collect\n- Name (text, at most 150 characters)\n- Email (an email address)', prompt)
+        self.assertIn(
+            '## Details to collect\n- "Name" (required; text, at most 150 characters)\n- "Email" (required; an email address)',
+            prompt,
+        )
         self.assertEqual(response.json()['debug']['steps'][1]['missing'], ['Name', 'Email'])
 
         # 3. Only the name: still at details, asks for the email. The name fills in display_name.
@@ -325,9 +328,9 @@ class CustomDetailFieldsFlowTests(APITestCase):
         self.assertIn('## Still needed\n- Receiver name\n- Postal code\n- Customisation notes', prompt)
         self.assertIn(
             '## Details to collect\n'
-            '- Receiver name (text, at most 150 characters)\n'
-            '- Postal code (a number from 100000 to 999999)\n'
-            '- Customisation notes (text, at most 20 characters). e.g. less sugar',
+            '- "Receiver name" (required; text, at most 150 characters)\n'
+            '- "Postal code" (required; a number from 100000 to 999999)\n'
+            '- "Customisation notes" (required; text, at most 20 characters). e.g. less sugar',
             prompt,
         )
         self.assertNotIn('Email', prompt)
@@ -343,7 +346,7 @@ class CustomDetailFieldsFlowTests(APITestCase):
             },
         )
         self.assertEqual(extraction['format']['required'], ['name', 'postal_code', 'notes'])
-        self.assertIn('"postal_code": Postal code (a number from 100000 to 999999)', extraction['messages'][0]['content'])
+        self.assertIn('"postal_code": "Postal code" (required; a number from 100000 to 999999)', extraction['messages'][0]['content'])
 
         # Some given, some invalid: keeps the valid ones, explains the problems, stays.
         self.send('Alice, 12, extra extra extra sweet please', {'name': 'Alice', 'postal_code': 12, 'notes': 'extra extra extra sweet please'})
@@ -627,6 +630,90 @@ class SendMessageFlowTests(APITestCase):
         self.assertIn('lead back to one already sent', response.json()['debug']['stop_reason'])
 
 
+class RequiredAndOptionalDetailsFlowTests(APITestCase):
+    """Required details hold the chat at Details collection until given; optional ones don't."""
+
+    FIELDS = [
+        {'key': 'name', 'label': 'Name', 'type': 'text'},
+        {'key': 'boo', 'label': 'BOO', 'type': 'text'},  # an unusual label: asked for exactly as it is
+        {'key': 'notes', 'label': 'Notes', 'type': 'text', 'required': False},
+        {'key': 'phone', 'label': 'Phone', 'type': 'phone', 'required': False},
+    ]
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.cafe = BusinessConfiguration.objects.create(business_name='Kopi Café', location='Tiong Bahru')
+        cls.user = BusinessUser.objects.create_user(username='cafe', password='123', business=cls.cafe)
+        blocks = [dict(block) for block in FULL_CONFIG]
+        blocks[2]['fields'] = cls.FIELDS
+        chat_config = ChatConfiguration.objects.create(business=cls.cafe, config_json=blocks)
+        chat_config.full_clean()
+        cls.kopi = Product.objects.create(business=cls.cafe, name='Kopi C', price='1.80', quantity_available=200)
+
+    def setUp(self):
+        self.session = ChatSession.objects.create(
+            business=self.cafe,
+            is_sandbox=True,
+            chat_state_id='details',
+            chat_state_data={
+                'items': [{'product_id': self.kopi.pk, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 1}],
+                'items_confirmed': True,
+            },
+        )
+        self.ollama = MagicMock()
+        patcher = patch('chat_app.llm.get_client', return_value=self.ollama)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.client.force_authenticate(self.user)
+
+    send = ChatFlowAPITests.send
+    calls = ChatFlowAPITests.calls
+    reply_prompt = ChatFlowAPITests.reply_prompt
+
+    def test_ignoring_a_required_detail_keeps_the_chat_there_and_asking(self):
+        self.send('Alice', {'name': 'Alice', 'boo': None, 'notes': None, 'phone': None})
+        # The customer ignores the BOO question, twice: still at Details collection, no order.
+        for message in ('Is my order confirmed?', 'Just confirm it please'):
+            with self.subTest(message):
+                self.send(message, {'name': None, 'boo': None, 'notes': None, 'phone': None})
+                self.assertEqual(self.session.chat_state_id, 'details')
+                self.assertNotIn('completed', self.session.chat_state_data)
+                self.assertFalse(OrderItem.objects.exists())
+                prompt = self.reply_prompt()
+                self.assertIn('## Still needed\n- BOO\n', prompt)  # optional ones aren't "still needed"
+                self.assertIn('the order is NOT confirmed yet', prompt)
+                self.assertIn('Never tell the customer that their order is confirmed', prompt)
+                self.assertIn('Keep asking in every reply until they give it', prompt)
+                self.assertIn('if a label is "Boo", ask for "Boo"', prompt)
+                self.assertIn('- "BOO" (required; text, at most 500 characters)', prompt)
+                self.assertIn('- "Notes" (optional; text, at most 500 characters)', prompt)
+
+    def test_optional_details_can_be_skipped(self):
+        self.send('Alice, and BOO is 42', {'name': 'Alice', 'boo': '42', 'notes': None, 'phone': None})
+        self.assertEqual(self.session.chat_state_id, 4)  # on to confirmation without notes or phone
+        self.assertEqual(self.session.chat_state_data['details'], {'name': 'Alice', 'boo': '42'})
+
+    def test_optional_details_are_kept_when_given(self):
+        self.send('x', {'name': 'Alice', 'boo': 'yes', 'notes': 'Less ice', 'phone': '+65 9123 4567'})
+        self.assertEqual(self.session.chat_state_id, 4)
+        self.assertEqual(
+            self.session.chat_state_data['details'],
+            {'name': 'Alice', 'boo': 'yes', 'notes': 'Less ice', 'phone': '+65 9123 4567'},
+        )
+
+    def test_invalid_optional_detail_is_explained_but_does_not_block(self):
+        response = self.send('x', {'name': 'Alice', 'boo': 'yes', 'notes': None, 'phone': 'call me'})
+        self.assertEqual(self.session.chat_state_id, 4)
+        self.assertNotIn('phone', self.session.chat_state_data['details'])
+        self.assertIn('"call me" is not a valid phone number.', response.json()['debug']['steps'][0]['issues'])
+
+    def test_optional_fields_are_still_extracted(self):
+        self.send('x', {'name': None, 'boo': None, 'notes': None, 'phone': None})
+        extraction = self.calls(structured=True)[0]
+        self.assertEqual(extraction['format']['required'], ['name', 'boo', 'notes', 'phone'])
+        self.assertIn('Take each label literally', extraction['messages'][0]['content'])
+
+
 class CleanDetailValueTests(SimpleTestCase):
     def check(self, detail_field, raw):
         return clean_detail_value(detail_field, raw)
@@ -802,6 +889,21 @@ class FlowCheckTests(SimpleTestCase):
         result = check_details_collection({'name': None, 'email': 'alice@example.com'}, data, PRODUCTS, DEFAULT_DETAILS_BLOCK)
         self.assertTrue(result.complete)
         self.assertEqual(data['details'], {'name': 'Alice', 'email': 'alice@example.com'})
+
+    def test_details_collection_optional_fields(self):
+        block = {'fields': [
+            {'key': 'name', 'label': 'Name', 'type': 'text'},
+            {'key': 'notes', 'label': 'Notes', 'type': 'text', 'max_length': 5, 'required': False},
+        ]}
+        data = {}
+        result = check_details_collection({'name': 'Alice', 'notes': None}, data, PRODUCTS, block)
+        self.assertEqual((result.complete, result.missing), (True, []))
+        result = check_details_collection({'name': None, 'notes': 'far too long'}, {}, PRODUCTS, block)
+        self.assertEqual(result.missing, ['Name'])  # optional Notes isn't missing; its problem is reported
+        self.assertEqual(result.issues, ['Notes is too long (max 5 characters).'])
+        # An invalid *required* value still blocks.
+        result = check_details_collection({'name': 'x' * 501, 'notes': None}, {}, PRODUCTS, block)
+        self.assertFalse(result.complete)
 
     def test_details_collection_nothing_given_adds_no_key(self):
         data = {}

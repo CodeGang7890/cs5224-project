@@ -45,7 +45,12 @@ from checkout_app.services import OrderError, place_order
 
 from .models import DISPLAY_NAME_MAX_LENGTH, ChatConfiguration, ChatSession
 from .tools import Toolbox, active_products
-from .validators import DETAIL_TEXT_DEFAULT_MAX_LENGTH, block_detail_fields, validate_chat_state_data
+from .validators import (
+    DETAIL_TEXT_DEFAULT_MAX_LENGTH,
+    block_detail_fields,
+    is_required_detail,
+    validate_chat_state_data,
+)
 
 # How many of the latest messages the LLM sees (keeps the prompt within the context window).
 HISTORY_MAX_MESSAGES = 20
@@ -304,24 +309,27 @@ def _cart(items: list[dict]) -> list[tuple[int, int]]:
 
 
 def check_details_collection(extracted: dict, data: dict, products: list[dict], block: dict) -> CheckResult:
-    """Complete when every one of the block's fields (block_detail_fields) is known and valid.
+    """Complete when every *required* field of the block (block_detail_fields) is known and valid.
 
     Values are checked by field type (clean_detail_value); known values are kept when the LLM
-    returns nothing for them, and an invalid value never replaces a valid one.
+    returns nothing for them, and an invalid value never replaces a valid one. Optional fields
+    (`required: false`) are stored when given, but never hold the chat back: a problem with one is
+    explained to the customer without blocking.
     """
     fields = block_detail_fields(block)
     details = data.setdefault('details', {})
-    issues = []
+    issues, blocking = [], False
     for detail_field in fields:
         value, problem = clean_detail_value(detail_field, extracted.get(detail_field['key']))
         if problem:
             issues.append(problem)
+            blocking = blocking or is_required_detail(detail_field)
         elif value is not None:
             details[detail_field['key']] = value
     if not details:
         del data['details']
-    missing = [f['label'] for f in fields if f['key'] not in details]
-    return CheckResult(complete=not missing and not issues, missing=missing, issues=issues)
+    missing = [f['label'] for f in fields if is_required_detail(f) and f['key'] not in details]
+    return CheckResult(complete=not missing and not blocking, missing=missing, issues=issues)
 
 
 def check_confirmation(extracted: dict, data: dict, products: list[dict], block: dict) -> CheckResult:

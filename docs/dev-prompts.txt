@@ -528,3 +528,14 @@ Please add to the prompt, that if you can’t find the description there, you sh
 Also please update the fixtures, especially for “Kopi & Co. Café” so it includes a more lengthy description for the product.
 Please also add 2 more product items there.
 Please also add more FAQs for this business, I am using it for testing purpose.
+
+Date & Time (GMT+8): 2026-10-05 15:18:23
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+I encountered a bug where the bot got stuck in “DETAILS_COLLECTION” state and doesn’t let it to go forward to the next step when the business owner adds a new field called “BOO”.
+It asks the user for it but when the user ignores the question, the chat say order confirmed but the state doesn’t actually go to confirm.
+Add in the prompt that you’re not allowed to confirm the orders yet while you’re still in details collection state.
+Add a feature where it allows you to specify if a field is optional or not in “Details to collect”.
+Add to the prompt that if the field is not optional, then you have to keep ask for it until the user gives it.
+Add to the prompt if there’s a strange field like “Boo”, you should say the field as it is and do not paraphrase what to ask from the user (ask what’s needed as it is, don’t make assumptions on what the field is).

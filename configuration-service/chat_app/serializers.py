@@ -69,6 +69,11 @@ class ChatDetailFieldSerializer(serializers.Serializer):
     description = serializers.CharField(
         required=False, max_length=DETAIL_DESCRIPTION_MAX_LENGTH, help_text='Optional hint for the assistant.'
     )
+    required = serializers.BooleanField(
+        required=False,
+        default=True,
+        help_text='False for an optional detail (asked for, but not needed to move on). At least one must be required.',
+    )
     max_length = serializers.IntegerField(
         required=False,
         min_value=1,

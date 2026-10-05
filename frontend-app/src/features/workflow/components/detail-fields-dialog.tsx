@@ -5,6 +5,7 @@ import { FormField } from '@/components/common/form-field'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { NativeSelect } from '@/components/ui/native-select'
 import { Switch } from '@/components/ui/switch'
 
@@ -15,6 +16,7 @@ import {
   blockDetailFields,
   describeDetailField,
   isPresetKey,
+  isRequiredDetail,
   isValidDetailKey,
   keyFromLabel,
 } from '../details'
@@ -66,6 +68,7 @@ interface PresetDraft {
   enabled: boolean
   field: DetailField
   label: string
+  required: boolean
 }
 
 /** A custom detail being edited. Number inputs are kept as strings. */
@@ -79,6 +82,7 @@ interface CustomDraft {
   maxLength: string
   minValue: string
   maxValue: string
+  required: boolean
 }
 
 type DraftErrors = Partial<Record<'label' | 'description' | 'maxLength' | 'minValue' | 'maxValue', string>>
@@ -93,11 +97,22 @@ function toCustomDraft(field: DetailField): CustomDraft {
     maxLength: field.max_length?.toString() ?? '',
     minValue: field.min_value?.toString() ?? '',
     maxValue: field.max_value?.toString() ?? '',
+    required: isRequiredDetail(field),
   }
 }
 
 function newCustomDraft(): CustomDraft {
-  return { uid: crypto.randomUUID(), key: null, label: '', type: 'text', description: '', maxLength: '200', minValue: '', maxValue: '' }
+  return {
+    uid: crypto.randomUUID(),
+    key: null,
+    label: '',
+    type: 'text',
+    description: '',
+    maxLength: '200',
+    minValue: '',
+    maxValue: '',
+    required: true,
+  }
 }
 
 function labelError(label: string): string | undefined {
@@ -130,8 +145,14 @@ function validateCustom(draft: CustomDraft): DraftErrors {
   return Object.fromEntries(Object.entries(errors).filter(([, message]) => message)) as DraftErrors
 }
 
+/** Required is the default, so only `required: false` is stored. */
+function withRequired(field: DetailField, required: boolean): DetailField {
+  const { required: _previous, ...rest } = field
+  return required ? rest : { ...rest, required: false }
+}
+
 function toField(draft: CustomDraft, key: string): DetailField {
-  const field: DetailField = { key, label: draft.label.trim(), type: draft.type }
+  const field: DetailField = withRequired({ key, label: draft.label.trim(), type: draft.type }, draft.required)
   if (draft.description.trim()) field.description = draft.description.trim()
   if (draft.type === 'text' && draft.maxLength.trim()) field.max_length = Number(draft.maxLength)
   if (draft.type === 'number') {
@@ -154,7 +175,7 @@ function DetailFieldsForm({ fields, onCancel, onApply }: DetailFieldsFormProps) 
     PRESET_DETAIL_FIELDS.map((preset) => {
       const existing = fields.find((field) => field.key === preset.key)
       const field = existing ?? preset
-      return { enabled: existing !== undefined, field, label: field.label }
+      return { enabled: existing !== undefined, field, label: field.label, required: isRequiredDetail(field) }
     }),
   )
   const [customs, setCustoms] = useState<CustomDraft[]>(() =>
@@ -164,13 +185,17 @@ function DetailFieldsForm({ fields, onCancel, onApply }: DetailFieldsFormProps) 
 
   const presetErrors = presets.map((preset) => (preset.enabled ? labelError(preset.label) : undefined))
   const customErrors = customs.map(validateCustom)
-  const count = presets.filter((preset) => preset.enabled).length + customs.length
+  const enabledPresets = presets.filter((preset) => preset.enabled)
+  const count = enabledPresets.length + customs.length
+  const hasRequired = enabledPresets.some((preset) => preset.required) || customs.some((draft) => draft.required)
   const formError =
     count === 0
       ? 'Choose at least one detail to collect.'
       : count > DETAIL_LIMITS.fieldsMax
         ? `At most ${DETAIL_LIMITS.fieldsMax} details.`
-        : undefined
+        : !hasRequired
+          ? 'At least one detail must be required, or the chat would move on without asking anything.'
+          : undefined
   const hasErrors =
     formError !== undefined || presetErrors.some(Boolean) || customErrors.some((e) => Object.keys(e).length > 0)
 
@@ -185,7 +210,7 @@ function DetailFieldsForm({ fields, onCancel, onApply }: DetailFieldsFormProps) 
     if (hasErrors) return
     const result: DetailField[] = presets
       .filter((preset) => preset.enabled)
-      .map((preset) => ({ ...preset.field, label: preset.label.trim() }))
+      .map((preset) => withRequired({ ...preset.field, label: preset.label.trim() }, preset.required))
     // Saved keys stay (collected data is stored under them); new details get one from their label.
     // Preset keys are reserved, so a custom "Email" doesn't turn into the Email preset.
     const taken = new Set([
@@ -226,9 +251,15 @@ function DetailFieldsForm({ fields, onCancel, onApply }: DetailFieldsFormProps) 
                     aria-invalid={(submitted && presetErrors[index] !== undefined) || undefined}
                   />
                   <p className={submitted && presetErrors[index] ? 'text-destructive text-xs' : 'text-muted-foreground text-xs'}>
-                    {(submitted && presetErrors[index]) || describeDetailField(preset.field)}
+                    {(submitted && presetErrors[index]) || describeDetailField(withRequired(preset.field, preset.required))}
                   </p>
                 </div>
+                <RequiredSwitch
+                  id={`preset-${preset.field.key}-required`}
+                  checked={preset.required}
+                  disabled={!preset.enabled}
+                  onChange={(required) => updatePreset(index, { required })}
+                />
               </li>
             ))}
           </ul>
@@ -293,7 +324,7 @@ function CustomDetailRow({ draft, errors, onChange, onRemove }: CustomDetailRowP
   const id = (name: string) => `${draft.uid}-${name}`
   return (
     <li className="grid gap-3 rounded-lg border p-3">
-      <div className="grid gap-3 sm:grid-cols-[1fr_11rem_auto] sm:items-start">
+      <div className="grid gap-3 sm:grid-cols-[1fr_11rem_auto_auto] sm:items-start">
         <FormField id={id('label')} label="Label" error={errors.label} hint={draft.key ? `Key: ${draft.key}` : undefined}>
           <Input
             id={id('label')}
@@ -316,6 +347,12 @@ function CustomDetailRow({ draft, errors, onChange, onRemove }: CustomDetailRowP
             ))}
           </NativeSelect>
         </FormField>
+        <RequiredSwitch
+          id={id('required')}
+          className="sm:mt-6"
+          checked={draft.required}
+          onChange={(required) => onChange({ required })}
+        />
         <Button
           type="button"
           variant="ghost"
@@ -391,5 +428,29 @@ function CustomDetailRow({ draft, errors, onChange, onRemove }: CustomDetailRowP
         />
       </FormField>
     </li>
+  )
+}
+
+/** "Required" switch: required details must be given before the chat moves on; optional ones can be skipped. */
+function RequiredSwitch({
+  id,
+  checked,
+  disabled,
+  className,
+  onChange,
+}: {
+  id: string
+  checked: boolean
+  disabled?: boolean
+  className?: string
+  onChange: (checked: boolean) => void
+}) {
+  return (
+    <div className={`flex items-center gap-2 ${className ?? 'mt-2'}`} title="Required details must be given before the chat moves on">
+      <Switch id={id} checked={checked} disabled={disabled} onCheckedChange={onChange} />
+      <Label htmlFor={id} className="text-xs font-normal">
+        Required
+      </Label>
+    </div>
   )
 }

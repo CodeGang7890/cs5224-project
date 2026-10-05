@@ -175,6 +175,13 @@ class ValidateDetailFieldsTests(SimpleTestCase):
     def test_valid_fields(self):
         validate_chat_config(details_config(DETAIL_FIELDS))
         validate_chat_config(details_config([{'key': 'a', 'label': 'A', 'type': 'number'}]))  # no bounds
+        validate_chat_config(details_config([  # optional fields, on every type, next to a required one
+            {'key': 'name', 'label': 'Name', 'type': 'text', 'required': True},
+            {'key': 'notes', 'label': 'Notes', 'type': 'text', 'required': False},
+            {'key': 'n', 'label': 'N', 'type': 'number', 'required': False},
+            {'key': 'e', 'label': 'E', 'type': 'email', 'required': False},
+            {'key': 'p', 'label': 'P', 'type': 'phone', 'required': False},
+        ]))
         validate_chat_config(details_config([{'key': 'x', 'label': 'X', 'type': 'number', 'min_value': 1.5, 'max_value': 1.5}]))
 
     def test_fields_are_optional(self):
@@ -207,7 +214,9 @@ class ValidateDetailFieldsTests(SimpleTestCase):
             'max_length on number': ([{**field, 'type': 'number', 'max_length': 5}], 'max_length not allowed for type number'),
             'min_value on text': ([{**field, 'min_value': 1}], 'min_value not allowed for type text'),
             'max_length on email': ([{**field, 'type': 'email', 'max_length': 5}], 'max_length not allowed for type email'),
-            'unknown key': ([{**field, 'required': True}], 'required not allowed for type text'),
+            'unknown key': ([{**field, 'placeholder': 'x'}], 'placeholder not allowed for type text'),
+            'required not a bool': ([{**field, 'required': 'yes'}], 'required must be true or false'),
+            'all optional': ([{**field, 'required': False}], 'at least one field must be required'),
             'max_length zero': ([{**field, 'max_length': 0}], 'max_length must be an integer from 1 to 2000'),
             'max_length too big': ([{**field, 'max_length': 2001}], 'max_length must be an integer from 1 to 2000'),
             'max_length bool': ([{**field, 'max_length': True}], 'max_length must be an integer from 1 to 2000'),

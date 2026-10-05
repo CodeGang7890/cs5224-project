@@ -46,6 +46,7 @@ export function blockDetailFields(fields: DetailField[] | undefined): DetailFiel
 export function normalizeDetailField(field: DetailField): DetailField {
   const normalized: DetailField = { key: field.key, label: field.label, type: field.type }
   if (field.description) normalized.description = field.description
+  if (field.required === false) normalized.required = false // required is the default: left out
   if (field.type === 'text' && field.max_length !== undefined) normalized.max_length = field.max_length
   if (field.type === 'number') {
     if (field.min_value !== undefined) normalized.min_value = field.min_value
@@ -72,7 +73,11 @@ export function isValidDetailKey(key: string): boolean {
   return KEY_PATTERN.test(key) && key.length <= DETAIL_LIMITS.keyMaxLength
 }
 
-/** One line describing a field, e.g. "Number, 100000–999999". */
+export function isRequiredDetail(field: DetailField): boolean {
+  return field.required !== false
+}
+
+/** One line describing a field, e.g. "Number, 100000–999999" (", optional" if it is). */
 export function describeDetailField(field: DetailField): string {
   const parts: string[] = [DETAIL_TYPE_LABELS[field.type]]
   if (field.type === 'text') parts.push(`max ${field.max_length ?? DETAIL_LIMITS.textDefaultMaxLength} characters`)
@@ -82,5 +87,6 @@ export function describeDetailField(field: DetailField): string {
     else if (low !== undefined) parts.push(`at least ${low}`)
     else if (high !== undefined) parts.push(`at most ${high}`)
   }
+  if (!isRequiredDetail(field)) parts.push('optional')
   return parts.join(', ')
 }

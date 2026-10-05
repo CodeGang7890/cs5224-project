@@ -34,6 +34,8 @@ export interface DetailField {
   type: DetailFieldType
   /** Optional hint for the assistant, e.g. "6 digits". */
   description?: string
+  /** False for an optional detail (asked for, but not needed to move on). Missing means required. */
+  required?: boolean
   /** `text` only. */
   max_length?: number
   /** `number` only. */

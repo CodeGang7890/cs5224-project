@@ -4,7 +4,7 @@ import { Pencil, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 import { BLOCK_META } from '../blocks'
-import { blockDetailFields } from '../details'
+import { blockDetailFields, isRequiredDetail } from '../details'
 import type { BlockNode } from '../flow'
 import { DETAILS_COLLECTION_BLOCK, SEND_MESSAGE_BLOCK, START_BLOCK, type BlockType } from '../types'
 
@@ -52,6 +52,7 @@ export function BlockNodeView({ id, data, selected }: NodeProps<BlockNode>) {
             {blockDetailFields(data.fields).map((field) => (
               <li key={field.key} className="bg-muted max-w-full truncate rounded px-1.5 py-0.5 text-[11px]">
                 {field.label}
+                {!isRequiredDetail(field) && <span className="text-muted-foreground"> (optional)</span>}
               </li>
             ))}
           </ul>

@@ -32,10 +32,15 @@ DETAIL_TEXT_DEFAULT_MAX_LENGTH = 500  # when a text field has no max_length
 DETAIL_FIELD_KEYS = {'key', 'label', 'type'}
 # Optional keys of a field, by type.
 DETAIL_FIELD_OPTIONAL_KEYS = {
-    DETAIL_TYPE_TEXT: {'description', 'max_length'},
-    DETAIL_TYPE_NUMBER: {'description', 'min_value', 'max_value'},
+    DETAIL_TYPE_TEXT: {'description', 'required', 'max_length'},
+    DETAIL_TYPE_NUMBER: {'description', 'required', 'min_value', 'max_value'},
 }
-DETAIL_FIELD_OPTIONAL_KEYS_DEFAULT = {'description'}  # email, phone
+DETAIL_FIELD_OPTIONAL_KEYS_DEFAULT = {'description', 'required'}  # email, phone
+
+
+def is_required_detail(detail_field: dict) -> bool:
+    """Whether the chat must get this detail before moving on (`required`, true when missing)."""
+    return detail_field.get('required', True) is not False
 
 
 def block_detail_fields(block: dict) -> list[dict]:
@@ -149,6 +154,8 @@ def _detail_field_errors(fields, prefix: str) -> list[str]:
     - ``label``: non-blank, what the customer is asked for (e.g. "Postal code").
     - ``type``: one of DETAIL_FIELD_TYPES.
     - ``description`` (any type): a hint for the assistant, e.g. "6 digits".
+    - ``required`` (any type): false for an optional detail (asked for, but not needed to move on).
+      Missing means true. At least one field must be required.
     - ``max_length`` (text only): 1 to DETAIL_TEXT_MAX_LENGTH.
     - ``min_value`` / ``max_value`` (number only): numbers, min ≤ max.
     """
@@ -209,6 +216,11 @@ def _detail_field_errors(fields, prefix: str) -> list[str]:
             errors.append(f'{where}: min_value and max_value must be numbers.')
         elif len(bounds) == 2 and bounds[0] > bounds[1]:
             errors.append(f'{where}: min_value must not be greater than max_value.')
+        if 'required' in item and not isinstance(item['required'], bool):
+            errors.append(f'{where}: required must be true or false.')
+    # Otherwise the block would complete as soon as the chat reaches it, before asking anything.
+    if not any(isinstance(item, dict) and is_required_detail(item) for item in fields):
+        errors.append(f'{prefix}: at least one field must be required.')
     return errors
 
 

@@ -20,7 +20,7 @@ from .constants import (
     START_BLOCK,
 )
 from .tools import description_preview
-from .validators import DETAIL_TEXT_DEFAULT_MAX_LENGTH, block_detail_fields
+from .validators import DETAIL_TEXT_DEFAULT_MAX_LENGTH, block_detail_fields, is_required_detail
 
 BLOCK_LABELS = {
     START_BLOCK: 'Start',
@@ -99,7 +99,8 @@ _EXTRACTION_TASKS = {
         'Extract these details about the customer, if they gave them anywhere in the conversation '
         '(JSON key: what it is):\n{fields}\n\n'
         'Use null for anything they have not given. Copy text exactly and never make anything up. '
-        'Give numbers as JSON numbers.\n\n'
+        'Give numbers as JSON numbers. Take each label literally: only fill a detail if the customer '
+        'clearly gave that information for it, even if the label is unusual (e.g. "Boo").\n\n'
         'Already known: {known}'
     ),
     CONFIRMATION_BLOCK: (
@@ -160,8 +161,18 @@ _REPLY_INSTRUCTIONS = {
         'or other details yet: that comes after they confirm their order is complete.'
     ),
     DETAILS_COLLECTION_BLOCK: (
-        'Briefly acknowledge their order, then ask only for the details listed under "Still needed". '
-        'Never ask again for details that are already known.'
+        'You are still collecting the customer\'s details, so the order is NOT confirmed yet: do not say '
+        'it is confirmed, placed or complete, and do not thank them as if it were done.\n'
+        '- Ask for the details listed under "Still needed". Every required detail must be given before '
+        'the chat can move on: if the customer ignores the question or talks about something else, '
+        'answer them briefly, then ask again for what is still needed. Keep asking in every reply until '
+        'they give it.\n'
+        '- Optional details: ask for them once, together with the required ones, and accept it if the '
+        'customer skips them.\n'
+        '- Ask for each detail using its label exactly as written under "Details to collect", word for '
+        'word. Do not paraphrase, translate or guess what a label means: for example, if a label is '
+        '"Boo", ask for "Boo", not for something you think it might mean.\n'
+        '- Never ask again for details that are already known.'
     ),
     CONFIRMATION_BLOCK: (
         'Show the order summary from "What we know so far" (items, quantities, prices, total and '
@@ -213,7 +224,9 @@ def build_reply_prompt(
         '- For questions about the business (opening hours, delivery, payment, policies, etc.), call '
         'list_faqs.\n'
         '- If the answer is not in what you find, say honestly that you do not know (you can offer to '
-        'check with the team). Never guess or make up details, such as ingredients or allergens.'
+        'check with the team). Never guess or make up details, such as ingredients or allergens.\n'
+        '- Never tell the customer that their order is confirmed, placed or complete unless the current '
+        'step below is "Done (order confirmed)".'
     ]
     completed = bool(data.get('completed'))
     if block_type is None:
@@ -283,7 +296,7 @@ def detail_labels(config_json: list[dict]) -> dict[str, str]:
 
 
 def describe_detail_fields(fields: list[dict], with_keys: bool = False) -> str:
-    """One line per field, e.g. `- Postal code: a number from 100000 to 999999. 6 digits.`"""
+    """One line per field, e.g. `- "Postal code" (required; a number from 100000 to 999999). 6 digits.`"""
     lines = []
     for detail_field in fields:
         field_type = detail_field['type']
@@ -302,8 +315,10 @@ def describe_detail_fields(fields: list[dict], with_keys: bool = False) -> str:
             kind = 'a phone number'
         else:
             kind = f'text, at most {detail_field.get("max_length", DETAIL_TEXT_DEFAULT_MAX_LENGTH)} characters'
-        name = f'"{detail_field["key"]}": {detail_field["label"]}' if with_keys else detail_field['label']
-        line = f'- {name} ({kind})'
+        label = f'"{detail_field["label"]}"'
+        name = f'"{detail_field["key"]}": {label}' if with_keys else label
+        need = 'required' if is_required_detail(detail_field) else 'optional'
+        line = f'- {name} ({need}; {kind})'
         if detail_field.get('description'):
             line += f'. {detail_field["description"]}'
         lines.append(line)
