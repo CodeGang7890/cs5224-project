@@ -356,7 +356,7 @@ class SampleChatConfigurationFixtureTests(TestCase):
             ['START_BLOCK', 'PRODUCT_SELECTION_BLOCK', 'DETAILS_COLLECTION_BLOCK', 'CONFIRMATION_BLOCK'],
         )
         details = chat_config.config_json[2]
-        self.assertEqual([f['key'] for f in details['fields']], ['name', 'card_message', 'delivery_date'])
+        self.assertEqual([f['key'] for f in details['fields']], ['name', 'card_message', 'collection_date'])
         self.assertTrue(all(is_required_detail(f) for f in details['fields']))
 
 

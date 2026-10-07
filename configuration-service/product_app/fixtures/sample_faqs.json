@@ -22,8 +22,8 @@
     "pk": 3,
     "fields": {
       "business": 2,
-      "question": "Do you offer same-day delivery?",
-      "answer": "Yes. Orders confirmed and paid before 12pm from Monday to Saturday can be delivered the same day, between 2pm and 8pm. This applies to fresh, dried and soap flowers, and to crochet flowers that are in stock (made-to-order crochet pieces take longer). There's no same-day delivery on Sundays, public holidays, or during the Valentine's Day and Mother's Day peak periods, when orders must be placed in advance."
+      "question": "Do you deliver?",
+      "answer": "No, we don't deliver: all orders are for self-collection from our studio at 35 Joo Chiat Place, Singapore 427757, during our collection hours (Monday to Saturday from 11am to 7pm, and Sunday from 11am to 4pm). If you'd like the flowers to go to someone else, you're welcome to book your own courier or a delivery app (such as Lalamove or Grab Express) to collect them from us: just give the driver your order number."
     }
   },
   {
@@ -148,8 +148,8 @@
     "pk": 17,
     "fields": {
       "business": 2,
-      "question": "How much is delivery, and where do you deliver?",
-      "answer": "We deliver anywhere in mainland Singapore and Sentosa. Standard delivery is $12 per address, or $20 to Sentosa. Delivery is free for orders of $150 or more to one address, and for all flower stands. You can choose a time window: 10am to 1pm, 2pm to 6pm, or 6pm to 9pm (evening slot, $8 more). A 1-hour window for a specific time costs $25 more. We don't deliver to Jurong Island or to offshore islands other than Sentosa."
+      "question": "Where and when can I collect my order?",
+      "answer": "At our studio, 35 Joo Chiat Place, Singapore 427757, during our collection hours: Monday to Saturday from 11am to 7pm, and Sunday from 11am to 4pm. You choose your collection date when you order, and we'll message you when your order is ready. Please bring your order number. Street parking is available along Joo Chiat Place, and the nearest MRT stations are Eunos and Marine Parade (about a 10-minute walk). We're closed on the first two days of Chinese New Year."
     }
   },
   {
@@ -157,8 +157,8 @@
     "pk": 18,
     "fields": {
       "business": 2,
-      "question": "Can I collect my order myself?",
-      "answer": "Yes, self-pickup from our studio at 35 Joo Chiat Place is free. Choose a collection date and time when you order, and we'll message you when it's ready. Please bring your order number. Street parking is available along Joo Chiat Place, and the nearest MRT stations are Eunos and Marine Parade (about a 10-minute walk)."
+      "question": "Can I collect my order on the same day?",
+      "answer": "Yes. Orders confirmed and paid before 12pm from Monday to Saturday can be collected the same day, from 4pm. This applies to fresh, dried and soap flowers, and to crochet flowers that are in stock (made-to-order crochet pieces take longer). There's no same-day collection on Sundays, public holidays, or during the Valentine's Day and Mother's Day peak periods, when orders must be placed in advance."
     }
   },
   {
@@ -167,7 +167,7 @@
     "fields": {
       "business": 2,
       "question": "What are your opening hours?",
-      "answer": "Our studio is open Monday to Saturday from 9am to 7pm, and Sunday from 10am to 4pm. We're closed on the first two days of Chinese New Year. You can message us here at any time: our assistant replies straight away, and our team follows up during opening hours."
+      "answer": "Our studio is open Monday to Saturday from 9am to 7pm, and Sunday from 10am to 4pm, for walk-ins and enquiries. Orders can be collected Monday to Saturday from 11am to 7pm, and Sunday from 11am to 4pm: our florists arrange the day's orders in the morning. We're closed on the first two days of Chinese New Year. You can message us here at any time: our assistant replies straight away, and our team follows up during opening hours."
     }
   },
   {
@@ -202,8 +202,8 @@
     "pk": 23,
     "fields": {
       "business": 2,
-      "question": "What happens if the recipient isn't home?",
-      "answer": "Our driver will call the recipient first. If there's no answer, we'll leave the flowers with a neighbour, the guardhouse or the concierge, or at the door if you've told us that's fine, and send you a photo. If none of these is possible, we bring the flowers back to the studio and can re-deliver them the next day for $12, or you can collect them for free."
+      "question": "Can someone else collect my order for me?",
+      "answer": "Yes. Just give them your order number and the name on the order. Couriers and delivery app drivers can collect for you in the same way. If an order isn't collected on its collection date, we keep it for you: fresh flowers in our cold room for up to 2 days (after that they start to fade), and everything else for up to 14 days."
     }
   },
   {
@@ -211,8 +211,8 @@
     "pk": 24,
     "fields": {
       "business": 2,
-      "question": "Can I change the delivery date, time or address?",
-      "answer": "Yes, free of charge, up to 24 hours before delivery: just message us. Changes on the day of delivery depend on our driver's route; a new address on the day may cost an extra delivery fee. Fresh flower orders can't be postponed by more than 3 days once they've been arranged."
+      "question": "Can I change my collection date or time?",
+      "answer": "Yes, free of charge, up to 24 hours before your collection date: just message us. On the day itself, you can collect at any time during our collection hours. Fresh flower orders can't be postponed by more than 3 days once they've been arranged."
     }
   },
   {
@@ -221,7 +221,7 @@
     "fields": {
       "business": 2,
       "question": "What is your cancellation and refund policy?",
-      "answer": "You can cancel for a full refund up to 48 hours before delivery. Within 48 hours, we can give you store credit for 50% of the order value, since the flowers may already be prepared. Custom and made-to-order crochet pieces can't be cancelled once work has started. If fresh flowers arrive damaged, send us a photo within 6 hours of delivery and we'll replace them."
+      "answer": "You can cancel for a full refund up to 48 hours before your collection date. Within 48 hours, we can give you store credit for 50% of the order value, since the flowers may already be prepared. Custom and made-to-order crochet pieces can't be cancelled once work has started. Please check your flowers when you collect them: if anything is wrong, tell us before you leave and we'll fix or replace it."
     }
   },
   {
@@ -238,8 +238,8 @@
     "pk": 27,
     "fields": {
       "business": 2,
-      "question": "Will I see a photo of my flowers before delivery?",
-      "answer": "Yes. Before your order leaves the studio, we send you a photo here on WhatsApp, so you can see exactly what the recipient will get."
+      "question": "Will I see a photo of my flowers before I collect them?",
+      "answer": "Yes. When your order is ready, we send you a photo here on WhatsApp, so you can see exactly what you'll be collecting."
     }
   },
   {

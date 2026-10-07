@@ -646,3 +646,21 @@ Please make the rest such as the business name etc realistic too. And add a list
 For the workflow of this shop, I want it follow the basic pattern: Start -> Product Selection -> Details Collection -> Confirmation.
 For details collection, make it just ask for simply name and customised message on the card given alongside the flower, and a date where the user would get the flower.
 Please also make the business configuration description lengthy and much more realistic.
+
+Date & Time (GMT+8): 2026-10-07 22:39:09
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+please give me the commands to flush and to run all fixtures
+
+Date & Time (GMT+8): 2026-10-07 22:41:04
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+Please change "delivery date" to "collection date"
+Please modify the FAQ so make it there's only self-collection at a location at some hours and not on a place
+
+Date & Time (GMT+8): 2026-10-07 22:44:34
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+Please remove information such as bulk pricing or delivery from the fixtures for the Products
+Other information can be put there, such as Care, Allergies infomration, etc.
+Just don't give complicated variants to choose etc in the description or things like delivery etc

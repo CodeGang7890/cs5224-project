@@ -133,12 +133,12 @@
           "message_time": "2026-09-02T14:01:00+08:00"
         },
         {
-          "message": "Yes please, 1 sunflower bouquet. Can I add a crochet tulip too, a yellow one?",
+          "message": "Yes please, 1 sunflower bouquet. Can I add a crochet tulip too?",
           "sent_by": "customer",
           "message_time": "2026-09-02T14:05:00+08:00"
         },
         {
-          "message": "Of course! Here's your order so far: 1 × Sunflower Hand-Tied Bouquet ($58.00) and 1 × Hand-Crocheted Single Tulip ($14.90), in yellow. Total: $72.90. Would you like anything else, or is that everything?",
+          "message": "Of course! Here's your order so far: 1 × Sunflower Hand-Tied Bouquet ($58.00) and 1 × Hand-Crocheted Single Tulip ($14.90). Total: $72.90. Would you like anything else, or is that everything?",
           "sent_by": "business-automated",
           "message_time": "2026-09-02T14:07:00+08:00"
         }
@@ -199,12 +199,12 @@
           "message_time": "2026-09-04T10:35:00+08:00"
         },
         {
-          "message": "Great! To prepare your order, could I have your name, the message you'd like on the card, and the delivery date?",
+          "message": "Great! To prepare your order, could I have your name, the message you'd like on the card, and the date you'll collect it from our studio?",
           "sent_by": "business-automated",
           "message_time": "2026-09-04T10:36:00+08:00"
         },
         {
-          "message": "I'm Chloe Ng, and I'd like it delivered on 20 September.",
+          "message": "I'm Chloe Ng, and I'll collect it on 20 September.",
           "sent_by": "customer",
           "message_time": "2026-09-04T10:44:00+08:00"
         },
@@ -227,7 +227,7 @@
         "items_confirmed": true,
         "details": {
           "name": "Chloe Ng",
-          "delivery_date": "20 September"
+          "collection_date": "20 September"
         }
       },
       "is_sandbox": false

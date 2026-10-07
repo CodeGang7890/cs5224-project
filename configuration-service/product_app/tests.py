@@ -144,9 +144,11 @@ class SampleProductAndFAQFixtureTests(TestCase):
                 sentences = [s for s in product.description.replace('!', '.').split('. ') if s.strip()]
                 self.assertLessEqual(len(sentences), 2)  # 1-2 sentences
                 self.assertGreater(len(product.information), 1000)  # the long details
-                collection = product.information.split('\n', 1)[0]
-                self.assertRegex(collection, r'^Collection: (fresh|dried|preserved|soap|crochet) flowers')
-                collections.setdefault(collection.split()[1], []).append(product.name)
+                kind = product.information.split('\n', 1)[0]
+                self.assertRegex(kind, r'^Type: (fresh|dried|preserved|soap|crochet) flowers')
+                collections.setdefault(kind.split()[1], []).append(product.name)
+                # Only the product itself (materials, care, allergies…): no prices, variants or logistics.
+                self.assertNotRegex(product.information, r'(?i)\$|deliver|bulk|upgrade|add-on|colours:|made to order')
         self.assertEqual({key: len(names) for key, names in collections.items()},
                          {'fresh': 3, 'dried': 2, 'preserved': 1, 'soap': 3, 'crochet': 3})
         self.assertEqual(

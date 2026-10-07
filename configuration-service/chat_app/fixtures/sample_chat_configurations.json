@@ -99,11 +99,11 @@
               "description": "The message printed on the greeting card that comes with the flowers"
             },
             {
-              "key": "delivery_date",
-              "label": "Delivery date",
+              "key": "collection_date",
+              "label": "Collection date",
               "type": "text",
               "max_length": 50,
-              "description": "The date the flowers should arrive (or be collected), e.g. Saturday 20 September"
+              "description": "The date the customer will collect the flowers from our studio, e.g. Saturday 20 September"
             }
           ]
         },
