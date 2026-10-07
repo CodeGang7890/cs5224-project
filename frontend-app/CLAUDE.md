@@ -129,6 +129,7 @@ npm run dev      # dev server (http://localhost:5173)
 npm run build    # tsc -b + vite build → dist/
 npm run preview  # serve the production build
 npm run lint     # oxlint
+docker compose up --build   # from the repo root: frontend (Dockerfile.dev, hot reload via polling) + backend + DB
 ```
 
 Before finishing a change, run `npm run build` and `npm run lint`. Both must pass.

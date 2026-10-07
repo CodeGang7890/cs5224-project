@@ -33,6 +33,14 @@ npm run dev                 # start the dev server
 
 Then open the URL Vite prints, usually <http://localhost:5173>.
 
+### Or with Docker
+
+From the repository root, `docker compose up --build` starts the frontend together with PostgreSQL and
+configuration-service, at <http://localhost:5173>. It runs the same dev server (`Dockerfile.dev`) with
+the source mounted, so hot reload works; file watching uses polling (`CHOKIDAR_USEPOLLING`, see
+`vite.config.ts`) because file events don't reach the container on WSL/Windows. After changing
+`package.json`, run `docker compose up --build -V frontend-app` to reinstall the dependencies.
+
 ## Scripts
 
 | Command | What it does |

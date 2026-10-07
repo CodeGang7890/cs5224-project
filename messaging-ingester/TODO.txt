@@ -1,5 +1,21 @@
 TODO: Messaging Ingester Service
 - Set up Meta & WhatsApp Business account
-- Explore the API to send message back to user (to be called by Messaging Service)
 - Create this ingester service that contain the webhook, make sure message can land here
-- Process the received message and publish it to Pub/Sub
+- Process the received message and publish it to Pub/Sub (then assuming Pub/Sub delivers to messaging service)
+
+- Explore the API to send message back to user (to be called by Messaging Service)
+
+Steps (when sending messages):
+1. Customer -> Meta: Customer sends a message to the business's WA number.
+2. Meta -> Messaging Ingester: In developer dashboard, register a URL. Meta sends a HTTP POST for every incoming message e.g.,
+```json
+{
+    "phone_number": ...,
+    "from": ...,
+    "text": ...
+}
+```
+Messaging Ingester check request came from Meta, pull out information, publish to Pub/Sub, return Meta 200 OK right away.
+3. Pub/Sub -> Messaging Service -> Database
+4. Messaging Service -> Whatsapp API -> Customer
+5. Chat Sandbox connects to Configuration Service (which reads the Database)
