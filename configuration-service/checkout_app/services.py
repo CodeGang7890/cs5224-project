@@ -1,7 +1,6 @@
-"""Placing orders: creates the OrderItem and reserves its stock, safely under concurrency."""
+"""Placing orders: creates the OrderItem, which puts its products on hold, safely under concurrency."""
 
 from django.db import transaction
-from django.db.models import F
 
 from product_app.models import Product
 
@@ -22,17 +21,19 @@ class OrderError(Exception):
 def place_order(
     business, items: list[dict], details: dict, *, chat_session=None, is_sandbox: bool = False
 ) -> OrderItem:
-    """Creates a PENDING_PAYMENT order and reserves its stock, all or nothing.
+    """Creates a PENDING_PAYMENT order, all or nothing, if every product has enough available.
 
     `items` are `{product_id, name, unit_price, quantity}` (the snapshot the customer confirmed;
-    the price isn't re-read, so the customer pays what they were shown). For each, the product's
-    `quantity_available` goes down and `quantity_on_hold` goes up by the quantity.
+    the price isn't re-read, so the customer pays what they were shown). Products store only their
+    total_quantity, and their on hold / sold / available quantities are derived from the orders
+    (checkout_app.stock), so creating the order is what puts its quantities on hold.
 
     Concurrency: everything runs in one transaction. The products' rows are locked with
-    SELECT ... FOR UPDATE, in id order (so two orders can't deadlock), before the stock is checked;
-    the updates are also guarded with `quantity_available >= quantity`, so stock can never go
-    negative even on a database without row locks (SQLite locks the whole database instead).
-    Raises OrderError (and changes nothing) if a product isn't on sale or doesn't have enough stock.
+    SELECT ... FOR UPDATE, in id order (so two orders can't deadlock), before the quantities are
+    checked; the same lock guards changes to total_quantity (ProductSerializer.update). After the
+    order is saved, the quantities are checked again with it counted, so a product can never be
+    oversold even on a database without row locks (SQLite locks the whole database instead).
+    Raises OrderError (and changes nothing) if a product isn't on sale or doesn't have enough.
     """
     # One line per product (the same product chosen twice is merged).
     merged: dict[int, dict] = {}
@@ -51,24 +52,17 @@ def place_order(
             .filter(business=business, pk__in=quantities)
             .order_by('pk')
         }
+        Product.load_stock(locked.values())
         problems = []
         for product_id, quantity in quantities.items():
             product = locked.get(product_id)
             if product is None or not product.is_active:
                 problems.append(f'{names[product_id]} is no longer available.')
             elif product.quantity_available < quantity:
-                left = product.quantity_available
+                left = max(product.quantity_available, 0)
                 problems.append(f'Only {left} {product.name} {"is" if left == 1 else "are"} left.')
         if problems:
             raise OrderError(problems)
-
-        for product_id, quantity in sorted(quantities.items()):
-            updated = Product.objects.filter(pk=product_id, quantity_available__gte=quantity).update(
-                quantity_available=F('quantity_available') - quantity,
-                quantity_on_hold=F('quantity_on_hold') + quantity,
-            )
-            if updated != 1:  # only if the lock didn't hold (e.g. no row locks): roll everything back
-                raise OrderError([f'{names[product_id]} just sold out.'])
 
         order = OrderItem(
             business=business,
@@ -79,4 +73,12 @@ def place_order(
         )
         order.full_clean()
         order.save()
+
+        # Counted again, with this order: only if the lock didn't hold (e.g. no row locks) could
+        # another order have taken the stock in between. Then roll everything back.
+        oversold = [
+            names[product.pk] for product in Product.load_stock(locked.values()) if product.quantity_available < 0
+        ]
+        if oversold:
+            raise OrderError([f'{name} just sold out.' for name in oversold])
     return order

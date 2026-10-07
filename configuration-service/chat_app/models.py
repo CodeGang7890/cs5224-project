@@ -4,6 +4,8 @@ from django.db import models
 from django.db.models import Q
 from django.utils import timezone
 
+from product_app.models import FAQ_QUESTION_MAX_LENGTH
+
 from .constants import START_BLOCK
 from .validators import (
     is_valid_block_id,
@@ -152,3 +154,83 @@ class ChatSession(models.Model):
             raise ValidationError(
                 {'chat_state_id': f"{state_id!r} is not a block id in this business's chat configuration."}
             )
+
+
+class QuestionStatus(models.TextChoices):
+    OPEN = 'open', 'Open'  # waiting for the business
+    ANSWERED = 'answered', 'Answered'  # the answer became an FAQ and was sent in the chat
+    DISMISSED = 'dismissed', 'Dismissed'  # closed without an answer (e.g. not worth one)
+
+
+QUESTION_STATUS_MAX_LENGTH = 16
+
+
+class UnansweredQuestion(models.Model):
+    """A customer question the chat assistant couldn't answer from the FAQs or product details.
+
+    Created by the reply step's `ask_business` tool (tools.Toolbox, see questions.py). The business
+    owner answers it in the Chats tab, which saves the Q&A as an FAQ and sends the answer in the
+    chat, or dismisses it.
+    """
+
+    business = models.ForeignKey(
+        'configuration_app.BusinessConfiguration',
+        on_delete=models.CASCADE,
+        related_name='unanswered_questions',
+    )
+    chat_session = models.ForeignKey(
+        ChatSession,
+        on_delete=models.CASCADE,
+        related_name='unanswered_questions',
+        help_text='The chat the customer asked in; the answer is sent there.',
+    )
+    # As long as an FAQ question, since that's what it becomes once answered.
+    question = models.CharField(max_length=FAQ_QUESTION_MAX_LENGTH)
+    status = models.CharField(
+        max_length=QUESTION_STATUS_MAX_LENGTH,
+        choices=QuestionStatus.choices,
+        default=QuestionStatus.OPEN,
+    )
+    faq = models.ForeignKey(
+        'product_app.FAQ',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='unanswered_questions',
+        help_text='The FAQ the answer was saved as (editable in the FAQ tab).',
+    )
+    # Not auto_now_add, so fixtures and tests can set it (like ChatSession.created_time).
+    created_time = models.DateTimeField(default=timezone.now, editable=False)
+    answered_time = models.DateTimeField(null=True, blank=True, help_text='When it was answered (answered only).')
+
+    class Meta:
+        ordering = ['-created_time', '-id']
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(status__in=QuestionStatus.values),
+                name='unanswered_question_status_valid',
+            ),
+            models.CheckConstraint(condition=~Q(question=''), name='unanswered_question_not_empty'),
+            # answered_time is set exactly when the question was answered.
+            models.CheckConstraint(
+                condition=(
+                    Q(status=QuestionStatus.ANSWERED, answered_time__isnull=False)
+                    | (~Q(status=QuestionStatus.ANSWERED) & Q(answered_time__isnull=True))
+                ),
+                name='unanswered_question_answered_time',
+                violation_error_message='answered_time must be set exactly when the question is answered.',
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.question
+
+    def clean(self):
+        super().clean()
+        errors = {}
+        if self.chat_session_id and self.business_id and self.chat_session.business_id != self.business_id:
+            errors['chat_session'] = "The chat session must belong to the question's business."
+        if self.faq_id and self.business_id and self.faq.business_id != self.business_id:
+            errors['faq'] = "The FAQ must belong to the question's business."
+        if errors:
+            raise ValidationError(errors)

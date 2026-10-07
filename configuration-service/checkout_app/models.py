@@ -20,8 +20,9 @@ ORDER_STATUS_MAX_LENGTH = 32
 class OrderItem(models.Model):
     """An order a customer confirmed in a chat: what they ordered and their details (`order_data`).
 
-    Created by checkout_app.services.place_order(), which also reserves the stock: each product's
-    quantity moves from `quantity_available` to `quantity_on_hold` while payment is pending.
+    Created by checkout_app.services.place_order(). Products' on hold / sold / available
+    quantities are derived from the orders (checkout_app.stock): an order's quantities are on hold
+    while it's pending payment or paid, and sold once it's completed.
     """
 
     business = models.ForeignKey(

@@ -38,7 +38,9 @@ OLLAMA_OPTIONS = {
     'repeat_last_n': 64,
     'presence_penalty': 0.0,
     'frequency_penalty': 0.0,
-    'num_ctx': 4096,  # context window (system prompt + user prompt + reply)
+    # Context window (system prompt + conversation + reply). The question check and the reply can
+    # carry the business's FAQs and product details, which don't fit in 4096 for a large catalogue.
+    'num_ctx': 8192,
 }
 
 CHAT_PROMPT_MAX_LENGTH = 4000

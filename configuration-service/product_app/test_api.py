@@ -6,16 +6,19 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from auth_app.models import BusinessUser
+from checkout_app.models import OrderItem, OrderStatus
 from configuration_app.models import BusinessConfiguration
 
 from .models import (
     FAQ,
     FAQ_ANSWER_MAX_LENGTH,
+    PRODUCT_DESCRIPTION_MAX_LENGTH,
+    PRODUCT_INFORMATION_MAX_LENGTH,
     PRODUCT_NAME_MAX_LENGTH,
     QUANTITY_MAX,
     Product,
 )
-from .serializers import ProductSerializer
+from .serializers import DERIVED_QUANTITY_ERROR, DERIVED_QUANTITY_FIELDS, ProductSerializer
 
 
 class BusinessAPITestCase(APITestCase):
@@ -32,9 +35,11 @@ class BusinessAPITestCase(APITestCase):
         )
         cls.no_business_user = BusinessUser.objects.create_user(username='nobiz', password='123')
 
-        cls.cafe_product = Product.objects.create(
-            business=cls.cafe, name='Latte', price=Decimal('4.50'), quantity_available=10, quantity_sold=3
-        )
+        # 13 in total, 3 sold in a completed order: 10 available.
+        cls.cafe_product = Product.objects.create(business=cls.cafe, name='Latte', price=Decimal('4.50'), total_quantity=13)
+        OrderItem.objects.create(business=cls.cafe, order_status=OrderStatus.ORDER_COMPLETED, order_data={
+            'items': [{'product_id': cls.cafe_product.pk, 'name': 'Latte', 'unit_price': '4.50', 'quantity': 3}], 'details': {},
+        })
         cls.florist_product = Product.objects.create(
             business=cls.florist, name='Roses', price=Decimal('68.00')
         )
@@ -87,13 +92,41 @@ class ProductAPITests(BusinessAPITestCase):
     def test_create_defaults_to_own_business(self):
         self.login(self.cafe_user)
         response = self.client.post(
-            self.list_url, {'name': 'Mocha', 'price': '5.20', 'quantity_available': 5}, format='json'
+            self.list_url, {'name': 'Mocha', 'price': '5.20', 'total_quantity': 5}, format='json'
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         product = Product.objects.get(pk=response.data['id'])
         self.assertEqual(product.business, self.cafe)
-        self.assertEqual(product.quantity_sold, 0)
+        self.assertEqual(
+            {key: response.data[key] for key in ('total_quantity', 'quantity_available', 'quantity_on_hold', 'quantity_sold')},
+            {'total_quantity': 5, 'quantity_available': 5, 'quantity_on_hold': 0, 'quantity_sold': 0},
+        )
         self.assertTrue(product.is_active)
+
+    def test_create_and_update_description_and_information(self):
+        self.login(self.cafe_user)
+        description = 'd' * PRODUCT_DESCRIPTION_MAX_LENGTH
+        information = 'i' * PRODUCT_INFORMATION_MAX_LENGTH
+        response = self.client.post(
+            self.list_url,
+            {'name': 'Mocha', 'price': '5.20', 'description': description, 'information': information},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual((response.data['description'], response.data['information']), (description, information))
+        product = Product.objects.get(pk=response.data['id'])
+        self.assertEqual((product.description, product.information), (description, information))
+
+        response = self.client.patch(self.detail_url(product), {'information': 'Contains dairy.'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        product.refresh_from_db()
+        self.assertEqual((product.description, product.information), (description, 'Contains dairy.'))
+
+    def test_information_defaults_to_blank(self):
+        self.login(self.cafe_user)
+        response = self.client.post(self.list_url, {'name': 'Mocha', 'price': '5.20'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual((response.data['description'], response.data['information']), ('', ''))
 
     def test_create_with_own_business_explicitly(self):
         self.login(self.cafe_user)
@@ -107,33 +140,43 @@ class ProductAPITests(BusinessAPITestCase):
         response = self.client.get(self.detail_url(self.cafe_product))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['name'], 'Latte')
+        self.assertEqual(response.data['total_quantity'], 13)
         self.assertEqual(response.data['quantity_sold'], 3)
+        self.assertEqual(response.data['quantity_available'], 10)
 
     def test_update_own_product(self):
         self.login(self.cafe_user)
         response = self.client.patch(
             self.detail_url(self.cafe_product),
-            {'name': 'Iced Latte', 'price': '5.00', 'quantity_on_hold': 2, 'is_active': False},
+            {'name': 'Iced Latte', 'price': '5.00', 'total_quantity': 20, 'is_active': False},
             format='json',
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.cafe_product.refresh_from_db()
         self.assertEqual(self.cafe_product.name, 'Iced Latte')
         self.assertEqual(self.cafe_product.price, Decimal('5.00'))
-        self.assertEqual(self.cafe_product.quantity_on_hold, 2)
+        self.assertEqual(self.cafe_product.total_quantity, 20)
         self.assertFalse(self.cafe_product.is_active)
 
     def test_full_update_own_product(self):
         self.login(self.cafe_user)
         response = self.client.put(
             self.detail_url(self.cafe_product),
-            {'name': 'Flat White', 'price': '4.80', 'quantity_available': 8},
+            {'name': 'Flat White', 'price': '4.80', 'total_quantity': 8},
             format='json',
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.cafe_product.refresh_from_db()
         self.assertEqual(self.cafe_product.name, 'Flat White')
         self.assertEqual(self.cafe_product.business, self.cafe)
+        self.assertEqual(self.cafe_product.total_quantity, 8)
+
+    def test_full_update_without_total_quantity_keeps_it(self):
+        self.login(self.cafe_user)
+        response = self.client.put(self.detail_url(self.cafe_product), {'name': 'Latte', 'price': '4.50'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.cafe_product.refresh_from_db()
+        self.assertEqual(self.cafe_product.total_quantity, 13)
 
     def test_delete_own_product(self):
         self.login(self.cafe_user)
@@ -177,37 +220,50 @@ class ProductAPITests(BusinessAPITestCase):
         self.assertEqual(self.client.get(self.detail_url(self.cafe_product)).status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(self.client.get(self.list_url).data['results'], [])
 
-    # --- quantity_sold is read-only -------------------------------------------------
+    # --- Derived quantities are read-only --------------------------------------------
 
-    def test_quantity_sold_cannot_be_edited(self):
+    def test_derived_quantities_cannot_be_edited(self):
         self.login(self.cafe_user)
-        response = self.client.patch(self.detail_url(self.cafe_product), {'quantity_sold': 99}, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('quantity_sold', response.data)
+        for field in DERIVED_QUANTITY_FIELDS:
+            with self.subTest(field):
+                response = self.client.patch(self.detail_url(self.cafe_product), {field: 99}, format='json')
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertEqual(response.data, {field: [DERIVED_QUANTITY_ERROR]})
         self.cafe_product.refresh_from_db()
-        self.assertEqual(self.cafe_product.quantity_sold, 3)
+        self.assertEqual((self.cafe_product.total_quantity, self.cafe_product.quantity_sold), (13, 3))
 
-    def test_quantity_sold_cannot_be_set_on_create(self):
+    def test_derived_quantities_cannot_be_set_on_create(self):
         self.login(self.cafe_user)
-        response = self.client.post(
-            self.list_url, {'name': 'Mocha', 'price': '5.20', 'quantity_sold': 10}, format='json'
+        for field in DERIVED_QUANTITY_FIELDS:
+            with self.subTest(field):
+                response = self.client.post(self.list_url, {'name': 'Mocha', 'price': '5.20', field: 10}, format='json')
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn(field, response.data)
+        self.assertFalse(Product.objects.filter(name='Mocha').exists())
+
+    def test_derived_quantity_errors_are_reported_with_other_errors(self):
+        self.login(self.cafe_user)
+        response = self.client.patch(
+            self.detail_url(self.cafe_product), {'quantity_available': 5, 'price': '-1'}, format='json'
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('quantity_sold', response.data)
+        self.assertEqual(set(response.data), {'quantity_available', 'price'})
 
     # --- Validation -----------------------------------------------------------------
 
     def test_validation_errors(self):
         self.login(self.cafe_user)
         cases = {
-            'negative quantity_available': ({'quantity_available': -1}, 'quantity_available'),
-            'negative quantity_on_hold': ({'quantity_on_hold': -5}, 'quantity_on_hold'),
-            'quantity too large': ({'quantity_available': QUANTITY_MAX + 1}, 'quantity_available'),
+            'negative total_quantity': ({'total_quantity': -1}, 'total_quantity'),
+            'total_quantity too large': ({'total_quantity': QUANTITY_MAX + 1}, 'total_quantity'),
+            'non-integer total_quantity': ({'total_quantity': 'lots'}, 'total_quantity'),
             'negative price': ({'price': '-0.01'}, 'price'),
             'too many decimals': ({'price': '1.999'}, 'price'),
             'price too large': ({'price': '100000000.00'}, 'price'),
             'name too long': ({'name': 'x' * (PRODUCT_NAME_MAX_LENGTH + 1)}, 'name'),
             'blank name': ({'name': '   '}, 'name'),
+            'description too long': ({'description': 'x' * (PRODUCT_DESCRIPTION_MAX_LENGTH + 1)}, 'description'),
+            'information too long': ({'information': 'x' * (PRODUCT_INFORMATION_MAX_LENGTH + 1)}, 'information'),
             'non-numeric price': ({'price': 'free'}, 'price'),
         }
         for label, (data, field) in cases.items():
@@ -431,3 +487,126 @@ class BusinessListAPITests(BusinessAPITestCase):
                 with self.subTest(name, method=method):
                     response = getattr(self.client, method)(url, {}, format='json')
                     self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+
+class ProductQuantityAPITests(BusinessAPITestCase):
+    """total_quantity is the only stored quantity; on hold / sold / available come from the orders."""
+
+    list_url = reverse('product_app:product-list')
+
+    @staticmethod
+    def detail_url(product):
+        return reverse('product_app:product-detail', args=[product.pk])
+
+    def setUp(self):
+        self.login(self.cafe_user)
+        # Mocha: 20 in total; 2 pending payment + 3 paid = 5 on hold; 4 completed = 4 sold; 11 available.
+        self.mocha = Product.objects.create(business=self.cafe, name='Mocha', price=Decimal('5.20'), total_quantity=20)
+        for status_, quantity in (
+            (OrderStatus.PENDING_PAYMENT, 2), (OrderStatus.PAYMENT_RECEIVED, 3), (OrderStatus.ORDER_COMPLETED, 4),
+        ):
+            self.order(self.cafe, status_, (self.mocha, quantity))
+
+    @staticmethod
+    def order(business, status_, *lines):
+        return OrderItem.objects.create(business=business, order_status=status_, order_data={
+            'items': [
+                {'product_id': p.pk, 'name': p.name, 'unit_price': str(p.price), 'quantity': q} for p, q in lines
+            ],
+            'details': {},
+        })
+
+    def quantities(self, data):
+        return tuple(data[key] for key in ('total_quantity', 'quantity_available', 'quantity_on_hold', 'quantity_sold'))
+
+    def patch_total(self, total):
+        return self.client.patch(self.detail_url(self.mocha), {'total_quantity': total}, format='json')
+
+    def test_quantities_are_derived_from_orders(self):
+        self.assertEqual(self.quantities(self.client.get(self.detail_url(self.mocha)).data), (20, 11, 5, 4))
+
+    def test_list_derives_every_products_quantities(self):
+        results = {p['name']: self.quantities(p) for p in self.client.get(self.list_url).data['results']}
+        self.assertEqual(results, {'Latte': (13, 10, 0, 3), 'Mocha': (20, 11, 5, 4)})
+
+    def test_list_reads_the_orders_once_however_many_products(self):
+        def queries_for_list():
+            from django.db import connection
+            from django.test.utils import CaptureQueriesContext
+            with CaptureQueriesContext(connection) as queries:
+                self.assertEqual(self.client.get(self.list_url).status_code, status.HTTP_200_OK)
+            return len(queries)
+
+        before = queries_for_list()
+        for index in range(5):
+            product = Product.objects.create(business=self.cafe, name=f'Tea {index}', price='2.00', total_quantity=9)
+            self.order(self.cafe, OrderStatus.PENDING_PAYMENT, (product, 1))
+        self.assertEqual(queries_for_list(), before)
+
+    def test_business_list_endpoint_has_the_derived_quantities(self):
+        url = reverse('product_app:business-product-list', args=[self.cafe.pk])
+        results = {p['name']: self.quantities(p) for p in self.client.get(url).data['results']}
+        self.assertEqual(results['Mocha'], (20, 11, 5, 4))
+
+    def test_other_businesses_orders_do_not_count(self):
+        self.order(self.florist, OrderStatus.PENDING_PAYMENT, (self.florist_product, 1))
+        self.assertEqual(self.quantities(self.client.get(self.detail_url(self.mocha)).data), (20, 11, 5, 4))
+
+    def test_adding_stock(self):
+        response = self.patch_total(50)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self.quantities(response.data), (50, 41, 5, 4))
+
+    def test_reducing_stock_down_to_nothing_available(self):
+        response = self.patch_total(15)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self.quantities(response.data), (15, 6, 5, 4))
+        response = self.patch_total(9)  # on hold + sold: 0 available
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self.quantities(response.data), (9, 0, 5, 4))
+
+    def test_reducing_stock_below_on_hold_plus_sold_is_rejected(self):
+        response = self.patch_total(8)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data, {'total_quantity': [
+            'Must be at least 9 (5 on hold and 4 sold in orders), so the quantity available is not negative.'
+        ]})
+        self.mocha.refresh_from_db()
+        self.assertEqual(self.mocha.total_quantity, 20)
+
+    def test_rejected_reduction_changes_nothing_else(self):
+        response = self.client.patch(self.detail_url(self.mocha), {'total_quantity': 0, 'name': 'Iced Mocha'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.mocha.refresh_from_db()
+        self.assertEqual((self.mocha.name, self.mocha.total_quantity), ('Mocha', 20))
+
+    def test_full_update_is_checked_too(self):
+        response = self.client.put(
+            self.detail_url(self.mocha), {'name': 'Mocha', 'price': '5.20', 'total_quantity': 1}, format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('total_quantity', response.data)
+
+    def test_reduction_is_checked_against_the_latest_orders(self):
+        self.client.get(self.detail_url(self.mocha))
+        self.order(self.cafe, OrderStatus.PENDING_PAYMENT, (self.mocha, 6))  # placed since: 15 on hold + sold
+        self.assertEqual(self.patch_total(12).status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self.patch_total(15).status_code, status.HTTP_200_OK)
+
+    def test_completing_an_order_keeps_available_the_same(self):
+        pending = OrderItem.objects.filter(order_status=OrderStatus.PENDING_PAYMENT).get()
+        pending.order_status = OrderStatus.ORDER_COMPLETED
+        pending.save()
+        self.assertEqual(self.quantities(self.client.get(self.detail_url(self.mocha)).data), (20, 11, 3, 6))
+
+    def test_new_product_can_have_any_total(self):
+        response = self.client.post(self.list_url, {'name': 'Tea', 'price': '2.00', 'total_quantity': 0}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(self.quantities(response.data), (0, 0, 0, 0))
+
+    def test_updating_other_fields_does_not_check_the_total(self):
+        Product.objects.filter(pk=self.mocha.pk).update(total_quantity=1)  # e.g. orders placed in Django Admin
+        response = self.client.patch(self.detail_url(self.mocha), {'price': '5.50'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self.quantities(response.data), (1, -8, 5, 4))  # shown as it is, so it can be fixed
+        self.assertEqual(self.patch_total(9).status_code, status.HTTP_200_OK)

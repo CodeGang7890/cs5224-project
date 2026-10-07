@@ -1,7 +1,7 @@
 import django_filters
 from django.db.models import Q
 
-from .models import ChatSession
+from .models import ChatSession, QuestionStatus, UnansweredQuestion
 
 
 class StableOrderingFilter(django_filters.OrderingFilter):
@@ -94,3 +94,35 @@ class ChatSessionFilter(django_filters.FilterSet):
     def filter_has_messages(self, queryset, name, value):
         empty = Q(chat_message_json=[])
         return queryset.exclude(empty) if value == 'true' else queryset.filter(empty)
+
+
+class UnansweredQuestionFilter(django_filters.FilterSet):
+    """Filters for GET /api/chat/questions/. All parameters are optional and combine (AND).
+
+    Questions from sandbox (test) chats are included by default, so the Chat Sandbox can be used
+    to try the whole loop.
+    """
+
+    status = django_filters.ChoiceFilter(
+        choices=QuestionStatus.choices, help_text='Only questions with this status, e.g. `open` (the alert).'
+    )
+    sandbox = django_filters.ChoiceFilter(
+        choices=[(SANDBOX_INCLUDE, SANDBOX_INCLUDE), (SANDBOX_EXCLUDE, SANDBOX_EXCLUDE), (SANDBOX_ONLY, SANDBOX_ONLY)],
+        method='filter_sandbox',
+        help_text='Questions from sandbox (test) chats: `include` (the default), `exclude` or `only`.',
+    )
+    ordering = StableOrderingFilter(
+        fields=('created_time', 'answered_time', 'id'),
+        help_text='Sort by `created_time`, `answered_time` or `id`; prefix with `-` for descending. Default: `-created_time`.',
+    )
+
+    class Meta:
+        model = UnansweredQuestion
+        fields = ['status']
+
+    def filter_sandbox(self, queryset, name, value):
+        if value == SANDBOX_ONLY:
+            return queryset.filter(chat_session__is_sandbox=True)
+        if value == SANDBOX_EXCLUDE:
+            return queryset.filter(chat_session__is_sandbox=False)
+        return queryset

@@ -21,8 +21,9 @@ from ..flow import (
     go_back_targets,
 )
 from ..models import ChatConfiguration, ChatSession
+from ..prompts import build_extraction_prompt, build_reply_prompt
 from ..validators import validate_chat_messages, validate_chat_state_data
-from .test_api import fake_chat_response, fake_ollama_chat
+from .test_api import fake_chat_response, fake_ollama_chat, is_question_check, with_question_check
 
 FULL_CONFIG = [
     {'id': 1, 'next_block_id': 2, 'block_type': 'START_BLOCK', 'position_x': 0, 'position_y': 0},
@@ -49,10 +50,10 @@ class ChatFlowAPITests(APITestCase):
         cls.florist = BusinessConfiguration.objects.create(business_name='Florist', location='Singapore')
         cls.user = BusinessUser.objects.create_user(username='cafe', password='123', business=cls.cafe)
         cls.chat_config = ChatConfiguration.objects.create(business=cls.cafe, config_json=FULL_CONFIG)
-        cls.kopi = Product.objects.create(business=cls.cafe, name='Kopi C', price='1.80', quantity_available=200)
-        cls.toast = Product.objects.create(business=cls.cafe, name='Kaya Toast Set', price='5.50', quantity_available=3)
+        cls.kopi = Product.objects.create(business=cls.cafe, name='Kopi C', price='1.80', total_quantity=200)
+        cls.toast = Product.objects.create(business=cls.cafe, name='Kaya Toast Set', price='5.50', total_quantity=3)
         Product.objects.create(business=cls.cafe, name='Old Special', price='9.00', is_active=False)
-        Product.objects.create(business=cls.florist, name='Rose Bouquet', price='68.00', quantity_available=5)
+        Product.objects.create(business=cls.florist, name='Rose Bouquet', price='68.00', total_quantity=5)
         FAQ.objects.create(business=cls.cafe, question='Opening hours?', answer='8am to 7pm daily.')
 
     def setUp(self):
@@ -74,7 +75,11 @@ class ChatFlowAPITests(APITestCase):
         return response
 
     def calls(self, structured: bool):
-        return [c.kwargs for c in self.ollama.chat.call_args_list if bool(c.kwargs.get('format')) == structured]
+        """The block extractions (structured) or the reply calls; the question check is left out."""
+        return [
+            c.kwargs for c in self.ollama.chat.call_args_list
+            if bool(c.kwargs.get('format')) == structured and not is_question_check(c.kwargs)
+        ]
 
     def reply_prompt(self) -> str:
         return self.calls(structured=False)[-1]['messages'][0]['content']
@@ -228,7 +233,40 @@ class ChatFlowAPITests(APITestCase):
         self.send('10 Kaya Toast Sets please', {'items': [{'product_id': self.toast.pk, 'quantity': 10}]})
         self.assertEqual(self.session.chat_state_id, 2)
         self.assertEqual(self.session.chat_state_data, {})
-        self.assertIn('Only 3 Kaya Toast Set are available.', self.reply_prompt())
+        self.assertIn('Only 3 Kaya Toast Set are available, so 10 cannot be ordered.', self.reply_prompt())
+
+    def test_sold_out_product_stays_and_explains(self):
+        Product.objects.filter(pk=self.toast.pk).update(total_quantity=0)
+        self.session.chat_state_id = 2
+        self.session.save()
+        self.send(
+            '1 Kaya Toast Set please, that is all',
+            {'items': [{'product_id': self.toast.pk, 'quantity': 1}], 'done_choosing': True},
+        )
+        self.assertEqual(self.session.chat_state_id, 2)
+        self.assertEqual(self.session.chat_state_data, {})
+        prompt = self.reply_prompt()
+        self.assertIn('- Kaya Toast Set has run out (sold out) for now, so it cannot be ordered.', prompt)
+        self.assertIn('Kaya Toast Set, $5.50 (sold out)', prompt)
+        self.assertIn('Never offer, suggest or list a product that is sold out', prompt)
+
+    def test_confirmed_cart_sold_out_since_cannot_move_on(self):
+        # Back at product selection (e.g. after a "change" at confirmation), with a cart confirmed
+        # before the product ran out: the customer can't move on to details with it.
+        Product.objects.filter(pk=self.toast.pk).update(total_quantity=0)
+        self.session.chat_state_id = 2
+        self.session.chat_state_data = {
+            'items': [{'product_id': self.toast.pk, 'name': 'Kaya Toast Set', 'unit_price': '5.50', 'quantity': 1}],
+            'items_confirmed': True,
+        }
+        self.session.save()
+        self.send('Yes, that is all', {'items': [], 'done_choosing': True})
+        self.assertEqual(self.session.chat_state_id, 2)
+        self.assertEqual(self.session.chat_state_data, {})
+        self.assertIn(
+            'Kaya Toast Set has run out (sold out) for now, so it cannot be ordered. It was removed from the order.',
+            self.reply_prompt(),
+        )
 
     def test_unknown_state_falls_back_to_start_block(self):
         self.session.chat_state_id = 'deleted-block'  # e.g. removed from the workflow since
@@ -258,24 +296,24 @@ class ChatFlowAPITests(APITestCase):
         self.assertEqual([m['sent_by'] for m in self.session.chat_message_json], ['customer'])
         self.assertEqual((self.session.chat_state_id, self.session.chat_state_data), (1, {}))
 
-    def test_reply_can_call_read_only_tools(self):
+    def test_reply_can_call_tools(self):
         tool_call = SimpleNamespace(function=SimpleNamespace(name='list_faqs', arguments={}))
         responses = iter([
             fake_chat_response('{"wants_to_order": false}'),
             SimpleNamespace(message=SimpleNamespace(content='', tool_calls=[tool_call])),
             fake_chat_response('We are open 8am to 7pm daily.'),
         ])
-        self.ollama.chat.side_effect = lambda **kwargs: next(responses)
+        self.ollama.chat.side_effect = with_question_check(responses)
         response = self.client.post(
             reverse('chat_app:sandbox-session-messages', args=[self.session.pk]),
             {'message': 'When are you open?'},
             format='json',
         )
         self.assertEqual(response.json()['message'], 'We are open 8am to 7pm daily.')
-        reply_calls = self.ollama.chat.call_args_list[1:]
+        reply_calls = [c for c in self.ollama.chat.call_args_list if not c.kwargs.get('format')]
         self.assertEqual(
             {spec['function']['name'] for spec in reply_calls[0].kwargs['tools']},
-            {'list_products', 'get_product_description', 'list_faqs'},
+            {'list_products', 'get_product_details', 'list_faqs'},
         )
         tool_message = reply_calls[1].kwargs['messages'][-1]
         self.assertEqual((tool_message['role'], tool_message['tool_name']), ('tool', 'list_faqs'))
@@ -302,7 +340,7 @@ class CustomDetailFieldsFlowTests(APITestCase):
         blocks[2]['fields'] = cls.FIELDS
         cls.chat_config = ChatConfiguration.objects.create(business=cls.cafe, config_json=blocks)
         cls.chat_config.full_clean()
-        cls.kopi = Product.objects.create(business=cls.cafe, name='Kopi C', price='1.80', quantity_available=200)
+        cls.kopi = Product.objects.create(business=cls.cafe, name='Kopi C', price='1.80', total_quantity=200)
 
     def setUp(self):
         self.session = ChatSession.objects.create(
@@ -413,7 +451,7 @@ class OrderPlacementFlowTests(APITestCase):
         ChatConfiguration.objects.create(business=cls.cafe, config_json=FULL_CONFIG)
 
     def setUp(self):
-        self.kopi = Product.objects.create(business=self.cafe, name='Kopi C', price='1.80', quantity_available=10)
+        self.kopi = Product.objects.create(business=self.cafe, name='Kopi C', price='1.80', total_quantity=10)
         self.session = ChatSession.objects.create(
             business=self.cafe,
             is_sandbox=True,
@@ -469,12 +507,15 @@ class OrderPlacementFlowTests(APITestCase):
         self.assertFalse(OrderItem.objects.exists())
 
     def test_sold_out_since_chosen_undoes_the_confirmation(self):
-        Product.objects.filter(pk=self.kopi.pk).update(quantity_available=2)  # someone else bought some
+        # Someone else ordered 8 of the 10 in the meantime.
+        other = OrderItem.objects.create(business=self.cafe, order_data={
+            'items': [{'product_id': self.kopi.pk, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 8}], 'details': {},
+        })
         response = self.send('Yes', {'decision': 'confirm'})
         self.assertEqual(response.status_code, 200)
-        self.assertFalse(OrderItem.objects.exists())
+        self.assertEqual(list(OrderItem.objects.all()), [other])
         self.kopi.refresh_from_db()
-        self.assertEqual((self.kopi.quantity_available, self.kopi.quantity_on_hold), (2, 0))
+        self.assertEqual((self.kopi.quantity_available, self.kopi.quantity_on_hold), (2, 8))
         # Still at confirmation, not completed, and the reply explains why.
         self.assertEqual(self.session.chat_state_id, 4)
         self.assertNotIn('completed', self.session.chat_state_data)
@@ -532,7 +573,7 @@ class SendMessageFlowTests(APITestCase):
         cls.chat_config.full_clean()
 
     def setUp(self):
-        self.kopi = Product.objects.create(business=self.cafe, name='Kopi C', price='1.80', quantity_available=10)
+        self.kopi = Product.objects.create(business=self.cafe, name='Kopi C', price='1.80', total_quantity=10)
         self.kopi_line = {'product_id': self.kopi.pk, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 2}
         self.session = ChatSession.objects.create(
             business=self.cafe, is_sandbox=True, chat_state_id=2, chat_state_data={'items': [self.kopi_line]}
@@ -632,7 +673,7 @@ class SendMessageFlowTests(APITestCase):
             'items': [self.kopi_line], 'items_confirmed': True, 'details': {'name': 'Alice', 'email': 'a@b.co'},
         }
         self.session.save()
-        Product.objects.filter(pk=self.kopi.pk).update(quantity_available=1)
+        Product.objects.filter(pk=self.kopi.pk).update(total_quantity=1)
         response = self.send('Yes', {'decision': 'confirm'}, reply='Sorry, only 1 Kopi C is left.')
         self.assertEqual(self.session.chat_state_id, 4)
         self.assertFalse(OrderItem.objects.exists())
@@ -674,7 +715,7 @@ class RequiredAndOptionalDetailsFlowTests(APITestCase):
         blocks[2]['fields'] = cls.FIELDS
         chat_config = ChatConfiguration.objects.create(business=cls.cafe, config_json=blocks)
         chat_config.full_clean()
-        cls.kopi = Product.objects.create(business=cls.cafe, name='Kopi C', price='1.80', quantity_available=200)
+        cls.kopi = Product.objects.create(business=cls.cafe, name='Kopi C', price='1.80', total_quantity=200)
 
     def setUp(self):
         self.session = ChatSession.objects.create(
@@ -748,8 +789,8 @@ class GoBackFlowTests(APITestCase):
         cls.cafe = BusinessConfiguration.objects.create(business_name='Kopi Café', location='Tiong Bahru')
         cls.user = BusinessUser.objects.create_user(username='cafe', password='123', business=cls.cafe)
         ChatConfiguration.objects.create(business=cls.cafe, config_json=FULL_CONFIG)
-        cls.kopi = Product.objects.create(business=cls.cafe, name='Kopi C', price='1.80', quantity_available=100)
-        cls.toast = Product.objects.create(business=cls.cafe, name='Kaya Toast Set', price='5.50', quantity_available=50)
+        cls.kopi = Product.objects.create(business=cls.cafe, name='Kopi C', price='1.80', total_quantity=100)
+        cls.toast = Product.objects.create(business=cls.cafe, name='Kaya Toast Set', price='5.50', total_quantity=50)
 
     def setUp(self):
         self.kopi_line = {'product_id': self.kopi.pk, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 2}
@@ -948,11 +989,13 @@ class CleanDetailValueTests(SimpleTestCase):
                 self.assertIn('is not a valid phone number', self.check(phone, invalid)[1])
 
 
-class ProductDescriptionToolFlowTests(APITestCase):
-    """Asking about one product: the reply looks up its full description with get_product_description."""
+class ProductDetailsToolFlowTests(APITestCase):
+    """Asking about one product: the prompt has its short description, and the reply looks up its
+    information with get_product_details."""
 
-    LONG_DESCRIPTION = (
-        'Our signature kopi, brewed the traditional way. ' + 'Robusta beans roasted with butter and sugar. ' * 30
+    DESCRIPTION = 'Our signature kopi, brewed the traditional way and finished with evaporated milk.'
+    INFORMATION = (
+        'Robusta beans roasted with butter and sugar. ' * 30
         + 'Contains dairy (evaporated milk). Ask for kopi-o if you would like it without milk.'
     )
 
@@ -962,7 +1005,8 @@ class ProductDescriptionToolFlowTests(APITestCase):
         cls.user = BusinessUser.objects.create_user(username='cafe', password='123', business=cls.cafe)
         ChatConfiguration.objects.create(business=cls.cafe, config_json=FULL_CONFIG)
         cls.kopi = Product.objects.create(
-            business=cls.cafe, name='Kopi C', price='1.80', quantity_available=20, description=cls.LONG_DESCRIPTION
+            business=cls.cafe, name='Kopi C', price='1.80', total_quantity=20,
+            description=cls.DESCRIPTION, information=cls.INFORMATION,
         )
 
     def setUp(self):
@@ -973,32 +1017,35 @@ class ProductDescriptionToolFlowTests(APITestCase):
         self.addCleanup(patcher.stop)
         self.client.force_authenticate(self.user)
 
-    def test_reply_looks_up_the_full_description(self):
-        tool_call = SimpleNamespace(function=SimpleNamespace(name='get_product_description', arguments={'product': 'kopi c'}))
+    def test_reply_looks_up_the_information(self):
+        tool_call = SimpleNamespace(function=SimpleNamespace(name='get_product_details', arguments={'product': 'kopi c'}))
         responses = iter([
             fake_chat_response('{"wants_to_order": false}'),
             SimpleNamespace(message=SimpleNamespace(content='', tool_calls=[tool_call])),
             fake_chat_response('Yes, it contains dairy (evaporated milk).'),
         ])
-        self.ollama.chat.side_effect = lambda **kwargs: next(responses)
+        self.ollama.chat.side_effect = with_question_check(responses)
         response = self.client.post(
             reverse('chat_app:sandbox-session-messages', args=[self.session.pk]),
             {'message': 'Does the Kopi C have milk in it?'},
             format='json',
         )
         self.assertEqual(response.json()['message'], 'Yes, it contains dairy (evaporated milk).')
-        reply_calls = self.ollama.chat.call_args_list[1:]
-        # The prompt only has the start of the description, and says how to get the rest honestly.
+        reply_calls = [c for c in self.ollama.chat.call_args_list if not c.kwargs.get('format')]
+        # The prompt has the short description, not the information, and says how to look it up honestly.
         prompt = reply_calls[0].kwargs['messages'][0]['content']
-        self.assertIn('call get_product_description', prompt)
-        self.assertIn('say honestly that you do not know', prompt)
-        self.assertNotIn('Contains dairy', prompt)
-        # The tool returned the whole description.
+        self.assertIn(f'Kopi C, $1.80 (20 available). {self.DESCRIPTION}', prompt)
+        self.assertIn('call get_product_details', prompt)
+        self.assertIn("say honestly that you don't know", prompt)
+        self.assertIn("Never say the business does or doesn't offer something", prompt)
+        self.assertNotIn('Robusta beans', prompt)
+        # The tool returned the description and the whole information.
         tool_message = reply_calls[1].kwargs['messages'][-1]
-        self.assertEqual(tool_message['tool_name'], 'get_product_description')
-        self.assertEqual(json.loads(tool_message['content'])['description'], self.LONG_DESCRIPTION)
+        self.assertEqual(tool_message['tool_name'], 'get_product_details')
+        result = json.loads(tool_message['content'])
+        self.assertEqual((result['description'], result['information']), (self.DESCRIPTION, self.INFORMATION))
         self.assertEqual(
-            response.json()['debug']['tool_calls'], [{'name': 'get_product_description', 'arguments': {'product': 'kopi c'}}]
+            response.json()['debug']['tool_calls'], [{'name': 'get_product_details', 'arguments': {'product': 'kopi c'}}]
         )
 
 
@@ -1056,6 +1103,52 @@ class FlowCheckTests(SimpleTestCase):
                 self.assertFalse(result.complete)
                 self.assertIn(issue, result.issues[0])
 
+    def test_product_selection_sold_out_product(self):
+        products = [PRODUCTS[0], {**PRODUCTS[1], 'quantity_available': 0}]
+        for quantity in (1, None):  # sold out comes first, even without a quantity
+            with self.subTest(quantity=quantity):
+                data = {}
+                result = check_product_selection(
+                    {'items': [{'product_id': 2, 'quantity': quantity}], 'done_choosing': True}, data, products, {}
+                )
+                self.assertFalse(result.complete)
+                self.assertEqual(result.issues, ['Kaya Toast Set has run out (sold out) for now, so it cannot be ordered.'])
+                self.assertEqual(data, {})
+        # Alongside an orderable product: that one is kept, but the problem still blocks moving on.
+        data = {}
+        result = check_product_selection(
+            {'items': [{'product_id': 1, 'quantity': 1}, {'product_id': 2, 'quantity': 1}], 'done_choosing': True},
+            data, products, {},
+        )
+        self.assertFalse(result.complete)
+        self.assertEqual([item['product_id'] for item in data['items']], [1])
+
+    def test_product_selection_rechecks_the_cart_against_stock(self):
+        kopi = {'product_id': 1, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 2}
+        toast = {'product_id': 2, 'name': 'Kaya Toast Set', 'unit_price': '5.50', 'quantity': 3}
+        cases = {
+            'sold out': ({**PRODUCTS[1], 'quantity_available': 0}, 'Kaya Toast Set has run out (sold out)'),
+            'less left': ({**PRODUCTS[1], 'quantity_available': 2}, 'Only 2 Kaya Toast Set are available, so 3 cannot'),
+            'no longer on sale': (None, 'Kaya Toast Set is no longer on sale.'),
+        }
+        for label, (toast_product, issue) in cases.items():
+            with self.subTest(label):
+                products = [PRODUCTS[0]] + ([toast_product] if toast_product else [])
+                data = {'items': [kopi, toast], 'items_confirmed': True}
+                # Nothing new chosen, already confirmed: would pass straight through if the stock were there.
+                result = check_product_selection({'items': [], 'done_choosing': True}, data, products, {})
+                self.assertFalse(result.complete)
+                self.assertEqual(len(result.issues), 1)
+                self.assertIn(issue, result.issues[0])
+                self.assertIn('It was removed from the order.', result.issues[0])
+                self.assertEqual(data, {'items': [kopi]})  # dropped, and the changed cart must be confirmed again
+        # The whole cart sold out: nothing left.
+        data = {'items': [toast], 'items_confirmed': True}
+        result = check_product_selection({'items': [], 'done_choosing': True}, data, [PRODUCTS[0]], {})
+        self.assertFalse(result.complete)
+        self.assertEqual(result.missing, ['which products, and how many of each'])
+        self.assertEqual(data, {})
+
     def test_product_selection_keeps_earlier_choice_when_nothing_new(self):
         earlier = {'items': [{'product_id': 1, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 1}]}
         # Not confirmed yet: needs "that's all".
@@ -1107,3 +1200,61 @@ class FlowCheckTests(SimpleTestCase):
         self.assertTrue(check_confirmation({'decision': 'change'}, {}, PRODUCTS, {}).go_back)
         result = check_confirmation({'decision': 'none'}, {}, PRODUCTS, {})
         self.assertFalse(result.complete or result.go_back)
+
+
+class StepPromptTests(SimpleTestCase):
+    """What the product selection and details collection prompts tell the LLM."""
+
+    business = SimpleNamespace(business_name='Kopi Café', description='', location='Tiong Bahru')
+    products = [PRODUCTS[0], {**PRODUCTS[1], 'quantity_available': 0}]
+
+    def reply_prompt(self, block, data=None, **kwargs):
+        return build_reply_prompt(self.business, block, data or {}, products=self.products, **kwargs)
+
+    def test_every_step_steers_towards_its_goal(self):
+        for block in FULL_CONFIG:
+            with self.subTest(block['block_type']):
+                prompt = self.reply_prompt(block)
+                self.assertIn('Goal of this step:', prompt)
+                self.assertIn('steer the conversation towards achieving it', prompt)
+
+    def test_product_questions_use_the_description_then_get_product_details(self):
+        prompt = self.reply_prompt(FULL_CONFIG[0])
+        self.assertIn('When the customer asks what a product is, tell them its description', prompt)
+        self.assertIn('call get_product_details with its name, and answer only from the description and information', prompt)
+        self.assertIn('do not recite all of it', prompt)
+
+    def test_product_selection_reply_never_offers_sold_out_products(self):
+        prompt = self.reply_prompt(FULL_CONFIG[1])
+        self.assertIn('Kaya Toast Set, $5.50 (sold out)', prompt)
+        self.assertIn('Kopi C, $1.80 (200 available)', prompt)
+        self.assertIn('Never offer, suggest or list a product that is sold out (0 available)', prompt)
+        self.assertIn('tell them clearly that it has run out for now', prompt)
+        self.assertIn('at most the quantity available of each product', prompt)
+        self.assertIn('only products that are in stock, up to the quantity available', prompt)  # the goal
+
+    def test_product_selection_extraction_keeps_what_the_customer_asked_for(self):
+        prompt = build_extraction_prompt(self.business, FULL_CONFIG[1], {}, self.products, {})
+        self.assertIn('even if they are sold out or the quantity is more than available', prompt)
+        self.assertIn('never lower it', prompt)
+
+    def test_details_collection_reply_asks_for_every_field_and_never_confirms(self):
+        block = {**DEFAULT_DETAILS_BLOCK, 'fields': [
+            {'key': 'name', 'label': 'Name', 'type': 'text'},
+            {'key': 'boo', 'label': 'Boo', 'type': 'text'},
+        ]}
+        prompt = self.reply_prompt(block, {'details': {'name': 'Alice'}}, labels={'name': 'Name', 'boo': 'Boo'}, missing=['Boo'])
+        self.assertIn('The order is confirmed in a later step, not this one.', prompt)  # the goal
+        self.assertIn('confirming the order happens in a later step, never in this one', prompt)
+        self.assertIn('the order is NOT confirmed yet', prompt)
+        self.assertIn('Ask the customer to fill in all the details', prompt)
+        self.assertIn('If they leave one out, ask for that one specifically, by its label', prompt)
+        self.assertIn('Never assume, guess or fill in a value for them', prompt)
+        self.assertIn('## Details to collect\n- "Name" (required; text, at most 500 characters)\n- "Boo"', prompt)
+        self.assertIn('## Still needed\n- Boo', prompt)
+        self.assertNotIn('## Products on sale', prompt)
+
+    def test_details_collection_extraction_never_assumes(self):
+        prompt = build_extraction_prompt(self.business, DEFAULT_DETAILS_BLOCK, {}, self.products, {})
+        self.assertIn('Never assume or work out a value from something else', prompt)
+        self.assertIn('Use null for anything they have not given', prompt)

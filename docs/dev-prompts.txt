@@ -594,3 +594,116 @@ AI Model Used: claude-opus-5-5
 Original Prompt:
 There is a bug where where in this flow: product selection -> send message -> detail collection
 for some reason after it sends the message it doesn't prompt for detail and automatically goes back to product selection page, presumbaly because of the previous feature that we add to go back between those states
+
+Date & Time (GMT+8): 2026-10-07 21:55:24
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+Work with configuration-service.
+In the product selection prompt, please add something like these to the prompt:
+- Don’t offer a product if quantity is 0. If quantity is 0, clearly state to the user that we run out of that item as of now.
+- Add in the deterministic validation that you can’t proceed if you place an order for an item that ran out or if the quantity is more than what’s available.
+In the details collection, please add something like these to the prompt:
+- You need to ask the users to fill in all the fields. If user miss the field, specifically ask for it, never assume what to fill in there.
+- Never confirm an order in this stage, each state has a general goal that the bot should steer the conversation towards achieving the goal (e.g., getting the user details on the fields that are needed for this one)
+Please add test cases too.
+
+Date & Time (GMT+8): 2026-10-07 22:01:35
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+Can you use ''' ''' for the multiline text isntead of using bracket and ' for every line like you have right now
+It makes it clearer to see in the prompts.py
+
+Date & Time (GMT+8): 2026-10-07 22:16:48
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+Work with configuration_service.product_app and frontend_app.
+For Product model, I want you to add a new field apart from “description” called as “information”.
+I want to make the “description” max length much shorter to only around 300 max, while this information can be very long up to 5000 which is the current description max length.
+The idea is that description is just general information that will be sent to the user when the user ask what the product is, while the information are additional context about a product that can be lengthy and contain many FAQs etc about that product itself, that will be used by the LLM only when required to answer certain types of questions.
+Please also update the frontend application so business owner can modify both the description and information.
+Please add tooltip mentioning what description is and what this information is for.
+Please update the tool call in the LLM chat flow so that it fetches this information field also.
+Please update existing APIs and test cases when required.
+Please update existing fixtures for appropriate sample data.
+
+Date & Time (GMT+8): 2026-10-07 22:28:18
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+I want you to improve the fixtures, particularly for the Bloom Florist Studio.
+Just focus on that business as of now, no need to modify fixtures owned by the other business.
+For Bloom Florist studio, I want you to rework completely 
+I want you to create a professional and detailed 12 products for Bloom Florist Studio.
+You can remove the other currently existing products in the fixtures.
+It should consist of various types of crochet flowers, dried flowers, soap flowers, and fresh flowers.
+The description should be just 1-2 engaging sentence about that product.
+The information should be a lengthy and detailed and contain information on each of those product in greater detail, such as: how long does the flower last, what is it make of, and much more.
+Please make it very realistic like a real business having a product instead of a placeholder product.
+Those products should have varying prices in SGD, from cheap to expensive, make about 2 of the products has 0 quantity left.
+Please make the rest such as the business name etc realistic too. And add a list of realistic FAQs on what typically people use about such business, at least add 15 rows of FAQs for this business (you can remove existing ones).
+For the workflow of this shop, I want it follow the basic pattern: Start -> Product Selection -> Details Collection -> Confirmation.
+For details collection, make it just ask for simply name and customised message on the card given alongside the flower, and a date where the user would get the flower.
+Please also make the business configuration description lengthy and much more realistic.
+
+Date & Time (GMT+8): 2026-10-07 22:39:09
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+please give me the commands to flush and to run all fixtures
+
+Date & Time (GMT+8): 2026-10-07 22:41:04
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+Please change "delivery date" to "collection date"
+Please modify the FAQ so make it there's only self-collection at a location at some hours and not on a place
+
+Date & Time (GMT+8): 2026-10-07 22:44:34
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+Please remove information such as bulk pricing or delivery from the fixtures for the Products
+Other information can be put there, such as Care, Allergies infomration, etc.
+Just don't give complicated variants to choose etc in the description or things like delivery etc
+
+Date & Time (GMT+8): 2026-10-07 22:56:08
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+For Product, I want you to change how the quantity works.
+Now there’re: quantity available, hold, sold.
+Instead, I only want 1 field: total_quantity.
+Then, the quantity available, hold, sold are calculated / derived based on that.
+In checkout_app see there’s OrderItem.
+For every OrderItem.order_data whose status are PENDING_PAYMENT or PAYMENT_RECEIVED, it will be the quantity hold.
+For every OrderItem.order_data whose status is ORDER_COMPLETED, it will be the quantity sold.
+Quantity available will be derived based on that.
+Business owners can only modify the total_quantity as follows: add extra items, or reduce the total quantity such that the available_quantity should not be negative (it should be at least 0).
+Please modify the existing APIs, create comprehensive unit test, and modify the frontend calls and API calls appropriately.
+Please also modify the existing fixtures / sample data to be appropriate.
+Particularly on the Bloom Florist Studio, please make the order data realistic and make it seem there are many orders (20+ orders).
+It doesn’t need to have a corresponding chat, just the OrderItem is enough.
+
+Date & Time (GMT+8): 2026-10-07 23:12:36
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+Change the fixture so Preserved Rose Bell Jar has 4 total quantity and so has 1 available
+
+Date & Time (GMT+8): 2026-10-07 23:49:54
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+I want a new feature where when customer ask something that isn’t in the FAQ, it will call a new tool that create a new UnansweredQuestion instance for the business owner to actually reply on that.
+UnansweredQuestion model should have these: FK to business, FK to chat session, question, status (open, answered, dismissed), answered_time (datetime), created_time (date time).
+In the “Chats” tab, this UnansweredQuestion gets a separate subtab there with alert if there’s any unanswered questions.
+Make the corresponding API too, please add comprehensive test cases and add permissions too, such as only able to retrieve questions that the business owner owns.
+I think 1 API to GET, 1 or 2 API to POST (to change the status and add to FAQ), and a separate tool call for the chat flow.
+After answered, the Q&A will go to the FAQ instance and editable by the business owner.
+It should also reply to the user when it is answered, with the format such as “regarding your previous question about …, <answer>”.
+Please also add the fixtures too, particularly for the Bloom Florist.
+
+Date & Time (GMT+8): 2026-10-08 00:11:16
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+[Image #7] it doesnt call the tool at all to make FAQ for new unanswered questions, can u please fix it, it seems somethign is wrong
+so if what user ask is nonsense detect it and dont entertain
+but if it's legit thing that is not in the FAQ or product info, never assume or make up information, and you have to create this UnansweredQuestion instance to notify the business owner

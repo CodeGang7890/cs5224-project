@@ -1,47 +1,36 @@
-"""Read-only tools the assistant can call while writing a reply (Ollama tool calling).
+"""Read-only tools the assistant can call while writing a reply (Ollama tool calling), and the
+product lookups the flow uses to give the model the right information up front.
 
 Every tool only GETs data, and only the chatting business's data: Toolbox(business) binds
 them to one business, so the model can't pass in (or guess) another business's ID.
 """
 
 import json
+import re
 from collections.abc import Callable
 
 from product_app.models import FAQ, Product
 
-# Product descriptions can be long. Lists (the prompt's catalog, list_products) show only this much
-# of each; get_product_description returns the whole thing for one product.
-DESCRIPTION_PREVIEW_LENGTH = 160
 # At most this many product names in a "no such product" answer.
 PRODUCT_NAMES_MAX = 50
 
 
 def active_products(business) -> list[dict]:
-    """The business's orderable products, as plain dicts (also used by the prompts and flow.py)."""
+    """The business's orderable products, as plain dicts (also used by the prompts and flow.py).
+
+    Without `information` (it can be long): only get_product_details returns it, for one product.
+    `quantity_available` is derived from the orders (Product.load_stock, one query for them all).
+    """
+    products = Product.load_stock(Product.objects.filter(business=business, is_active=True).order_by('name'))
     return [
         {
             'id': product.pk,
             'name': product.name,
             'description': product.description,
             'price': str(product.price),
-            'quantity_available': product.quantity_available,
+            'quantity_available': max(product.quantity_available, 0),
         }
-        for product in Product.objects.filter(business=business, is_active=True).order_by('name')
-    ]
-
-
-def description_preview(description: str) -> str:
-    """The start of a description, cut at a word and ending in "…" if it's longer than the preview."""
-    text = ' '.join(description.split())
-    if len(text) <= DESCRIPTION_PREVIEW_LENGTH:
-        return text
-    return text[:DESCRIPTION_PREVIEW_LENGTH].rsplit(' ', 1)[0].rstrip('.,;:') + '…'
-
-
-def _product_list(business) -> list[dict]:
-    return [
-        {**product, 'description': description_preview(product['description'])}
-        for product in active_products(business)
+        for product in products
     ]
 
 
@@ -52,8 +41,39 @@ def _faqs(business) -> list[dict]:
     ]
 
 
-def find_product_description(business, product) -> dict:
-    """One active product's full description, by name (case-insensitive) or id.
+# At most this many products' full information goes into a prompt (it can be long).
+MENTIONED_PRODUCTS_MAX = 3
+# Words too common in product names to tell which product a message is about.
+GENERIC_NAME_WORDS = {
+    'bouquet', 'flower', 'flowers', 'stem', 'stems', 'with', 'whole', 'single', 'hand', 'tied', 'gift',
+    'box', 'set', 'small', 'large', 'mini', 'classic', 'tones', 'tier', 'pack', 'piece', 'pieces',
+}
+
+
+def _name_words(text: str) -> set[str]:
+    """Distinctive lowercase words, singular ("roses" → "rose"), for matching product names."""
+    words = {word.removesuffix('s') if len(word) > 4 else word for word in re.findall(r'[a-z]+', text.casefold())}
+    return {word for word in words if len(word) >= 4 and word not in GENERIC_NAME_WORDS}
+
+
+def mentioned_products(business, text: str, limit: int = MENTIONED_PRODUCTS_MAX) -> list[dict]:
+    """The business's active products that `text` (a customer message) mentions, with their full
+    `information`: a product matches if a distinctive word of its name appears in the text."""
+    words = _name_words(text)
+    found = []
+    for product in Product.objects.filter(business=business, is_active=True).order_by('name'):
+        if _name_words(product.name) & words:
+            found.append({'name': product.name, 'description': product.description, 'information': product.information})
+    return found[:limit]
+
+
+def business_faqs(business) -> list[dict]:
+    """The business's FAQs as `{question, answer}` (also what list_faqs returns)."""
+    return _faqs(business)
+
+
+def find_product_details(business, product) -> dict:
+    """One active product's description and (long) information, by name (case-insensitive) or id.
 
     A name matches exactly, or else by containing / being contained in a product name, if that
     matches only one product. Otherwise the result has an `error` (and the candidate names), so the
@@ -72,12 +92,14 @@ def find_product_description(business, product) -> dict:
     ]
     if len(matches) == 1:
         found = matches[0]
+        information = Product.objects.filter(pk=found['id']).values_list('information', flat=True).first()
         return {
             'id': found['id'],
             'name': found['name'],
             'price': found['price'],
             'quantity_available': found['quantity_available'],
             'description': found['description'] or 'No description has been written for this product.',
+            'information': information or 'No further information has been written for this product.',
         }
     if matches:
         return {'error': f'Several products match "{query}".', 'matches': [p['name'] for p in matches]}
@@ -100,15 +122,15 @@ class Toolbox:
         self._tools: dict[str, tuple[str, dict, Callable[[dict], object]]] = {
             'list_products': (
                 'List the products the business sells, with id, name, price (SGD), quantity_available '
-                'and the start of each description. For everything about one product, use '
-                'get_product_description.',
+                'and a short description of each. For more about one product, use get_product_details.',
                 no_arguments,
-                lambda arguments: _product_list(business),
+                lambda arguments: active_products(business),
             ),
-            'get_product_description': (
-                "Get one product's full description (ingredients, size, options, allergens, how it's "
-                'made, etc.), plus its price and stock. Use it whenever the customer asks about a '
-                'specific product.',
+            'get_product_details': (
+                "Get one product's description and its information: the extra details the business "
+                "wrote about it (ingredients, size, options, allergens, how it's made, FAQs about it, "
+                'etc.), plus its price and stock. Use it whenever the customer asks a specific question '
+                'about a product that its short description does not answer.',
                 {
                     'type': 'object',
                     'properties': {
@@ -119,7 +141,7 @@ class Toolbox:
                     },
                     'required': ['product'],
                 },
-                lambda arguments: find_product_description(business, arguments.get('product')),
+                lambda arguments: find_product_details(business, arguments.get('product')),
             ),
             'list_faqs': (
                 "List the business's frequently asked questions and their answers (opening "
