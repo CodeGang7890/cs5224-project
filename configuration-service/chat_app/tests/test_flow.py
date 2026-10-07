@@ -23,7 +23,7 @@ from ..flow import (
 from ..models import ChatConfiguration, ChatSession
 from ..prompts import build_extraction_prompt, build_reply_prompt
 from ..validators import validate_chat_messages, validate_chat_state_data
-from .test_api import fake_chat_response, fake_ollama_chat
+from .test_api import fake_chat_response, fake_ollama_chat, is_question_check, with_question_check
 
 FULL_CONFIG = [
     {'id': 1, 'next_block_id': 2, 'block_type': 'START_BLOCK', 'position_x': 0, 'position_y': 0},
@@ -75,7 +75,11 @@ class ChatFlowAPITests(APITestCase):
         return response
 
     def calls(self, structured: bool):
-        return [c.kwargs for c in self.ollama.chat.call_args_list if bool(c.kwargs.get('format')) == structured]
+        """The block extractions (structured) or the reply calls; the question check is left out."""
+        return [
+            c.kwargs for c in self.ollama.chat.call_args_list
+            if bool(c.kwargs.get('format')) == structured and not is_question_check(c.kwargs)
+        ]
 
     def reply_prompt(self) -> str:
         return self.calls(structured=False)[-1]['messages'][0]['content']
@@ -292,21 +296,21 @@ class ChatFlowAPITests(APITestCase):
         self.assertEqual([m['sent_by'] for m in self.session.chat_message_json], ['customer'])
         self.assertEqual((self.session.chat_state_id, self.session.chat_state_data), (1, {}))
 
-    def test_reply_can_call_read_only_tools(self):
+    def test_reply_can_call_tools(self):
         tool_call = SimpleNamespace(function=SimpleNamespace(name='list_faqs', arguments={}))
         responses = iter([
             fake_chat_response('{"wants_to_order": false}'),
             SimpleNamespace(message=SimpleNamespace(content='', tool_calls=[tool_call])),
             fake_chat_response('We are open 8am to 7pm daily.'),
         ])
-        self.ollama.chat.side_effect = lambda **kwargs: next(responses)
+        self.ollama.chat.side_effect = with_question_check(responses)
         response = self.client.post(
             reverse('chat_app:sandbox-session-messages', args=[self.session.pk]),
             {'message': 'When are you open?'},
             format='json',
         )
         self.assertEqual(response.json()['message'], 'We are open 8am to 7pm daily.')
-        reply_calls = self.ollama.chat.call_args_list[1:]
+        reply_calls = [c for c in self.ollama.chat.call_args_list if not c.kwargs.get('format')]
         self.assertEqual(
             {spec['function']['name'] for spec in reply_calls[0].kwargs['tools']},
             {'list_products', 'get_product_details', 'list_faqs'},
@@ -1020,19 +1024,20 @@ class ProductDetailsToolFlowTests(APITestCase):
             SimpleNamespace(message=SimpleNamespace(content='', tool_calls=[tool_call])),
             fake_chat_response('Yes, it contains dairy (evaporated milk).'),
         ])
-        self.ollama.chat.side_effect = lambda **kwargs: next(responses)
+        self.ollama.chat.side_effect = with_question_check(responses)
         response = self.client.post(
             reverse('chat_app:sandbox-session-messages', args=[self.session.pk]),
             {'message': 'Does the Kopi C have milk in it?'},
             format='json',
         )
         self.assertEqual(response.json()['message'], 'Yes, it contains dairy (evaporated milk).')
-        reply_calls = self.ollama.chat.call_args_list[1:]
+        reply_calls = [c for c in self.ollama.chat.call_args_list if not c.kwargs.get('format')]
         # The prompt has the short description, not the information, and says how to look it up honestly.
         prompt = reply_calls[0].kwargs['messages'][0]['content']
         self.assertIn(f'Kopi C, $1.80 (20 available). {self.DESCRIPTION}', prompt)
         self.assertIn('call get_product_details', prompt)
-        self.assertIn('say honestly that you do not know', prompt)
+        self.assertIn("say honestly that you don't know", prompt)
+        self.assertIn("Never say the business does or doesn't offer something", prompt)
         self.assertNotIn('Robusta beans', prompt)
         # The tool returned the description and the whole information.
         tool_message = reply_calls[1].kwargs['messages'][-1]

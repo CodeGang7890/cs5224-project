@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { BLOCK_META, useChatConfiguration, type BlockType } from '@/features/workflow'
 
 import { useSandboxTurnDebug } from '../hooks/use-chat-sessions'
-import type { ChatSession, FlowStepDebug } from '../types'
+import type { ChatSession, FlowStepDebug, QuestionCheckDebug } from '../types'
 
 function blockLabel(blockType: string | undefined): string {
   if (!blockType) return 'Unknown block'
@@ -90,6 +90,20 @@ export function SandboxDebugPanel({ session, onClose }: SandboxDebugPanelProps) 
                 </>
               )}
 
+              {debug.question_check && (
+                <>
+                  <p className="text-muted-foreground mt-1">Question check (1 LLM call)</p>
+                  <KeyValue label="Kind" value={QUESTION_KIND_LABELS[debug.question_check.kind]} />
+                  {debug.question_check.question && <KeyValue label="Question" value={debug.question_check.question} />}
+                  {debug.question_check.saved && (
+                    <KeyValue label="Unanswered question" value={QUESTION_SAVED_LABELS[debug.question_check.saved] ?? debug.question_check.saved} />
+                  )}
+                  <Collapsible summary="Question check prompt">
+                    <Pre>{debug.question_check.system_prompt}</Pre>
+                  </Collapsible>
+                </>
+              )}
+
               <p className="text-muted-foreground mt-1">Reply</p>
               {debug.missing.length > 0 && <KeyValue label="Still needed" value={debug.missing.join(', ')} />}
               {debug.issues.length > 0 && <KeyValue label="Issues" value={debug.issues.join(' ')} />}
@@ -113,6 +127,19 @@ export function SandboxDebugPanel({ session, onClose }: SandboxDebugPanelProps) 
       </div>
     </aside>
   )
+}
+
+const QUESTION_KIND_LABELS: Record<QuestionCheckDebug['kind'], string> = {
+  none: 'No question about the business',
+  off_topic: 'Off topic: declined',
+  answered: 'Answered from the business information',
+  unanswered: 'Not in the business information: asked the team',
+}
+
+const QUESTION_SAVED_LABELS: Record<string, string> = {
+  asked: 'Saved (Chats → Unanswered questions)',
+  already_asked: 'Already open in this chat (not saved again)',
+  too_many_questions: 'Not saved: too many open questions in this chat',
 }
 
 function StepCard({ index, step }: { index: number; step: FlowStepDebug }) {

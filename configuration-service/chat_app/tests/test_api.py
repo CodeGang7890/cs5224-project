@@ -333,18 +333,42 @@ def fake_chat_response(content: str):
     return SimpleNamespace(message=SimpleNamespace(content=content))
 
 
-def fake_ollama_chat(reply: str, extractions=()):
+NO_QUESTION = {'kind': 'none', 'question': None}
+
+
+def is_question_check(call_kwargs: dict) -> bool:
+    """Whether a mocked ollama `chat` call is the flow's question check (flow.check_customer_question)."""
+    return 'kind' in (call_kwargs.get('format') or {}).get('properties', {})
+
+
+def fake_ollama_chat(reply: str, extractions=(), question_check=NO_QUESTION):
     """A `side_effect` for the mocked ollama `chat`, for the chat flow (flow.py).
 
-    Structured calls (with `format`, the extraction step) return the next of `extractions` as JSON
-    (`{}`, i.e. nothing found, once they run out). Other calls (the reply) return `reply`.
+    The question check returns `question_check` (default: no question). Other structured calls
+    (with `format`, the extraction step) return the next of `extractions` as JSON (`{}`, i.e.
+    nothing found, once they run out). Other calls (the reply) return `reply`.
     """
     queue = list(extractions)
 
     def chat(**kwargs):
+        if is_question_check(kwargs):
+            return fake_chat_response(json.dumps(question_check))
         if kwargs.get('format'):
             return fake_chat_response(json.dumps(queue.pop(0) if queue else {}))
         return fake_chat_response(reply)
+
+    return chat
+
+
+def with_question_check(responses, question_check=NO_QUESTION):
+    """A `side_effect` that answers the question check with `question_check` and every other call
+    with the next of `responses` (for tests that script the calls one by one, e.g. tool calls)."""
+    responses = iter(responses)
+
+    def chat(**kwargs):
+        if is_question_check(kwargs):
+            return fake_chat_response(json.dumps(question_check))
+        return next(responses)
 
     return chat
 
@@ -815,12 +839,12 @@ class ChatSessionListFilteringAPITests(APITestCase):
     # --- Scope / default ------------------------------------------------------------
 
     def test_default_lists_own_real_sessions_most_recent_first(self):
-        # No sandbox sessions (7, 8) and no other businesses' sessions (4, 5, 6).
+        # No sandbox sessions (7, 8) and no other businesses' sessions (4–6, 17–19).
         self.assertEqual(self.ids(), self.ALL)
 
     def test_other_business_sees_only_its_own(self):
         self.client.force_authenticate(BusinessUser.objects.get(username='bloom_owner'))
-        self.assertEqual(self.ids(), [5, 4])
+        self.assertEqual(self.ids(), [19, 18, 17, 5, 4])
 
     def test_sandbox_filter(self):
         self.assertEqual(self.ids({'sandbox': 'exclude'}), self.ALL)

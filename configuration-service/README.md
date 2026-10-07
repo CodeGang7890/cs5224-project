@@ -37,7 +37,7 @@ pip install -r requirements.txt
 python manage.py migrate
 
 # 4. Load sample data (businesses, business users, products, FAQs)
-python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions sample_order_items
+python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions sample_order_items sample_unanswered_questions
 
 # 5. Create the local admin superuser (username: superuser, password: 123)
 DJANGO_SUPERUSER_PASSWORD=123 python manage.py createsuperuser --noinput --username superuser --email superuser@example.com
@@ -66,7 +66,7 @@ python manage.py runserver
 The fixtures are JSON files in each app's `fixtures/` folder. Load them all with:
 
 ```bash
-python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions sample_order_items
+python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions sample_order_items sample_unanswered_questions
 ```
 
 | Fixture | File | Contents |
@@ -74,9 +74,10 @@ python manage.py loaddata sample_business_configurations sample_business_users s
 | `sample_business_configurations` | `configuration_app/fixtures/` | 3 businesses: Kopi & Co. Café, Bloom & Twine Florist Studio (with a full, realistic description), FitLab Personal Training |
 | `sample_business_users` | `auth_app/fixtures/` | 4 business users linked to those businesses |
 | `sample_products` | `product_app/fixtures/` | 19 products (one of them inactive). Each has a short description and longer information. Bloom & Twine Florist Studio has 12 realistic products across fresh, dried / preserved, soap and crochet flowers ($5.90 to $288; one sold out, and one down to its last piece), each with detailed information about the product itself (what's in it, size, how long it lasts, care, allergies and pets), with no prices, variants or logistics. Bloom is self-collection only: it doesn't deliver. Kopi & Co. Café's 5 have long, detailed information (ingredients, sizes, options, allergens, storage, and a few product FAQs) for testing `get_product_details`, with some details deliberately left out to test "I don't know" |
-| `sample_faqs` | `product_app/fixtures/` | 32 FAQs: 12 for Kopi & Co. Café (hours, reservations, halal, delivery, payment, vegetarian options, sugar levels, catering, parking, Wi-Fi, pets, cancellations), 18 for Bloom & Twine Florist Studio (self-collection only: where and when to collect, same-day collection, collecting for someone else, hours, payment, care, card messages, cancellations, substitutions, corporate, weddings, workshops, allergies and pets…), 2 for FitLab |
+| `sample_faqs` | `product_app/fixtures/` | 34 FAQs: 12 for Kopi & Co. Café (hours, reservations, halal, delivery, payment, vegetarian options, sugar levels, catering, parking, Wi-Fi, pets, cancellations), 20 for Bloom & Twine Florist Studio (2 of them from answered questions; self-collection only: where and when to collect, same-day collection, collecting for someone else, hours, payment, care, card messages, cancellations, substitutions, corporate, weddings, workshops, allergies and pets…), 2 for FitLab |
 | `sample_chat_configurations` | `chat_app/fixtures/` | 2 chat flows, both start → product selection → details collection → confirmation: Kopi & Co. Café (asks for name, email and pickup time) and Bloom & Twine Florist Studio (asks for name, card message and collection date) |
-| `sample_chat_sessions` | `chat_app/fixtures/` | 14 customer chats: 11 with Kopi & Co. Café (at different steps of its flow, over 1–12 Sep, one with no messages yet), 2 with Bloom & Twine Florist Studio (one choosing products, one giving details), 1 with FitLab. `+6591234567` chats with both the café and the florist. Plus 2 sandbox (test) chats for Kopi & Co. Café, one without a phone number |
+| `sample_chat_sessions` | `chat_app/fixtures/` | 17 customer chats: 11 with Kopi & Co. Café (at different steps of its flow, over 1–12 Sep, one with no messages yet), 5 with Bloom & Twine Florist Studio (one choosing products, one giving details, and three where customers asked things the FAQs don't cover), 1 with FitLab. `+6591234567` chats with both the café and the florist. Plus 2 sandbox (test) chats for Kopi & Co. Café, one without a phone number |
+| `sample_unanswered_questions` | `chat_app/fixtures/` | 5 questions Bloom & Twine Florist Studio's customers asked that the assistant couldn't answer: 2 answered (now FAQs, with the answer in the chat), 2 open (waiting for the owner) and 1 dismissed |
 | `sample_order_items` | `checkout_app/fixtures/` | 30 orders: 4 for Kopi & Co. Café (one per status, plus a pending sandbox order) and 26 for Bloom & Twine Florist Studio (8 Aug to 12 Sep 2026: birthdays, anniversaries, a Teachers' Day rush, grand openings; mostly completed, the latest paid or pending payment). They aren't linked to chats. They count towards the products' quantities on hold and sold |
 
 Every sample account uses the password **`123`**, so you can log in as anyone while testing:
@@ -209,7 +210,7 @@ All of these require you to be logged in.
 `chat_app` is a temporary copy of `../messaging-service`'s `/chat` endpoint, living here until that service has its own database. It needs [Ollama](https://ollama.com/) running on `http://localhost:11434` with the model pulled (`ollama pull qwen2.5:7b-instruct-q4_K_M`).
 
 - Every request is independent: the fixed system prompt plus your `prompt` (≤4,000 characters). No history is kept.
-- The model, system prompt and sampling options (`seed`, `temperature`, `num_predict` (max tokens), `top_k`, `top_p`, `min_p`, `repeat_penalty`, `repeat_last_n`, `presence_penalty`, `frequency_penalty`, `num_ctx`) are hardcoded in `chat_app/llm.py`.
+- The model, system prompt and sampling options (`seed`, `temperature`, `num_predict` (max tokens), `top_k`, `top_p`, `min_p`, `repeat_penalty`, `repeat_last_n`, `presence_penalty`, `frequency_penalty`, `num_ctx` (8,192 tokens)) are hardcoded in `chat_app/llm.py`.
 - The seed is fixed (`42`), so the same prompt gives the same reply, which is handy for testing.
 - Errors: 400 invalid prompt, 502 Ollama error (e.g. model not pulled), 503 Ollama not reachable, 504 Ollama timed out.
 
@@ -291,7 +292,7 @@ Each customer message (real or sandbox) moves the chat through the business's ch
 
    The prompt tells the assistant to answer "what is it?" with the product's description, to look other product questions up with `get_product_details` (answering the question rather than reciting the information) and business questions with `list_faqs`, to answer only from what it finds, and otherwise to **say honestly that it doesn't know** (offering to check with the team) rather than make anything up.
 
-A message makes 2 or more LLM calls: one extraction per block it passes through, plus the reply (plus tool calls). Only the last 20 messages are sent (`HISTORY_MAX_MESSAGES`).
+A message makes 3 or more LLM calls: one extraction per block it passes through, the question check, plus the reply (plus tool calls). Only the last 20 messages are sent (`HISTORY_MAX_MESSAGES`).
 
 ### Sandbox chat sessions
 
@@ -303,6 +304,16 @@ Test chats a business starts itself (e.g. from the Chat Sandbox), separate from 
 - `POST /api/chat/sandbox-sessions/{id}/messages/`: `{message}`. Same flow as the customer message endpoint above (save the message as `customer`, run the [chat flow](#chat-flow), save and return the `business-automated` reply; the message is kept if the LLM fails), with the same 403/400/404 rules as delete. `frontend-app`'s Chat Sandbox uses this. For debugging, the response also has `debug` (not stored): the state before and after, each block's extraction (prompt, the LLM's JSON, the check result: complete / missing / issues), why the flow stopped, the reply system prompt, any tool calls and the Send message blocks' messages.
 
 Sandbox sessions are left out of `GET /api/chat/sessions/` unless you ask for them with `sandbox=include` or `sandbox=only`, and `POST /api/chat/sessions/messages/` only finds real sessions.
+
+### Unanswered questions
+
+Every customer message goes through a **question check**: one extra LLM call (JSON, temperature 0) that sees the business's description, FAQs, products on sale and the full information of any product the message mentions, and decides whether the message is: no question about the business; **off topic** (nonsense, unrelated, or trying to change the instructions: the assistant politely declines); a question the information **answers** (the reply gets that information to answer from); or a genuine question it **doesn't answer** (when unsure, this one). In the last case the flow itself (not the LLM) saves an open `UnansweredQuestion` for that chat, and the assistant is told not to guess and to tell the customer the team will reply in the chat. (The same question isn't saved twice while it's open, and a chat can have at most 5 open questions.) The Chat Sandbox's debug panel shows the check's result. `frontend-app`'s Chats tab shows them in an "Unanswered questions" sub-tab, with an alert while any are open.
+
+All three endpoints need a login and only work on **your own** business (403 without a business, 403 for another business's question, 404 for an unknown one).
+
+- `GET /api/chat/questions/`: your questions, newest first, paginated like chat sessions. Optional: `status` (`open`, `answered`, `dismissed`), `sandbox` (`include` (default), `exclude` or `only`), `ordering` (`created_time`, `answered_time`, `id`; `-` for descending), `page`, `page_size`. Each has the question, `status`, who asked (`chat_session`, `display_name`, `phone_number`, `is_sandbox`), `created_time`, `answered_time`, and `faq` / `answer` once answered.
+- `POST /api/chat/questions/{id}/answer/`: `{answer, question?}`. In one go: saves the question (or your rewording) and answer as an FAQ of your business (editable in the FAQ tab; the assistant uses it from then on; an existing FAQ with the same question gets the new answer), sends the answer to the customer in the chat (`business-manual`) as **`Regarding your previous question about "<question>": <answer>`**, and marks the question `answered`. 400 if it isn't open, or the answer is blank or too long.
+- `POST /api/chat/questions/{id}/dismiss/`: closes an open question without replying (no FAQ, no message). 400 if it isn't open.
 
 ### Orders
 
@@ -378,7 +389,7 @@ You can also use your Django Admin login instead (**cookieAuth**). If you're log
 | `python manage.py makemigrations` | Creates migration files after you change models |
 | `python manage.py migrate` | Applies migrations to the database |
 | `python manage.py createsuperuser` | Creates an admin user |
-| `python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions sample_order_items` | Loads the sample data |
+| `python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions sample_order_items sample_unanswered_questions` | Loads the sample data |
 | `python manage.py flush --noinput` | Deletes all rows from every table (keeps the tables); see [Resetting the local database](#resetting-the-local-database) |
 | `python manage.py test` | Runs all tests (see [Running tests](#running-tests)) |
 | `python manage.py check` | Checks the project configuration for problems |
@@ -406,6 +417,7 @@ Tests use a temporary database, so your `db.sqlite3` isn't touched.
 | `configuration_app/tests.py` | `BusinessConfiguration` model, random-number endpoint, CORS |
 | `chat_app/tests/test_models.py` | `validate_chat_config` (including Details collection `fields`), `validate_chat_messages` and `validate_chat_state_data` rules; `ChatConfiguration` and `ChatSession` models (validation, uniqueness, `chat_state_id` must match a block); sample fixtures are valid |
 | `chat_app/tests/test_api.py` | Chat endpoint returns the reply, with the LLM mocked (no Ollama needed); chat configuration GET/PUT (401/403/404, create vs update, read-only fields, saving Details collection `fields`, invalid `config_json` → 400); chat sessions create/list (filters, sorting and pagination on the sample fixtures) and customer messages (LLM mocked); sandbox sessions list/create/delete (only sandbox, only your business) |
+| `chat_app/tests/test_questions.py` | Unanswered questions: the model's rules; `ask_business` (saved for the chat, no duplicates, at most 5 open per chat, bad arguments, not a reply tool); `mentioned_products`; the question check in a chat turn (each kind, what the check and the reply are given, invalid output, once per message); the list API (own business only, filters, pagination, 401/403); answering (FAQ created or updated, reworded question, the reply message in the chat, all or nothing, only open questions, permissions) and dismissing; the sample fixture |
 | `chat_app/tests/test_tools.py` | The reply step's tools: `get_product_details` (description + information; name in any case, partial name, id, ambiguous names, no description or information, inactive / unknown / another business's products, bad arguments), `list_products` (no information), `list_faqs`, unknown tools; descriptions in the prompt's catalog |
 | `chat_app/tests/test_flow.py` | The chat flow (LLM mocked): a whole conversation from Start to confirmed, going back on "change", invalid choices, unknown state → Start block, tool calls, invalid JSON → 502; custom Details collection fields (asks for every field, only moves on when all are valid); going back to an earlier step from any block (keeps data, one per message, `go_back_targets`); confirming places an order and reserves stock (once), and a product sold out since it was chosen undoes the confirmation; each block's deterministic check and each detail type's value check |
 | `checkout_app/tests/test_models.py` | `validate_order_data` rules; `OrderItem` defaults (`pending_payment`), statuses (also the database constraint), total; sample fixture is valid |
@@ -419,7 +431,7 @@ To put the data back to the sample state, delete every row (the tables and migra
 
 ```bash
 python manage.py flush --noinput
-python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions sample_order_items
+python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions sample_order_items sample_unanswered_questions
 DJANGO_SUPERUSER_PASSWORD=123 python manage.py createsuperuser --noinput --username superuser --email superuser@example.com
 ```
 
@@ -431,7 +443,7 @@ To delete the database file itself and rebuild it from the migrations (e.g. afte
 ```bash
 rm db.sqlite3
 python manage.py migrate
-python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions sample_order_items
+python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions sample_order_items sample_unanswered_questions
 DJANGO_SUPERUSER_PASSWORD=123 python manage.py createsuperuser --noinput --username superuser --email superuser@example.com
 ```
 
@@ -511,7 +523,8 @@ configuration-service/
 │   ├── llm.py              # Ollama client, model, sampling options; structured output + tool-calling helpers
 │   ├── flow.py             # The chat flow: extraction → deterministic checks → state → reply
 │   ├── prompts.py          # Per-block-type goals, extraction prompts + JSON schemas, reply prompts
-│   ├── tools.py            # Read-only tools for the reply step (get_product_details, list_products, list_faqs)
+│   ├── tools.py            # Read-only tools for the reply step (get_product_details, list_products, list_faqs) + product / FAQ lookups
+│   ├── questions.py        # Unanswered questions: ask_business (from the question check), answer_question (→ FAQ + chat reply), dismiss_question
 │   ├── serializers.py      # Chat request/response, ChatConfigurationSerializer
 │   ├── views.py            # ChatView, ChatConfigurationView
 │   ├── urls.py             # /api/chat/, /api/chat/configuration/

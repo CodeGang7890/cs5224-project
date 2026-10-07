@@ -687,3 +687,23 @@ Date & Time (GMT+8): 2026-10-07 23:12:36
 AI Model Used: anthropic.claude-opus-5-5
 Original Prompt:
 Change the fixture so Preserved Rose Bell Jar has 4 total quantity and so has 1 available
+
+Date & Time (GMT+8): 2026-10-07 23:49:54
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+I want a new feature where when customer ask something that isn’t in the FAQ, it will call a new tool that create a new UnansweredQuestion instance for the business owner to actually reply on that.
+UnansweredQuestion model should have these: FK to business, FK to chat session, question, status (open, answered, dismissed), answered_time (datetime), created_time (date time).
+In the “Chats” tab, this UnansweredQuestion gets a separate subtab there with alert if there’s any unanswered questions.
+Make the corresponding API too, please add comprehensive test cases and add permissions too, such as only able to retrieve questions that the business owner owns.
+I think 1 API to GET, 1 or 2 API to POST (to change the status and add to FAQ), and a separate tool call for the chat flow.
+After answered, the Q&A will go to the FAQ instance and editable by the business owner.
+It should also reply to the user when it is answered, with the format such as “regarding your previous question about …, <answer>”.
+Please also add the fixtures too, particularly for the Bloom Florist.
+
+Date & Time (GMT+8): 2026-10-08 00:11:16
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+[Image #7] it doesnt call the tool at all to make FAQ for new unanswered questions, can u please fix it, it seems somethign is wrong
+so if what user ask is nonsense detect it and dont entertain
+but if it's legit thing that is not in the FAQ or product info, never assume or make up information, and you have to create this UnansweredQuestion instance to notify the business owner

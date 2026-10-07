@@ -10,7 +10,10 @@ from .constants import (
     START_BLOCK,
 )
 from .llm import CHAT_PROMPT_MAX_LENGTH, OLLAMA_MODEL, OLLAMA_OPTIONS
-from .models import PHONE_NUMBER_MAX_LENGTH, ChatConfiguration, ChatSession, phone_number_validator
+from product_app.models import FAQ_QUESTION_MAX_LENGTH
+
+from .models import PHONE_NUMBER_MAX_LENGTH, ChatConfiguration, ChatSession, UnansweredQuestion, phone_number_validator
+from .questions import ANSWER_MAX_LENGTH
 from .validators import (
     CHAT_MESSAGE_MAX_LENGTH,
     DETAIL_DESCRIPTION_MAX_LENGTH,
@@ -258,3 +261,43 @@ class SandboxMessageRequestSerializer(serializers.Serializer):
         max_length=CHAT_MESSAGE_MAX_LENGTH,
         help_text=f'Your message, as the pretend customer (max {CHAT_MESSAGE_MAX_LENGTH} characters).',
     )
+
+
+# --- Unanswered questions --------------------------------------------------------------------
+
+class UnansweredQuestionSerializer(serializers.ModelSerializer):
+    """A question the chat assistant couldn't answer, with who asked it (read only)."""
+
+    display_name = serializers.CharField(source='chat_session.display_name', read_only=True)
+    phone_number = serializers.CharField(source='chat_session.phone_number', read_only=True)
+    is_sandbox = serializers.BooleanField(
+        source='chat_session.is_sandbox', read_only=True, help_text='Asked in a sandbox (test) chat.'
+    )
+    answer = serializers.SerializerMethodField(help_text="The answer: the linked FAQ's (current) answer, if any.")
+
+    class Meta:
+        model = UnansweredQuestion
+        fields = [
+            'id', 'business', 'chat_session', 'display_name', 'phone_number', 'is_sandbox',
+            'question', 'status', 'faq', 'answer', 'created_time', 'answered_time',
+        ]
+        read_only_fields = fields
+
+    def get_answer(self, obj) -> str | None:
+        return obj.faq.answer if obj.faq else None
+
+
+class AnswerQuestionSerializer(serializers.Serializer):
+    answer = serializers.CharField(
+        max_length=ANSWER_MAX_LENGTH,
+        help_text=(
+            f'Your answer (max {ANSWER_MAX_LENGTH} characters). It is saved as an FAQ and sent to the customer '
+            'in the chat as: Regarding your previous question about "<question>": <answer>'
+        ),
+    )
+    question = serializers.CharField(
+        max_length=FAQ_QUESTION_MAX_LENGTH,
+        required=False,
+        help_text="Optional: reworded question for the FAQ (and the chat message). Default: the customer's question.",
+    )
+

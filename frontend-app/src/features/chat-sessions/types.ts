@@ -82,6 +82,17 @@ export interface SandboxTurnDebug {
   issues: string[]
   reply_system_prompt: string
   tool_calls: { name: string; arguments: Record<string, unknown> }[]
+  /** The question check: does the message ask something the business's information doesn't answer? */
+  question_check: QuestionCheckDebug
+}
+
+export interface QuestionCheckDebug {
+  /** none · off_topic (declined) · answered (from the FAQs / products) · unanswered (asked to the team). */
+  kind: 'none' | 'off_topic' | 'answered' | 'unanswered'
+  question: string | null
+  /** For "unanswered": "asked" (saved for the business), "already_asked" or "too_many_questions". */
+  saved: string | null
+  system_prompt: string
 }
 
 /** Response of POST /api/chat/sandbox-sessions/{id}/messages/: the reply, plus debug info. */

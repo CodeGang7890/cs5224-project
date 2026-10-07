@@ -615,7 +615,7 @@ class SampleChatSessionFixtureTests(TestCase):
 
     def test_fixture_is_valid(self):
         sessions = ChatSession.objects.all()
-        self.assertEqual(sessions.count(), 16)
+        self.assertEqual(sessions.count(), 19)
         self.assertEqual(sessions.filter(is_sandbox=True).count(), 2)
         for session in sessions:
             with self.subTest(session=session.pk):

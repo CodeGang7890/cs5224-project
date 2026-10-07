@@ -13,4 +13,7 @@ urlpatterns = [
     path('sandbox-sessions/', views.SandboxChatSessionListView.as_view(), name='sandbox-session-list'),
     path('sandbox-sessions/<int:pk>/', views.SandboxChatSessionDetailView.as_view(), name='sandbox-session-detail'),
     path('sandbox-sessions/<int:pk>/messages/', views.SandboxChatMessageView.as_view(), name='sandbox-session-messages'),
+    path('questions/', views.UnansweredQuestionListView.as_view(), name='question-list'),
+    path('questions/<int:pk>/answer/', views.UnansweredQuestionAnswerView.as_view(), name='question-answer'),
+    path('questions/<int:pk>/dismiss/', views.UnansweredQuestionDismissView.as_view(), name='question-dismiss'),
 ]

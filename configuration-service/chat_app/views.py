@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, extend_schema
@@ -11,9 +12,9 @@ from rest_framework.views import APIView
 from auth_app.business_scope import NO_BUSINESS_MESSAGE, OTHER_BUSINESS_MESSAGE
 from config.pagination import DetailedPageNumberPagination
 
-from . import flow, llm
-from .filters import ChatSessionFilter
-from .models import ChatConfiguration, ChatSession
+from . import flow, llm, questions
+from .filters import ChatSessionFilter, UnansweredQuestionFilter
+from .models import ChatConfiguration, ChatSession, UnansweredQuestion
 from .serializers import (
     ChatConfigurationSerializer,
     ChatMessageSerializer,
@@ -24,6 +25,8 @@ from .serializers import (
     SandboxChatSessionSerializer,
     SandboxMessageRequestSerializer,
     SandboxMessageResponseSerializer,
+    AnswerQuestionSerializer,
+    UnansweredQuestionSerializer,
 )
 
 NO_CHAT_CONFIGURATION_MESSAGE = 'Your business has no chat configuration yet. Create one with PUT.'
@@ -468,3 +471,133 @@ class SandboxChatMessageView(APIView):
         serializer.is_valid(raise_exception=True)
         result = reply_to_customer_message(session, serializer.validated_data['message'])
         return Response(SandboxMessageResponseSerializer({**result.reply, 'debug': result.debug}).data)
+
+
+# --- Unanswered questions ------------------------------------------------------------------
+
+NO_QUESTION_MESSAGE = 'No question with this ID.'
+QUESTION_CLOSED_MESSAGE = 'This question has already been answered or dismissed.'
+
+
+def get_own_question(request: Request, pk: int) -> UnansweredQuestion:
+    """The logged-in user's business's question `pk`: 403 without a business, 404 if it doesn't
+    exist, 403 if it's another business's (like the rest of the API)."""
+    business = get_user_business(request)
+    item = UnansweredQuestion.objects.select_related('chat_session', 'faq').filter(pk=pk).first()
+    if item is None:
+        raise NotFound(NO_QUESTION_MESSAGE)
+    if item.business_id != business.pk:
+        raise PermissionDenied(OTHER_BUSINESS_MESSAGE)
+    return item
+
+
+class UnansweredQuestionListView(generics.ListAPIView):
+    """Questions the chat assistant couldn't answer, for the logged-in user's business."""
+
+    serializer_class = UnansweredQuestionSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = DetailedPageNumberPagination
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = UnansweredQuestionFilter
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):  # schema generation: no real user
+            return UnansweredQuestion.objects.none()
+        business = get_user_business(self.request)
+        return (
+            UnansweredQuestion.objects.filter(business=business)
+            .select_related('chat_session', 'faq')
+            .order_by('-created_time', '-id')
+        )
+
+    @extend_schema(
+        tags=['Unanswered questions'],
+        summary="List your business's unanswered questions",
+        description=(
+            'Questions customers asked that the chat assistant couldn\'t answer from your FAQs or product '
+            'details (it saves them with its `ask_business` tool), newest first. `status=open` gives the '
+            'ones still waiting for you (the Chats tab\'s alert). Questions from sandbox chats are included '
+            'unless `sandbox=exclude`. A page past the end returns 404; an invalid filter returns 400.'
+        ),
+        parameters=[OpenApiParameter('page_size', int, description='Items per page (default 20, max 100).')],
+        responses={
+            200: UnansweredQuestionSerializer(many=True),
+            403: OpenApiResponse(description='Your account is not linked to a business.'),
+        },
+    )
+    def get(self, request: Request, *args, **kwargs) -> Response:
+        return super().get(request, *args, **kwargs)
+
+
+class UnansweredQuestionAnswerView(APIView):
+    """Answer one of your open questions."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=['Unanswered questions'],
+        summary='Answer a question (saves it as an FAQ and replies in the chat)',
+        description=(
+            'Answers one of your open questions, all at once: the question (or your rewording of it) and '
+            'the answer are saved as an FAQ of your business, which you can edit later in the FAQ tab and '
+            'which the assistant uses from now on (an existing FAQ with the same question gets the new '
+            'answer); the answer is sent to the customer in the chat (`sent_by: business-manual`) as: '
+            'Regarding your previous question about "<question>": <answer>; and the question is marked '
+            '`answered`. A question that isn\'t open returns 400.'
+        ),
+        request=AnswerQuestionSerializer,
+        responses={
+            200: UnansweredQuestionSerializer,
+            400: OpenApiResponse(description='Invalid answer or question, or the question is not open.'),
+            403: OpenApiResponse(description="Another business's question, or your account has no business."),
+            404: OpenApiResponse(description='No question with this ID.'),
+        },
+        examples=[
+            OpenApiExample(
+                'Answer',
+                value={'answer': 'Yes, we can print the card message in Chinese.', 'question': 'Can the card message be in Chinese?'},
+                request_only=True,
+            ),
+        ],
+    )
+    def post(self, request: Request, pk: int) -> Response:
+        item = get_own_question(request, pk)
+        serializer = AnswerQuestionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        try:
+            item = questions.answer_question(item, data['answer'], data.get('question'))
+        except questions.QuestionClosed as exc:
+            raise ValidationError({'status': [QUESTION_CLOSED_MESSAGE]}) from exc
+        except DjangoValidationError as exc:
+            raise ValidationError(exc.message_dict) from exc
+        return Response(UnansweredQuestionSerializer(item).data)
+
+
+class UnansweredQuestionDismissView(APIView):
+    """Dismiss one of your open questions."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=['Unanswered questions'],
+        summary='Dismiss a question',
+        description=(
+            'Closes one of your open questions without answering it (e.g. it doesn\'t need an answer): '
+            'nothing is sent to the customer and no FAQ is added. A question that isn\'t open returns 400.'
+        ),
+        request=None,
+        responses={
+            200: UnansweredQuestionSerializer,
+            400: OpenApiResponse(description='The question is not open.'),
+            403: OpenApiResponse(description="Another business's question, or your account has no business."),
+            404: OpenApiResponse(description='No question with this ID.'),
+        },
+    )
+    def post(self, request: Request, pk: int) -> Response:
+        item = get_own_question(request, pk)
+        try:
+            item = questions.dismiss_question(item)
+        except questions.QuestionClosed as exc:
+            raise ValidationError({'status': [QUESTION_CLOSED_MESSAGE]}) from exc
+        return Response(UnansweredQuestionSerializer(item).data)

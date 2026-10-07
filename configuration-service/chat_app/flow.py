@@ -14,7 +14,11 @@ handle_customer_message() runs one turn:
    The last block completing marks the flow `completed`.
 5. Save chat_state_id / chat_state_data (commit_turn). If the customer confirmed, this also places
    the order (checkout_app: an OrderItem, with its stock reserved) in the same transaction.
-6. Send the fixed messages of the SEND_MESSAGE_BLOCKs passed (no LLM: the chat moves straight
+6. Check the customer's question (check_customer_question): one structured LLM call with the
+   business's information classifies the message as no question / off topic / answered /
+   unanswered. An unanswered (real) question is saved for the business (questions.ask_business),
+   and the reply prompt is told what to do about it.
+7. Send the fixed messages of the SEND_MESSAGE_BLOCKs passed (no LLM: the chat moves straight
    on past them in step 4). Then ask the LLM for the reply, with the block's reply prompt (what's
    known, what's still missing, what went wrong, what was just sent), and save it; unless the
    flow ended on a Send message block, whose message is then the last word.
@@ -46,7 +50,7 @@ from .constants import (
 from checkout_app.services import OrderError, place_order
 
 from .models import DISPLAY_NAME_MAX_LENGTH, ChatConfiguration, ChatSession
-from .tools import Toolbox, active_products
+from .tools import Toolbox, active_products, business_faqs, mentioned_products
 from .validators import (
     DETAIL_TEXT_DEFAULT_MAX_LENGTH,
     block_detail_fields,
@@ -117,10 +121,12 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
 
     if chat_config is None:  # no flow to follow (only possible for old sessions): just answer
         turn = None
-        system_prompt = prompts.build_reply_prompt(business, None, {}, products=products)
+        check = check_customer_question(session, message, history, products)
+        system_prompt = prompts.build_reply_prompt(business, None, {}, products=products, question_check=check)
     else:
         turn = advance(chat_config, session.chat_state_id, session.chat_state_data, history, products)
         commit_turn(session_id, turn)
+        check = check_customer_question(session, message, history, products)
         system_prompt = prompts.build_reply_prompt(
             business,
             turn.block,
@@ -132,6 +138,7 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
             finished=turn.finished,
             just_sent=[sent['message'] for sent in turn.sent_messages],
             went_back=turn.went_back_to is not None and _same_block(turn.went_back_to, turn.block),
+            question_check=check,
         )
 
     # Send message blocks' fixed messages go out first, in order. The LLM sees them as its own.
@@ -162,8 +169,49 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
         'issues': turn.issues if turn else [],
         'reply_system_prompt': system_prompt,
         'tool_calls': toolbox.calls,
+        'question_check': {key: check[key] for key in ('kind', 'question', 'saved', 'system_prompt')},
     }
     return TurnResult(reply=saved, debug=debug)
+
+
+def check_customer_question(session: ChatSession, message: str, history: list[dict], products: list[dict]) -> dict:
+    """Step 6: does the customer's message ask something the business's information doesn't answer?
+
+    One structured LLM call (prompts.QUESTION_CHECK_SCHEMA, temperature 0) sees the business's
+    description, FAQs, products on sale and the full information of the products the message
+    mentions, and returns a `kind`: none / off_topic / answered / unanswered, plus the question.
+    An unanswered question is saved for the business (questions.ask_business: not twice while open,
+    at most a few per chat): this is decided here, not left to the reply model, which tends to
+    answer from imagination instead of calling a tool.
+
+    Returns `kind`, `question`, `saved` (ask_business's status, or None), `system_prompt`, and
+    the information given (`faqs`, `products`, `mentioned`) for the reply prompt.
+    """
+    from .questions import ask_business  # imported here: questions.py imports this module
+
+    business = session.business
+    faqs = business_faqs(business)
+    mentioned = mentioned_products(business, message)
+    system_prompt = prompts.build_question_check_prompt(business, faqs, products, mentioned)
+    extracted = llm.generate_structured(system_prompt, history, prompts.QUESTION_CHECK_SCHEMA)
+    kind = extracted.get('kind') if extracted.get('kind') in prompts.QUESTION_KINDS else prompts.QUESTION_NONE
+    question = extracted.get('question')
+    question = ' '.join(question.split()) if isinstance(question, str) else ''
+    if kind in (prompts.QUESTION_ANSWERED, prompts.QUESTION_UNANSWERED) and not question:
+        question = ' '.join(message.split())  # the model didn't rephrase it: use the message itself
+    saved = None
+    if kind == prompts.QUESTION_UNANSWERED:
+        result = ask_business(session, question)
+        saved = result.get('status') or result.get('error')
+    return {
+        'kind': kind,
+        'question': question or None,
+        'saved': saved,
+        'system_prompt': system_prompt,
+        'faqs': faqs,
+        'products': products,
+        'mentioned': mentioned,
+    }
 
 
 def advance(

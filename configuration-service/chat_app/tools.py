@@ -1,10 +1,12 @@
-"""Read-only tools the assistant can call while writing a reply (Ollama tool calling).
+"""Read-only tools the assistant can call while writing a reply (Ollama tool calling), and the
+product lookups the flow uses to give the model the right information up front.
 
 Every tool only GETs data, and only the chatting business's data: Toolbox(business) binds
 them to one business, so the model can't pass in (or guess) another business's ID.
 """
 
 import json
+import re
 from collections.abc import Callable
 
 from product_app.models import FAQ, Product
@@ -37,6 +39,37 @@ def _faqs(business) -> list[dict]:
         {'question': faq.question, 'answer': faq.answer}
         for faq in FAQ.objects.filter(business=business).order_by('question')
     ]
+
+
+# At most this many products' full information goes into a prompt (it can be long).
+MENTIONED_PRODUCTS_MAX = 3
+# Words too common in product names to tell which product a message is about.
+GENERIC_NAME_WORDS = {
+    'bouquet', 'flower', 'flowers', 'stem', 'stems', 'with', 'whole', 'single', 'hand', 'tied', 'gift',
+    'box', 'set', 'small', 'large', 'mini', 'classic', 'tones', 'tier', 'pack', 'piece', 'pieces',
+}
+
+
+def _name_words(text: str) -> set[str]:
+    """Distinctive lowercase words, singular ("roses" → "rose"), for matching product names."""
+    words = {word.removesuffix('s') if len(word) > 4 else word for word in re.findall(r'[a-z]+', text.casefold())}
+    return {word for word in words if len(word) >= 4 and word not in GENERIC_NAME_WORDS}
+
+
+def mentioned_products(business, text: str, limit: int = MENTIONED_PRODUCTS_MAX) -> list[dict]:
+    """The business's active products that `text` (a customer message) mentions, with their full
+    `information`: a product matches if a distinctive word of its name appears in the text."""
+    words = _name_words(text)
+    found = []
+    for product in Product.objects.filter(business=business, is_active=True).order_by('name'):
+        if _name_words(product.name) & words:
+            found.append({'name': product.name, 'description': product.description, 'information': product.information})
+    return found[:limit]
+
+
+def business_faqs(business) -> list[dict]:
+    """The business's FAQs as `{question, answer}` (also what list_faqs returns)."""
+    return _faqs(business)
 
 
 def find_product_details(business, product) -> dict:

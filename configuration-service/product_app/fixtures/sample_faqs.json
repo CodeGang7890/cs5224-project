@@ -286,5 +286,23 @@
       "question": "Are your flowers safe for people with allergies, and for pets?",
       "answer": "For allergy sufferers, our crochet, soap and preserved flowers are the safest choice: they have no pollen. Among fresh flowers, roses and our pollen-free sunflowers are the gentlest. Some flowers, such as lilies, baby's breath, lavender and chamomile, can be harmful to cats and dogs if eaten. Tell us if the recipient has pets, and we'll leave those out."
     }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 33,
+    "fields": {
+      "business": 2,
+      "question": "Can the card message be written in Chinese?",
+      "answer": "Yes! We can print card messages in Chinese, Malay or Tamil as well as English. Just type your message in the language you'd like when you order, and we'll print it in a matching font."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 34,
+    "fields": {
+      "business": 2,
+      "question": "Do you sell balloons to go with the flowers?",
+      "answer": "Not at the moment, sorry! We focus on flowers, but you're welcome to bring your own balloon when you collect your order, and we'll happily tie it to the wrapping for you."
+    }
   }
 ]

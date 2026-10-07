@@ -124,7 +124,7 @@ class SampleProductAndFAQFixtureTests(TestCase):
 
     def test_fixtures_are_valid(self):
         self.assertEqual(Product.objects.count(), 19)
-        self.assertEqual(FAQ.objects.count(), 32)
+        self.assertEqual(FAQ.objects.count(), 34)
         for record in [*Product.objects.all(), *FAQ.objects.all()]:
             with self.subTest(record=str(record)):
                 record.full_clean()  # loaddata skips validation
