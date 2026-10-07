@@ -50,10 +50,10 @@ class ChatFlowAPITests(APITestCase):
         cls.florist = BusinessConfiguration.objects.create(business_name='Florist', location='Singapore')
         cls.user = BusinessUser.objects.create_user(username='cafe', password='123', business=cls.cafe)
         cls.chat_config = ChatConfiguration.objects.create(business=cls.cafe, config_json=FULL_CONFIG)
-        cls.kopi = Product.objects.create(business=cls.cafe, name='Kopi C', price='1.80', quantity_available=200)
-        cls.toast = Product.objects.create(business=cls.cafe, name='Kaya Toast Set', price='5.50', quantity_available=3)
+        cls.kopi = Product.objects.create(business=cls.cafe, name='Kopi C', price='1.80', total_quantity=200)
+        cls.toast = Product.objects.create(business=cls.cafe, name='Kaya Toast Set', price='5.50', total_quantity=3)
         Product.objects.create(business=cls.cafe, name='Old Special', price='9.00', is_active=False)
-        Product.objects.create(business=cls.florist, name='Rose Bouquet', price='68.00', quantity_available=5)
+        Product.objects.create(business=cls.florist, name='Rose Bouquet', price='68.00', total_quantity=5)
         FAQ.objects.create(business=cls.cafe, question='Opening hours?', answer='8am to 7pm daily.')
 
     def setUp(self):
@@ -232,7 +232,7 @@ class ChatFlowAPITests(APITestCase):
         self.assertIn('Only 3 Kaya Toast Set are available, so 10 cannot be ordered.', self.reply_prompt())
 
     def test_sold_out_product_stays_and_explains(self):
-        Product.objects.filter(pk=self.toast.pk).update(quantity_available=0)
+        Product.objects.filter(pk=self.toast.pk).update(total_quantity=0)
         self.session.chat_state_id = 2
         self.session.save()
         self.send(
@@ -249,7 +249,7 @@ class ChatFlowAPITests(APITestCase):
     def test_confirmed_cart_sold_out_since_cannot_move_on(self):
         # Back at product selection (e.g. after a "change" at confirmation), with a cart confirmed
         # before the product ran out: the customer can't move on to details with it.
-        Product.objects.filter(pk=self.toast.pk).update(quantity_available=0)
+        Product.objects.filter(pk=self.toast.pk).update(total_quantity=0)
         self.session.chat_state_id = 2
         self.session.chat_state_data = {
             'items': [{'product_id': self.toast.pk, 'name': 'Kaya Toast Set', 'unit_price': '5.50', 'quantity': 1}],
@@ -336,7 +336,7 @@ class CustomDetailFieldsFlowTests(APITestCase):
         blocks[2]['fields'] = cls.FIELDS
         cls.chat_config = ChatConfiguration.objects.create(business=cls.cafe, config_json=blocks)
         cls.chat_config.full_clean()
-        cls.kopi = Product.objects.create(business=cls.cafe, name='Kopi C', price='1.80', quantity_available=200)
+        cls.kopi = Product.objects.create(business=cls.cafe, name='Kopi C', price='1.80', total_quantity=200)
 
     def setUp(self):
         self.session = ChatSession.objects.create(
@@ -447,7 +447,7 @@ class OrderPlacementFlowTests(APITestCase):
         ChatConfiguration.objects.create(business=cls.cafe, config_json=FULL_CONFIG)
 
     def setUp(self):
-        self.kopi = Product.objects.create(business=self.cafe, name='Kopi C', price='1.80', quantity_available=10)
+        self.kopi = Product.objects.create(business=self.cafe, name='Kopi C', price='1.80', total_quantity=10)
         self.session = ChatSession.objects.create(
             business=self.cafe,
             is_sandbox=True,
@@ -503,12 +503,15 @@ class OrderPlacementFlowTests(APITestCase):
         self.assertFalse(OrderItem.objects.exists())
 
     def test_sold_out_since_chosen_undoes_the_confirmation(self):
-        Product.objects.filter(pk=self.kopi.pk).update(quantity_available=2)  # someone else bought some
+        # Someone else ordered 8 of the 10 in the meantime.
+        other = OrderItem.objects.create(business=self.cafe, order_data={
+            'items': [{'product_id': self.kopi.pk, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 8}], 'details': {},
+        })
         response = self.send('Yes', {'decision': 'confirm'})
         self.assertEqual(response.status_code, 200)
-        self.assertFalse(OrderItem.objects.exists())
+        self.assertEqual(list(OrderItem.objects.all()), [other])
         self.kopi.refresh_from_db()
-        self.assertEqual((self.kopi.quantity_available, self.kopi.quantity_on_hold), (2, 0))
+        self.assertEqual((self.kopi.quantity_available, self.kopi.quantity_on_hold), (2, 8))
         # Still at confirmation, not completed, and the reply explains why.
         self.assertEqual(self.session.chat_state_id, 4)
         self.assertNotIn('completed', self.session.chat_state_data)
@@ -566,7 +569,7 @@ class SendMessageFlowTests(APITestCase):
         cls.chat_config.full_clean()
 
     def setUp(self):
-        self.kopi = Product.objects.create(business=self.cafe, name='Kopi C', price='1.80', quantity_available=10)
+        self.kopi = Product.objects.create(business=self.cafe, name='Kopi C', price='1.80', total_quantity=10)
         self.kopi_line = {'product_id': self.kopi.pk, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 2}
         self.session = ChatSession.objects.create(
             business=self.cafe, is_sandbox=True, chat_state_id=2, chat_state_data={'items': [self.kopi_line]}
@@ -666,7 +669,7 @@ class SendMessageFlowTests(APITestCase):
             'items': [self.kopi_line], 'items_confirmed': True, 'details': {'name': 'Alice', 'email': 'a@b.co'},
         }
         self.session.save()
-        Product.objects.filter(pk=self.kopi.pk).update(quantity_available=1)
+        Product.objects.filter(pk=self.kopi.pk).update(total_quantity=1)
         response = self.send('Yes', {'decision': 'confirm'}, reply='Sorry, only 1 Kopi C is left.')
         self.assertEqual(self.session.chat_state_id, 4)
         self.assertFalse(OrderItem.objects.exists())
@@ -708,7 +711,7 @@ class RequiredAndOptionalDetailsFlowTests(APITestCase):
         blocks[2]['fields'] = cls.FIELDS
         chat_config = ChatConfiguration.objects.create(business=cls.cafe, config_json=blocks)
         chat_config.full_clean()
-        cls.kopi = Product.objects.create(business=cls.cafe, name='Kopi C', price='1.80', quantity_available=200)
+        cls.kopi = Product.objects.create(business=cls.cafe, name='Kopi C', price='1.80', total_quantity=200)
 
     def setUp(self):
         self.session = ChatSession.objects.create(
@@ -782,8 +785,8 @@ class GoBackFlowTests(APITestCase):
         cls.cafe = BusinessConfiguration.objects.create(business_name='Kopi Café', location='Tiong Bahru')
         cls.user = BusinessUser.objects.create_user(username='cafe', password='123', business=cls.cafe)
         ChatConfiguration.objects.create(business=cls.cafe, config_json=FULL_CONFIG)
-        cls.kopi = Product.objects.create(business=cls.cafe, name='Kopi C', price='1.80', quantity_available=100)
-        cls.toast = Product.objects.create(business=cls.cafe, name='Kaya Toast Set', price='5.50', quantity_available=50)
+        cls.kopi = Product.objects.create(business=cls.cafe, name='Kopi C', price='1.80', total_quantity=100)
+        cls.toast = Product.objects.create(business=cls.cafe, name='Kaya Toast Set', price='5.50', total_quantity=50)
 
     def setUp(self):
         self.kopi_line = {'product_id': self.kopi.pk, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 2}
@@ -998,7 +1001,7 @@ class ProductDetailsToolFlowTests(APITestCase):
         cls.user = BusinessUser.objects.create_user(username='cafe', password='123', business=cls.cafe)
         ChatConfiguration.objects.create(business=cls.cafe, config_json=FULL_CONFIG)
         cls.kopi = Product.objects.create(
-            business=cls.cafe, name='Kopi C', price='1.80', quantity_available=20,
+            business=cls.cafe, name='Kopi C', price='1.80', total_quantity=20,
             description=cls.DESCRIPTION, information=cls.INFORMATION,
         )
 

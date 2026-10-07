@@ -20,14 +20,14 @@ class ProductDetailsToolTests(TestCase):
         cls.cafe = BusinessConfiguration.objects.create(business_name='Kopi Café', location='Singapore')
         cls.florist = BusinessConfiguration.objects.create(business_name='Florist', location='Singapore')
         cls.kopi = Product.objects.create(
-            business=cls.cafe, name='Kopi C', price='1.80', quantity_available=20,
+            business=cls.cafe, name='Kopi C', price='1.80', total_quantity=20,
             description='Coffee with evaporated milk.', information='Roasted with butter, so not dairy-free.',
         )
-        cls.kopi_o = Product.objects.create(business=cls.cafe, name='Kopi O', price='1.60', quantity_available=20, description='Black coffee.')
-        cls.cake = Product.objects.create(business=cls.cafe, name='Pandan Chiffon Cake (Whole)', price='28.00', quantity_available=4, description=SHORT, information=LONG)
-        cls.plain = Product.objects.create(business=cls.cafe, name='Plain Toast', price='2.00', quantity_available=5)
+        cls.kopi_o = Product.objects.create(business=cls.cafe, name='Kopi O', price='1.60', total_quantity=20, description='Black coffee.')
+        cls.cake = Product.objects.create(business=cls.cafe, name='Pandan Chiffon Cake (Whole)', price='28.00', total_quantity=4, description=SHORT, information=LONG)
+        cls.plain = Product.objects.create(business=cls.cafe, name='Plain Toast', price='2.00', total_quantity=5)
         Product.objects.create(business=cls.cafe, name='Seasonal Brunch Plate', price='16.00', is_active=False, description='Secret.')
-        Product.objects.create(business=cls.florist, name='Rose Bouquet', price='68.00', quantity_available=5, description='Roses.')
+        Product.objects.create(business=cls.florist, name='Rose Bouquet', price='68.00', total_quantity=5, description='Roses.')
         FAQ.objects.create(business=cls.cafe, question='Are you halal?', answer='No pork or lard is used.')
 
     def find(self, product):
@@ -89,7 +89,7 @@ class ToolboxTests(TestCase):
     def setUpTestData(cls):
         cls.cafe = BusinessConfiguration.objects.create(business_name='Kopi Café', location='Singapore')
         Product.objects.create(
-            business=cls.cafe, name='Pandan Chiffon Cake (Whole)', price='28.00', quantity_available=4,
+            business=cls.cafe, name='Pandan Chiffon Cake (Whole)', price='28.00', total_quantity=4,
             description=SHORT, information=LONG,
         )
         FAQ.objects.create(business=cls.cafe, question='Are you halal?', answer='No pork or lard is used.')

@@ -73,11 +73,11 @@ python manage.py loaddata sample_business_configurations sample_business_users s
 | --- | --- | --- |
 | `sample_business_configurations` | `configuration_app/fixtures/` | 3 businesses: Kopi & Co. Café, Bloom & Twine Florist Studio (with a full, realistic description), FitLab Personal Training |
 | `sample_business_users` | `auth_app/fixtures/` | 4 business users linked to those businesses |
-| `sample_products` | `product_app/fixtures/` | 19 products (one of them inactive). Each has a short description and longer information. Bloom & Twine Florist Studio has 12 realistic products across fresh, dried / preserved, soap and crochet flowers ($5.90 to $288, two of them sold out), each with detailed information about the product itself (what's in it, size, how long it lasts, care, allergies and pets), with no prices, variants or logistics. Bloom is self-collection only: it doesn't deliver. Kopi & Co. Café's 5 have long, detailed information (ingredients, sizes, options, allergens, storage, and a few product FAQs) for testing `get_product_details`, with some details deliberately left out to test "I don't know" |
+| `sample_products` | `product_app/fixtures/` | 19 products (one of them inactive). Each has a short description and longer information. Bloom & Twine Florist Studio has 12 realistic products across fresh, dried / preserved, soap and crochet flowers ($5.90 to $288; one sold out, and one down to its last piece), each with detailed information about the product itself (what's in it, size, how long it lasts, care, allergies and pets), with no prices, variants or logistics. Bloom is self-collection only: it doesn't deliver. Kopi & Co. Café's 5 have long, detailed information (ingredients, sizes, options, allergens, storage, and a few product FAQs) for testing `get_product_details`, with some details deliberately left out to test "I don't know" |
 | `sample_faqs` | `product_app/fixtures/` | 32 FAQs: 12 for Kopi & Co. Café (hours, reservations, halal, delivery, payment, vegetarian options, sugar levels, catering, parking, Wi-Fi, pets, cancellations), 18 for Bloom & Twine Florist Studio (self-collection only: where and when to collect, same-day collection, collecting for someone else, hours, payment, care, card messages, cancellations, substitutions, corporate, weddings, workshops, allergies and pets…), 2 for FitLab |
 | `sample_chat_configurations` | `chat_app/fixtures/` | 2 chat flows, both start → product selection → details collection → confirmation: Kopi & Co. Café (asks for name, email and pickup time) and Bloom & Twine Florist Studio (asks for name, card message and collection date) |
 | `sample_chat_sessions` | `chat_app/fixtures/` | 14 customer chats: 11 with Kopi & Co. Café (at different steps of its flow, over 1–12 Sep, one with no messages yet), 2 with Bloom & Twine Florist Studio (one choosing products, one giving details), 1 with FitLab. `+6591234567` chats with both the café and the florist. Plus 2 sandbox (test) chats for Kopi & Co. Café, one without a phone number |
-| `sample_order_items` | `checkout_app/fixtures/` | 5 orders: 4 for Kopi & Co. Café (one per status, plus a pending sandbox order) and 1 for Bloom & Twine Florist Studio. They aren't linked to chats, and their stock wasn't reserved |
+| `sample_order_items` | `checkout_app/fixtures/` | 30 orders: 4 for Kopi & Co. Café (one per status, plus a pending sandbox order) and 26 for Bloom & Twine Florist Studio (8 Aug to 12 Sep 2026: birthdays, anniversaries, a Teachers' Day rush, grand openings; mostly completed, the latest paid or pending payment). They aren't linked to chats. They count towards the products' quantities on hold and sold |
 
 Every sample account uses the password **`123`**, so you can log in as anyone while testing:
 
@@ -102,7 +102,7 @@ Notes:
 | --- | --- | --- |
 | `configuration_app` | `BusinessConfiguration` | `id`, `business_name` (≤150 chars), `description` (≤2,000 chars, optional), `location` (≤255 chars) |
 | `auth_app` | `BusinessUser` | Every field of Django's built-in user (username, password, email, first/last name, `is_staff`, `is_superuser`, `is_active`, groups, permissions, `last_login`, `date_joined`), plus `business` → `BusinessConfiguration` (optional) |
-| `product_app` | `Product` | `id`, `business` → `BusinessConfiguration`, `name` (≤150 chars), `description` (≤300 chars, optional: the short summary the chat assistant gives customers), `information` (≤5,000 chars, optional: extra details the assistant looks up to answer specific questions; customers don't see it as is), `price` (≥0, 2 decimal places, up to 99,999,999.99), `quantity_available` / `quantity_on_hold` / `quantity_sold` (whole numbers ≥0, default 0), `is_active` (default true) |
+| `product_app` | `Product` | `id`, `business` → `BusinessConfiguration`, `name` (≤150 chars), `description` (≤300 chars, optional: the short summary the chat assistant gives customers), `information` (≤5,000 chars, optional: extra details the assistant looks up to answer specific questions; customers don't see it as is), `price` (≥0, 2 decimal places, up to 99,999,999.99), `total_quantity` (whole number ≥0, default 0: how many the business has in total, including those on hold or sold), `is_active` (default true). Also, worked out from the orders (not stored): `quantity_on_hold` (in orders pending payment or paid), `quantity_sold` (in completed orders) and `quantity_available` (total − on hold − sold) |
 | `product_app` | `FAQ` | `id`, `business` → `BusinessConfiguration`, `question` (≤300 chars), `answer` (≤10,000 chars) |
 | `chat_app` | `ChatSession` | `id`, `business` → `BusinessConfiguration`, `phone_number` (the customer's, international format e.g. `+6591234567`), `display_name` (≤150 chars, optional), `created_time` (defaults to now), `last_chat_time`, `chat_message_json` (the conversation, see below), `chat_state_id` (the flow block the customer is at, or empty), `chat_state_data` (what the chat flow has collected so far, see below), `is_sandbox` (a test chat from the Chat Sandbox; default false) |
 | `chat_app` | `ChatConfiguration` | `id`, `business` → `BusinessConfiguration` (one per business), `config_json` (the chat flow, see below), `last_updated` (set automatically on every save) |
@@ -306,12 +306,12 @@ Sandbox sessions are left out of `GET /api/chat/sessions/` unless you ask for th
 
 ### Orders
 
-When a customer confirms at the Confirmation block (a real or sandbox chat), the [chat flow](#chat-flow) calls `checkout_app.services.place_order()`, which creates an `OrderItem` (`pending_payment`) and **reserves the stock**: each product's `quantity_available` goes down and `quantity_on_hold` goes up by the quantity. (Moving it on to `quantity_sold` is for the payment step, later.) The chat's `chat_state_data` gets `order_id`, and the reply gives the customer the order number.
+When a customer confirms at the Confirmation block (a real or sandbox chat), the [chat flow](#chat-flow) calls `checkout_app.services.place_order()`, which creates an `OrderItem` (`pending_payment`). Products only store a `total_quantity`; their quantities on hold, sold and available are worked out from the orders (`checkout_app/stock.py`), so the new order **puts its quantities on hold**: `quantity_on_hold` goes up and `quantity_available` down. When the order is completed, they move from on hold to sold. The chat's `chat_state_data` gets `order_id`, and the reply gives the customer the order number.
 
-- **All or nothing, safe under concurrency.** It runs in one transaction with the chat session's row locked. The product rows are locked with `SELECT … FOR UPDATE`, in id order so two orders can't deadlock. Stock is checked again (still on sale, enough left), and each update is guarded with `quantity_available >= quantity`, so stock can't go negative even on SQLite (which ignores `FOR UPDATE` and locks the whole database instead).
+- **All or nothing, safe under concurrency.** It runs in one transaction with the chat session's row locked. The product rows are locked with `SELECT … FOR UPDATE`, in id order so two orders can't deadlock. Stock is checked again (still on sale, enough left), and once more after the order is saved, with it counted (rolled back if anything is now oversold), so stock can't go negative even on SQLite (which ignores `FOR UPDATE` and locks the whole database instead).
 - **If it fails** (e.g. another customer bought the last ones since this customer chose, or the product was deactivated), nothing changes: no order, no stock change, and the chat stays at Confirmation with the problem in the reply ("Only 2 Kopi C are left."), so the customer can change their order.
 - The price is the one the customer was shown when choosing (it isn't re-read). Later messages in the same chat don't order again.
-- Sandbox chats place orders too, flagged `is_sandbox`, and they reserve stock like real ones.
+- Sandbox chats place orders too, flagged `is_sandbox`, and they count towards stock like real ones.
 
 `GET /api/orders/` (login required) lists your business's orders, newest first, **including sandbox orders** (they hold real stock). Each has `order_data`, `order_status`, `total` (computed) and the `chat_session` it came from. Optional parameters: `order_status`, `sandbox` (`include` (default), `exclude` or `only`), `created_time_after` / `created_time_before`, `ordering` (`created_time`, `order_status` or `id`; `-` for descending), `page` and `page_size` (max 100). The response is paginated like chat sessions. `GET /api/orders/{id}/` returns one order. Orders are read only for now (no create, edit or delete: 405).
 
@@ -330,7 +330,7 @@ When a customer confirms at the Confirmation block (a real or sandbox chat), the
   4. Otherwise: `200` with the paginated list.
 
   A non-numeric ID such as `/api/businesses/abc/products/` doesn't match the URL, so it returns `404`.
-- **`quantity_sold` is read-only.** It's returned in responses, but sending it in a create or update returns `400 Bad Request`.
+- **Stock is changed through `total_quantity` only.** Raise it to add stock; lower it at most down to on hold + sold, so `quantity_available` never goes negative (otherwise `400`, e.g. `"Must be at least 9 (5 on hold and 4 sold in orders), …"`; Django Admin checks it too). `quantity_available`, `quantity_on_hold` and `quantity_sold` are returned in responses, but sending any of them returns `400 Bad Request`.
 - **Validation errors return `400`** with a message per field, for example:
   - a negative quantity or price
   - a quantity over 1,000,000
@@ -400,7 +400,7 @@ Tests use a temporary database, so your `db.sqlite3` isn't touched.
 | File | Covers |
 | --- | --- |
 | `auth_app/test_api.py` | JWT login, refresh + rotation, verify, logout (blacklist), `/api/auth/me/`, CORS for the `Authorization` header |
-| `product_app/test_api.py` | Product and FAQ APIs: login required, business scoping and 403s, CRUD, read-only `quantity_sold`, validation; list-by-business endpoints (200 / 400 unknown ID / 401 / 403 other business, pagination, read-only) |
+| `product_app/test_api.py` | Product and FAQ APIs: login required, business scoping and 403s, CRUD, read-only derived quantities, `total_quantity` changes (adding stock, lowering it only down to on hold + sold, re-checked against the latest orders), quantities derived from orders (one orders query per list), validation; list-by-business endpoints (200 / 400 unknown ID / 401 / 403 other business, pagination, read-only) |
 | `product_app/tests.py` | Product and FAQ model validation and database constraints (including the description and information limits); sample products and FAQs are valid; migration `0003` moves long descriptions into `information` |
 | `auth_app/tests.py` | `BusinessUser` model, Django Admin pages load |
 | `configuration_app/tests.py` | `BusinessConfiguration` model, random-number endpoint, CORS |
@@ -409,7 +409,8 @@ Tests use a temporary database, so your `db.sqlite3` isn't touched.
 | `chat_app/tests/test_tools.py` | The reply step's tools: `get_product_details` (description + information; name in any case, partial name, id, ambiguous names, no description or information, inactive / unknown / another business's products, bad arguments), `list_products` (no information), `list_faqs`, unknown tools; descriptions in the prompt's catalog |
 | `chat_app/tests/test_flow.py` | The chat flow (LLM mocked): a whole conversation from Start to confirmed, going back on "change", invalid choices, unknown state → Start block, tool calls, invalid JSON → 502; custom Details collection fields (asks for every field, only moves on when all are valid); going back to an earlier step from any block (keeps data, one per message, `go_back_targets`); confirming places an order and reserves stock (once), and a product sold out since it was chosen undoes the confirmation; each block's deterministic check and each detail type's value check |
 | `checkout_app/tests/test_models.py` | `validate_order_data` rules; `OrderItem` defaults (`pending_payment`), statuses (also the database constraint), total; sample fixture is valid |
-| `checkout_app/tests/test_services.py` | `place_order`: creates the order and reserves stock; all or nothing when any item fails (sold out, inactive, another business's or deleted product); can't oversell; a simulated lost race is stopped by the guarded update and rolled back; product rows locked in id order |
+| `checkout_app/tests/test_services.py` | `place_order`: creates the order, which puts its quantities on hold; paid and completed orders count too; all or nothing when any item fails (sold out, inactive, another business's or deleted product); can't oversell; a simulated lost race is stopped by the re-check after saving and rolled back; product rows locked in id order |
+| `checkout_app/tests/test_stock.py` | Quantities derived from orders: on hold (pending payment, paid) and sold (completed) per product, other businesses' orders ignored, one query; `Product` available / on hold / sold, completing or deleting an order, adding stock, `load_stock` batching and refreshing, `total_quantity` can't go below on hold + sold |
 | `checkout_app/tests/test_api.py` | Orders list/detail: 401, 403 (no business, another business's order), 404 (unknown order, page past the end), 405 (read only), filters, sorting, pagination |
 
 ### Resetting the local database
@@ -524,7 +525,8 @@ configuration-service/
 │   ├── admin.py
 │   ├── models.py           # OrderItem, OrderStatus
 │   ├── validators.py       # validate_order_data
-│   ├── services.py         # place_order(): creates the order + reserves stock (locked, all or nothing)
+│   ├── services.py         # place_order(): creates the order if there's enough stock (locked, all or nothing)
+│   ├── stock.py            # Products' quantities on hold / sold, worked out from the orders
 │   ├── serializers.py      # OrderItemSerializer (read only)
 │   ├── filters.py          # OrderItemFilter
 │   ├── views.py            # OrderItemListView, OrderItemDetailView

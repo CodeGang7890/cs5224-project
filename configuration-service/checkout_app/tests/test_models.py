@@ -116,8 +116,37 @@ class SampleOrderItemFixtureTests(TestCase):
 
     def test_fixture_is_valid(self):
         orders = OrderItem.objects.all()
-        self.assertEqual(orders.count(), 5)
+        self.assertEqual(orders.count(), 30)
         self.assertEqual(set(orders.values_list('order_status', flat=True)), set(OrderStatus.values))
         for order in orders:
             with self.subTest(order=order.pk):
                 order.full_clean()  # loaddata skips validation
+
+    def test_florist_has_many_realistic_orders(self):
+        orders = OrderItem.objects.filter(business_id=2)
+        self.assertGreaterEqual(orders.count(), 20)
+        self.assertEqual(set(orders.values_list('order_status', flat=True)), set(OrderStatus.values))
+        self.assertFalse(orders.filter(is_sandbox=True).exists())
+        for order in orders:
+            with self.subTest(order=order.pk):
+                self.assertEqual(set(order.order_data['details']), {'name', 'card_message', 'collection_date'})
+                self.assertGreaterEqual(order.updated_time, order.created_time)
+
+
+class SampleStockFixtureTests(TestCase):
+    """The sample products' quantities, derived from the sample orders."""
+
+    fixtures = ['sample_business_configurations', 'sample_products', 'sample_order_items']
+
+    def test_quantities(self):
+        from product_app.models import Product
+
+        products = {p.name: p for p in Product.load_stock(Product.objects.all())}
+        for product in products.values():
+            with self.subTest(product=product.name):
+                self.assertGreaterEqual(product.quantity_available, 0)
+        rose = products['Classic Red Rose Bouquet (12 Stems)']
+        self.assertEqual((rose.total_quantity, rose.quantity_available, rose.quantity_on_hold, rose.quantity_sold), (19, 15, 2, 2))
+        bell_jar = products['Preserved Rose Bell Jar']
+        self.assertEqual((bell_jar.total_quantity, bell_jar.quantity_available, bell_jar.quantity_on_hold, bell_jar.quantity_sold), (4, 1, 1, 2))
+

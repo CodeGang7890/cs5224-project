@@ -664,3 +664,26 @@ Original Prompt:
 Please remove information such as bulk pricing or delivery from the fixtures for the Products
 Other information can be put there, such as Care, Allergies infomration, etc.
 Just don't give complicated variants to choose etc in the description or things like delivery etc
+
+Date & Time (GMT+8): 2026-10-07 22:56:08
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+For Product, I want you to change how the quantity works.
+Now there’re: quantity available, hold, sold.
+Instead, I only want 1 field: total_quantity.
+Then, the quantity available, hold, sold are calculated / derived based on that.
+In checkout_app see there’s OrderItem.
+For every OrderItem.order_data whose status are PENDING_PAYMENT or PAYMENT_RECEIVED, it will be the quantity hold.
+For every OrderItem.order_data whose status is ORDER_COMPLETED, it will be the quantity sold.
+Quantity available will be derived based on that.
+Business owners can only modify the total_quantity as follows: add extra items, or reduce the total quantity such that the available_quantity should not be negative (it should be at least 0).
+Please modify the existing APIs, create comprehensive unit test, and modify the frontend calls and API calls appropriately.
+Please also modify the existing fixtures / sample data to be appropriate.
+Particularly on the Bloom Florist Studio, please make the order data realistic and make it seem there are many orders (20+ orders).
+It doesn’t need to have a corresponding chat, just the OrderItem is enough.
+
+Date & Time (GMT+8): 2026-10-07 23:12:36
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+Change the fixture so Preserved Rose Bell Jar has 4 total quantity and so has 1 available

@@ -11,6 +11,7 @@ from product_app.models import Product
 
 from ..models import OrderItem, OrderStatus
 from ..services import OrderError, place_order
+from ..stock import Stock
 
 
 def line(product, quantity, price=None):
@@ -22,17 +23,27 @@ class PlaceOrderTests(TestCase):
     def setUpTestData(cls):
         cls.cafe = BusinessConfiguration.objects.create(business_name='Kopi Café', location='Singapore')
         cls.florist = BusinessConfiguration.objects.create(business_name='Florist', location='Singapore')
-        cls.rose = Product.objects.create(business=cls.florist, name='Rose', price='5.00', quantity_available=50)
+        cls.rose = Product.objects.create(business=cls.florist, name='Rose', price='5.00', total_quantity=50)
 
     def setUp(self):
-        self.kopi = Product.objects.create(business=self.cafe, name='Kopi C', price='1.80', quantity_available=10, quantity_on_hold=1, quantity_sold=100)
-        self.toast = Product.objects.create(business=self.cafe, name='Kaya Toast Set', price='5.50', quantity_available=3)
+        # Kopi C: 111 in total, 1 on hold (a pending order) and 100 sold (a completed one): 10 available.
+        self.kopi = Product.objects.create(business=self.cafe, name='Kopi C', price='1.80', total_quantity=111)
+        self.toast = Product.objects.create(business=self.cafe, name='Kaya Toast Set', price='5.50', total_quantity=3)
+        OrderItem.objects.create(business=self.cafe, order_data={'items': [line(self.kopi, 1)], 'details': {}})
+        OrderItem.objects.create(
+            business=self.cafe, order_status=OrderStatus.ORDER_COMPLETED, order_data={'items': [line(self.kopi, 100)], 'details': {}}
+        )
+        self.existing = set(OrderItem.objects.values_list('pk', flat=True))
 
     def stock(self, product):
+        """(available, on hold, sold): all derived from the orders."""
         product.refresh_from_db()
         return product.quantity_available, product.quantity_on_hold, product.quantity_sold
 
-    def test_creates_pending_order_and_reserves_stock(self):
+    def new_orders(self):
+        return OrderItem.objects.exclude(pk__in=self.existing)
+
+    def test_creates_pending_order_which_puts_its_quantities_on_hold(self):
         session = ChatSession.objects.create(business=self.cafe, is_sandbox=True)
         details = {'name': 'Alice', 'postal_code': 238801}
         order = place_order(self.cafe, [line(self.kopi, 2), line(self.toast, 3)], details, chat_session=session, is_sandbox=True)
@@ -44,9 +55,10 @@ class PlaceOrderTests(TestCase):
         self.assertEqual(order.order_status, OrderStatus.PENDING_PAYMENT)
         self.assertEqual(order.order_data, {'items': [line(self.kopi, 2), line(self.toast, 3)], 'details': details})
         self.assertEqual(order.total, Decimal('20.10'))
-        # available → on hold; sold untouched until payment.
+        # available → on hold; sold untouched until the order is completed. Totals don't change.
         self.assertEqual(self.stock(self.kopi), (8, 3, 100))
         self.assertEqual(self.stock(self.toast), (0, 3, 0))
+        self.assertEqual((self.kopi.total_quantity, self.toast.total_quantity), (111, 3))
 
     def test_keeps_the_confirmed_price(self):
         order = place_order(self.cafe, [line(self.kopi, 1, price='1.50')], {})
@@ -61,12 +73,12 @@ class PlaceOrderTests(TestCase):
         with self.assertRaises(OrderError) as ctx:
             place_order(self.cafe, [line(self.kopi, 2), line(self.toast, 4)], {})
         self.assertEqual(ctx.exception.problems, ['Only 3 Kaya Toast Set are left.'])
-        self.assertFalse(OrderItem.objects.exists())
-        self.assertEqual(self.stock(self.kopi), (10, 1, 100))  # the first item wasn't reserved either
+        self.assertFalse(self.new_orders().exists())
+        self.assertEqual(self.stock(self.kopi), (10, 1, 100))  # the first item wasn't put on hold either
         self.assertEqual(self.stock(self.toast), (3, 0, 0))
 
     def test_unavailable_products(self):
-        inactive = Product.objects.create(business=self.cafe, name='Old Special', price='9.00', quantity_available=5, is_active=False)
+        inactive = Product.objects.create(business=self.cafe, name='Old Special', price='9.00', total_quantity=5, is_active=False)
         deleted = {'product_id': 99999, 'name': 'Gone', 'unit_price': '1.00', 'quantity': 1}
         cases = {
             'inactive': (line(inactive, 1), 'Old Special is no longer available.'),
@@ -78,7 +90,7 @@ class PlaceOrderTests(TestCase):
                 place_order(self.cafe, [item], {})
             self.assertEqual(ctx.exception.problems, [problem])
         self.assertEqual(self.stock(self.rose)[0], 50)
-        self.assertFalse(OrderItem.objects.exists())
+        self.assertFalse(self.new_orders().exists())
 
     def test_every_problem_is_reported(self):
         self.toast.is_active = False
@@ -98,25 +110,50 @@ class PlaceOrderTests(TestCase):
         self.assertEqual(ctx.exception.problems, ['Only 1 Kaya Toast Set is left.'])
         place_order(self.cafe, [line(self.toast, 1)], {})
         self.assertEqual(self.stock(self.toast), (0, 3, 0))
-        self.assertEqual(OrderItem.objects.count(), 2)
+        self.assertEqual(self.new_orders().count(), 2)
 
-    def test_guarded_update_stops_overselling_if_the_lock_does_not_hold(self):
-        # Simulate losing a race: the locked read says there's plenty of stock, but another
-        # transaction has already taken it (as can happen without row locks, e.g. on SQLite).
-        stale_kopi = Product.objects.get(pk=self.kopi.pk)
-        stale_toast = Product.objects.get(pk=self.toast.pk)
-        stale_toast.quantity_available = 100
-        Product.objects.filter(pk=self.toast.pk).update(quantity_available=1)
+    def test_paid_and_completed_orders_count_too(self):
+        OrderItem.objects.create(
+            business=self.cafe, order_status=OrderStatus.PAYMENT_RECEIVED, order_data={'items': [line(self.toast, 1)], 'details': {}}
+        )
+        OrderItem.objects.create(
+            business=self.cafe, order_status=OrderStatus.ORDER_COMPLETED, order_data={'items': [line(self.toast, 1)], 'details': {}}
+        )
+        with self.assertRaises(OrderError) as ctx:
+            place_order(self.cafe, [line(self.toast, 2)], {})
+        self.assertEqual(ctx.exception.problems, ['Only 1 Kaya Toast Set is left.'])
+        place_order(self.cafe, [line(self.toast, 1)], {})
+        self.assertEqual(self.stock(self.toast), (0, 2, 1))
 
-        with patch('checkout_app.services.Product.objects.select_for_update') as select_for_update:
-            select_for_update.return_value.filter.return_value.order_by.return_value = [stale_kopi, stale_toast]
-            with self.assertRaises(OrderError) as ctx:
-                place_order(self.cafe, [line(self.kopi, 2), line(self.toast, 3)], {})
+    def test_more_stock_can_be_ordered_after_the_total_goes_up(self):
+        place_order(self.cafe, [line(self.toast, 3)], {})
+        Product.objects.filter(pk=self.toast.pk).update(total_quantity=5)
+        place_order(self.cafe, [line(self.toast, 2)], {})
+        self.assertEqual(self.stock(self.toast), (0, 5, 0))
+
+    def test_recheck_stops_overselling_if_the_lock_does_not_hold(self):
+        # Simulate losing a race: the first (locked) read misses an order another transaction has
+        # just placed (as can happen without row locks, e.g. on SQLite), so the check passes.
+        OrderItem.objects.create(business=self.cafe, order_data={'items': [line(self.toast, 2)], 'details': {}})
+        real_load_stock = Product.load_stock
+        reads = []
+
+        def stale_first_read(products):
+            products = real_load_stock(products)
+            if not reads:
+                for product in products:
+                    product._stock = Stock()  # nothing on hold or sold, as far as this read knows
+            reads.append(products)
+            return products
+
+        with patch.object(Product, 'load_stock', side_effect=stale_first_read), self.assertRaises(OrderError) as ctx:
+            place_order(self.cafe, [line(self.kopi, 2), line(self.toast, 3)], {})
         self.assertEqual(ctx.exception.problems, ['Kaya Toast Set just sold out.'])
-        # All or nothing: Kopi C, updated before the toast failed, was rolled back too.
+        self.assertEqual(len(reads), 2)  # checked before and after saving the order
+        # All or nothing: the order (Kopi C too) was rolled back.
+        self.assertEqual(self.new_orders().count(), 1)  # only the other transaction's order
         self.assertEqual(self.stock(self.kopi), (10, 1, 100))
-        self.assertEqual(self.stock(self.toast), (1, 0, 0))
-        self.assertFalse(OrderItem.objects.exists())
+        self.assertEqual(self.stock(self.toast), (1, 2, 0))
 
     def test_locks_product_rows_in_id_order(self):
         with patch('checkout_app.services.Product.objects.select_for_update', wraps=Product.objects.select_for_update) as select_for_update:

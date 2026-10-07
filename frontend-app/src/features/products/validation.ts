@@ -16,8 +16,7 @@ export interface ProductFormValues {
   description: string
   information: string
   price: string
-  quantity_available: string
-  quantity_on_hold: string
+  total_quantity: string
   is_active: boolean
 }
 
@@ -26,8 +25,7 @@ export const PRODUCT_FIELD_LABELS: Record<keyof ProductInput, string> = {
   description: 'Description',
   information: 'Information',
   price: 'Price',
-  quantity_available: 'Quantity available',
-  quantity_on_hold: 'Quantity on hold',
+  total_quantity: 'Total quantity',
   is_active: 'Active',
 }
 
@@ -36,8 +34,7 @@ export const emptyProductValues: ProductFormValues = {
   description: '',
   information: '',
   price: '',
-  quantity_available: '0',
-  quantity_on_hold: '0',
+  total_quantity: '0',
   is_active: true,
 }
 
@@ -47,8 +44,7 @@ export function productToFormValues(product: Product): ProductFormValues {
     description: product.description,
     information: product.information,
     price: product.price,
-    quantity_available: String(product.quantity_available),
-    quantity_on_hold: String(product.quantity_on_hold),
+    total_quantity: String(product.total_quantity),
     is_active: product.is_active,
   }
 }
@@ -59,8 +55,7 @@ export function formValuesToProductInput(values: ProductFormValues): ProductInpu
     description: values.description.trim(),
     information: values.information.trim(),
     price: Number(values.price).toFixed(2),
-    quantity_available: Number(values.quantity_available),
-    quantity_on_hold: Number(values.quantity_on_hold),
+    total_quantity: Number(values.total_quantity),
     is_active: values.is_active,
   }
 }
@@ -77,8 +72,22 @@ function validateQuantity(value: string): string | undefined {
   return undefined
 }
 
-/** Returns an error message per invalid field (empty object = valid). */
-export function validateProduct(values: ProductFormValues): Partial<Record<keyof ProductInput, string>> {
+/**
+ * The lowest `total_quantity` a saved product can have: what's on hold or sold in orders (so the
+ * quantity available never goes negative). The backend checks it too.
+ */
+export function minTotalQuantity(product: Product): number {
+  return product.quantity_on_hold + product.quantity_sold
+}
+
+/**
+ * Returns an error message per invalid field (empty object = valid). Pass the saved `product`
+ * when editing, to check `total_quantity` against its orders.
+ */
+export function validateProduct(
+  values: ProductFormValues,
+  product?: Product,
+): Partial<Record<keyof ProductInput, string>> {
   const errors: Partial<Record<keyof ProductInput, string>> = {}
 
   const name = values.name.trim()
@@ -101,10 +110,13 @@ export function validateProduct(values: ProductFormValues): Partial<Record<keyof
     errors.price = `Must be at most ${PRODUCT_LIMITS.priceMax.toLocaleString(undefined, { minimumFractionDigits: 2 })}.`
   }
 
-  const available = validateQuantity(values.quantity_available)
-  if (available) errors.quantity_available = available
-  const onHold = validateQuantity(values.quantity_on_hold)
-  if (onHold) errors.quantity_on_hold = onHold
+  const total = validateQuantity(values.total_quantity)
+  if (total) errors.total_quantity = total
+  else if (product && Number(values.total_quantity) < minTotalQuantity(product)) {
+    errors.total_quantity =
+      `Must be at least ${minTotalQuantity(product).toLocaleString()} ` +
+      `(${product.quantity_on_hold.toLocaleString()} on hold and ${product.quantity_sold.toLocaleString()} sold in orders).`
+  }
 
   return errors
 }

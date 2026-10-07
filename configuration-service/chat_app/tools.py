@@ -17,16 +17,18 @@ def active_products(business) -> list[dict]:
     """The business's orderable products, as plain dicts (also used by the prompts and flow.py).
 
     Without `information` (it can be long): only get_product_details returns it, for one product.
+    `quantity_available` is derived from the orders (Product.load_stock, one query for them all).
     """
+    products = Product.load_stock(Product.objects.filter(business=business, is_active=True).order_by('name'))
     return [
         {
             'id': product.pk,
             'name': product.name,
             'description': product.description,
             'price': str(product.price),
-            'quantity_available': product.quantity_available,
+            'quantity_available': max(product.quantity_available, 0),
         }
-        for product in Product.objects.filter(business=business, is_active=True).order_by('name')
+        for product in products
     ]
 
 
