@@ -15,6 +15,7 @@ class ProductSerializer(BusinessOwnedSerializerMixin, serializers.ModelSerialize
             'business',
             'name',
             'description',
+            'information',
             'price',
             'quantity_available',
             'quantity_on_hold',

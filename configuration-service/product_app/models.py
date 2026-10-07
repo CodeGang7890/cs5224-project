@@ -5,7 +5,10 @@ from django.db import models
 from django.db.models import Q
 
 PRODUCT_NAME_MAX_LENGTH = 150
-PRODUCT_DESCRIPTION_MAX_LENGTH = 5000
+# The description is the short summary the assistant gives customers; the information is the long
+# extra context (details, FAQs about the product) it looks up only when a question needs it.
+PRODUCT_DESCRIPTION_MAX_LENGTH = 300
+PRODUCT_INFORMATION_MAX_LENGTH = 5000
 PRICE_MAX_DIGITS = 10  # up to 99,999,999.99
 PRICE_DECIMAL_PLACES = 2
 QUANTITY_MAX = 1_000_000
@@ -26,6 +29,16 @@ class Product(models.Model):
         max_length=PRODUCT_DESCRIPTION_MAX_LENGTH,
         blank=True,
         validators=[MaxLengthValidator(PRODUCT_DESCRIPTION_MAX_LENGTH)],
+        help_text='A short summary of the product, which the assistant tells customers when they ask what it is.',
+    )
+    information = models.TextField(
+        max_length=PRODUCT_INFORMATION_MAX_LENGTH,
+        blank=True,
+        validators=[MaxLengthValidator(PRODUCT_INFORMATION_MAX_LENGTH)],
+        help_text=(
+            'Extra details about the product (ingredients, sizes, options, allergens, FAQs, etc.). Not shown '
+            'to customers as is: the assistant looks it up to answer specific questions.'
+        ),
     )
     price = models.DecimalField(
         max_digits=PRICE_MAX_DIGITS,

@@ -11,6 +11,8 @@ from configuration_app.models import BusinessConfiguration
 from .models import (
     FAQ,
     FAQ_ANSWER_MAX_LENGTH,
+    PRODUCT_DESCRIPTION_MAX_LENGTH,
+    PRODUCT_INFORMATION_MAX_LENGTH,
     PRODUCT_NAME_MAX_LENGTH,
     QUANTITY_MAX,
     Product,
@@ -94,6 +96,31 @@ class ProductAPITests(BusinessAPITestCase):
         self.assertEqual(product.business, self.cafe)
         self.assertEqual(product.quantity_sold, 0)
         self.assertTrue(product.is_active)
+
+    def test_create_and_update_description_and_information(self):
+        self.login(self.cafe_user)
+        description = 'd' * PRODUCT_DESCRIPTION_MAX_LENGTH
+        information = 'i' * PRODUCT_INFORMATION_MAX_LENGTH
+        response = self.client.post(
+            self.list_url,
+            {'name': 'Mocha', 'price': '5.20', 'description': description, 'information': information},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual((response.data['description'], response.data['information']), (description, information))
+        product = Product.objects.get(pk=response.data['id'])
+        self.assertEqual((product.description, product.information), (description, information))
+
+        response = self.client.patch(self.detail_url(product), {'information': 'Contains dairy.'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        product.refresh_from_db()
+        self.assertEqual((product.description, product.information), (description, 'Contains dairy.'))
+
+    def test_information_defaults_to_blank(self):
+        self.login(self.cafe_user)
+        response = self.client.post(self.list_url, {'name': 'Mocha', 'price': '5.20'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual((response.data['description'], response.data['information']), ('', ''))
 
     def test_create_with_own_business_explicitly(self):
         self.login(self.cafe_user)
@@ -208,6 +235,8 @@ class ProductAPITests(BusinessAPITestCase):
             'price too large': ({'price': '100000000.00'}, 'price'),
             'name too long': ({'name': 'x' * (PRODUCT_NAME_MAX_LENGTH + 1)}, 'name'),
             'blank name': ({'name': '   '}, 'name'),
+            'description too long': ({'description': 'x' * (PRODUCT_DESCRIPTION_MAX_LENGTH + 1)}, 'description'),
+            'information too long': ({'information': 'x' * (PRODUCT_INFORMATION_MAX_LENGTH + 1)}, 'information'),
             'non-numeric price': ({'price': 'free'}, 'price'),
         }
         for label, (data, field) in cases.items():

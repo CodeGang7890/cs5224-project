@@ -309,7 +309,7 @@ class ChatFlowAPITests(APITestCase):
         reply_calls = self.ollama.chat.call_args_list[1:]
         self.assertEqual(
             {spec['function']['name'] for spec in reply_calls[0].kwargs['tools']},
-            {'list_products', 'get_product_description', 'list_faqs'},
+            {'list_products', 'get_product_details', 'list_faqs'},
         )
         tool_message = reply_calls[1].kwargs['messages'][-1]
         self.assertEqual((tool_message['role'], tool_message['tool_name']), ('tool', 'list_faqs'))
@@ -982,11 +982,13 @@ class CleanDetailValueTests(SimpleTestCase):
                 self.assertIn('is not a valid phone number', self.check(phone, invalid)[1])
 
 
-class ProductDescriptionToolFlowTests(APITestCase):
-    """Asking about one product: the reply looks up its full description with get_product_description."""
+class ProductDetailsToolFlowTests(APITestCase):
+    """Asking about one product: the prompt has its short description, and the reply looks up its
+    information with get_product_details."""
 
-    LONG_DESCRIPTION = (
-        'Our signature kopi, brewed the traditional way. ' + 'Robusta beans roasted with butter and sugar. ' * 30
+    DESCRIPTION = 'Our signature kopi, brewed the traditional way and finished with evaporated milk.'
+    INFORMATION = (
+        'Robusta beans roasted with butter and sugar. ' * 30
         + 'Contains dairy (evaporated milk). Ask for kopi-o if you would like it without milk.'
     )
 
@@ -996,7 +998,8 @@ class ProductDescriptionToolFlowTests(APITestCase):
         cls.user = BusinessUser.objects.create_user(username='cafe', password='123', business=cls.cafe)
         ChatConfiguration.objects.create(business=cls.cafe, config_json=FULL_CONFIG)
         cls.kopi = Product.objects.create(
-            business=cls.cafe, name='Kopi C', price='1.80', quantity_available=20, description=cls.LONG_DESCRIPTION
+            business=cls.cafe, name='Kopi C', price='1.80', quantity_available=20,
+            description=cls.DESCRIPTION, information=cls.INFORMATION,
         )
 
     def setUp(self):
@@ -1007,8 +1010,8 @@ class ProductDescriptionToolFlowTests(APITestCase):
         self.addCleanup(patcher.stop)
         self.client.force_authenticate(self.user)
 
-    def test_reply_looks_up_the_full_description(self):
-        tool_call = SimpleNamespace(function=SimpleNamespace(name='get_product_description', arguments={'product': 'kopi c'}))
+    def test_reply_looks_up_the_information(self):
+        tool_call = SimpleNamespace(function=SimpleNamespace(name='get_product_details', arguments={'product': 'kopi c'}))
         responses = iter([
             fake_chat_response('{"wants_to_order": false}'),
             SimpleNamespace(message=SimpleNamespace(content='', tool_calls=[tool_call])),
@@ -1022,17 +1025,19 @@ class ProductDescriptionToolFlowTests(APITestCase):
         )
         self.assertEqual(response.json()['message'], 'Yes, it contains dairy (evaporated milk).')
         reply_calls = self.ollama.chat.call_args_list[1:]
-        # The prompt only has the start of the description, and says how to get the rest honestly.
+        # The prompt has the short description, not the information, and says how to look it up honestly.
         prompt = reply_calls[0].kwargs['messages'][0]['content']
-        self.assertIn('call get_product_description', prompt)
+        self.assertIn(f'Kopi C, $1.80 (20 available). {self.DESCRIPTION}', prompt)
+        self.assertIn('call get_product_details', prompt)
         self.assertIn('say honestly that you do not know', prompt)
-        self.assertNotIn('Contains dairy', prompt)
-        # The tool returned the whole description.
+        self.assertNotIn('Robusta beans', prompt)
+        # The tool returned the description and the whole information.
         tool_message = reply_calls[1].kwargs['messages'][-1]
-        self.assertEqual(tool_message['tool_name'], 'get_product_description')
-        self.assertEqual(json.loads(tool_message['content'])['description'], self.LONG_DESCRIPTION)
+        self.assertEqual(tool_message['tool_name'], 'get_product_details')
+        result = json.loads(tool_message['content'])
+        self.assertEqual((result['description'], result['information']), (self.DESCRIPTION, self.INFORMATION))
         self.assertEqual(
-            response.json()['debug']['tool_calls'], [{'name': 'get_product_description', 'arguments': {'product': 'kopi c'}}]
+            response.json()['debug']['tool_calls'], [{'name': 'get_product_details', 'arguments': {'product': 'kopi c'}}]
         )
 
 
@@ -1204,6 +1209,12 @@ class StepPromptTests(SimpleTestCase):
                 prompt = self.reply_prompt(block)
                 self.assertIn('Goal of this step:', prompt)
                 self.assertIn('steer the conversation towards achieving it', prompt)
+
+    def test_product_questions_use_the_description_then_get_product_details(self):
+        prompt = self.reply_prompt(FULL_CONFIG[0])
+        self.assertIn('When the customer asks what a product is, tell them its description', prompt)
+        self.assertIn('call get_product_details with its name, and answer only from the description and information', prompt)
+        self.assertIn('do not recite all of it', prompt)
 
     def test_product_selection_reply_never_offers_sold_out_products(self):
         prompt = self.reply_prompt(FULL_CONFIG[1])

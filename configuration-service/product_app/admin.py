@@ -15,7 +15,7 @@ class ProductAdmin(admin.ModelAdmin):
         'is_active',
     )
     list_filter = ('is_active', 'business')
-    search_fields = ('name', 'description')
+    search_fields = ('name', 'description', 'information')
     list_select_related = ('business',)
     autocomplete_fields = ('business',)
 

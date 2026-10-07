@@ -3,7 +3,10 @@ export interface Product {
   id: number
   business: number
   name: string
+  /** Short summary the chat assistant tells customers when they ask what the product is. */
   description: string
+  /** Long extra details (ingredients, options, FAQs…) the assistant looks up only when a question needs them. */
+  information: string
   /** Decimal string, e.g. "12.50". */
   price: string
   quantity_available: number
@@ -19,5 +22,5 @@ export interface Product {
  */
 export type ProductInput = Pick<
   Product,
-  'name' | 'description' | 'price' | 'quantity_available' | 'quantity_on_hold' | 'is_active'
+  'name' | 'description' | 'information' | 'price' | 'quantity_available' | 'quantity_on_hold' | 'is_active'
 >

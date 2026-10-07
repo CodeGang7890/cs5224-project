@@ -121,6 +121,7 @@ function ProductForm({ product, onDone }: { product?: Product; onDone: () => voi
           id="product-description"
           label="Description"
           error={fieldError('description')}
+          tooltip="A short summary of the product. The chat assistant tells customers this when they ask what the product is, so keep it to the key points."
           length={{ current: values.description.trim().length, max: PRODUCT_LIMITS.descriptionMaxLength }}
         >
           <Textarea
@@ -128,7 +129,24 @@ function ProductForm({ product, onDone }: { product?: Product; onDone: () => voi
             value={values.description}
             onChange={(e) => set('description', e.target.value)}
             aria-invalid={invalid('description')}
-            className="max-h-48"
+            className="max-h-32"
+          />
+        </FormField>
+
+        <FormField
+          id="product-information"
+          label="Information"
+          error={fieldError('information')}
+          hint="Extra details for the chat assistant. Customers don't see it as written."
+          tooltip="Everything else the chat assistant may need to answer questions about this product: ingredients, sizes, options, allergens, care instructions, FAQs about it, etc. It's only used when a customer asks something the description doesn't cover, and the assistant answers from it."
+          length={{ current: values.information.trim().length, max: PRODUCT_LIMITS.informationMaxLength }}
+        >
+          <Textarea
+            id="product-information"
+            value={values.information}
+            onChange={(e) => set('information', e.target.value)}
+            aria-invalid={invalid('information')}
+            className="min-h-32 max-h-72"
           />
         </FormField>
 

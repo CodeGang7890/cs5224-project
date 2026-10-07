@@ -21,7 +21,6 @@ from .constants import (
     SEND_MESSAGE_BLOCK,
     START_BLOCK,
 )
-from .tools import description_preview
 from .validators import DETAIL_TEXT_DEFAULT_MAX_LENGTH, block_detail_fields, is_required_detail
 
 BLOCK_LABELS = {
@@ -222,7 +221,8 @@ _NO_FLOW_INSTRUCTIONS = "Answer the customer's message helpfully, using the info
 # The start of every reply prompt. Filled in with str.format(): {business_name}, {description}, {location}.
 _REPLY_INTRO = cleandoc('''
     You are the customer service assistant for {business_name}, replying to a customer over WhatsApp. Business description: {description} Location: {location}. Reply in a friendly, concise way, in plain text suitable for a chat message. Never make up products, prices, opening hours or policies: use the information below, or your tools.
-    - When the customer asks about a specific product (what is in it, size, options, allergens, how it is made, etc.), call get_product_description with its name, and answer only from what it returns. The product list below only shows the start of each description.
+    - When the customer asks what a product is, tell them its description (from the product list below, or from get_product_details).
+    - For any other question about a specific product (what is in it, size, options, allergens, how it is made, etc.), call get_product_details with its name, and answer only from the description and information it returns. Use the information to answer the question asked: do not recite all of it.
     - For questions about the business (opening hours, delivery, payment, policies, etc.), call list_faqs.
     - If the answer is not in what you find, say honestly that you do not know (you can offer to check with the team). Never guess or make up details, such as ingredients or allergens.
     - Never tell the customer that their order is confirmed, placed or complete unless the current step below is "Done (order confirmed)".
@@ -320,7 +320,7 @@ def format_catalog(products: list[dict]) -> str:
         stock = f'{product["quantity_available"]} available' if product['quantity_available'] else 'sold out'
         line = f'- id {product["id"]}: {product["name"]}, ${product["price"]} ({stock})'
         if product['description']:
-            line += f'. {description_preview(product["description"])}'
+            line += f'. {" ".join(product["description"].split())}'  # on one line
         lines.append(line)
     return '\n'.join(lines)
 

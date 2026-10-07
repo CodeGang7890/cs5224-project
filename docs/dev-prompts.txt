@@ -613,3 +613,17 @@ AI Model Used: anthropic.claude-opus-5-5
 Original Prompt:
 Can you use ''' ''' for the multiline text isntead of using bracket and ' for every line like you have right now
 It makes it clearer to see in the prompts.py
+
+Date & Time (GMT+8): 2026-10-07 22:16:48
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+Work with configuration_service.product_app and frontend_app.
+For Product model, I want you to add a new field apart from “description” called as “information”.
+I want to make the “description” max length much shorter to only around 300 max, while this information can be very long up to 5000 which is the current description max length.
+The idea is that description is just general information that will be sent to the user when the user ask what the product is, while the information are additional context about a product that can be lengthy and contain many FAQs etc about that product itself, that will be used by the LLM only when required to answer certain types of questions.
+Please also update the frontend application so business owner can modify both the description and information.
+Please add tooltip mentioning what description is and what this information is for.
+Please update the tool call in the LLM chat flow so that it fetches this information field also.
+Please update existing APIs and test cases when required.
+Please update existing fixtures for appropriate sample data.

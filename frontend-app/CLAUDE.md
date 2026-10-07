@@ -50,12 +50,12 @@ Copy this structure for new CRUD features.
 - **Field rules (from configuration-service):**
   - Never send `id` or `business`; the backend fills in the user's business.
   - Product `quantity_sold` is read-only: display it, but never send it, or the API returns 400.
-  - Editable: product `name`, `description`, `price` (a decimal string, sent with `toFixed(2)`), `quantity_available`, `quantity_on_hold`, `is_active`; FAQ `question`, `answer`.
+  - Editable: product `name`, `description` (≤300: what the chat assistant tells customers the product is), `information` (≤5000: extra details the assistant looks up for specific questions; both explained by tooltips in `ProductFormDialog`), `price` (a decimal string, sent with `toFixed(2)`), `quantity_available`, `quantity_on_hold`, `is_active`; FAQ `question`, `answer`.
   - If the backend limits change, update `PRODUCT_LIMITS` / `FAQ_LIMITS`.
 - **Flow:** submit → client validation → `ConfirmDialog` (`@/components/common/confirm-dialog`) → mutation. The confirm dialog stays open with a pending state until the request finishes. On a 400, `getFormErrors()` (`@/lib/form-errors`) maps DRF `{field: [msg]}` errors onto fields, and `non_field_errors` becomes the form alert. **Every save and every delete must go through `ConfirmDialog`** (the user asked for this).
 - **Form state:** the form content is remounted on each open (`{open && <Form />}`), so it always starts from the saved values. Edit mode sends only the changed fields, and **Save** is disabled when nothing changed.
 - **Pagination:** `usePageParam()` keeps `?page=` in the URL, and `PaginationControls` renders the controls. If a page goes out of range (the API returns 404, e.g. after deleting the last item), the manager steps back a page.
-- **Shared components:** `FormField` (label, hint/error, character counter) and `components/ui` `alert-dialog`, `table`, `textarea`, `switch` and `badge`. These were hand-written from shadcn because the CLI is blocked in this environment.
+- **Shared components:** `FormField` (label, optional `tooltip` (an (i) `InfoTooltip`, `@/components/common/info-tooltip`, built on `components/ui/tooltip`), hint/error, character counter) and `components/ui` `alert-dialog`, `table`, `textarea`, `switch` and `badge`. These were hand-written from shadcn because the CLI is blocked in this environment.
 
 ## Workflow editor (`features/workflow`)
 
