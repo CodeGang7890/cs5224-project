@@ -334,6 +334,9 @@ def check_product_selection(extracted: dict, data: dict, products: list[dict], b
     recapped: a message that adds or changes items ("2 Kopi C, that's all") gets a recap first.
     Once confirmed, `items_confirmed` is kept until the cart changes, so coming back here after a
     "change" at confirmation (e.g. to fix an email) passes straight through.
+    A sold-out product (0 available) or a quantity above what's available can never be ordered,
+    and is checked again on every message for what's already in the cart: an item that can't be
+    ordered any more (e.g. sold out since it was chosen) is dropped, with the problem explained.
     """
     by_id = {product['id']: product for product in products}
     previous = data.get('items', [])
@@ -346,12 +349,9 @@ def check_product_selection(extracted: dict, data: dict, products: list[dict], b
                 continue
             product = by_id.get(_as_int(raw.get('product_id')))
             quantity = _as_int(raw.get('quantity'))
-            if product is None:
-                issues.append('One of the products the customer asked for is not on sale.')
-            elif quantity is None or quantity < 1:
-                issues.append(f'The customer has not said how many {product["name"]} they want.')
-            elif quantity > product['quantity_available']:
-                issues.append(f'Only {product["quantity_available"]} {product["name"]} are available.')
+            problem = item_problem(product, quantity)
+            if problem:
+                issues.append(problem)
             else:
                 items.append({
                     'product_id': product['id'],
@@ -361,7 +361,18 @@ def check_product_selection(extracted: dict, data: dict, products: list[dict], b
                 })
         if items:
             data['items'] = items
-    # Nothing (new) chosen: the earlier choice stands.
+    # Nothing (new) chosen: the earlier choice stands, but only what can still be ordered.
+    orderable = []
+    for item in data.get('items', []):
+        problem = item_problem(by_id.get(item['product_id']), item['quantity'], item['name'])
+        if problem:
+            issues.append(f'{problem} It was removed from the order.')
+        else:
+            orderable.append(item)
+    if orderable:
+        data['items'] = orderable
+    else:
+        data.pop('items', None)
 
     if _cart(data.get('items', [])) != _cart(previous):
         data.pop('items_confirmed', None)  # a changed cart must be confirmed again
@@ -374,6 +385,25 @@ def check_product_selection(extracted: dict, data: dict, products: list[dict], b
         data['items_confirmed'] = True
         return CheckResult(complete=True)
     return CheckResult(complete=False, missing=[PRODUCTS_CONFIRMATION_MISSING])
+
+
+def item_problem(product: dict | None, quantity: int | None, name: str | None = None) -> str | None:
+    """Why `quantity` of `product` can't be ordered (for the reply prompt), or None if it can.
+
+    `product` is None when it isn't on sale; `name` is the cart's name for it, if it was chosen earlier.
+    """
+    if product is None:
+        if name:
+            return f'{name} is no longer on sale.'
+        return 'One of the products the customer asked for is not on sale.'
+    available = product['quantity_available']
+    if available < 1:
+        return f'{product["name"]} has run out (sold out) for now, so it cannot be ordered.'
+    if quantity is None or quantity < 1:
+        return f'The customer has not said how many {product["name"]} they want.'
+    if quantity > available:
+        return f'Only {available} {product["name"]} are available, so {quantity} cannot be ordered.'
+    return None
 
 
 def _cart(items: list[dict]) -> list[tuple[int, int]]:

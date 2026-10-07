@@ -594,3 +594,22 @@ AI Model Used: claude-opus-5-5
 Original Prompt:
 There is a bug where where in this flow: product selection -> send message -> detail collection
 for some reason after it sends the message it doesn't prompt for detail and automatically goes back to product selection page, presumbaly because of the previous feature that we add to go back between those states
+
+Date & Time (GMT+8): 2026-10-07 21:55:24
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+Work with configuration-service.
+In the product selection prompt, please add something like these to the prompt:
+- Don’t offer a product if quantity is 0. If quantity is 0, clearly state to the user that we run out of that item as of now.
+- Add in the deterministic validation that you can’t proceed if you place an order for an item that ran out or if the quantity is more than what’s available.
+In the details collection, please add something like these to the prompt:
+- You need to ask the users to fill in all the fields. If user miss the field, specifically ask for it, never assume what to fill in there.
+- Never confirm an order in this stage, each state has a general goal that the bot should steer the conversation towards achieving the goal (e.g., getting the user details on the fields that are needed for this one)
+Please add test cases too.
+
+Date & Time (GMT+8): 2026-10-07 22:01:35
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+Can you use ''' ''' for the multiline text isntead of using bracket and ' for every line like you have right now
+It makes it clearer to see in the prompts.py

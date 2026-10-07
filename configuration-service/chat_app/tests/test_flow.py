@@ -21,6 +21,7 @@ from ..flow import (
     go_back_targets,
 )
 from ..models import ChatConfiguration, ChatSession
+from ..prompts import build_extraction_prompt, build_reply_prompt
 from ..validators import validate_chat_messages, validate_chat_state_data
 from .test_api import fake_chat_response, fake_ollama_chat
 
@@ -228,7 +229,40 @@ class ChatFlowAPITests(APITestCase):
         self.send('10 Kaya Toast Sets please', {'items': [{'product_id': self.toast.pk, 'quantity': 10}]})
         self.assertEqual(self.session.chat_state_id, 2)
         self.assertEqual(self.session.chat_state_data, {})
-        self.assertIn('Only 3 Kaya Toast Set are available.', self.reply_prompt())
+        self.assertIn('Only 3 Kaya Toast Set are available, so 10 cannot be ordered.', self.reply_prompt())
+
+    def test_sold_out_product_stays_and_explains(self):
+        Product.objects.filter(pk=self.toast.pk).update(quantity_available=0)
+        self.session.chat_state_id = 2
+        self.session.save()
+        self.send(
+            '1 Kaya Toast Set please, that is all',
+            {'items': [{'product_id': self.toast.pk, 'quantity': 1}], 'done_choosing': True},
+        )
+        self.assertEqual(self.session.chat_state_id, 2)
+        self.assertEqual(self.session.chat_state_data, {})
+        prompt = self.reply_prompt()
+        self.assertIn('- Kaya Toast Set has run out (sold out) for now, so it cannot be ordered.', prompt)
+        self.assertIn('Kaya Toast Set, $5.50 (sold out)', prompt)
+        self.assertIn('Never offer, suggest or list a product that is sold out', prompt)
+
+    def test_confirmed_cart_sold_out_since_cannot_move_on(self):
+        # Back at product selection (e.g. after a "change" at confirmation), with a cart confirmed
+        # before the product ran out: the customer can't move on to details with it.
+        Product.objects.filter(pk=self.toast.pk).update(quantity_available=0)
+        self.session.chat_state_id = 2
+        self.session.chat_state_data = {
+            'items': [{'product_id': self.toast.pk, 'name': 'Kaya Toast Set', 'unit_price': '5.50', 'quantity': 1}],
+            'items_confirmed': True,
+        }
+        self.session.save()
+        self.send('Yes, that is all', {'items': [], 'done_choosing': True})
+        self.assertEqual(self.session.chat_state_id, 2)
+        self.assertEqual(self.session.chat_state_data, {})
+        self.assertIn(
+            'Kaya Toast Set has run out (sold out) for now, so it cannot be ordered. It was removed from the order.',
+            self.reply_prompt(),
+        )
 
     def test_unknown_state_falls_back_to_start_block(self):
         self.session.chat_state_id = 'deleted-block'  # e.g. removed from the workflow since
@@ -1056,6 +1090,52 @@ class FlowCheckTests(SimpleTestCase):
                 self.assertFalse(result.complete)
                 self.assertIn(issue, result.issues[0])
 
+    def test_product_selection_sold_out_product(self):
+        products = [PRODUCTS[0], {**PRODUCTS[1], 'quantity_available': 0}]
+        for quantity in (1, None):  # sold out comes first, even without a quantity
+            with self.subTest(quantity=quantity):
+                data = {}
+                result = check_product_selection(
+                    {'items': [{'product_id': 2, 'quantity': quantity}], 'done_choosing': True}, data, products, {}
+                )
+                self.assertFalse(result.complete)
+                self.assertEqual(result.issues, ['Kaya Toast Set has run out (sold out) for now, so it cannot be ordered.'])
+                self.assertEqual(data, {})
+        # Alongside an orderable product: that one is kept, but the problem still blocks moving on.
+        data = {}
+        result = check_product_selection(
+            {'items': [{'product_id': 1, 'quantity': 1}, {'product_id': 2, 'quantity': 1}], 'done_choosing': True},
+            data, products, {},
+        )
+        self.assertFalse(result.complete)
+        self.assertEqual([item['product_id'] for item in data['items']], [1])
+
+    def test_product_selection_rechecks_the_cart_against_stock(self):
+        kopi = {'product_id': 1, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 2}
+        toast = {'product_id': 2, 'name': 'Kaya Toast Set', 'unit_price': '5.50', 'quantity': 3}
+        cases = {
+            'sold out': ({**PRODUCTS[1], 'quantity_available': 0}, 'Kaya Toast Set has run out (sold out)'),
+            'less left': ({**PRODUCTS[1], 'quantity_available': 2}, 'Only 2 Kaya Toast Set are available, so 3 cannot'),
+            'no longer on sale': (None, 'Kaya Toast Set is no longer on sale.'),
+        }
+        for label, (toast_product, issue) in cases.items():
+            with self.subTest(label):
+                products = [PRODUCTS[0]] + ([toast_product] if toast_product else [])
+                data = {'items': [kopi, toast], 'items_confirmed': True}
+                # Nothing new chosen, already confirmed: would pass straight through if the stock were there.
+                result = check_product_selection({'items': [], 'done_choosing': True}, data, products, {})
+                self.assertFalse(result.complete)
+                self.assertEqual(len(result.issues), 1)
+                self.assertIn(issue, result.issues[0])
+                self.assertIn('It was removed from the order.', result.issues[0])
+                self.assertEqual(data, {'items': [kopi]})  # dropped, and the changed cart must be confirmed again
+        # The whole cart sold out: nothing left.
+        data = {'items': [toast], 'items_confirmed': True}
+        result = check_product_selection({'items': [], 'done_choosing': True}, data, [PRODUCTS[0]], {})
+        self.assertFalse(result.complete)
+        self.assertEqual(result.missing, ['which products, and how many of each'])
+        self.assertEqual(data, {})
+
     def test_product_selection_keeps_earlier_choice_when_nothing_new(self):
         earlier = {'items': [{'product_id': 1, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 1}]}
         # Not confirmed yet: needs "that's all".
@@ -1107,3 +1187,55 @@ class FlowCheckTests(SimpleTestCase):
         self.assertTrue(check_confirmation({'decision': 'change'}, {}, PRODUCTS, {}).go_back)
         result = check_confirmation({'decision': 'none'}, {}, PRODUCTS, {})
         self.assertFalse(result.complete or result.go_back)
+
+
+class StepPromptTests(SimpleTestCase):
+    """What the product selection and details collection prompts tell the LLM."""
+
+    business = SimpleNamespace(business_name='Kopi Café', description='', location='Tiong Bahru')
+    products = [PRODUCTS[0], {**PRODUCTS[1], 'quantity_available': 0}]
+
+    def reply_prompt(self, block, data=None, **kwargs):
+        return build_reply_prompt(self.business, block, data or {}, products=self.products, **kwargs)
+
+    def test_every_step_steers_towards_its_goal(self):
+        for block in FULL_CONFIG:
+            with self.subTest(block['block_type']):
+                prompt = self.reply_prompt(block)
+                self.assertIn('Goal of this step:', prompt)
+                self.assertIn('steer the conversation towards achieving it', prompt)
+
+    def test_product_selection_reply_never_offers_sold_out_products(self):
+        prompt = self.reply_prompt(FULL_CONFIG[1])
+        self.assertIn('Kaya Toast Set, $5.50 (sold out)', prompt)
+        self.assertIn('Kopi C, $1.80 (200 available)', prompt)
+        self.assertIn('Never offer, suggest or list a product that is sold out (0 available)', prompt)
+        self.assertIn('tell them clearly that it has run out for now', prompt)
+        self.assertIn('at most the quantity available of each product', prompt)
+        self.assertIn('only products that are in stock, up to the quantity available', prompt)  # the goal
+
+    def test_product_selection_extraction_keeps_what_the_customer_asked_for(self):
+        prompt = build_extraction_prompt(self.business, FULL_CONFIG[1], {}, self.products, {})
+        self.assertIn('even if they are sold out or the quantity is more than available', prompt)
+        self.assertIn('never lower it', prompt)
+
+    def test_details_collection_reply_asks_for_every_field_and_never_confirms(self):
+        block = {**DEFAULT_DETAILS_BLOCK, 'fields': [
+            {'key': 'name', 'label': 'Name', 'type': 'text'},
+            {'key': 'boo', 'label': 'Boo', 'type': 'text'},
+        ]}
+        prompt = self.reply_prompt(block, {'details': {'name': 'Alice'}}, labels={'name': 'Name', 'boo': 'Boo'}, missing=['Boo'])
+        self.assertIn('The order is confirmed in a later step, not this one.', prompt)  # the goal
+        self.assertIn('confirming the order happens in a later step, never in this one', prompt)
+        self.assertIn('the order is NOT confirmed yet', prompt)
+        self.assertIn('Ask the customer to fill in all the details', prompt)
+        self.assertIn('If they leave one out, ask for that one specifically, by its label', prompt)
+        self.assertIn('Never assume, guess or fill in a value for them', prompt)
+        self.assertIn('## Details to collect\n- "Name" (required; text, at most 500 characters)\n- "Boo"', prompt)
+        self.assertIn('## Still needed\n- Boo', prompt)
+        self.assertNotIn('## Products on sale', prompt)
+
+    def test_details_collection_extraction_never_assumes(self):
+        prompt = build_extraction_prompt(self.business, DEFAULT_DETAILS_BLOCK, {}, self.products, {})
+        self.assertIn('Never assume or work out a value from something else', prompt)
+        self.assertIn('Use null for anything they have not given', prompt)
