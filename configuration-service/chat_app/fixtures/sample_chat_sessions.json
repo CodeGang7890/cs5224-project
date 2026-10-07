@@ -123,23 +123,43 @@
       "last_chat_time": "2026-09-02T14:07:00+08:00",
       "chat_message_json": [
         {
-          "message": "Hi, do you deliver rose bouquets on Saturday?",
+          "message": "Hi! Do you have sunflower bouquets? It's for my sister's graduation on Saturday.",
           "sent_by": "customer",
           "message_time": "2026-09-02T14:00:00+08:00"
         },
         {
-          "message": "Hi Alice, yes we do! Our Classic Rose Bouquet (12 stems) is $68.00. Where should we deliver it?",
-          "sent_by": "business-manual",
+          "message": "Hi Alice, congratulations to your sister! Our Sunflower Hand-Tied Bouquet ($58.00) has three pollen-free sunflowers with chamomile daisies, wrapped in kraft paper. Would you like to order one?",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-02T14:01:00+08:00"
+        },
+        {
+          "message": "Yes please, 1 sunflower bouquet. Can I add a crochet tulip too, a yellow one?",
+          "sent_by": "customer",
           "message_time": "2026-09-02T14:05:00+08:00"
         },
         {
-          "message": "Great, to Tiong Bahru please. I will send the address later.",
-          "sent_by": "customer",
+          "message": "Of course! Here's your order so far: 1 × Sunflower Hand-Tied Bouquet ($58.00) and 1 × Hand-Crocheted Single Tulip ($14.90), in yellow. Total: $72.90. Would you like anything else, or is that everything?",
+          "sent_by": "business-automated",
           "message_time": "2026-09-02T14:07:00+08:00"
         }
       ],
-      "chat_state_id": null,
-      "chat_state_data": {},
+      "chat_state_id": 2,
+      "chat_state_data": {
+        "items": [
+          {
+            "product_id": 11,
+            "name": "Sunflower Hand-Tied Bouquet",
+            "unit_price": "58.00",
+            "quantity": 1
+          },
+          {
+            "product_id": 17,
+            "name": "Hand-Crocheted Single Tulip",
+            "unit_price": "14.90",
+            "quantity": 1
+          }
+        ]
+      },
       "is_sandbox": false
     }
   },
@@ -154,18 +174,62 @@
       "last_chat_time": "2026-09-04T10:45:00+08:00",
       "chat_message_json": [
         {
-          "message": "I would like a consultation for wedding flowers.",
+          "message": "Hello, I'm looking for flowers that won't wilt, for our anniversary. Any ideas?",
           "sent_by": "customer",
           "message_time": "2026-09-04T10:20:00+08:00"
         },
         {
-          "message": "Congratulations, Chloe! Our event consultations are free. When are you free for a call?",
-          "sent_by": "business-manual",
+          "message": "Happy anniversary! Flowers that last are our speciality: the Everlasting Dried Flower Bouquet ($78.00) keeps its look for 1 to 2 years, and the Crochet Forever Rose Bouquet lasts forever, though it's sold out right now. We also have the Soap Rose Gift Box ($36.00). Which would you like?",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-04T10:21:00+08:00"
+        },
+        {
+          "message": "The dried flower bouquet please, just one.",
+          "sent_by": "customer",
+          "message_time": "2026-09-04T10:28:00+08:00"
+        },
+        {
+          "message": "Lovely choice! 1 × Everlasting Dried Flower Bouquet (Neutral Tones) at $78.00. Total: $78.00. Would you like anything else, or is that everything?",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-04T10:29:00+08:00"
+        },
+        {
+          "message": "That's all, thanks.",
+          "sent_by": "customer",
+          "message_time": "2026-09-04T10:35:00+08:00"
+        },
+        {
+          "message": "Great! To prepare your order, could I have your name, the message you'd like on the card, and the delivery date?",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-04T10:36:00+08:00"
+        },
+        {
+          "message": "I'm Chloe Ng, and I'd like it delivered on 20 September.",
+          "sent_by": "customer",
+          "message_time": "2026-09-04T10:44:00+08:00"
+        },
+        {
+          "message": "Thank you, Chloe! And what would you like us to write on the card that comes with the bouquet?",
+          "sent_by": "business-automated",
           "message_time": "2026-09-04T10:45:00+08:00"
         }
       ],
-      "chat_state_id": null,
-      "chat_state_data": {},
+      "chat_state_id": 3,
+      "chat_state_data": {
+        "items": [
+          {
+            "product_id": 5,
+            "name": "Everlasting Dried Flower Bouquet (Neutral Tones)",
+            "unit_price": "78.00",
+            "quantity": 1
+          }
+        ],
+        "items_confirmed": true,
+        "details": {
+          "name": "Chloe Ng",
+          "delivery_date": "20 September"
+        }
+      },
       "is_sandbox": false
     }
   },

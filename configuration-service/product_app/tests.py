@@ -114,8 +114,8 @@ class SampleProductAndFAQFixtureTests(TestCase):
     fixtures = ['sample_business_configurations', 'sample_products', 'sample_faqs']
 
     def test_fixtures_are_valid(self):
-        self.assertEqual(Product.objects.count(), 10)
-        self.assertEqual(FAQ.objects.count(), 16)
+        self.assertEqual(Product.objects.count(), 19)
+        self.assertEqual(FAQ.objects.count(), 32)
         for record in [*Product.objects.all(), *FAQ.objects.all()]:
             with self.subTest(record=str(record)):
                 record.full_clean()  # loaddata skips validation
@@ -132,6 +132,31 @@ class SampleProductAndFAQFixtureTests(TestCase):
                 self.assertTrue(product.description)  # a short summary
                 self.assertGreater(len(product.information), 500)  # long enough to need get_product_details
         self.assertEqual(FAQ.objects.filter(business_id=1).count(), 12)
+
+    def test_florist_has_a_realistic_catalogue_and_faqs(self):
+        # Bloom & Twine Florist Studio (business 2): fresh, dried / preserved, soap and crochet flowers.
+        products = Product.objects.filter(business_id=2)
+        self.assertEqual(products.count(), 12)
+        self.assertTrue(all(product.is_active for product in products))
+        collections = {}
+        for product in products:
+            with self.subTest(product=product.name):
+                sentences = [s for s in product.description.replace('!', '.').split('. ') if s.strip()]
+                self.assertLessEqual(len(sentences), 2)  # 1-2 sentences
+                self.assertGreater(len(product.information), 1000)  # the long details
+                collection = product.information.split('\n', 1)[0]
+                self.assertRegex(collection, r'^Collection: (fresh|dried|preserved|soap|crochet) flowers')
+                collections.setdefault(collection.split()[1], []).append(product.name)
+        self.assertEqual({key: len(names) for key, names in collections.items()},
+                         {'fresh': 3, 'dried': 2, 'preserved': 1, 'soap': 3, 'crochet': 3})
+        self.assertEqual(
+            sorted(products.filter(quantity_available=0).values_list('name', flat=True)),
+            ['Crochet Forever Rose Bouquet (12 Stems)', 'Preserved Rose Bell Jar'],
+        )
+        prices = sorted(products.values_list('price', flat=True))
+        self.assertLess(prices[0], Decimal('10'))
+        self.assertGreater(prices[-1], Decimal('200'))
+        self.assertGreaterEqual(FAQ.objects.filter(business_id=2).count(), 15)
 
 
 class ProductInformationMigrationTests(TransactionTestCase):

@@ -627,3 +627,22 @@ Please add tooltip mentioning what description is and what this information is f
 Please update the tool call in the LLM chat flow so that it fetches this information field also.
 Please update existing APIs and test cases when required.
 Please update existing fixtures for appropriate sample data.
+
+Date & Time (GMT+8): 2026-10-07 22:28:18
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+I want you to improve the fixtures, particularly for the Bloom Florist Studio.
+Just focus on that business as of now, no need to modify fixtures owned by the other business.
+For Bloom Florist studio, I want you to rework completely 
+I want you to create a professional and detailed 12 products for Bloom Florist Studio.
+You can remove the other currently existing products in the fixtures.
+It should consist of various types of crochet flowers, dried flowers, soap flowers, and fresh flowers.
+The description should be just 1-2 engaging sentence about that product.
+The information should be a lengthy and detailed and contain information on each of those product in greater detail, such as: how long does the flower last, what is it make of, and much more.
+Please make it very realistic like a real business having a product instead of a placeholder product.
+Those products should have varying prices in SGD, from cheap to expensive, make about 2 of the products has 0 quantity left.
+Please make the rest such as the business name etc realistic too. And add a list of realistic FAQs on what typically people use about such business, at least add 15 rows of FAQs for this business (you can remove existing ones).
+For the workflow of this shop, I want it follow the basic pattern: Start -> Product Selection -> Details Collection -> Confirmation.
+For details collection, make it just ask for simply name and customised message on the card given alongside the flower, and a date where the user would get the flower.
+Please also make the business configuration description lengthy and much more realistic.

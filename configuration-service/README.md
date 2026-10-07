@@ -71,21 +71,21 @@ python manage.py loaddata sample_business_configurations sample_business_users s
 
 | Fixture | File | Contents |
 | --- | --- | --- |
-| `sample_business_configurations` | `configuration_app/fixtures/` | 3 businesses: Kopi & Co. Café, Bloom Florist Studio, FitLab Personal Training |
+| `sample_business_configurations` | `configuration_app/fixtures/` | 3 businesses: Kopi & Co. Café, Bloom & Twine Florist Studio (with a full, realistic description), FitLab Personal Training |
 | `sample_business_users` | `auth_app/fixtures/` | 4 business users linked to those businesses |
-| `sample_products` | `product_app/fixtures/` | 10 products (one of them inactive). Each has a short description and longer information. Kopi & Co. Café's 5 have long, detailed information (ingredients, sizes, options, allergens, storage, and a few product FAQs) for testing `get_product_details`, with some details deliberately left out to test "I don't know" |
-| `sample_faqs` | `product_app/fixtures/` | 16 FAQs: 12 for Kopi & Co. Café (hours, reservations, halal, delivery, payment, vegetarian options, sugar levels, catering, parking, Wi-Fi, pets, cancellations), 2 each for the others |
-| `sample_chat_configurations` | `chat_app/fixtures/` | 1 chat flow for Kopi & Co. Café: start → product selection → details collection → confirmation |
-| `sample_chat_sessions` | `chat_app/fixtures/` | 14 customer chats: 11 with Kopi & Co. Café (at different steps of its flow, over 1–12 Sep, one with no messages yet), 2 with Bloom Florist Studio, 1 with FitLab. `+6591234567` chats with both the café and the florist. Plus 2 sandbox (test) chats for Kopi & Co. Café, one without a phone number |
-| `sample_order_items` | `checkout_app/fixtures/` | 5 orders: 4 for Kopi & Co. Café (one per status, plus a pending sandbox order) and 1 for Bloom Florist Studio. They aren't linked to chats, and their stock wasn't reserved |
+| `sample_products` | `product_app/fixtures/` | 19 products (one of them inactive). Each has a short description and longer information. Bloom & Twine Florist Studio has 12 realistic products across fresh, dried / preserved, soap and crochet flowers ($5.90 to $288, two of them sold out), each with detailed information (materials, size, how long it lasts, care, options, delivery). Kopi & Co. Café's 5 have long, detailed information (ingredients, sizes, options, allergens, storage, and a few product FAQs) for testing `get_product_details`, with some details deliberately left out to test "I don't know" |
+| `sample_faqs` | `product_app/fixtures/` | 32 FAQs: 12 for Kopi & Co. Café (hours, reservations, halal, delivery, payment, vegetarian options, sugar levels, catering, parking, Wi-Fi, pets, cancellations), 18 for Bloom & Twine Florist Studio (delivery, pickup, hours, payment, care, card messages, cancellations, substitutions, corporate, weddings, workshops, allergies and pets…), 2 for FitLab |
+| `sample_chat_configurations` | `chat_app/fixtures/` | 2 chat flows, both start → product selection → details collection → confirmation: Kopi & Co. Café (asks for name, email and pickup time) and Bloom & Twine Florist Studio (asks for name, card message and delivery date) |
+| `sample_chat_sessions` | `chat_app/fixtures/` | 14 customer chats: 11 with Kopi & Co. Café (at different steps of its flow, over 1–12 Sep, one with no messages yet), 2 with Bloom & Twine Florist Studio (one choosing products, one giving details), 1 with FitLab. `+6591234567` chats with both the café and the florist. Plus 2 sandbox (test) chats for Kopi & Co. Café, one without a phone number |
+| `sample_order_items` | `checkout_app/fixtures/` | 5 orders: 4 for Kopi & Co. Café (one per status, plus a pending sandbox order) and 1 for Bloom & Twine Florist Studio. They aren't linked to chats, and their stock wasn't reserved |
 
 Every sample account uses the password **`123`**, so you can log in as anyone while testing:
 
 | Username | Business | Can log in to |
 | --- | --- | --- |
 | `kopi_owner` | Kopi & Co. Café (1) | API only |
-| `bloom_owner` | Bloom Florist Studio (2) | API only |
-| `bloom_staff` | Bloom Florist Studio (2) | API only |
+| `bloom_owner` | Bloom & Twine Florist Studio (2) | API only |
+| `bloom_staff` | Bloom & Twine Florist Studio (2) | API only |
 | `fitlab_owner` | FitLab Personal Training (3) | API only |
 | `superuser` (created by the `createsuperuser` command, not a fixture) | none | Django Admin (full access). Gets 403 on product/FAQ changes, because it has no business. |
 
@@ -215,7 +215,7 @@ All of these require you to be logged in.
 
 ### Chat configuration
 
-Each business has at most one chat configuration. Both endpoints need a login and work on **your own** business, so there's no ID in the URL. Users without a business (e.g. `superuser`) get 403. `PUT` only changes `config_json`; `id`, `business` and `last_updated` are read-only. An invalid `config_json` returns 400 with every problem listed under `config_json` (see the rules under [Data model](#data-model)). The sample data gives `kopi_owner`'s business a configuration; the other businesses start with none.
+Each business has at most one chat configuration. Both endpoints need a login and work on **your own** business, so there's no ID in the URL. Users without a business (e.g. `superuser`) get 403. `PUT` only changes `config_json`; `id`, `business` and `last_updated` are read-only. An invalid `config_json` returns 400 with every problem listed under `config_json` (see the rules under [Data model](#data-model)). The sample data gives `kopi_owner`'s and `bloom_owner`'s businesses a configuration; FitLab starts with none.
 
 ### Chat sessions
 

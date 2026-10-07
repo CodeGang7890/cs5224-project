@@ -131,14 +131,15 @@
         "items": [
           {
             "product_id": 4,
-            "name": "Classic Rose Bouquet (12 stems)",
-            "unit_price": "68.00",
+            "name": "Classic Red Rose Bouquet (12 Stems)",
+            "unit_price": "98.00",
             "quantity": 1
           }
         ],
         "details": {
           "name": "Ryan Koh",
-          "email": "ryan@example.com"
+          "card_message": "Happy 5th anniversary, my love. Here’s to many more years together. Love, Ryan",
+          "delivery_date": "12 September"
         }
       },
       "created_time": "2026-09-10T17:30:00+08:00",

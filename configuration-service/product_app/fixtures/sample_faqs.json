@@ -23,7 +23,7 @@
     "fields": {
       "business": 2,
       "question": "Do you offer same-day delivery?",
-      "answer": "Yes. Orders placed before 12pm are delivered the same day anywhere in Singapore. A delivery fee applies based on location."
+      "answer": "Yes. Orders confirmed and paid before 12pm from Monday to Saturday can be delivered the same day, between 2pm and 8pm. This applies to fresh, dried and soap flowers, and to crochet flowers that are in stock (made-to-order crochet pieces take longer). There's no same-day delivery on Sundays, public holidays, or during the Valentine's Day and Mother's Day peak periods, when orders must be placed in advance."
     }
   },
   {
@@ -32,7 +32,7 @@
     "fields": {
       "business": 2,
       "question": "Can I customise a bouquet?",
-      "answer": "Absolutely. Tell us your preferred flowers, colours and budget, and our florists will design something for you."
+      "answer": "Yes. Tell us the occasion, the colours and flowers you like, and your budget, and our florists will suggest a design with a reference photo. Custom bouquets start from $60 for fresh flowers and $45 for dried or soap flowers. Custom crochet pieces start from $80 and need 2 to 3 weeks, because every flower is made by hand."
     }
   },
   {
@@ -141,6 +141,150 @@
       "business": 1,
       "question": "Can I cancel or change my order?",
       "answer": "You can change or cancel a pickup order through this chat up to 30 minutes before your pickup time. Pandan chiffon cake orders can be cancelled up to 12 hours before pickup, because we bake them to order."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 17,
+    "fields": {
+      "business": 2,
+      "question": "How much is delivery, and where do you deliver?",
+      "answer": "We deliver anywhere in mainland Singapore and Sentosa. Standard delivery is $12 per address, or $20 to Sentosa. Delivery is free for orders of $150 or more to one address, and for all flower stands. You can choose a time window: 10am to 1pm, 2pm to 6pm, or 6pm to 9pm (evening slot, $8 more). A 1-hour window for a specific time costs $25 more. We don't deliver to Jurong Island or to offshore islands other than Sentosa."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 18,
+    "fields": {
+      "business": 2,
+      "question": "Can I collect my order myself?",
+      "answer": "Yes, self-pickup from our studio at 35 Joo Chiat Place is free. Choose a collection date and time when you order, and we'll message you when it's ready. Please bring your order number. Street parking is available along Joo Chiat Place, and the nearest MRT stations are Eunos and Marine Parade (about a 10-minute walk)."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 19,
+    "fields": {
+      "business": 2,
+      "question": "What are your opening hours?",
+      "answer": "Our studio is open Monday to Saturday from 9am to 7pm, and Sunday from 10am to 4pm. We're closed on the first two days of Chinese New Year. You can message us here at any time: our assistant replies straight away, and our team follows up during opening hours."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 20,
+    "fields": {
+      "business": 2,
+      "question": "What payment methods do you accept?",
+      "answer": "We accept PayNow, and Visa, Mastercard and American Express cards through a secure payment link. At the studio we also take cash and NETS. Your order is confirmed once payment is received. Companies can ask for an invoice with 14-day payment terms for orders above $500."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 21,
+    "fields": {
+      "business": 2,
+      "question": "How long do your flowers last?",
+      "answer": "It depends on the collection: fresh flowers last about 5 to 7 days with proper care; dried flowers keep their look for 1 to 2 years; preserved roses last 3 to 5 years; soap flowers last for years as a decoration (the scent fades after about 6 months); and crochet flowers last forever. Each product's details explain its care in full."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 22,
+    "fields": {
+      "business": 2,
+      "question": "How do I care for fresh flowers?",
+      "answer": "Remove the wrapping and the water pouch, trim 2 cm off each stem at an angle, and place the flowers in a clean vase with cool water and the flower food we include. Change the water and re-trim the stems every 2 days, and keep the vase away from direct sunlight, aircon vents and ripening fruit."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 23,
+    "fields": {
+      "business": 2,
+      "question": "What happens if the recipient isn't home?",
+      "answer": "Our driver will call the recipient first. If there's no answer, we'll leave the flowers with a neighbour, the guardhouse or the concierge, or at the door if you've told us that's fine, and send you a photo. If none of these is possible, we bring the flowers back to the studio and can re-deliver them the next day for $12, or you can collect them for free."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 24,
+    "fields": {
+      "business": 2,
+      "question": "Can I change the delivery date, time or address?",
+      "answer": "Yes, free of charge, up to 24 hours before delivery: just message us. Changes on the day of delivery depend on our driver's route; a new address on the day may cost an extra delivery fee. Fresh flower orders can't be postponed by more than 3 days once they've been arranged."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 25,
+    "fields": {
+      "business": 2,
+      "question": "What is your cancellation and refund policy?",
+      "answer": "You can cancel for a full refund up to 48 hours before delivery. Within 48 hours, we can give you store credit for 50% of the order value, since the flowers may already be prepared. Custom and made-to-order crochet pieces can't be cancelled once work has started. If fresh flowers arrive damaged, send us a photo within 6 hours of delivery and we'll replace them."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 26,
+    "fields": {
+      "business": 2,
+      "question": "Do you include a card with my message?",
+      "answer": "Yes, every order comes with a free greeting card. Your message can be up to 200 characters, and we print it in a handwritten-style font. If you'd like to stay anonymous, just leave your name off the message: we never tell the recipient who sent the flowers."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 27,
+    "fields": {
+      "business": 2,
+      "question": "Will I see a photo of my flowers before delivery?",
+      "answer": "Yes. Before your order leaves the studio, we send you a photo here on WhatsApp, so you can see exactly what the recipient will get."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 28,
+    "fields": {
+      "business": 2,
+      "question": "What if a flower in my order is out of stock?",
+      "answer": "Fresh flowers depend on the season and on flights, so occasionally a flower isn't available on your date. If so, we'll replace it with a flower of the same colour and style, of equal or higher value, and message you before we do. For bouquets of a single type of flower (such as roses or sunflowers), we'll always ask you first."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 29,
+    "fields": {
+      "business": 2,
+      "question": "Do you take corporate and bulk orders?",
+      "answer": "Yes. We regularly make event giveaways, Teachers' Day and Women's Day gifts, client gifts and grand opening stands for companies, schools and organisations. Bulk prices start from 20 pieces, we can add custom tags or logos, and we issue invoices. Please allow at least 2 weeks. Message us with the products, quantity and date, and our team will send a quote within one working day."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 30,
+    "fields": {
+      "business": 2,
+      "question": "Do you do wedding and event flowers?",
+      "answer": "Yes. We make bridal bouquets (fresh from $180, crochet from $280 with 4 to 6 weeks' lead time), boutonnieres, corsages, table centrepieces and ROM décor. We'd love to start with a free 30-minute consultation at the studio or over video call. Please contact us at least 2 months before your wedding date."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 31,
+    "fields": {
+      "business": 2,
+      "question": "Do you run crochet flower workshops?",
+      "answer": "Yes. Our beginner crochet tulip workshop runs on Saturdays from 2pm to 5pm at the studio, for up to 8 people. It's $68 per person, including all materials, and you take home the tulips you make. No experience is needed. Private group sessions (for example, team-building or birthdays) are available for 6 or more people, from $60 per person."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 32,
+    "fields": {
+      "business": 2,
+      "question": "Are your flowers safe for people with allergies, and for pets?",
+      "answer": "For allergy sufferers, our crochet, soap and preserved flowers are the safest choice: they have no pollen. Among fresh flowers, roses and our pollen-free sunflowers are the gentlest. Some flowers, such as lilies, baby's breath, lavender and chamomile, can be harmful to cats and dogs if eaten. Tell us if the recipient has pets, and we'll leave those out."
     }
   }
 ]

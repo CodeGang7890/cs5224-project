@@ -13,6 +13,7 @@ from ..models import ChatConfiguration, ChatSession
 from ..validators import (
     CHAT_MESSAGE_MAX_LENGTH,
     block_detail_fields,
+    is_required_detail,
     validate_chat_config,
     validate_chat_messages,
     validate_chat_state_data,
@@ -346,6 +347,17 @@ class SampleChatConfigurationFixtureTests(TestCase):
         )
         details = chat_config.config_json[2]
         self.assertEqual([f['key'] for f in details['fields']], ['name', 'email', 'pickup_time'])
+
+    def test_florist_fixture_is_valid(self):
+        chat_config = ChatConfiguration.objects.get(business_id=2)
+        chat_config.full_clean()
+        self.assertEqual(
+            [block['block_type'] for block in chat_config.config_json],
+            ['START_BLOCK', 'PRODUCT_SELECTION_BLOCK', 'DETAILS_COLLECTION_BLOCK', 'CONFIRMATION_BLOCK'],
+        )
+        details = chat_config.config_json[2]
+        self.assertEqual([f['key'] for f in details['fields']], ['name', 'card_message', 'delivery_date'])
+        self.assertTrue(all(is_required_detail(f) for f in details['fields']))
 
 
 # --- ChatSession ----------------------------------------------------------------------------
