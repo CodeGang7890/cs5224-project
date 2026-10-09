@@ -48,6 +48,10 @@ def to_providers(apps, schema_editor):
     for found, letters in rows.values():
         found.availability = ''.join(letters)
         found.save(update_fields=['availability'])
+    if schema_editor.connection.vendor == 'postgresql':
+        # Run the deferred foreign key checks of the rows written above now: PostgreSQL refuses to
+        # ALTER a table with pending trigger events, and the next operations alter scheduleitem.
+        schema_editor.execute('SET CONSTRAINTS ALL IMMEDIATE')
 
 
 class Migration(migrations.Migration):
