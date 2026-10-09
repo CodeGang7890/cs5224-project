@@ -14,7 +14,7 @@ A client-side single-page app (SPA) built with React, TypeScript and Vite. It ha
 | Client state | [Zustand](https://zustand.docs.pmnd.rs) |
 | Styling | [Tailwind CSS v4](https://tailwindcss.com) |
 | UI components | [shadcn/ui](https://ui.shadcn.com) (Radix primitives, `lucide-react` icons) |
-| Workflow editor (drag and drop, arrows) | [React Flow](https://reactflow.dev) (`@xyflow/react`) |
+| Workflow diagram | [React Flow](https://reactflow.dev) (`@xyflow/react`) |
 | Linting | [oxlint](https://oxc.rs) |
 
 ## Prerequisites
@@ -44,19 +44,17 @@ Then open the URL Vite prints, usually <http://localhost:5173>.
 
 ## Pages
 
-| Tab | URL |
+| Tab | Sub-tabs (URL) |
 | --- | --- |
 | Home | `/` |
 | Workflow | `/workflow` |
-| Product | `/product` |
-| Orders | `/orders` |
-| Schedule | `/schedule` |
-| Payment | `/payment` |
-| FAQ | `/faq` |
-| Chats | `/chats` |
-| Chat Sandbox | `/chat-sandbox` |
+| Catalog | Products `/catalog/products`, Services `/catalog/services`, FAQs `/catalog/faqs` |
+| Orders | Products `/orders/products`, Services `/orders/services`, Payment `/orders/payment` |
+| Chats | Conversations `/chats/conversations`, Unanswered questions `/chats/questions`, Chat Sandbox `/chats/sandbox` |
 
-Home shows a random number fetched from `configuration-service` (see [Connecting to configuration-service](#connecting-to-configuration-service)). **Product** and **FAQ** let you add, edit and delete your business's products and FAQs (see [Managing products and FAQs](#managing-products-and-faqs)). **Workflow** is a drag-and-drop editor for your business's chat flow (see [Editing the chat workflow](#editing-the-chat-workflow)). **Orders** lists the orders customers confirmed in chats, read only (see [Orders](#orders)). **Chats** lists your business's conversations, read only (see [Chats](#chats)). **Chat Sandbox** lets you chat with your assistant as a pretend customer (see [Chat Sandbox](#chat-sandbox)). The other pages are placeholders for now. Workflow, Product, Orders, FAQ, Chats and Chat Sandbox require login: when you're logged out, they show "You need to be logged in to access this page" with a Log In button (see [Login-protected pages](#login-protected-pages)).
+Home shows a random number fetched from `configuration-service` (see [Connecting to configuration-service](#connecting-to-configuration-service)). **Workflow** shows your chat assistant's flow and lets you choose the customer details it collects (see [Editing the chat workflow](#editing-the-chat-workflow)). **Catalog** is what you sell and answer questions about: products and FAQs to add, edit and delete (see [Managing products and FAQs](#managing-products-and-faqs)), and the services customers can book a time for, with your service providers and their schedules (see [Services and availability](#services-and-availability)). **Orders** lists the orders and bookings customers confirmed in chats, read only (see [Orders](#orders)); Payment is a placeholder for now. **Chats** has your business's conversations, read only (see [Chats](#chats)), the questions the assistant couldn't answer, and the Chat Sandbox, to chat with your assistant as a pretend customer (see [Chat Sandbox](#chat-sandbox)). Opening `/catalog`, `/orders` or `/chats` shows its first sub-tab.
+
+Everything except Home requires login. While you're logged out, only the Home tab is shown; if you open another page's URL, it shows "You need to be logged in to access this page" with a Log In button (see [Login-protected pages](#login-protected-pages)). Old URLs (`/product`, `/service`, `/faq`, `/payment`, `/chat-sandbox`, `/orders?tab=services`, `/chats?tab=questions`) redirect to their new place.
 
 The top right shows **Log In** when you're logged out. When you're logged in, it shows your username, a profile icon and **Log Out** (see [Authentication](#authentication)). The profile modal's open state is kept in the URL as `?profile`, so you can link to it directly and the browser's back button closes it.
 
@@ -72,7 +70,7 @@ If the backend isn't running, the card shows an error message instead. The backe
 
 ## Managing products and FAQs
 
-When you're logged in, the **Product** and **FAQ** tabs list your business's records. Each tab has an **Add** button, and each record has **Edit** (pencil) and **Delete** (bin) buttons.
+When you're logged in, **Catalog → Products** and **Catalog → FAQs** list your business's records. Each has an **Add** button, and each record has **Edit** (pencil) and **Delete** (bin) buttons.
 
 - **Every save and delete asks for confirmation.** On edits, the confirmation lists what changed. Cancel leaves everything unchanged.
 - **Editable fields follow the API** (`configuration-service`):
@@ -94,57 +92,65 @@ When you're logged in, the **Product** and **FAQ** tabs list your business's rec
 
 ## Editing the chat workflow
 
-The **Workflow** tab (login required) edits your business's chat configuration on `configuration-service` (`GET` / `PUT /api/chat/configuration/`).
+The **Workflow** tab (login required) shows how your chat assistant handles each customer message, and edits your business's chat configuration on `configuration-service` (`GET` / `PUT /api/chat/configuration/`). The flow is the same for every business; you configure its steps.
 
-- **Opening the tab loads the saved workflow.** If your business hasn't saved one yet, you start with just the **Start** block.
-- **Add blocks** by dragging **Product selection**, **Details collection**, **Confirmation** or **Send message** from the left panel onto the canvas, or by clicking their **+**. There is always exactly one Start block: it can't be added or deleted.
-- **Connect blocks** by dragging from a block's right dot to another block. Each block leads to at most one next block, so a new arrow replaces the old one. To remove an arrow, click it and press the **×** (or Delete/Backspace).
-- **Delete a block** with the **×** in its top-right corner (or select it and press Delete/Backspace). Its arrows go with it.
-- **Choose the details to collect:** click a **Details collection** block (it lists the details it asks for). In the dialog:
+- **The diagram** (read only): every message goes to the **Router**, which decides what it's about and sends it down one or more branches: **Orders** (Product selection → Details collection → Confirmation), **Bookings** (Service selection → Time slot → Booking details → Booking confirmation, for the services in Catalog → Services), **Questions** (FAQs), and **Past orders** (Order status: the customer's own orders and bookings, and their status). Details collection and Booking details ask for the same details. Pan by dragging the background, and zoom with the mouse wheel or the controls in the corner.
+- **Click a block** to see what it does. Product selection uses your active products and their stock, FAQs uses your FAQs, and Confirmation places orders, so their dialogs link to the Product, FAQ and Orders tabs. Order status looks up the customer's own past orders and bookings (same phone number) in code, and the reply may only repeat what was found, with each one's status; its dialog links to the Orders tab.
+- **Choose the details to collect:** click the **Details collection** block (it lists the details it asks for). In the dialog:
   - **Basic details:** Name and Email are on by default; Phone number and Delivery address can be switched on. Switch any of them off, or rename them (e.g. "Receiver name").
   - **Custom details:** **Add a detail** with a label, a type (Text, Number, Email address or Phone number), limits (max characters for text; minimum / maximum for numbers) and an optional hint for the assistant (e.g. "6 digits"). Use Text for codes with leading zeros, like postal code `018956`.
   - **Required:** every detail has a **Required** switch (on by default). The chat only moves on once every required detail is given and valid, and the assistant keeps asking for them. Optional details are asked for once and can be skipped. At least one detail must be required. Optional ones show "(optional)" on the block.
-  - **Apply** updates the block, then **Save changes** saves the workflow. The assistant asks for each detail by its label exactly as you wrote it, so pick labels customers will understand.
-- **Write a Send message block's message:** click the block (it shows the start of its message) and edit the text in the dialog (up to 4,096 characters; line breaks are kept). New blocks start with "Thank you! We have received your message." When a chat reaches the block, the customer gets exactly that message and the chat moves straight on to the next block. If it's the last block, its message ends the conversation flow. **Apply**, then **Save changes**.
-- **Move blocks** by dragging them. Pan by dragging the background, and zoom with the mouse wheel or the controls in the corner.
-- **Save / Discard** appear once you change something, and both ask for confirmation. **Save** sends the whole workflow (`PUT`). **Discard** re-fetches the saved workflow from the server. The backend validates every save; its errors appear in the save dialog.
-- The toolbar warns about blocks that can't be reached from Start. They can still be saved.
+  - **Apply** updates the block, then **Save changes** saves it. The assistant asks for each detail by its label exactly as you wrote it, so pick labels customers will understand.
+- **Save / Discard** appear once you change something, and both ask for confirmation. **Save** sends the details (`PUT`). **Discard** re-fetches the saved configuration from the server. The backend validates every save; its errors appear in the save dialog. Until you save, your business uses the default details (Name and Email).
 - Leaving the tab, or closing or reloading the page, with unsaved changes asks you to confirm first.
-- Accounts without a business (e.g. `superuser`) see a message instead of the editor.
+- Accounts without a business (e.g. `superuser`) see a message instead of the diagram.
+
+## Services and availability
+
+**Catalog → Services** (login required) is for businesses that sell time slots, like a photographer's shoots. It uses `configuration-service`'s `/api/services/`, `/api/service-providers/` and `/api/weekly-availabilities/`.
+
+- **Services:** add, edit and delete what customers can book: name, description, information (for the chat assistant), price, duration and buffer (time blocked after each booking without the customer, e.g. to tidy up; both in multiples of 15 minutes), active, and **who can do it**: a checkbox per service provider. A service with no one ticked can't be booked.
+- **Service providers:** each person (or room) services are booked with, e.g. each photographer, as a card with their services. Add, edit (name, note, active) and delete them; **View schedule** opens their schedule below.
+- **Schedules:** pick a provider and a week (previous / this week / next, or a date; `?provider=` and `?week=` in the URL). The week is shown in 15-minute blocks: **Available** (O), **Unavailable** (U), **On hold** (H: booked, waiting for payment) and **Booked** (X: paid). Bookings set H and X themselves, so these blocks can't be edited. The times are your business's local time.
+  - **Click a booking** to see who booked it, their details, the status (pending payment / paid / completed), and links to the booking in the Orders tab and its chat.
+  - **Edit hours:** click or drag over the blocks to make them available or unavailable, then **Save week**.
+  - **Add slots:** open (or close) the same times on some days over a range of dates, e.g. the next 2 weeks, Monday to Friday, 9am to 5pm.
+  - **Copy previous week** into this one, or **Copy to next weeks** (1 to 26 weeks). Booked times are never changed.
+- Every save and delete asks for confirmation. Deleting a service or a provider keeps its bookings.
 
 ## Orders
 
-The **Orders** tab (login required) is a **read-only** list of your business's orders from `GET /api/orders/`. An order is created when a customer replies YES at your workflow's Confirmation block (in a real chat or a Chat Sandbox chat); it starts as *Pending payment*, and its products' stock is reserved (`quantity_available` → `quantity_on_hold`, visible on the Product tab).
+The **Orders** tab (login required) has two read-only sub-tabs: **Products** (orders, `/orders/products`) and **Services** (bookings, `/orders/services`), plus **Payment** (a placeholder). **Products** lists your business's orders from `GET /api/orders/`. An order is created when a customer replies CONFIRM at the chat's Confirmation step (in a real chat or a Chat Sandbox chat); it starts as *Pending payment*, and its products' stock is reserved (`quantity_available` → `quantity_on_hold`, visible on the Product tab).
 
 - **Columns:** order number (with a *Sandbox* badge for test orders), customer (their name, else email), items, total, status (*Pending payment*, *Payment received*, *Completed*) and when it was placed.
-- **Click a row** (or the eye icon) to see the order: each item with unit price, quantity and subtotal, the total, and the customer details collected in the chat (labelled as in your workflow).
+- **Click a row** (or the eye icon) to see the order: each item with unit price, quantity and subtotal, the total, and the customer details collected in the chat (labelled as in your Details collection settings).
 - **Filters:** status, and which orders (*Customer + sandbox*, the default, since sandbox orders hold real stock; *Customer orders*; *Sandbox only*). **Sort by** newest, oldest or status. **Pagination** with 10, 20, 50 or 100 per page.
-- Everything is kept in the URL (e.g. `/orders?status=pending_payment&page=2`). The open order is `?order=<id>`, so the Chat Sandbox can link straight to an order; if it isn't on the current page, it's loaded on its own (another business's order or an unknown one shows a message).
+- Everything is kept in the URL (e.g. `/orders/products?status=pending_payment&page=2`). The open order is `?order=<id>`, so the Chat Sandbox can link straight to an order; if it isn't on the current page, it's loaded on its own (another business's order or an unknown one shows a message).
 - Orders can't be edited or deleted here yet; statuses will change once payment is set up.
 
 ## Chats
 
-The **Chats** tab (login required) is a **read-only** list of your business's chats from `GET /api/chat/sessions/`. There's no editing or deleting here.
+**Chats → Conversations** (login required) is a **read-only** list of your business's chats from `GET /api/chat/sessions/`. There's no editing or deleting here.
 
-- **Columns:** customer (name, phone number, a *Sandbox* badge for test chats), current step in your workflow, number of messages, last message, last chat time and start date.
-- **Click a row** (or the eye icon) to read the whole conversation in a dialog, with what the chat flow has collected (order and total, each customer detail, *Order confirmed*). Business messages are on the right, labelled *Assistant* (automated) or *Business* (typed by a person).
+- **Columns:** customer (name, phone number, a *Sandbox* badge for test chats), current step in the chat flow, number of messages, last message, last chat time and start date.
+- **Click a row** (or the eye icon) to read the whole conversation in a dialog, with what the chat flow has collected (order and total, each customer detail, the last order placed). Business messages are on the right, labelled *Assistant* (automated) or *Business* (typed by a person).
 - **Search** by name or phone number (as you type).
-- **Filters:** which chats (*Customer chats*, the default; *Customer + sandbox*; *Sandbox only*), current step (from your workflow), with or without messages, last-chat date range and start date range. **Clear filters** resets them.
+- **Filters:** which chats (*Customer chats*, the default; *Customer + sandbox*; *Sandbox only*), current step (Start, Product selection, Details collection or Confirmation), with or without messages, last-chat date range and start date range. **Clear filters** resets them.
 - **Sort by** most recent or oldest chat, newest or oldest started, name (A–Z / Z–A) or phone number.
 - **Pagination:** previous / next, "Page X of Y", and 10, 20, 50 or 100 per page.
-- Everything is kept in the URL (e.g. `/chats?sandbox=include&ordering=display_name&page=2`), so you can refresh, share a link or use the back button. The open conversation is `?chat=<id>`.
+- Everything is kept in the URL (e.g. `/chats/conversations?sandbox=include&ordering=display_name&page=2`), so you can refresh, share a link or use the back button. The open conversation is `?chat=<id>`.
 
 ## Chat Sandbox
 
-The **Chat Sandbox** tab (login required) lets you test your chat assistant by pretending to be a customer, in as many separate test chats as you like. Test chats are **sandbox chat sessions** on `configuration-service` (`is_sandbox = true`), kept apart from real customer chats.
+**Chats → Chat Sandbox** (login required) lets you test your chat assistant by pretending to be a customer, in as many separate test chats as you like. Test chats are **sandbox chat sessions** on `configuration-service` (`is_sandbox = true`), kept apart from real customer chats.
 
 - **The left panel lists your sandbox chats**, most recent first, with the last message. `GET /api/chat/sandbox-sessions/` (20 at a time; **Load more** fetches the next page).
-- **New chat** creates one: `POST /api/chat/sandbox-sessions/`, named "Test chat N". It starts at your workflow's Start block, so **your business needs a saved workflow first**; otherwise you get a link to the Workflow tab.
+- **New chat** creates one: `POST /api/chat/sandbox-sessions/`, named "Test chat N". It starts with no order in progress.
 - **Click a chat to open it.** The open chat is kept in the URL (`?session=<id>`), so a refresh keeps it open. Each chat keeps its own unsent text.
-- **Send a message:** `POST /api/chat/sandbox-sessions/{id}/messages/`. The backend saves it, runs the chat flow (which moves the chat through your workflow's blocks; see "Chat flow" in `../configuration-service/README.md`), and saves and returns the LLM's reply. Your message appears straight away with a typing indicator. You can switch to another chat while waiting: the list shows "Waiting for reply…" and the reply lands in the right chat.
-- **Confirming an order** (reply YES to the summary) places it: the strip shows *Order #N*, which links to it in the Orders tab. If a product sold out in the meantime, the assistant says so and no order is placed.
-- **The strip under the chat's header** shows where the chat is in your workflow (*Step*: Start, Product selection, Details collection, Confirmation) and what it has collected: the order with its total, each customer detail collected (labelled as in your workflow), and *Order confirmed* at the end. It updates after each reply. To try the whole flow: ask to order, pick products and quantities, say that's everything when the assistant recaps your order and asks if you want anything else, give the details your Details collection block asks for, then reply YES to the summary.
-- **Debug panel:** the bug icon in the chat's header opens a panel beside the chat (kept in the URL as `?debug`). **Saved state** shows the raw `chat_state_id`, its block from your workflow and the `chat_state_data` JSON. **Latest turn** shows what happened inside the last message you sent: the state before → after, each block's extraction (what the LLM returned, whether the check passed, what's missing, problems, and the prompt sent), why it stopped, the reply prompt and any tool calls. The latest turn comes from the send response and isn't stored, so it's empty after a reload until you send another message.
+- **Send a message:** `POST /api/chat/sandbox-sessions/{id}/messages/`. The backend saves it, runs the chat flow (the router decides what your message is about, and the order steps move the chat on; see "Chat flow" in `../configuration-service/README.md`), and saves and returns the LLM's reply. Your message appears straight away with a typing indicator. You can switch to another chat while waiting: the list shows "Waiting for reply…" and the reply lands in the right chat.
+- **Confirming an order:** once your details are in, the assistant sends a fixed summary and asks you to reply CONFIRM (anything else just sends the summary again). Confirming saves the order first, then the assistant says it's confirmed, with its number; the chat goes back to the start, so you can order again, and the strip shows *Order #N placed*, which links to it in the Orders tab. If a product sold out in the meantime, the assistant says so, no order is placed, and you're back at choosing products.
+- **The strip under the chat's header** shows where the chat is (*Step*: Start, Product selection, Details collection, Confirmation) and what it has collected: the order with its total, each customer detail collected (labelled as in your Details collection settings), and *Order #N placed* once an order is placed. It updates after each reply. To try the whole flow: ask to order, pick products and quantities, say that's everything when the assistant recaps your order and asks if you want anything else, give the details your Details collection step asks for, then reply CONFIRM to the summary. To try the other branches, ask a question about your business, or ask about a past order (the assistant tells you the status of this test customer's orders; the debug panel shows what was looked up). With services set up (Catalog → Services), ask to book one: the assistant offers numbered free times; reply with a number (or ask for another day or time), give your details, then CONFIRM; the booking appears in the Orders tab under Services, and the strip shows *Booking #N made*.
+- **Debug panel:** the bug icon in the chat's header opens a panel beside the chat (kept in the URL as `?debug`). **Saved state** shows the raw `chat_state_id`, its step and the `chat_state_data` JSON. **Latest turn** shows what happened inside the last message you sent: the state before → after, the router's intents (and its prompt and JSON), each order step's extraction (what the LLM returned, whether the check passed or went back, what's missing, problems, and the prompt sent), why it stopped, the Confirmation substage (not confirmed / confirmed) and the order placed, whether the reply was written by the LLM or is a fixed template, the question check (if the router found a question), the reply prompt and any tool calls. The latest turn comes from the send response and isn't stored, so it's empty after a reload until you send another message.
 - **Delete a chat** with the bin icon in its header, after a confirmation: `DELETE /api/chat/sandbox-sessions/{id}/`.
 - Enter sends, Shift+Enter adds a new line. Messages can be up to 4,096 characters. Replies can take a while (the backend may ask the LLM several times per message), so sending waits up to 5 minutes instead of the usual 15 seconds.
 - If the LLM fails, you see an error, but your message is still saved in the chat.
@@ -240,13 +246,14 @@ frontend-app/
 │   │   └── layout/             # App layout: header (nav tabs, AuthControls), <Outlet />
 │   ├── config/
 │   │   ├── app.ts              # App name
-│   │   ├── navigation.ts       # Route paths + top-nav tabs
+│   │   ├── navigation.ts       # Route paths, top-nav tabs, sections' sub-tabs
 │   │   └── env.ts              # Typed access to environment variables
 │   ├── features/               # Feature modules, one folder per domain
 │   │   ├── auth/               # Login dialog, RequireAuth guard, useAuth / useCurrentUser hooks, auth API calls
-│   │   ├── products/           # Product list + add/edit/delete dialogs (Product tab)
-│   │   ├── faqs/               # FAQ list + add/edit/delete dialogs (FAQ tab)
-│   │   ├── workflow/           # Chat workflow editor (Workflow tab, React Flow)
+│   │   ├── products/           # Product list + add/edit/delete dialogs (Catalog → Products)
+│   │   ├── faqs/               # FAQ list + add/edit/delete dialogs (Catalog → FAQs)
+│   │   ├── services/           # Services, service providers and their schedules (Catalog → Services)
+│   │   ├── workflow/           # Chat flow diagram + Details collection settings (Workflow tab, React Flow)
 │   │   ├── chat-sessions/      # Chat session API calls + Chat Sandbox
 │   │   ├── profile/            # Profile modal (data from /api/auth/me/)
 │   │   └── random-number/      # Sample configuration-service call (shown on Home)
@@ -277,7 +284,7 @@ Import from `src` with the `@/` alias, e.g. `import { Button } from '@/component
 1. Create `src/pages/<name>-page.tsx`. `PagePlaceholder` is a good starting point.
 2. Add its path to `paths` in `src/config/navigation.ts`.
 3. Add a route for it in `src/app/routes.tsx`. If it needs login, put it inside the `RequireAuth` group.
-4. To show it as a top-nav tab, add it to `navItems` in `src/config/navigation.ts`.
+4. To show it as a top-nav tab, add it to `navItems` in `src/config/navigation.ts` (`requiresAuth: true` hides it while logged out). For a sub-tab of Catalog / Orders / Chats, add it to that section's tabs there (`catalogTabs`, …), route it as a child of the section's route, and wrap the page in `TabPage`.
 
 ### Add an API-backed feature
 
@@ -287,6 +294,16 @@ Import from `src` with the `@/` alias, e.g. `import { Button } from '@/component
 4. Export the public pieces from the feature's `index.ts`.
 
 Use `src/features/random-number` as the template for read-only data, and `src/features/products` for full CRUD with forms and confirmations.
+
+### Keep `package-lock.json` on the public registry
+
+CI installs from `https://registry.npmjs.org/`, so every `"resolved"` URL in `package-lock.json` must point there. If your npm uses a private mirror (e.g. `npm.apple.com`), `npm install` writes the mirror's URLs, and CI fails. Point them back with:
+
+```bash
+sed -i '' -E 's#"resolved": "https://artifacts\.apple\.com/artifactory/api/npm/npm-apple/#"resolved": "https://registry.npmjs.org/#; s#"resolved": "https://npm\.apple\.com/#"resolved": "https://registry.npmjs.org/#' package-lock.json
+```
+
+Installing still works behind the mirror: npm swaps `registry.npmjs.org` for your configured registry (`replace-registry-host`).
 
 ### Add a shadcn/ui component
 

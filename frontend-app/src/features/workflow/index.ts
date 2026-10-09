@@ -1,6 +1,6 @@
 // Public API of the workflow (chat configuration) feature.
-export { BLOCK_META } from './blocks'
-export { blockDetailFields, DEFAULT_DETAIL_FIELDS } from './details'
+export { DEFAULT_DETAIL_FIELDS, detailFieldsOrDefault } from './details'
+export { CHAT_STEP_LABELS } from './steps'
 export { WorkflowBuilder } from './components/workflow-builder'
 export {
   chatConfigurationKeys,
@@ -8,5 +8,5 @@ export {
   useSaveChatConfiguration,
 } from './hooks/use-chat-configuration'
 export { useDetailLabels } from './hooks/use-detail-labels'
-export { DETAILS_COLLECTION_BLOCK, SEND_MESSAGE_BLOCK } from './types'
-export type { BlockType, ChatBlock, ChatConfiguration, ChatConfigurationInput, DetailField, DetailFieldType } from './types'
+export { CHAT_STEPS } from './types'
+export type { ChatConfiguration, ChatConfigurationInput, ChatStep, DetailField, DetailFieldType } from './types'

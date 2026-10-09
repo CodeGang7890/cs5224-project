@@ -1,15 +1,17 @@
 """Read-only tools the assistant can call while writing a reply (Ollama tool calling), and the
-product lookups the flow uses to give the model the right information up front.
+product / service lookups the flow uses to give the model the right information up front.
 
 Every tool only GETs data, and only the chatting business's data: Toolbox(business) binds
-them to one business, so the model can't pass in (or guess) another business's ID.
+them to one business, so the model can't pass in (or guess) another business's ID. The
+customer's own orders and bookings are deliberately not a tool: the order status branch looks them
+up in code (past_orders.py), so the model can't ask for any order it likes.
 """
 
 import json
 import re
 from collections.abc import Callable
 
-from product_app.models import FAQ, Product
+from product_app.models import FAQ, Product, Service
 
 # At most this many product names in a "no such product" answer.
 PRODUCT_NAMES_MAX = 50
@@ -65,6 +67,62 @@ def mentioned_products(business, text: str, limit: int = MENTIONED_PRODUCTS_MAX)
         if _name_words(product.name) & words:
             found.append({'name': product.name, 'description': product.description, 'information': product.information})
     return found[:limit]
+
+
+def active_services(business) -> list[Service]:
+    """The business's bookable services: active, with at least one active service provider (model
+    instances: the booking steps need them to work out free times; see service_dict for prompts)."""
+    return list(
+        Service.objects.filter(business=business, is_active=True, service_providers__is_active=True)
+        .distinct()
+        .order_by('name')
+    )
+
+
+def service_dict(service: Service, with_information: bool = False) -> dict:
+    """A service as plain data for prompts and tools (`information` only if asked: it can be long)."""
+    data = {
+        'id': service.pk,
+        'name': service.name,
+        'description': service.description,
+        'price': str(service.price),
+        'duration_minutes': service.duration_minutes,
+    }
+    if with_information:
+        data['information'] = service.information
+    return data
+
+
+def mentioned_services(business, text: str, limit: int = MENTIONED_PRODUCTS_MAX) -> list[dict]:
+    """Like mentioned_products, for the business's bookable services (with their `information`)."""
+    words = _name_words(text)
+    found = [service_dict(s, with_information=True) for s in active_services(business) if _name_words(s.name) & words]
+    return found[:limit]
+
+
+def find_service_details(business, service) -> dict:
+    """One bookable service's description and (long) information, by name (case-insensitive) or
+    id: an exact match, else a unique partial one; otherwise an `error` (and the candidates)."""
+    is_text = isinstance(service, (str, int)) and not isinstance(service, bool)
+    query = str(service).strip() if is_text else ''
+    if not query:
+        return {'error': 'Give the name of the service.'}
+    services = active_services(business)
+    lowered = query.casefold()
+    matches = [s for s in services if query.isdigit() and s.pk == int(query)]
+    matches = matches or [s for s in services if s.name.casefold() == lowered]
+    matches = matches or [s for s in services if lowered in s.name.casefold() or s.name.casefold() in lowered]
+    if len(matches) == 1:
+        found = service_dict(matches[0], with_information=True)
+        found['description'] = found['description'] or 'No description has been written for this service.'
+        found['information'] = found['information'] or 'No further information has been written for this service.'
+        return found
+    if matches:
+        return {'error': f'Several services match "{query}".', 'matches': [s.name for s in matches]}
+    return {
+        'error': f'No service called "{query}" can be booked.',
+        'services': [s.name for s in services[:PRODUCT_NAMES_MAX]],
+    }
 
 
 def business_faqs(business) -> list[dict]:
@@ -142,6 +200,25 @@ class Toolbox:
                     'required': ['product'],
                 },
                 lambda arguments: find_product_details(business, arguments.get('product')),
+            ),
+            'list_services': (
+                'List the services customers can book a time for, with id, name, price (SGD), '
+                'duration_minutes and a short description of each. For more about one, use get_service_details. '
+                'Never offer times yourself: the booking steps offer the free times.',
+                no_arguments,
+                lambda arguments: [service_dict(s) for s in active_services(business)],
+            ),
+            'get_service_details': (
+                "Get one bookable service's description and its information (what's included, what to bring, "
+                'locations, FAQs about it, etc.), plus its price and duration.',
+                {
+                    'type': 'object',
+                    'properties': {
+                        'service': {'type': 'string', 'description': 'The service name (or its id), e.g. "Family Shoot".'},
+                    },
+                    'required': ['service'],
+                },
+                lambda arguments: find_service_details(business, arguments.get('service')),
             ),
             'list_faqs': (
                 "List the business's frequently asked questions and their answers (opening "

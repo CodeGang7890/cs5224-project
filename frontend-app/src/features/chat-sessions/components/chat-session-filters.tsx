@@ -7,12 +7,12 @@ import { Label } from '@/components/ui/label'
 import { NativeSelect } from '@/components/ui/native-select'
 
 import { countActiveFilters, ORDERING_OPTIONS, type ChatFilterValues } from '../hooks/use-chat-session-params'
-import type { ChatStep } from '../hooks/use-chat-steps'
+import type { ChatStepOption } from '../hooks/use-chat-steps'
 import type { ChatSessionOrdering, SandboxFilter } from '../types'
 
 interface ChatSessionFiltersProps {
   values: ChatFilterValues
-  steps: ChatStep[]
+  steps: ChatStepOption[]
   onChange: (changes: Partial<Omit<ChatFilterValues, 'page'>>) => void
   onClear: () => void
 }

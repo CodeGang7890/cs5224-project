@@ -1,17 +1,21 @@
+from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
 from django.db import connection
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
+from django.utils import timezone
 
 from chat_app.models import ChatSession
 from configuration_app.models import BusinessConfiguration
-from product_app.models import Product
+from product_app.models import Product, Service, ServiceProvider
 
-from ..models import OrderItem, OrderStatus
-from ..services import OrderError, place_order
+from ..models import OrderItem, OrderStatus, ScheduleItem
+from ..schedule import next_on_grid
+from ..services import BookingError, OrderError, place_booking, place_order
 from ..stock import Stock
+from .test_schedule import at, day_letters, future_monday, open_week
 
 
 def line(product, quantity, price=None):
@@ -162,3 +166,110 @@ class PlaceOrderTests(TestCase):
         select_for_update.assert_called_once_with()
         locking_read = next(q['sql'] for q in queries if 'FROM "product_app_product"' in q['sql'] and 'SELECT' in q['sql'])
         self.assertIn('ORDER BY "product_app_product"."id" ASC', locking_read)  # a fixed order: no deadlocks
+
+
+@override_settings(SCHEDULE_TIME_ZONE='Asia/Singapore')
+class PlaceBookingTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.studio = BusinessConfiguration.objects.create(business_name='Snap Studio', location='Singapore')
+        cls.other = BusinessConfiguration.objects.create(business_name='Other', location='Singapore')
+        cls.mei = ServiceProvider.objects.create(business=cls.studio, name='Mei')
+        cls.raj = ServiceProvider.objects.create(business=cls.studio, name='Raj')
+        cls.family = Service.objects.create(
+            business=cls.studio, name='Family', price='250.00', duration_minutes=60, buffer_minutes=30
+        )
+        cls.family.service_providers.set([cls.raj, cls.mei])
+        cls.theirs = Service.objects.create(business=cls.other, name='Theirs', price=1, duration_minutes=60)
+        cls.monday = future_monday()
+        cls.session = ChatSession.objects.create(business=cls.studio, is_sandbox=True)
+
+    def setUp(self):
+        for provider in (self.mei, self.raj):
+            open_week(provider, self.monday, (0, '09:00', '12:00'))
+
+    def place(self, start, **kwargs):
+        return place_booking(self.studio, self.family.pk, start, {'name': 'Alice'}, **kwargs)
+
+    def test_books_the_first_free_provider_and_puts_the_time_on_hold(self):
+        booking = self.place(at(self.monday, '09:00'), chat_session=self.session, is_sandbox=True)
+        booking.full_clean()
+        self.assertEqual(booking.order_status, OrderStatus.PENDING_PAYMENT)
+        self.assertEqual(booking.service_provider, self.mei)  # lowest pk of the two
+        self.assertEqual(booking.service, self.family)
+        self.assertEqual((booking.chat_session, booking.is_sandbox), (self.session, True))
+        self.assertEqual(
+            (booking.start_time, booking.end_time, booking.blocked_until),
+            (at(self.monday, '09:00'), at(self.monday, '10:00'), at(self.monday, '10:30')),
+        )
+        self.assertEqual(booking.schedule_data, {
+            'service': {'service_id': self.family.pk, 'name': 'Family', 'price': '250.00', 'duration_minutes': 60, 'buffer_minutes': 30},
+            'details': {'name': 'Alice'},
+        })
+        self.assertEqual(booking.total, Decimal('250.00'))
+        # Its blocks went from O to H (the hour and its buffer); Raj's didn't.
+        self.assertEqual(day_letters(self.mei, self.monday, '09:00', '12:00'), 'H' * 6 + 'O' * 6)
+        self.assertEqual(day_letters(self.raj, self.monday, '09:00', '12:00'), 'O' * 12)
+
+    def test_the_same_time_again_goes_to_the_next_provider(self):
+        first = self.place(at(self.monday, '09:00'))
+        second = self.place(at(self.monday, '09:00'))
+        self.assertEqual({first.service_provider, second.service_provider}, {self.mei, self.raj})
+        with self.assertRaises(BookingError) as ctx:
+            self.place(at(self.monday, '09:00'))
+        self.assertIn('is not available for Family', ctx.exception.problems[0])
+        with self.assertRaises(BookingError):
+            self.place(at(self.monday, '10:15'))  # inside both buffers
+        self.place(at(self.monday, '10:30'))
+        self.assertEqual(ScheduleItem.objects.count(), 3)
+
+    def test_an_inactive_provider_is_skipped(self):
+        ServiceProvider.objects.filter(pk=self.mei.pk).update(is_active=False)
+        self.assertEqual(self.place(at(self.monday, '09:00')).service_provider, self.raj)
+
+    def test_the_price_shown_to_the_customer_is_kept(self):
+        self.assertEqual(self.place(at(self.monday, '09:00'), price='200.00').schedule_data['service']['price'], '200.00')
+
+    def test_nothing_is_booked_when_it_cant_be(self):
+        cases = {
+            'closed': (at(self.monday, '13:00'), 'is not available for Family'),
+            'off the grid': (at(self.monday, '09:05'), 'quarter hour'),
+            'too soon': (next_on_grid(timezone.now() + timedelta(minutes=15)), 'too soon'),
+            'in the past': (at(self.monday - timedelta(days=28), '09:00'), 'too soon'),
+        }
+        for label, (start, problem) in cases.items():
+            with self.subTest(label), self.assertRaises(BookingError) as ctx:
+                self.place(start)
+            self.assertIn(problem, str(ctx.exception))
+        self.assertFalse(ScheduleItem.objects.exists())
+        self.assertEqual(day_letters(self.mei, self.monday, '09:00', '12:00'), 'O' * 12)
+
+    def test_inactive_unknown_or_other_business_service(self):
+        Service.objects.filter(pk=self.family.pk).update(is_active=False)
+        with self.assertRaises(BookingError) as ctx:
+            self.place(at(self.monday, '09:00'))
+        self.assertIn('not available for booking', ctx.exception.problems[0])
+        for service_id in (self.theirs.pk, 99999):
+            with self.subTest(service_id=service_id), self.assertRaises(BookingError) as ctx:
+                place_booking(self.studio, service_id, at(self.monday, '09:00'), {})
+            self.assertEqual(ctx.exception.problems, ['That service is no longer available.'])
+        self.assertFalse(ScheduleItem.objects.exists())
+
+    def test_a_clash_found_after_saving_rolls_back_the_booking_and_its_letters(self):
+        # As if the lock didn't hold (e.g. SQLite): another booking took the time in between.
+        taken = self.place(at(self.monday, '09:00'))
+        before = day_letters(self.mei, self.monday)
+        with patch('checkout_app.schedule.start_problem', return_value=None), \
+                patch('checkout_app.schedule.free_provider', return_value=self.mei), \
+                self.assertRaises(BookingError) as ctx:
+            self.place(at(self.monday, '09:00'))
+        self.assertIn('was just booked by someone else', ctx.exception.problems[0])
+        self.assertEqual(list(ScheduleItem.objects.all()), [taken])
+        self.assertEqual(day_letters(self.mei, self.monday), before)
+
+    def test_locks_the_providers(self):
+        with CaptureQueriesContext(connection) as queries:
+            self.place(at(self.monday, '09:00'))
+        locks = [q['sql'] for q in queries if 'product_app_serviceprovider' in q['sql'] and 'FOR UPDATE' in q['sql']]
+        if connection.features.has_select_for_update:
+            self.assertTrue(locks)

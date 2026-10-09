@@ -153,8 +153,8 @@ function AnswerForm({ item, onDone }: { item: UnansweredQuestion; onDone: () => 
         title="Send this answer?"
         description={
           <>
-            The answer will be sent to {customer} in the chat and added to your FAQs (you can edit it later in the
-            FAQ tab).
+            The answer will be sent to {customer} in the chat and added to your FAQs (you can edit it later in
+            Catalog → FAQs).
           </>
         }
         confirmLabel="Send answer"

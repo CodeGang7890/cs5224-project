@@ -1,6 +1,7 @@
 import django_filters
 from django.db.models import Q
 
+from .constants import CHAT_STEPS, STEP_LABELS
 from .models import ChatSession, QuestionStatus, UnansweredQuestion
 
 
@@ -41,9 +42,9 @@ class ChatSessionFilter(django_filters.FilterSet):
         help_text='Case-insensitive text in the display name or phone number.',
     )
     display_name = django_filters.CharFilter(lookup_expr='icontains', help_text='Case-insensitive text in the display name.')
-    chat_state_id = django_filters.CharFilter(
-        method='filter_chat_state_id',
-        help_text='ID of the chat flow block the customer is at, e.g. `2` (a number is matched as a number).',
+    chat_state_id = django_filters.ChoiceFilter(
+        choices=[(step, STEP_LABELS[step]) for step in CHAT_STEPS],
+        help_text='The chat flow step the customer is at, e.g. `details_collection`.',
     )
     # A choice filter rather than BooleanFilter, which silently ignores values like "maybe".
     has_messages = django_filters.ChoiceFilter(
@@ -85,11 +86,6 @@ class ChatSessionFilter(django_filters.FilterSet):
 
     def filter_search(self, queryset, name, value):
         return queryset.filter(Q(display_name__icontains=value) | Q(phone_number__icontains=value))
-
-    def filter_chat_state_id(self, queryset, name, value):
-        # Block ids are ints or strings, and "2" must match block 2 (an int in the JSON).
-        state_id = int(value) if value.lstrip('-').isdigit() else value
-        return queryset.filter(chat_state_id=state_id)
 
     def filter_has_messages(self, queryset, name, value):
         empty = Q(chat_message_json=[])

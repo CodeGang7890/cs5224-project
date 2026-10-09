@@ -10,15 +10,15 @@ export const chatConfigurationKeys = {
   detail: () => [...chatConfigurationKeys.all, 'detail'] as const,
 }
 
-/** `data` is `null` when the business has no chat configuration yet. */
+/** The settings of the chat flow's steps (the defaults until the business saves its own). */
 export function useChatConfiguration() {
-  return useQuery<ChatConfiguration | null, ApiError>({
+  return useQuery<ChatConfiguration, ApiError>({
     queryKey: chatConfigurationKeys.detail(),
     queryFn: getChatConfiguration,
   })
 }
 
-/** Saves the flow (PUT) and puts the saved configuration straight into the cache. */
+/** Saves the configuration (PUT) and puts the saved one straight into the cache. */
 export function useSaveChatConfiguration() {
   const queryClient = useQueryClient()
   return useMutation<ChatConfiguration, ApiError, ChatConfigurationInput>({

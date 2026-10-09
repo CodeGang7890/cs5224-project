@@ -16,7 +16,7 @@ class ChatConfigurationAdmin(admin.ModelAdmin):
 @admin.register(ChatSession)
 class ChatSessionAdmin(admin.ModelAdmin):
     list_display = ('phone_number', 'display_name', 'business', 'chat_state_id', 'last_chat_time')
-    list_filter = ('business',)
+    list_filter = ('business', 'chat_state_id', 'is_sandbox')
     search_fields = ('phone_number', 'display_name', 'business__business_name')
     list_select_related = ('business',)
     autocomplete_fields = ('business',)

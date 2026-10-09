@@ -15,7 +15,7 @@ export interface UnansweredQuestion {
   is_sandbox: boolean
   question: string
   status: QuestionStatus
-  /** The FAQ the answer was saved as (editable in the FAQ tab). */
+  /** The FAQ the answer was saved as (editable in Catalog → FAQs). */
   faq: number | null
   /** The linked FAQ's current answer. */
   answer: string | null

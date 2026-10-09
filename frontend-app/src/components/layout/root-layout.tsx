@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { APP_NAME } from '@/config/app'
 import { navItems, paths } from '@/config/navigation'
 import { cn } from '@/lib/utils'
+import { selectIsAuthenticated, useAuthStore } from '@/stores/auth-store'
 import { useThemeStore } from '@/stores/theme-store'
 
 import { AuthControls } from './auth-controls'
@@ -12,6 +13,9 @@ import { AuthControls } from './auth-controls'
 export function RootLayout() {
   const theme = useThemeStore((state) => state.theme)
   const toggleTheme = useThemeStore((state) => state.toggleTheme)
+  const isAuthenticated = useAuthStore(selectIsAuthenticated)
+  // Login-only tabs are hidden while logged out (their URLs still show the login guard).
+  const visibleItems = navItems.filter((item) => isAuthenticated || !item.requiresAuth)
 
   return (
     <div className="flex min-h-svh flex-col">
@@ -22,7 +26,7 @@ export function RootLayout() {
           </Link>
 
           <nav className="-mx-1 flex flex-1 items-center gap-1 overflow-x-auto">
-            {navItems.map((item) => (
+            {visibleItems.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}

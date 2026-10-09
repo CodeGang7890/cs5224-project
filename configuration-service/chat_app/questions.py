@@ -1,6 +1,7 @@
 """Questions the chat assistant couldn't answer, which the business answers or dismisses.
 
-1. The reply step's `ask_business` tool (tools.Toolbox) calls ask_business(): it saves an open
+1. When the router finds a question that the business's information doesn't answer, the question
+   check (flow.check_customer_question) calls ask_business(): it saves an open
    UnansweredQuestion for the chat, and the assistant tells the customer the team will reply.
 2. The business owner sees open questions in the Chats tab (GET /api/chat/questions/).
 3. answer_question() saves the Q&A as an FAQ (so the assistant can answer it next time), sends
@@ -36,9 +37,9 @@ def answer_message(question: str, answer: str) -> str:
 
 
 def ask_business(chat_session, question) -> dict:
-    """The `ask_business` tool: saves the customer's question for the business to answer.
+    """Saves the customer's question for the business to answer (called by the question check).
 
-    Returns what to tell the model. A question already open in this chat isn't saved twice, and
+    Returns a `status` (or an `error`) and a `message`. A question already open in this chat isn't saved twice, and
     a chat can have at most OPEN_QUESTIONS_PER_CHAT_MAX open questions.
     """
     text = ' '.join(question.split())[:FAQ_QUESTION_MAX_LENGTH] if isinstance(question, str) else ''

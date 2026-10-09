@@ -1,14 +1,13 @@
 import { useState } from 'react'
-import { CircleAlert, FlaskConical, Plus, Workflow } from 'lucide-react'
-import { Link, useSearchParams } from 'react-router'
+import { CircleAlert, FlaskConical, Plus } from 'lucide-react'
+import { useSearchParams } from 'react-router'
 
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { paths } from '@/config/navigation'
 import { useCurrentUser } from '@/features/auth'
 
 import { useCreateSandboxSession, useSandboxSessions } from '../hooks/use-chat-sessions'
-import { isMissingChatConfiguration, nextSandboxChatName } from '../sandbox'
+import { nextSandboxChatName } from '../sandbox'
 import { SandboxChatWindow } from './sandbox-chat-window'
 import { SandboxDebugPanel } from './sandbox-debug-panel'
 import { SandboxSessionList } from './sandbox-session-list'
@@ -99,16 +98,7 @@ function SandboxChats({ businessName }: { businessName: string }) {
 
   const createError = create.error && (
     <div role="alert" className="text-destructive border-b px-3 py-2 text-xs">
-      {isMissingChatConfiguration(create.error) ? (
-        <span>
-          Set up your workflow first: chats start at its Start block.{' '}
-          <Link to={paths.workflow} className="font-medium underline underline-offset-2">
-            Go to Workflow
-          </Link>
-        </span>
-      ) : (
-        <span>Couldn't create a chat: {create.error.message}</span>
-      )}
+      Couldn't create a chat: {create.error.message}
     </div>
   )
 
@@ -161,13 +151,6 @@ function SandboxChats({ businessName }: { businessName: string }) {
           <Button onClick={createChat} disabled={create.isPending}>
             <Plus /> {create.isPending ? 'Creating…' : 'New chat'}
           </Button>
-          {create.error && isMissingChatConfiguration(create.error) && (
-            <Button variant="outline" asChild>
-              <Link to={paths.workflow}>
-                <Workflow /> Set up your workflow
-              </Link>
-            </Button>
-          )}
         </div>
       )}
     </div>
