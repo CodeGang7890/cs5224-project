@@ -50,13 +50,13 @@ Then open the URL Vite prints, usually <http://localhost:5173>.
 | Workflow | `/workflow` |
 | Product | `/product` |
 | Orders | `/orders` |
-| Schedule | `/schedule` |
+| Service | `/service` |
 | Payment | `/payment` |
 | FAQ | `/faq` |
 | Chats | `/chats` |
 | Chat Sandbox | `/chat-sandbox` |
 
-Home shows a random number fetched from `configuration-service` (see [Connecting to configuration-service](#connecting-to-configuration-service)). **Product** and **FAQ** let you add, edit and delete your business's products and FAQs (see [Managing products and FAQs](#managing-products-and-faqs)). **Workflow** shows your chat assistant's flow and lets you choose the customer details it collects (see [Editing the chat workflow](#editing-the-chat-workflow)). **Orders** lists the orders customers confirmed in chats, read only (see [Orders](#orders)). **Chats** lists your business's conversations, read only (see [Chats](#chats)). **Chat Sandbox** lets you chat with your assistant as a pretend customer (see [Chat Sandbox](#chat-sandbox)). The other pages are placeholders for now. Workflow, Product, Orders, FAQ, Chats and Chat Sandbox require login: when you're logged out, they show "You need to be logged in to access this page" with a Log In button (see [Login-protected pages](#login-protected-pages)).
+Home shows a random number fetched from `configuration-service` (see [Connecting to configuration-service](#connecting-to-configuration-service)). **Product** and **FAQ** let you add, edit and delete your business's products and FAQs (see [Managing products and FAQs](#managing-products-and-faqs)). **Workflow** shows your chat assistant's flow and lets you choose the customer details it collects (see [Editing the chat workflow](#editing-the-chat-workflow)). **Service** manages the services customers can book a time for and your team's weekly availability (see [Services and availability](#services-and-availability)). **Orders** lists the orders and bookings customers confirmed in chats, read only (see [Orders](#orders)). **Chats** lists your business's conversations, read only (see [Chats](#chats)). **Chat Sandbox** lets you chat with your assistant as a pretend customer (see [Chat Sandbox](#chat-sandbox)). The other pages are placeholders for now. Workflow, Product, Service, Orders, FAQ, Chats and Chat Sandbox require login: when you're logged out, they show "You need to be logged in to access this page" with a Log In button (see [Login-protected pages](#login-protected-pages)).
 
 The top right shows **Log In** when you're logged out. When you're logged in, it shows your username, a profile icon and **Log Out** (see [Authentication](#authentication)). The profile modal's open state is kept in the URL as `?profile`, so you can link to it directly and the browser's back button closes it.
 
@@ -107,9 +107,19 @@ The **Workflow** tab (login required) shows how your chat assistant handles each
 - Leaving the tab, or closing or reloading the page, with unsaved changes asks you to confirm first.
 - Accounts without a business (e.g. `superuser`) see a message instead of the diagram.
 
+## Services and availability
+
+The **Service** tab (login required) is for businesses that sell time slots, like a photographer's shoots. It has two sections, on `configuration-service`'s `/api/services/` and `/api/weekly-availabilities/`.
+
+- **Services:** add, edit and delete what customers can book: name, description, information (for the chat assistant), price, duration and buffer (time blocked after each booking without the customer, e.g. to tidy up; both in multiples of 15 minutes), active, and **who can do it**: a checkbox per weekly availability. A service with no one ticked can't be booked.
+- **Weekly availability:** one calendar per person (e.g. each photographer), shown as a card with its hours and services. **Edit** opens the calendar:
+  - **Weekly hours:** a week of 15-minute blocks. Pick a brush (**Available** O, **Taken** X, **On hold** H) and click or drag over the blocks; or tick some days, pick a time range and **Set**; or use a preset (weekdays 9am–6pm, every day 10am–8pm, clear all). Only available blocks can be booked. The times are your business's local time.
+  - **Bookings by week** (saved calendars): any week of the calendar, with its bookings drawn over the weekly hours: on hold while pending payment, taken once paid, including each booking's buffer.
+- Every save and delete asks for confirmation. Deleting a service or a calendar keeps its bookings.
+
 ## Orders
 
-The **Orders** tab (login required) is a **read-only** list of your business's orders from `GET /api/orders/`. An order is created when a customer replies CONFIRM at the chat's Confirmation step (in a real chat or a Chat Sandbox chat); it starts as *Pending payment*, and its products' stock is reserved (`quantity_available` → `quantity_on_hold`, visible on the Product tab).
+The **Orders** tab (login required) has two read-only sub-tabs: **Products** (orders) and **Services** (bookings, `?tab=services`). **Products** lists your business's orders from `GET /api/orders/`. An order is created when a customer replies CONFIRM at the chat's Confirmation step (in a real chat or a Chat Sandbox chat); it starts as *Pending payment*, and its products' stock is reserved (`quantity_available` → `quantity_on_hold`, visible on the Product tab).
 
 - **Columns:** order number (with a *Sandbox* badge for test orders), customer (their name, else email), items, total, status (*Pending payment*, *Payment received*, *Completed*) and when it was placed.
 - **Click a row** (or the eye icon) to see the order: each item with unit price, quantity and subtotal, the total, and the customer details collected in the chat (labelled as in your Details collection settings).
@@ -241,6 +251,7 @@ frontend-app/
 │   │   ├── auth/               # Login dialog, RequireAuth guard, useAuth / useCurrentUser hooks, auth API calls
 │   │   ├── products/           # Product list + add/edit/delete dialogs (Product tab)
 │   │   ├── faqs/               # FAQ list + add/edit/delete dialogs (FAQ tab)
+│   │   ├── services/           # Services + weekly availability calendars (Service tab)
 │   │   ├── workflow/           # Chat flow diagram + Details collection settings (Workflow tab, React Flow)
 │   │   ├── chat-sessions/      # Chat session API calls + Chat Sandbox
 │   │   ├── profile/            # Profile modal (data from /api/auth/me/)

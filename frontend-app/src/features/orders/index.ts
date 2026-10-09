@@ -1,4 +1,6 @@
-// Public API of the orders feature (Orders tab).
+// Public API of the orders feature (Orders tab: product orders and service bookings).
 export { OrdersBrowser } from './components/orders-browser'
+export { SchedulesBrowser } from './components/schedules-browser'
 export { orderKeys, useOrder, useOrders } from './hooks/use-orders'
-export type { Order, OrderData, OrderLine, OrderListParams, OrderStatus } from './types'
+export { scheduleKeys, useSchedule, useSchedules } from './hooks/use-schedules'
+export type { Order, OrderData, OrderLine, OrderListParams, OrderStatus, ScheduleData, ScheduleItem } from './types'

@@ -12,7 +12,7 @@ import { NotFoundPage } from '@/pages/not-found-page'
 import { OrdersPage } from '@/pages/orders-page'
 import { PaymentPage } from '@/pages/payment-page'
 import { ProductPage } from '@/pages/product-page'
-import { SchedulePage } from '@/pages/schedule-page'
+import { ServicePage } from '@/pages/service-page'
 import { WorkflowPage } from '@/pages/workflow-page'
 
 // All client-side routes. Add new pages here as children of the root layout,
@@ -25,7 +25,6 @@ export const routes: RouteObject[] = [
     errorElement: <ErrorPage />,
     children: [
       { index: true, element: <HomePage /> },
-      { path: paths.schedule, element: <SchedulePage /> },
       { path: paths.payment, element: <PaymentPage /> },
       // Login required: shows a "you need to be logged in" message instead when logged out.
       {
@@ -33,6 +32,7 @@ export const routes: RouteObject[] = [
         children: [
           { path: paths.workflow, element: <WorkflowPage /> },
           { path: paths.product, element: <ProductPage /> },
+          { path: paths.service, element: <ServicePage /> },
           { path: paths.orders, element: <OrdersPage /> },
           { path: paths.faq, element: <FaqPage /> },
           { path: paths.chats, element: <ChatsPage /> },
