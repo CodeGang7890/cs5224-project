@@ -234,6 +234,8 @@ The internal endpoints **never return a secret**: they only answer yes/no, so a 
 
 Users without a business (e.g. `superuser`) get 403. The `verify_token` is generated when connecting and never changes. The Django admin lists the connections but never shows the secrets, and can't add new ones.
 
+**Checked with Meta before saving.** Every `PUT` makes one Graph API call (`configuration_app/meta_api.py`): `GET /{phone_number_id}?fields=display_phone_number,verified_name` with the access token and an `appsecret_proof` (HMAC of the token with the App Secret). Wrong values are rejected with a 400 under the field they're about: an invalid or expired token (Meta error 190) → `access_token`, an App Secret from another app → `app_secret`, an unknown Phone Number ID or one the token can't access (error 100) → `phone_number_id`. If Meta can't be reached, nothing is saved and the answer is **503**. On success, Meta's `display_phone_number` and `verified_name` are saved (read-only) and returned, so the owner sees which number is connected. When updating, the check uses the new values plus the saved secrets being kept. Tests never call Meta (`meta_api.check_credentials` is mocked; `MetaApiTests` use `httpx.MockTransport`).
+
 Connecting in Meta: enter `webhook_url` as the **Callback URL** and `verify_token` as the **Verify token** (WhatsApp → Configuration → Webhook), then subscribe to the `messages` field.
 
 ### Chat (temporary)
@@ -490,6 +492,7 @@ DJANGO_SUPERUSER_PASSWORD=123 python manage.py createsuperuser --noinput --usern
 | `CONFIGURATION_ENCRYPTION_KEY`                                                        | empty (uses `SECRET_KEY`)                                       | Encrypts the stored WhatsApp access token and App Secret. Any secret string. Changing it (or `SECRET_KEY`, while this is empty) makes the stored secrets unreadable, so owners must re-enter them. |
 | `INTERNAL_API_KEY`                                                                    | `dev-internal-api-key` (only when `DEBUG` is on)                | Shared key other services send in the `X-Internal-Api-Key` header to call `/api/internal/`. Empty disables the internal API.                                                                       |
 | `MESSAGING_INGESTER_PUBLIC_URL`                                                       | `http://localhost:8002`                                         | Public URL of `messaging-ingester`. Owners see `<this>/webhook/<business id>` as their WhatsApp webhook Callback URL.                                                                              |
+| `META_GRAPH_API_URL` | `https://graph.facebook.com/v25.0` | Meta's Graph API, used to check the WhatsApp details owners enter (`configuration_app/meta_api.py`). Point it at a fake for testing without real Meta credentials. |
 
 ## Connecting from frontend-app
 

@@ -251,4 +251,7 @@ CONFIGURATION_ENCRYPTION_KEY = os.getenv('CONFIGURATION_ENCRYPTION_KEY', '')
 INTERNAL_API_KEY = os.getenv('INTERNAL_API_KEY', 'dev-internal-api-key' if DEBUG else '')
 
 # Public URL of messaging-ingester, used to show each business its webhook Callback URL.
+# Meta's Graph API (WhatsApp Cloud API), used to check the credentials owners enter. Tests mock it.
+META_GRAPH_API_URL = os.getenv('META_GRAPH_API_URL', 'https://graph.facebook.com/v25.0').rstrip('/')
+
 MESSAGING_INGESTER_PUBLIC_URL = os.getenv('MESSAGING_INGESTER_PUBLIC_URL', 'http://localhost:8002').rstrip('/')

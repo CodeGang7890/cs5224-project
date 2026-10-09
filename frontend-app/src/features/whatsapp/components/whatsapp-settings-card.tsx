@@ -1,5 +1,5 @@
 import { type FormEvent, type ReactNode, useState } from 'react'
-import { Check, Copy, MessageCircle, Pencil, Unplug } from 'lucide-react'
+import { Check, Copy, MessageCircle, Pencil, Phone, Unplug } from 'lucide-react'
 
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { FormField } from '@/components/common/form-field'
@@ -86,6 +86,7 @@ export function WhatsAppSettingsCard() {
           )
         ) : (
           <div className="grid gap-6">
+            {config && <ConnectedNumber config={config} />}
             {config && <WebhookSetup config={config} />}
             {/* Remounted after each save, so the form starts from the saved values with empty secrets. */}
             <WhatsAppForm key={config?.last_updated ?? 'new'} config={config ?? null} />
@@ -239,7 +240,8 @@ function WhatsAppForm({ config }: { config: WhatsAppConfiguration | null }) {
         </FormField>
 
         <p className="text-muted-foreground text-xs">
-          The access token and App Secret are stored encrypted and are never shown again.
+          These details are checked with Meta before saving. The access token and App Secret are stored
+          encrypted and are never shown again.
         </p>
 
         {errors.form && (
@@ -290,7 +292,7 @@ function WhatsAppForm({ config }: { config: WhatsAppConfiguration | null }) {
           )
         }
         confirmLabel={isConnected ? 'Save changes' : 'Connect'}
-        pendingLabel="Saving…"
+        pendingLabel="Checking with Meta…"
         isPending={saveConfig.isPending}
         onConfirm={handleConfirm}
       />
@@ -358,6 +360,22 @@ function DisconnectButton() {
         onConfirm={handleConfirm}
       />
     </>
+  )
+}
+
+/** The number Meta confirmed when the details were checked: shows the owner which number is connected. */
+function ConnectedNumber({ config }: { config: WhatsAppConfiguration }) {
+  if (!config.display_phone_number && !config.verified_name) return null
+  return (
+    <div className="flex items-center gap-3 rounded-lg border px-4 py-3">
+      <Phone className="text-muted-foreground size-4 shrink-0" />
+      <div className="grid gap-0.5">
+        <p className="text-sm font-medium">
+          {[config.display_phone_number, config.verified_name].filter(Boolean).join(' · ')}
+        </p>
+        <p className="text-muted-foreground text-xs">Connected number, as verified by Meta</p>
+      </div>
+    </div>
   )
 }
 

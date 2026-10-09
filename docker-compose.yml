@@ -43,6 +43,8 @@ services:
       CONFIGURATION_ENCRYPTION_KEY: dev-whatsapp-encryption-key # encrypts the stored WhatsApp secrets
       INTERNAL_API_KEY: dev-internal-api-key # messaging-ingester sends it to /api/internal/
       MESSAGING_INGESTER_PUBLIC_URL: http://localhost:8002 # shown to owners as their webhook Callback URL
+      # Meta's Graph API, used to check the WhatsApp details owners enter (override to point at a fake for testing).
+      META_GRAPH_API_URL: ${META_GRAPH_API_URL:-https://graph.facebook.com/v25.0}
     extra_hosts:
       - "host.docker.internal:host-gateway" # for Linux; Docker Desktop has it already
     depends_on:

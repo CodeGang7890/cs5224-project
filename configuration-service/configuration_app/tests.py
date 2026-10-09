@@ -1,15 +1,18 @@
 import hashlib
 import hmac
+from unittest.mock import patch
+from urllib.parse import parse_qs, urlsplit
 
+import httpx
 from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.db import IntegrityError, connection, transaction
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
 from auth_app.models import BusinessUser
 
-from . import crypto
+from . import crypto, meta_api
 from .models import (
     BUSINESS_NAME_MAX_LENGTH,
     DESCRIPTION_MAX_LENGTH,
@@ -225,6 +228,7 @@ VALID_WHATSAPP = {
     'app_secret': TEST_APP_SECRET,
 }
 SECRET_REQUIRED = ['This field is required when connecting WhatsApp for the first time.']
+META_INFO = meta_api.PhoneNumberInfo(display_phone_number='+65 9123 4567', verified_name='Café Pte Ltd')
 
 
 def create_whatsapp_config(business, **overrides) -> WhatsAppConfiguration:
@@ -244,6 +248,12 @@ class WhatsAppConfigurationAPITests(APITestCase):
             username='florist', password='123', business=cls.florist
         )
         cls.no_business_user = BusinessUser.objects.create_user(username='nobiz', password='123')
+
+    def setUp(self):
+        # Every save checks the credentials with Meta: fake it (tests never call the real Meta).
+        patcher = patch.object(meta_api, 'check_credentials', return_value=META_INFO)
+        self.meta = patcher.start()
+        self.addCleanup(patcher.stop)
 
     def put(self, data, user=None):
         self.client.force_authenticate(user or self.cafe_user)
@@ -299,7 +309,9 @@ class WhatsAppConfigurationAPITests(APITestCase):
         self.assertEqual(response.status_code, 200)
         body = response.json()
         self.assertEqual(
-            set(body), {'phone_number_id', 'webhook_url', 'verify_token', 'created_time', 'last_updated'}
+            set(body),
+            {'phone_number_id', 'display_phone_number', 'verified_name', 'webhook_url', 'verify_token',
+             'created_time', 'last_updated'},
         )
         self.assertEqual(body['phone_number_id'], TEST_PHONE_NUMBER_ID)
         self.assertEqual(body['verify_token'], config.verify_token)
@@ -434,6 +446,70 @@ class WhatsAppConfigurationAPITests(APITestCase):
         self.assertEqual(set(response.json()), {'phone_number_id', 'access_token'})
         self.assertEqual(self.saved().phone_number_id, TEST_PHONE_NUMBER_ID)
 
+    # --- Checked with Meta -----------------------------------------------------------------
+
+    def test_connect_checks_with_meta_and_stores_its_details(self):
+        response = self.put(VALID_WHATSAPP)
+        self.assertEqual(response.status_code, 201)
+        self.meta.assert_called_once_with(TEST_PHONE_NUMBER_ID, TEST_ACCESS_TOKEN, TEST_APP_SECRET)
+        self.assertEqual(response.json()['display_phone_number'], '+65 9123 4567')
+        self.assertEqual(response.json()['verified_name'], 'Café Pte Ltd')
+        self.assertEqual(self.saved().verified_name, 'Café Pte Ltd')
+
+    def test_update_checks_the_saved_secrets_with_the_new_phone_number_id(self):
+        create_whatsapp_config(self.cafe)
+        self.put({'phone_number_id': '999'})
+        self.meta.assert_called_once_with('999', TEST_ACCESS_TOKEN, TEST_APP_SECRET)
+
+    def test_update_checks_a_replaced_secret(self):
+        create_whatsapp_config(self.cafe)
+        self.put({'phone_number_id': TEST_PHONE_NUMBER_ID, 'app_secret': 'newsecret'})
+        self.meta.assert_called_once_with(TEST_PHONE_NUMBER_ID, TEST_ACCESS_TOKEN, 'newsecret')
+
+    def test_update_refreshes_metas_details(self):
+        create_whatsapp_config(self.cafe)
+        self.meta.return_value = meta_api.PhoneNumberInfo('+65 8000 0000', 'Renamed Café')
+        self.put(VALID_WHATSAPP)
+        self.assertEqual((self.saved().display_phone_number, self.saved().verified_name), ('+65 8000 0000', 'Renamed Café'))
+
+    def test_credentials_meta_rejects_are_400_under_their_field(self):
+        for field, message in (
+            ('access_token', meta_api.INVALID_TOKEN_MESSAGE),
+            ('app_secret', meta_api.INVALID_APP_SECRET_MESSAGE),
+            ('phone_number_id', meta_api.UNKNOWN_PHONE_NUMBER_ID_MESSAGE),
+        ):
+            with self.subTest(field=field):
+                self.meta.side_effect = meta_api.MetaCredentialsError(field, message)
+                response = self.put(VALID_WHATSAPP)
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.json(), {field: [message]})
+        self.assertFalse(WhatsAppConfiguration.objects.exists())
+
+    def test_rejected_update_changes_nothing(self):
+        create_whatsapp_config(self.cafe)
+        self.meta.side_effect = meta_api.MetaCredentialsError('access_token', meta_api.INVALID_TOKEN_MESSAGE)
+        response = self.put({'phone_number_id': '999', 'access_token': 'BADTOKEN'})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual((self.saved().phone_number_id, self.saved().access_token), (TEST_PHONE_NUMBER_ID, TEST_ACCESS_TOKEN))
+
+    def test_meta_unreachable_is_503_and_nothing_is_saved(self):
+        self.meta.side_effect = meta_api.MetaUnavailableError('timeout')
+        response = self.put(VALID_WHATSAPP)
+        self.assertEqual(response.status_code, 503)
+        self.assertIn("Couldn't reach Meta", response.json()['detail'])
+        self.assertFalse(WhatsAppConfiguration.objects.exists())
+
+    def test_meta_is_not_asked_when_the_fields_are_invalid(self):
+        create_whatsapp_config(self.florist)  # owns TEST_PHONE_NUMBER_ID
+        for data in (
+            {**VALID_WHATSAPP, 'phone_number_id': 'abc'},
+            {'phone_number_id': '1', 'access_token': TEST_ACCESS_TOKEN},  # missing App Secret
+            VALID_WHATSAPP,  # Phone Number ID already used by the florist
+        ):
+            with self.subTest(data=data):
+                self.assertEqual(self.put(data).status_code, 400)
+        self.meta.assert_not_called()
+
     # --- DELETE ---------------------------------------------------------------------------
 
     def test_disconnect(self):
@@ -527,4 +603,87 @@ class WhatsAppConfigurationModelTests(TestCase):
         create_whatsapp_config(self.cafe)
         self.cafe.delete()
         self.assertFalse(WhatsAppConfiguration.objects.exists())
+
+
+# --- Meta Graph API client (configuration_app/meta_api.py) ------------------------------------
+
+@override_settings(META_GRAPH_API_URL='https://graph.example/v25.0')
+class MetaApiTests(SimpleTestCase):
+    def check(self, status=200, body=None, error=None, raw=None):
+        """Runs check_credentials against a fake Meta; returns its result (or raises)."""
+        self.requests = []
+
+        def handler(request):
+            self.requests.append(request)
+            if error is not None:
+                raise error
+            if raw is not None:
+                return httpx.Response(status, content=raw)
+            return httpx.Response(status, json=body if body is not None else {
+                'display_phone_number': '+65 9123 4567', 'verified_name': 'Café Pte Ltd', 'id': '106540352242922',
+            })
+
+        return meta_api.check_credentials('106540352242922', 'EAAGtoken', 'appsecret', transport=httpx.MockTransport(handler))
+
+    @staticmethod
+    def meta_error(code, message='Error', status=400):
+        return {'status': status, 'body': {'error': {'message': message, 'type': 'OAuthException', 'code': code}}}
+
+    def test_request(self):
+        self.check()
+        request = self.requests[0]
+        url = urlsplit(str(request.url))
+        self.assertEqual(f'{url.scheme}://{url.netloc}{url.path}', 'https://graph.example/v25.0/106540352242922')
+        self.assertEqual(request.method, 'GET')
+        self.assertEqual(request.headers['Authorization'], 'Bearer EAAGtoken')
+        query = parse_qs(url.query)
+        self.assertEqual(query['fields'], ['display_phone_number,verified_name'])
+        expected_proof = hmac.new(b'appsecret', b'EAAGtoken', hashlib.sha256).hexdigest()
+        self.assertEqual(query['appsecret_proof'], [expected_proof])
+
+    def test_success_returns_metas_details(self):
+        self.assertEqual(self.check(), meta_api.PhoneNumberInfo('+65 9123 4567', 'Café Pte Ltd'))
+
+    def test_success_with_missing_details(self):
+        self.assertEqual(self.check(body={'id': '1'}), meta_api.PhoneNumberInfo('', ''))
+
+    def test_errors_map_to_the_field_they_are_about(self):
+        cases = [
+            (self.meta_error(190, 'Error validating access token: Session has expired'), 'access_token', meta_api.INVALID_TOKEN_MESSAGE),
+            (self.meta_error(100, 'Invalid appsecret_proof provided in the API argument'), 'app_secret', meta_api.INVALID_APP_SECRET_MESSAGE),
+            (self.meta_error(100, 'Unsupported get request. Object with ID does not exist'), 'phone_number_id', meta_api.UNKNOWN_PHONE_NUMBER_ID_MESSAGE),
+            (self.meta_error(10, 'Application does not have permission'), 'access_token', meta_api.TOKEN_PERMISSION_MESSAGE),
+            (self.meta_error(200, 'Permissions error', status=403), 'access_token', meta_api.TOKEN_PERMISSION_MESSAGE),
+            (self.meta_error(803, 'Some other problem'), 'non_field_errors', 'Meta rejected these credentials: Some other problem'),
+        ]
+        for kwargs, field, message in cases:
+            with self.subTest(field=field, code=kwargs['body']['error']['code']):
+                with self.assertRaises(meta_api.MetaCredentialsError) as ctx:
+                    self.check(**kwargs)
+                self.assertEqual((ctx.exception.field, ctx.exception.message), (field, message))
+
+    def test_meta_side_problems_mean_unavailable(self):
+        cases = [
+            self.meta_error(4, 'Application request limit reached'),
+            self.meta_error(2, 'Service temporarily unavailable', status=503),
+            {'status': 500, 'body': {}},
+            {'status': 502, 'raw': b'<html>Bad gateway</html>'},
+            {'status': 200, 'body': ['not', 'an', 'object']},
+        ]
+        for kwargs in cases:
+            with self.subTest(kwargs=kwargs):
+                with self.assertRaises(meta_api.MetaUnavailableError):
+                    self.check(**kwargs)
+
+    def test_network_errors_mean_unavailable(self):
+        for error in (httpx.ConnectError('refused'), httpx.ReadTimeout('slow')):
+            with self.subTest(error=type(error).__name__):
+                with self.assertRaises(meta_api.MetaUnavailableError):
+                    self.check(error=error)
+
+    def test_appsecret_proof(self):
+        self.assertEqual(
+            meta_api.appsecret_proof('token', 'secret'),
+            hmac.new(b'secret', b'token', hashlib.sha256).hexdigest(),
+        )
 

@@ -91,16 +91,22 @@ class WhatsAppConfigurationView(APIView):
             'the Phone Number ID (WhatsApp → API Setup, under the number), the App Secret (App '
             'settings → Basic) and a permanent System User access token. '
             '`access_token` and `app_secret` are required when creating; when updating, leave them '
-            'out or blank to keep the saved ones. A `verify_token` is generated on creation.'
+            'out or blank to keep the saved ones. A `verify_token` is generated on creation. '
+            'The credentials are checked with Meta (one Graph API call) before saving, which also '
+            'fills in the read-only `display_phone_number` and `verified_name`.'
         ),
         request=WhatsAppConfigurationSerializer,
         responses={
             200: WhatsAppConfigurationSerializer,
             201: WhatsAppConfigurationSerializer,
             400: OpenApiResponse(
-                description='Invalid fields, a missing secret, or a phone number ID used by another business.'
+                description=(
+                    'Invalid fields, a missing secret, a phone number ID used by another business, or '
+                    'credentials Meta rejected (the error is under the field it is about).'
+                )
             ),
             403: OpenApiResponse(description='Your account is not linked to a business.'),
+            503: OpenApiResponse(description="Meta couldn't be reached to check the credentials; nothing was saved."),
         },
         examples=[
             OpenApiExample(

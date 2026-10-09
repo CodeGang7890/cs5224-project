@@ -15,6 +15,8 @@ WHATSAPP_ID_MAX_LENGTH = 32  # Meta's phone number IDs are numeric strings, ~15-
 WHATSAPP_ACCESS_TOKEN_MAX_LENGTH = 1000
 WHATSAPP_APP_SECRET_MAX_LENGTH = 128
 WHATSAPP_VERIFY_TOKEN_MAX_LENGTH = 64
+WHATSAPP_DISPLAY_PHONE_NUMBER_MAX_LENGTH = 32  # as Meta formats it, e.g. "+65 9123 4567"
+WHATSAPP_VERIFIED_NAME_MAX_LENGTH = 255
 
 class BusinessConfiguration(models.Model):
     """A business (tenant) using Ansera Business Admin. Other apps' data hangs off this."""
@@ -58,8 +60,9 @@ class WhatsAppConfiguration(models.Model):
     """A business's WhatsApp Business (Cloud API) connection, entered by the owner from their Meta app.
 
     Only what's needed to receive and reply to messages (the user asked to keep it minimal): the
-    number's Phone Number ID, the app's App Secret and an access token. The display phone number
-    comes with every webhook, and the WABA ID is only needed for templates/account management.
+    number's Phone Number ID, the app's App Secret and an access token (the WABA ID is only needed
+    for templates/account management). They're checked with Meta before saving, which also gives
+    the read-only `display_phone_number` and `verified_name` shown to the owner.
 
     The messaging-ingester reads it (internal API) to verify Meta's webhook calls: `verify_token`
     for the subscription handshake and `app_secret` for each payload's X-Hub-Signature-256.
@@ -86,6 +89,19 @@ class WhatsAppConfiguration(models.Model):
     app_secret = EncryptedTextField(
         validators=[MaxLengthValidator(WHATSAPP_APP_SECRET_MAX_LENGTH), no_whitespace_validator],
         help_text='The Meta app\'s App Secret, used to check webhook signatures. Stored encrypted.',
+    )
+    # Filled in from Meta when the credentials are checked (meta_api.check_credentials), read only.
+    display_phone_number = models.CharField(
+        max_length=WHATSAPP_DISPLAY_PHONE_NUMBER_MAX_LENGTH,
+        blank=True,
+        editable=False,
+        help_text='The number as Meta shows it, e.g. "+65 9123 4567". Set from Meta.',
+    )
+    verified_name = models.CharField(
+        max_length=WHATSAPP_VERIFIED_NAME_MAX_LENGTH,
+        blank=True,
+        editable=False,
+        help_text="The business name Meta verified for the number. Set from Meta.",
     )
     verify_token = models.CharField(
         max_length=WHATSAPP_VERIFY_TOKEN_MAX_LENGTH,
