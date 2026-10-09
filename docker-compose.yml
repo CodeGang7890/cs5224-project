@@ -16,7 +16,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     ports:
-      - "5433:5432"  # 5433 on the host, so it doesn't clash with a local PostgreSQL
+      - "5433:5432" # 5433 on the host, so it doesn't clash with a local PostgreSQL
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d configuration_service"]
       interval: 2s
@@ -36,8 +36,12 @@ services:
       POSTGRES_PORT: "5432"
       # Ollama runs on the host machine, not in Docker.
       OLLAMA_HOST: http://host.docker.internal:11434
+      # WhatsApp connection (configuration_app.WhatsAppConfiguration). Local-development values only.
+      CONFIGURATION_ENCRYPTION_KEY: dev-whatsapp-encryption-key # encrypts the stored WhatsApp secrets
+      INTERNAL_API_KEY: dev-internal-api-key # messaging-ingester sends it to /api/internal/
+      MESSAGING_INGESTER_PUBLIC_URL: http://localhost:8002 # shown to owners as their webhook Callback URL
     extra_hosts:
-      - "host.docker.internal:host-gateway"  # for Linux; Docker Desktop has it already
+      - "host.docker.internal:host-gateway" # for Linux; Docker Desktop has it already
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,8 +58,8 @@ services:
       # File change events don't cross into the container on WSL/Windows: poll (see vite.config.ts).
       CHOKIDAR_USEPOLLING: "true"
     volumes:
-      - ./frontend-app:/app  # the source, for hot reload
-      - /app/node_modules    # keep the container's node_modules (the host may have none, or other platform binaries)
+      - ./frontend-app:/app # the source, for hot reload
+      - /app/node_modules # keep the container's node_modules (the host may have none, or other platform binaries)
     depends_on:
       - configuration-service
 
