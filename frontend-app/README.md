@@ -297,6 +297,16 @@ Import from `src` with the `@/` alias, e.g. `import { Button } from '@/component
 
 Use `src/features/random-number` as the template for read-only data, and `src/features/products` for full CRUD with forms and confirmations.
 
+### Keep `package-lock.json` on the public registry
+
+CI installs from `https://registry.npmjs.org/`, so every `"resolved"` URL in `package-lock.json` must point there. If your npm uses a private mirror (e.g. `npm.apple.com`), `npm install` writes the mirror's URLs, and CI fails. Point them back with:
+
+```bash
+sed -i '' -E 's#"resolved": "https://artifacts\.apple\.com/artifactory/api/npm/npm-apple/#"resolved": "https://registry.npmjs.org/#; s#"resolved": "https://npm\.apple\.com/#"resolved": "https://registry.npmjs.org/#' package-lock.json
+```
+
+Installing still works behind the mirror: npm swaps `registry.npmjs.org` for your configured registry (`replace-registry-host`).
+
 ### Add a shadcn/ui component
 
 ```bash
