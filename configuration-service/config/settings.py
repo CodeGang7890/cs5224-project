@@ -158,6 +158,10 @@ LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'UTC'
 
+# The local time zone of businesses' weekly availability calendars (product_app.WeeklyAvailability):
+# their 15-minute blocks are local wall-clock times. All sample businesses are in Singapore.
+SCHEDULE_TIME_ZONE = os.getenv('DJANGO_SCHEDULE_TIME_ZONE', 'Asia/Singapore')
+
 USE_I18N = True
 
 USE_TZ = True

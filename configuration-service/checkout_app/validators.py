@@ -82,15 +82,64 @@ def validate_order_data(value) -> None:
         if not _is_int(item['quantity']) or not 1 <= item['quantity'] <= QUANTITY_MAX:
             errors.append(f'{prefix}: quantity must be an integer from 1 to {QUANTITY_MAX:,}.')
 
-    details = value.get('details', {})
+    validate_details(value.get('details', {}), errors)
+    if errors:
+        raise ValidationError(errors)
+
+
+SCHEDULE_DATA_FIELDS = {'service', 'details'}
+SCHEDULE_SERVICE_FIELDS = {'service_id', 'name', 'price', 'duration_minutes', 'buffer_minutes'}
+
+
+def validate_details(details, errors: list[str]) -> None:
+    """Customer details collected in a chat, by field key: non-blank strings or numbers."""
     if not isinstance(details, dict):
         errors.append('details must be an object.')
-    else:
-        for key, detail in details.items():
-            if not DETAIL_KEY_PATTERN.match(key):
-                errors.append(f'details: invalid key {key!r}.')
-            elif not (_is_number(detail) or (isinstance(detail, str) and detail.strip())):
-                errors.append(f'details: {key} must be a non-blank string or a number.')
+        return
+    for key, detail in details.items():
+        if not DETAIL_KEY_PATTERN.match(key):
+            errors.append(f'details: invalid key {key!r}.')
+        elif not (_is_number(detail) or (isinstance(detail, str) and detail.strip())):
+            errors.append(f'details: {key} must be a non-blank string or a number.')
 
+
+def validate_schedule_data(value) -> None:
+    """Validate a ScheduleItem.schedule_data: the service booked, and the customer's details.
+
+    ``{"service": {...}, "details": {...}}``, both required:
+    - ``service``: ``{service_id, name, price, duration_minutes, buffer_minutes}``, a snapshot from
+      when the customer booked (``price`` a decimal string like ``"180.00"``; the minutes are
+      non-negative integers, the duration at least 1).
+    - ``details``: the details collected in the chat, by field key (like OrderItem.order_data).
+
+    Raises a ``ValidationError`` listing every problem found.
+    """
+    if not isinstance(value, dict):
+        raise ValidationError('Schedule data must be an object.')
+
+    errors = []
+    missing = SCHEDULE_DATA_FIELDS - value.keys()
+    unknown = value.keys() - SCHEDULE_DATA_FIELDS
+    if missing:
+        errors.append(f'Missing field(s) {", ".join(sorted(missing))}.')
+    if unknown:
+        errors.append(f'Unknown field(s) {", ".join(sorted(unknown))}.')
+
+    service = value.get('service', {})
+    if not isinstance(service, dict) or service.keys() != SCHEDULE_SERVICE_FIELDS:
+        errors.append(f'service must be an object with exactly {", ".join(sorted(SCHEDULE_SERVICE_FIELDS))}.')
+    else:
+        if not _is_int(service['service_id']):
+            errors.append('service: service_id must be an integer.')
+        if not isinstance(service['name'], str) or not service['name'].strip():
+            errors.append('service: name must be a non-blank string.')
+        if not _is_price(service['price']):
+            errors.append('service: price must be a decimal string of at least 0, e.g. "180.00".')
+        if not _is_int(service['duration_minutes']) or service['duration_minutes'] < 1:
+            errors.append('service: duration_minutes must be a positive integer.')
+        if not _is_int(service['buffer_minutes']) or service['buffer_minutes'] < 0:
+            errors.append('service: buffer_minutes must be an integer of at least 0.')
+
+    validate_details(value.get('details', {}), errors)
     if errors:
         raise ValidationError(errors)

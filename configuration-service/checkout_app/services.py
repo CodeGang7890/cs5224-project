@@ -1,10 +1,12 @@
-"""Placing orders: creates the OrderItem, which puts its products on hold, safely under concurrency."""
+"""Placing orders and bookings, safely under concurrency: place_order() creates the OrderItem,
+which puts its products on hold; place_booking() creates the ScheduleItem, which takes up its time."""
 
 from django.db import transaction
 
-from product_app.models import Product
+from product_app.models import Product, Service
 
-from .models import OrderItem, OrderStatus
+from . import schedule
+from .models import OrderItem, OrderStatus, ScheduleItem
 
 
 class OrderError(Exception):
@@ -82,3 +84,75 @@ def place_order(
         if oversold:
             raise OrderError([f'{name} just sold out.' for name in oversold])
     return order
+
+
+class BookingError(Exception):
+    """The time can't be booked, e.g. someone else booked it since the customer chose it.
+
+    `problems` are short sentences to explain to the customer.
+    """
+
+    def __init__(self, problems: list[str]):
+        super().__init__(' '.join(problems))
+        self.problems = problems
+
+
+def place_booking(
+    business, service_id: int, start, details: dict, *, price: str | None = None, chat_session=None,
+    is_sandbox: bool = False, now=None,
+) -> ScheduleItem:
+    """Books `start` for the service, all or nothing: a PENDING_PAYMENT ScheduleItem, in the first
+    of the service's weekly availabilities (in pk order) that's free then (checkout_app.schedule).
+
+    `price` is the price the customer was shown (a decimal string; default: the service's current
+    price), like an order's snapshot unit_price. The duration and buffer are the service's current ones.
+
+    Concurrency: one transaction; the service's availabilities are locked with SELECT ... FOR
+    UPDATE, in pk order, before checking for overlapping bookings, then the overlap is checked again
+    with the new booking saved (protects databases without row locks, like SQLite). Raises
+    BookingError (and changes nothing) if the service isn't bookable or the time isn't free.
+    """
+    with transaction.atomic():
+        service = Service.objects.filter(business=business, pk=service_id).first()
+        if service is None:
+            raise BookingError(['That service is no longer available.'])
+        availabilities = schedule.service_availabilities(service, lock=True)
+        problem = schedule.start_problem(service, start, now)
+        if problem:
+            raise BookingError([problem])
+        times = schedule.booking_times(service, start)
+        bookings = list(schedule.bookings_between([a.pk for a in availabilities], times.start, times.blocked_until))
+        availability = schedule.free_availability(service, start, availabilities, bookings)
+        if availability is None:  # start_problem() already checked this; kept as a safety net
+            raise BookingError([f'{schedule.format_slot(start)} is not available for {service.name}.'])
+
+        booking = ScheduleItem(
+            business=business,
+            chat_session=chat_session,
+            is_sandbox=is_sandbox,
+            service=service,
+            weekly_availability=availability,
+            start_time=times.start,
+            end_time=times.end,
+            blocked_until=times.blocked_until,
+            schedule_data={
+                'service': {
+                    'service_id': service.pk,
+                    'name': service.name,
+                    'price': price if price is not None else str(service.price),
+                    'duration_minutes': service.duration_minutes,
+                    'buffer_minutes': service.buffer_minutes,
+                },
+                'details': details,
+            },
+            order_status=OrderStatus.PENDING_PAYMENT,
+        )
+        booking.full_clean()
+        booking.save()
+
+        # Checked again, with this booking saved: only if the lock didn't hold could another
+        # booking have taken the time in between. Then roll everything back.
+        clash = schedule.bookings_between([availability.pk], times.start, times.blocked_until).exclude(pk=booking.pk)
+        if clash.exists():
+            raise BookingError([f'{schedule.format_slot(start)} was just booked by someone else.'])
+    return booking

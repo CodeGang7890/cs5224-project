@@ -161,3 +161,182 @@ class FAQ(models.Model):
 
     def __str__(self) -> str:
         return self.question
+
+
+# --- Services and their weekly availability -------------------------------------------------
+
+SLOT_MINUTES = 15  # every block of a weekly availability is 15 minutes
+SLOTS_PER_DAY = 24 * 60 // SLOT_MINUTES  # 96
+DAYS_PER_WEEK = 7
+AVAILABILITY_LENGTH = SLOTS_PER_DAY * DAYS_PER_WEEK  # 672
+# One letter per block. In a WeeklyAvailability as stored (the recurring weekly template the
+# business edits), only O blocks can be booked. In a week's calendar (checkout_app.schedule.week_calendar),
+# bookings are drawn over the template: pending payment as H, paid or completed as X.
+SLOT_AVAILABLE = 'O'
+SLOT_TAKEN = 'X'
+SLOT_ON_HOLD = 'H'
+SLOT_LETTERS = (SLOT_AVAILABLE, SLOT_TAKEN, SLOT_ON_HOLD)
+AVAILABILITY_PATTERN = rf'^[{"".join(SLOT_LETTERS)}]{{{AVAILABILITY_LENGTH}}}$'
+NOT_AVAILABLE_WEEK = SLOT_TAKEN * AVAILABILITY_LENGTH
+
+WEEKLY_AVAILABILITY_NAME_MAX_LENGTH = 150
+SERVICE_NAME_MAX_LENGTH = PRODUCT_NAME_MAX_LENGTH
+SERVICE_DESCRIPTION_MAX_LENGTH = PRODUCT_DESCRIPTION_MAX_LENGTH
+SERVICE_INFORMATION_MAX_LENGTH = PRODUCT_INFORMATION_MAX_LENGTH
+SERVICE_DURATION_MAX_MINUTES = 24 * 60
+SERVICE_BUFFER_MAX_MINUTES = 24 * 60
+
+
+def default_availability() -> str:
+    """A new WeeklyAvailability: nothing bookable until the business opens some blocks."""
+    return NOT_AVAILABLE_WEEK
+
+
+def block_index(weekday: int, minute_of_day: int) -> int:
+    """The position in a weekly availability of the block starting at `minute_of_day` (0–1439) on
+    `weekday` (0 = Monday, as datetime.weekday())."""
+    return weekday * SLOTS_PER_DAY + minute_of_day // SLOT_MINUTES
+
+
+def validate_availability(value) -> None:
+    """A weekly availability: exactly AVAILABILITY_LENGTH letters, each O (available), X (taken)
+    or H (on hold); block 0 is Monday 00:00–00:15, block 96 Tuesday 00:00, and so on."""
+    if not isinstance(value, str) or len(value) != AVAILABILITY_LENGTH:
+        raise ValidationError(
+            f'Must be exactly {AVAILABILITY_LENGTH} letters: one per {SLOT_MINUTES}-minute block of the week, '
+            'from Monday 00:00.'
+        )
+    wrong = sorted(set(value) - set(SLOT_LETTERS))
+    if wrong:
+        raise ValidationError(
+            f'Each block must be {SLOT_AVAILABLE} (available), {SLOT_TAKEN} (taken) or {SLOT_ON_HOLD} (on hold); '
+            f'found {", ".join(repr(letter) for letter in wrong)}.'
+        )
+
+
+def validate_slot_minutes(value) -> None:
+    """Durations and buffers fit whole 15-minute blocks."""
+    if value is not None and value % SLOT_MINUTES:
+        raise ValidationError(f'Must be a multiple of {SLOT_MINUTES} minutes.')
+
+
+class WeeklyAvailability(models.Model):
+    """When someone (e.g. one photographer) can take bookings, every week: a calendar of
+    15-minute blocks (see validate_availability). Services list which availabilities can do them."""
+
+    business = models.ForeignKey(
+        'configuration_app.BusinessConfiguration',
+        on_delete=models.CASCADE,
+        related_name='weekly_availabilities',
+    )
+    name = models.CharField(
+        max_length=WEEKLY_AVAILABILITY_NAME_MAX_LENGTH,
+        help_text='Whose calendar this is, e.g. "Photographer: Mei" (not shown to customers).',
+    )
+    availability = models.CharField(
+        max_length=AVAILABILITY_LENGTH,
+        default=default_availability,
+        validators=[validate_availability],
+        help_text=(
+            f'{AVAILABILITY_LENGTH} letters, one per {SLOT_MINUTES}-minute block of the week from Monday 00:00 '
+            f'(local time): {SLOT_AVAILABLE} = available, {SLOT_TAKEN} = taken, {SLOT_ON_HOLD} = on hold. Only '
+            f'{SLOT_AVAILABLE} blocks can be booked.'
+        ),
+    )
+
+    class Meta:
+        ordering = ['business', 'name']
+        verbose_name_plural = 'weekly availabilities'
+        constraints = [
+            models.CheckConstraint(condition=~Q(name=''), name='weekly_availability_name_not_empty'),
+            models.CheckConstraint(
+                condition=Q(availability__regex=AVAILABILITY_PATTERN), name='weekly_availability_valid'
+            ),
+            models.UniqueConstraint(
+                fields=['business', 'name'],
+                name='weekly_availability_name_unique_per_business',
+                violation_error_message='This business already has a weekly availability with this name.',
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+    def block(self, weekday: int, minute_of_day: int) -> str:
+        """The letter of the block starting at `minute_of_day` on `weekday` (0 = Monday)."""
+        return self.availability[block_index(weekday, minute_of_day)]
+
+
+class Service(models.Model):
+    """Something a customer books a time for (e.g. a photoshoot), done by the people whose weekly
+    availabilities it lists. Booked as checkout_app.ScheduleItem."""
+
+    business = models.ForeignKey(
+        'configuration_app.BusinessConfiguration',
+        on_delete=models.CASCADE,
+        related_name='services',
+    )
+    # Which calendars can take a booking for this service: e.g. one photographer does every
+    # service, another only some. They must be the same business's (checked by the serializer and admin).
+    weekly_availability = models.ManyToManyField(
+        WeeklyAvailability,
+        blank=True,
+        related_name='services',
+        help_text='The weekly availabilities (e.g. photographers) that can do this service.',
+    )
+    name = models.CharField(max_length=SERVICE_NAME_MAX_LENGTH)
+    description = models.TextField(
+        max_length=SERVICE_DESCRIPTION_MAX_LENGTH,
+        blank=True,
+        validators=[MaxLengthValidator(SERVICE_DESCRIPTION_MAX_LENGTH)],
+        help_text='A short summary of the service, which the assistant tells customers when they ask what it is.',
+    )
+    information = models.TextField(
+        max_length=SERVICE_INFORMATION_MAX_LENGTH,
+        blank=True,
+        validators=[MaxLengthValidator(SERVICE_INFORMATION_MAX_LENGTH)],
+        help_text=(
+            "Extra details (what's included, what to bring, locations, FAQs, etc.). Not shown to customers "
+            'as is: the assistant looks it up to answer specific questions.'
+        ),
+    )
+    price = models.DecimalField(
+        max_digits=PRICE_MAX_DIGITS,
+        decimal_places=PRICE_DECIMAL_PLACES,
+        validators=[MinValueValidator(Decimal('0.00'))],
+    )
+    duration_minutes = models.PositiveIntegerField(
+        validators=[MinValueValidator(SLOT_MINUTES), MaxValueValidator(SERVICE_DURATION_MAX_MINUTES), validate_slot_minutes],
+        help_text=f'How long the service itself takes, with the customer: a multiple of {SLOT_MINUTES} minutes.',
+    )
+    buffer_minutes = models.PositiveIntegerField(
+        default=0,
+        validators=[MaxValueValidator(SERVICE_BUFFER_MAX_MINUTES), validate_slot_minutes],
+        help_text=(
+            'Time blocked after each booking (e.g. to clean up or travel), without the customer, so '
+            f'the next booking can only start after it: a multiple of {SLOT_MINUTES} minutes.'
+        ),
+    )
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['business', 'name']
+        constraints = [
+            models.CheckConstraint(condition=Q(price__gte=0), name='service_price_non_negative'),
+            models.CheckConstraint(condition=~Q(name=''), name='service_name_not_empty'),
+            models.CheckConstraint(
+                condition=Q(duration_minutes__gte=SLOT_MINUTES, duration_minutes__lte=SERVICE_DURATION_MAX_MINUTES),
+                name='service_duration_in_range',
+            ),
+            models.CheckConstraint(
+                condition=Q(buffer_minutes__lte=SERVICE_BUFFER_MAX_MINUTES), name='service_buffer_in_range'
+            ),
+            models.UniqueConstraint(
+                fields=['business', 'name'],
+                name='service_name_unique_per_business',
+                violation_error_message='This business already has a service with this name.',
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
