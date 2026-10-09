@@ -274,11 +274,19 @@ class CalendarBookingSerializer(serializers.Serializer):
     total = serializers.DecimalField(max_digits=12, decimal_places=2)
     is_sandbox = serializers.BooleanField()
     chat_session = serializers.IntegerField(allow_null=True)
+    start_block = serializers.IntegerField(
+        help_text="Index in this week's letters of the block start_time is in (negative if it started the week before)."
+    )
+    end_block = serializers.IntegerField(help_text='Index of the block end_time is in (the buffer starts there; may be ≥ 672).')
+    until_block = serializers.IntegerField(
+        help_text='Index of the first block after blocked_until, rounded up (may be ≥ 672 if it runs into the next week).'
+    )
 
 
 class WeekCalendarSerializer(serializers.Serializer):
     service_provider = serializers.IntegerField()
     week = serializers.DateField(help_text='The Monday of the week.')
+    time_zone = serializers.CharField(help_text='The time zone the blocks are in (e.g. Asia/Singapore).')
     id = serializers.IntegerField(allow_null=True, help_text="The week's WeeklyAvailability ID; null if it has none yet.")
     availability = serializers.CharField(help_text='The 672 letters (all U if the week has no WeeklyAvailability yet).')
     bookings = CalendarBookingSerializer(many=True)

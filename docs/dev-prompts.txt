@@ -738,3 +738,41 @@ Original Prompt:
 There is a bug.
 - First, do not confirm the order or say nothing about order is confirmed until it's in the database. Problem is it says confirmed and it's in confirmation stage, but then the user still has to reply "no, I dont need anything else" before it's written to the database. That's now how it's suppposed to work. Once the bot said confirmed, it needs to be there already in OrderItem table.
 - Second, In Confirmation stage add a substage inside like not_confirmed, in that case simply reiiterate all the details and ask the user to say confirm. Once it's confirmed already, deterministically create the Order, then only then reply order it's confirmed. Afterwards, the state should go back to start (for the order flow).
+
+Date & Time (GMT+8): 2026-10-09 15:41:50
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Work on configuration-service. The goal is to provide another business a way to also order time slots via the chat, instead of only Product as of now.
+I want to make a model called WeeklyAvailability.
+It has these fields: PK to business configuration, availability (can be something like a string of length 96*7, each can be a letter like X or O or H, X means taken, O means available, H means on hold, so each letter represents 15 minutes block of the day.
+I want to make another model called Service.
+It has these fields: WeeklyAvailability (Many to Many), name, description, information, price, duration_minutes, buffer_minutes, is_active. *duration_minutes is the duration of the service itself, buffer_minutes is the time that will be blocked afterwards for some cleaning etc (so it shouldn’t be bookable, but outside of the time with the client).
+So say there’re 2 WeeklyAvailability and there are 3 Services, so there can be a many to many relationship. Say 2 photographers working together, say the first photographer can do all service A B C, but second photographer can only do B and C.
+These should be configurable via the UI.
+Currently it’s called “Schedule” please change that into “Service” instead and require log in like the other tabs.
+In the “Orders” tab, there should be an ScheduleItem model that’s like OrderItem but it’s for Schedule.
+Alongside with the status like pending payment, etc.
+Please make the change for this, and add an hypothetical business of a photography business in the fixtures, with preconfigured services.
+Please divide this task into several commit, 1st for the backend model and API, 2nd for the frontend change and API integration, 3rd for the LLM flow for this flow and any frontend changes if necessary, 4th for the fixtures addition.
+Please check carefully and add detailed test cases.
+
+Date & Time (GMT+8): 2026-10-09 20:34:09
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+For WeeklyAvailability, this is not how I envisioned it to work.
+Create a new model ServiceProvider.
+Think of ServiceProvider as like a single photographer, a single teacher, or can be a single venue etc.
+Basically the Service and ServiceProvider has many to many relationship.
+And instead, ServiceProvider should have one-to-many relationship to WeeklyAvailability.
+WeeklyAvailability will just capture the availability of a single ServiceProvider in a single week of the year.
+Please revise the letters, I think we need 4: X means taken / booked by the user, O means available to book, H means on hold (e.g., user chop it but haven’t make payment), U is unavailable (slots not open to book).
+WeeklyAvailability then should have unique ServiceProvider and “week” field (week field basically allows you to tell the year and which week of the year it is, it can be say the date of the first Monday of the week).
+The business owner should be able to see a calendar for every ServiceProvider it has.
+Also, add an option to add slots say for the coming weeks etc (say: Add a slot for the next 2 weeks all monday to friday from 9am to 5pm or something similar), there should be API to do this.
+Once booking is confirmed, it should update the status of this WeeklyAvailability automatically (these X, O, H, U), please add sufficient test case into that.
+When booking is confirmed and initial status is pending payment, the letters should change from O (available) to H (hold).
+Update the APIs and the frontend UI appropriately.
+Business owners should be able to see each of the ServiceProvider schedule conveniently, and add more slots etc conveniently too for the upcoming days (maybe option to copy availability of previous week).
+Additionally, there should be a way for them to click on a “Schedule Block” and see who orders that and the status (confirmed / not etc).

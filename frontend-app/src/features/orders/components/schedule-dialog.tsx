@@ -70,7 +70,7 @@ function BookingDetails({ booking }: { booking: ScheduleItem }) {
         ? `${new Date(booking.blocked_until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} (${service.buffer_minutes} min buffer)`
         : 'No buffer',
     },
-    { label: 'With', value: booking.weekly_availability_name ?? 'Deleted calendar' },
+    { label: 'With', value: booking.service_provider_name ?? 'Deleted service provider' },
     { label: 'Price', value: `$${booking.total}` },
   ]
   return (

@@ -1,7 +1,7 @@
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 
-import { useDeleteAvailability, useDeleteService } from '../hooks/use-services'
-import type { Service, WeeklyAvailability } from '../types'
+import { useDeleteProvider, useDeleteService } from '../hooks/use-services'
+import type { Service, ServiceProvider } from '../types'
 
 interface DeleteDialogProps<T> {
   item: T | null
@@ -40,17 +40,18 @@ export function DeleteServiceDialog({ item, onOpenChange, onError }: DeleteDialo
   )
 }
 
-export function DeleteAvailabilityDialog({ item, onOpenChange, onError }: DeleteDialogProps<WeeklyAvailability>) {
-  const remove = useDeleteAvailability()
+export function DeleteProviderDialog({ item, onOpenChange, onError }: DeleteDialogProps<ServiceProvider>) {
+  const remove = useDeleteProvider()
   return (
     <ConfirmDialog
       open={item !== null}
       onOpenChange={onOpenChange}
-      title="Delete weekly availability?"
+      title="Delete service provider?"
       description={
         <>
-          “{item?.name}” will be permanently deleted and removed from its services. Its bookings are kept (in the
-          Orders tab), but no longer block anyone's calendar.
+          “{item?.name}” and their whole schedule will be permanently deleted, and removed from their services.
+          Their bookings are kept (in the Orders tab). To stop new bookings without deleting them, edit them and turn
+          off <strong>Active</strong>.
         </>
       }
       confirmLabel="Delete"

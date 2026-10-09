@@ -43,7 +43,7 @@ export function ScheduleTable({ bookings, onOpen }: ScheduleTableProps) {
               <TableCell>{bookingCustomer(booking) ?? <span className="text-muted-foreground">—</span>}</TableCell>
               <TableCell className="font-medium">{booking.schedule_data.service.name}</TableCell>
               <TableCell className="whitespace-nowrap tabular-nums">{formatBookingTime(booking)}</TableCell>
-              <TableCell>{booking.weekly_availability_name ?? <span className="text-muted-foreground">—</span>}</TableCell>
+              <TableCell>{booking.service_provider_name ?? <span className="text-muted-foreground">—</span>}</TableCell>
               <TableCell className="text-right font-medium tabular-nums">${booking.total}</TableCell>
               <TableCell>
                 <OrderStatusBadge status={booking.order_status} />

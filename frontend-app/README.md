@@ -56,7 +56,7 @@ Then open the URL Vite prints, usually <http://localhost:5173>.
 | Chats | `/chats` |
 | Chat Sandbox | `/chat-sandbox` |
 
-Home shows a random number fetched from `configuration-service` (see [Connecting to configuration-service](#connecting-to-configuration-service)). **Product** and **FAQ** let you add, edit and delete your business's products and FAQs (see [Managing products and FAQs](#managing-products-and-faqs)). **Workflow** shows your chat assistant's flow and lets you choose the customer details it collects (see [Editing the chat workflow](#editing-the-chat-workflow)). **Service** manages the services customers can book a time for and your team's weekly availability (see [Services and availability](#services-and-availability)). **Orders** lists the orders and bookings customers confirmed in chats, read only (see [Orders](#orders)). **Chats** lists your business's conversations, read only (see [Chats](#chats)). **Chat Sandbox** lets you chat with your assistant as a pretend customer (see [Chat Sandbox](#chat-sandbox)). The other pages are placeholders for now. Workflow, Product, Service, Orders, FAQ, Chats and Chat Sandbox require login: when you're logged out, they show "You need to be logged in to access this page" with a Log In button (see [Login-protected pages](#login-protected-pages)).
+Home shows a random number fetched from `configuration-service` (see [Connecting to configuration-service](#connecting-to-configuration-service)). **Product** and **FAQ** let you add, edit and delete your business's products and FAQs (see [Managing products and FAQs](#managing-products-and-faqs)). **Workflow** shows your chat assistant's flow and lets you choose the customer details it collects (see [Editing the chat workflow](#editing-the-chat-workflow)). **Service** manages the services customers can book a time for, your service providers and their schedules (see [Services and availability](#services-and-availability)). **Orders** lists the orders and bookings customers confirmed in chats, read only (see [Orders](#orders)). **Chats** lists your business's conversations, read only (see [Chats](#chats)). **Chat Sandbox** lets you chat with your assistant as a pretend customer (see [Chat Sandbox](#chat-sandbox)). The other pages are placeholders for now. Workflow, Product, Service, Orders, FAQ, Chats and Chat Sandbox require login: when you're logged out, they show "You need to be logged in to access this page" with a Log In button (see [Login-protected pages](#login-protected-pages)).
 
 The top right shows **Log In** when you're logged out. When you're logged in, it shows your username, a profile icon and **Log Out** (see [Authentication](#authentication)). The profile modal's open state is kept in the URL as `?profile`, so you can link to it directly and the browser's back button closes it.
 
@@ -109,13 +109,16 @@ The **Workflow** tab (login required) shows how your chat assistant handles each
 
 ## Services and availability
 
-The **Service** tab (login required) is for businesses that sell time slots, like a photographer's shoots. It has two sections, on `configuration-service`'s `/api/services/` and `/api/weekly-availabilities/`.
+The **Service** tab (login required) is for businesses that sell time slots, like a photographer's shoots. It uses `configuration-service`'s `/api/services/`, `/api/service-providers/` and `/api/weekly-availabilities/`.
 
-- **Services:** add, edit and delete what customers can book: name, description, information (for the chat assistant), price, duration and buffer (time blocked after each booking without the customer, e.g. to tidy up; both in multiples of 15 minutes), active, and **who can do it**: a checkbox per weekly availability. A service with no one ticked can't be booked.
-- **Weekly availability:** one calendar per person (e.g. each photographer), shown as a card with its hours and services. **Edit** opens the calendar:
-  - **Weekly hours:** a week of 15-minute blocks. Pick a brush (**Available** O, **Taken** X, **On hold** H) and click or drag over the blocks; or tick some days, pick a time range and **Set**; or use a preset (weekdays 9am–6pm, every day 10am–8pm, clear all). Only available blocks can be booked. The times are your business's local time.
-  - **Bookings by week** (saved calendars): any week of the calendar, with its bookings drawn over the weekly hours: on hold while pending payment, taken once paid, including each booking's buffer.
-- Every save and delete asks for confirmation. Deleting a service or a calendar keeps its bookings.
+- **Services:** add, edit and delete what customers can book: name, description, information (for the chat assistant), price, duration and buffer (time blocked after each booking without the customer, e.g. to tidy up; both in multiples of 15 minutes), active, and **who can do it**: a checkbox per service provider. A service with no one ticked can't be booked.
+- **Service providers:** each person (or room) services are booked with, e.g. each photographer, as a card with their services. Add, edit (name, note, active) and delete them; **View schedule** opens their schedule below.
+- **Schedules:** pick a provider and a week (previous / this week / next, or a date; `?provider=` and `?week=` in the URL). The week is shown in 15-minute blocks: **Available** (O), **Unavailable** (U), **On hold** (H: booked, waiting for payment) and **Booked** (X: paid). Bookings set H and X themselves, so these blocks can't be edited. The times are your business's local time.
+  - **Click a booking** to see who booked it, their details, the status (pending payment / paid / completed), and links to the booking in the Orders tab and its chat.
+  - **Edit hours:** click or drag over the blocks to make them available or unavailable, then **Save week**.
+  - **Add slots:** open (or close) the same times on some days over a range of dates, e.g. the next 2 weeks, Monday to Friday, 9am to 5pm.
+  - **Copy previous week** into this one, or **Copy to next weeks** (1 to 26 weeks). Booked times are never changed.
+- Every save and delete asks for confirmation. Deleting a service or a provider keeps its bookings.
 
 ## Orders
 
@@ -251,7 +254,7 @@ frontend-app/
 │   │   ├── auth/               # Login dialog, RequireAuth guard, useAuth / useCurrentUser hooks, auth API calls
 │   │   ├── products/           # Product list + add/edit/delete dialogs (Product tab)
 │   │   ├── faqs/               # FAQ list + add/edit/delete dialogs (FAQ tab)
-│   │   ├── services/           # Services + weekly availability calendars (Service tab)
+│   │   ├── services/           # Services, service providers and their schedules (Service tab)
 │   │   ├── workflow/           # Chat flow diagram + Details collection settings (Workflow tab, React Flow)
 │   │   ├── chat-sessions/      # Chat session API calls + Chat Sandbox
 │   │   ├── profile/            # Profile modal (data from /api/auth/me/)

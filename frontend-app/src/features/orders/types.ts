@@ -70,9 +70,9 @@ export interface ScheduleItem {
   is_sandbox: boolean
   /** Null if the service was deleted since (the snapshot is in `schedule_data`). */
   service: number | null
-  /** Whose calendar it's booked in (e.g. a photographer); null if deleted. */
-  weekly_availability: number | null
-  weekly_availability_name: string | null
+  /** The service provider it's booked with (e.g. a photographer); null if deleted. */
+  service_provider: number | null
+  service_provider_name: string | null
   start_time: string
   /** start_time + the service duration. */
   end_time: string

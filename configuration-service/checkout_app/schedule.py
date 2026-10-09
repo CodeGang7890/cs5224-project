@@ -95,6 +95,13 @@ def _block(moment: datetime) -> tuple[date, int]:
     return week_start(moment.date()), block_index(moment.weekday(), moment.hour * 60 + moment.minute)
 
 
+def week_block(monday: date, moment: datetime) -> int:
+    """Blocks from `monday` 00:00 (local) to `moment`, floored: 0–671 inside that week, negative
+    before it, 672 or more after it (local wall-clock time, like the letters)."""
+    since = local(moment).replace(tzinfo=None) - datetime.combine(monday, time())
+    return since // SLOT
+
+
 def _grid(start: datetime, end: datetime):
     """The block starts from `start` (floored to the grid) until `end`."""
     moment = floor_to_grid(start)

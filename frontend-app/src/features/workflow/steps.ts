@@ -125,11 +125,11 @@ export const FLOW_NODE_META: Record<FlowNodeId, FlowNodeMeta> = {
     label: 'Time slot',
     description: 'The customer picks a free time.',
     about:
-      'The assistant offers free times, worked out from your weekly availability and existing bookings ' +
+      "The assistant offers free times, worked out from your service providers' schedules " +
       '(never made up by the AI), numbered so the customer can reply with a number, or ask for another day, ' +
-      'time or part of the day. A time is free if someone who does the service has the whole duration ' +
-      'available and no other booking (or its buffer) is in the way.',
-    link: { to: paths.service, label: 'Edit weekly availability' },
+      'time or part of the day. A time is free if a provider who does the service has the whole duration ' +
+      'available and nothing booked in the buffer after it. Once booked, the time goes on hold until paid.',
+    link: { to: paths.service, label: 'Edit schedules' },
     icon: Clock,
     accentClassName: 'border-t-cyan-500',
     iconClassName: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400',

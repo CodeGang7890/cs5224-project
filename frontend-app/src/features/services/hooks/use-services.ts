@@ -3,17 +3,30 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import type { ApiError, Paginated } from '@/types/api'
 
 import {
-  createAvailability,
+  copyWeek,
+  createProvider,
   createService,
-  deleteAvailability,
+  deleteProvider,
   deleteService,
   getWeekCalendar,
-  listAvailabilities,
+  listProviders,
   listServices,
-  updateAvailability,
+  saveWeek,
+  setSlots,
+  updateProvider,
   updateService,
 } from '../api/services-api'
-import type { Service, ServiceInput, WeekCalendar, WeeklyAvailability, WeeklyAvailabilityInput } from '../types'
+import type {
+  CopyWeekInput,
+  Service,
+  ServiceInput,
+  ServiceProvider,
+  ServiceProviderInput,
+  SetSlotsInput,
+  WeekCalendar,
+  WeeklyAvailability,
+  WeeksChange,
+} from '../types'
 
 export const SERVICES_PAGE_SIZE = 20 // matches the backend's PAGE_SIZE
 
@@ -22,12 +35,13 @@ export const serviceKeys = {
   list: (page: number) => [...serviceKeys.all, 'list', page] as const,
 }
 
-// Availabilities list which services they do, and services list their availabilities, so
-// changing either refreshes both.
-export const availabilityKeys = {
-  all: ['weekly-availabilities'] as const,
-  list: () => [...availabilityKeys.all, 'list'] as const,
-  calendar: (id: number, day: string) => [...availabilityKeys.all, 'calendar', id, day] as const,
+// Providers list which services they do, and services list their providers, so changing either
+// refreshes both. Calendars live here too: bookings and slot changes refresh them.
+export const providerKeys = {
+  all: ['service-providers'] as const,
+  list: () => [...providerKeys.all, 'list'] as const,
+  calendars: () => [...providerKeys.all, 'calendar'] as const,
+  calendar: (id: number, week: string) => [...providerKeys.calendars(), id, week] as const,
 }
 
 function useInvalidateBoth() {
@@ -35,7 +49,7 @@ function useInvalidateBoth() {
   return () =>
     Promise.all([
       queryClient.invalidateQueries({ queryKey: serviceKeys.all }),
-      queryClient.invalidateQueries({ queryKey: availabilityKeys.all }),
+      queryClient.invalidateQueries({ queryKey: providerKeys.all }),
     ])
 }
 
@@ -65,37 +79,65 @@ export function useDeleteService() {
   return useMutation<void, ApiError, number>({ mutationFn: deleteService, onSuccess: invalidate })
 }
 
-export function useAvailabilities() {
-  return useQuery<Paginated<WeeklyAvailability>, ApiError>({
-    queryKey: availabilityKeys.list(),
-    queryFn: listAvailabilities,
+export function useProviders() {
+  return useQuery<Paginated<ServiceProvider>, ApiError>({
+    queryKey: providerKeys.list(),
+    queryFn: listProviders,
   })
 }
 
-export type SaveAvailabilityVariables =
-  | { id?: undefined; input: WeeklyAvailabilityInput }
-  | { id: number; input: Partial<WeeklyAvailabilityInput> }
+export type SaveProviderVariables =
+  | { id?: undefined; input: ServiceProviderInput }
+  | { id: number; input: Partial<ServiceProviderInput> }
 
-export function useSaveAvailability() {
+export function useSaveProvider() {
   const invalidate = useInvalidateBoth()
-  return useMutation<WeeklyAvailability, ApiError, SaveAvailabilityVariables>({
-    mutationFn: ({ id, input }) =>
-      id === undefined ? createAvailability(input as WeeklyAvailabilityInput) : updateAvailability(id, input),
+  return useMutation<ServiceProvider, ApiError, SaveProviderVariables>({
+    mutationFn: ({ id, input }) => (id === undefined ? createProvider(input as ServiceProviderInput) : updateProvider(id, input)),
     onSuccess: invalidate,
   })
 }
 
-export function useDeleteAvailability() {
+export function useDeleteProvider() {
   const invalidate = useInvalidateBoth()
-  return useMutation<void, ApiError, number>({ mutationFn: deleteAvailability, onSuccess: invalidate })
+  return useMutation<void, ApiError, number>({ mutationFn: deleteProvider, onSuccess: invalidate })
 }
 
-/** A week of a calendar with its bookings (`day`: any day of the week, YYYY-MM-DD). */
-export function useWeekCalendar(id: number | null, day: string) {
+/** A provider's week with its bookings (`week`: its Monday, YYYY-MM-DD). */
+export function useWeekCalendar(providerId: number | null, week: string) {
   return useQuery<WeekCalendar, ApiError>({
-    queryKey: availabilityKeys.calendar(id ?? 0, day),
-    queryFn: () => getWeekCalendar(id as number, day),
-    enabled: id !== null,
+    queryKey: providerKeys.calendar(providerId ?? 0, week),
+    queryFn: () => getWeekCalendar(providerId as number, week),
+    enabled: providerId !== null,
     placeholderData: keepPreviousData,
+  })
+}
+
+function useInvalidateCalendars() {
+  const queryClient = useQueryClient()
+  return () => queryClient.invalidateQueries({ queryKey: providerKeys.calendars() })
+}
+
+export function useSaveWeek() {
+  const invalidate = useInvalidateCalendars()
+  return useMutation<WeeklyAvailability, ApiError, { week: WeekCalendar; availability: string }>({
+    mutationFn: ({ week, availability }) => saveWeek(week, availability),
+    onSuccess: invalidate,
+  })
+}
+
+export function useSetSlots(providerId: number) {
+  const invalidate = useInvalidateCalendars()
+  return useMutation<WeeksChange, ApiError, SetSlotsInput>({
+    mutationFn: (input) => setSlots(providerId, input),
+    onSuccess: invalidate,
+  })
+}
+
+export function useCopyWeek(providerId: number) {
+  const invalidate = useInvalidateCalendars()
+  return useMutation<WeeksChange, ApiError, CopyWeekInput>({
+    mutationFn: (input) => copyWeek(providerId, input),
+    onSuccess: invalidate,
   })
 }

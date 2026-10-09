@@ -1,5 +1,5 @@
-import { isValidAvailability } from './availability'
-import type { Service, ServiceInput, WeeklyAvailability, WeeklyAvailabilityInput } from './types'
+import { WEEKS_CHANGED_MAX, addDays, isIsoDay } from './availability'
+import type { Service, ServiceInput, ServiceProvider, ServiceProviderInput, SetSlotsInput } from './types'
 
 // Mirrors configuration-service product_app/models.py. The backend validates too; this just
 // gives instant feedback.
@@ -12,7 +12,8 @@ export const SERVICE_LIMITS = {
   durationMaxMinutes: 1440,
   bufferMaxMinutes: 1440,
   stepMinutes: 15,
-  availabilityNameMaxLength: 150,
+  providerNameMaxLength: 150,
+  providerDescriptionMaxLength: 300,
 } as const
 
 /** Form state: number fields are kept as strings while the user types. */
@@ -23,7 +24,7 @@ export interface ServiceFormValues {
   price: string
   duration_minutes: string
   buffer_minutes: string
-  weekly_availability: number[]
+  service_providers: number[]
   is_active: boolean
 }
 
@@ -34,7 +35,7 @@ export const SERVICE_FIELD_LABELS: Record<keyof ServiceInput, string> = {
   price: 'Price',
   duration_minutes: 'Duration',
   buffer_minutes: 'Buffer',
-  weekly_availability: 'Availability',
+  service_providers: 'Who can do it',
   is_active: 'Active',
 }
 
@@ -45,7 +46,7 @@ export const emptyServiceValues: ServiceFormValues = {
   price: '',
   duration_minutes: '60',
   buffer_minutes: '0',
-  weekly_availability: [],
+  service_providers: [],
   is_active: true,
 }
 
@@ -57,7 +58,7 @@ export function serviceToFormValues(service: Service): ServiceFormValues {
     price: service.price,
     duration_minutes: String(service.duration_minutes),
     buffer_minutes: String(service.buffer_minutes),
-    weekly_availability: [...service.weekly_availability],
+    service_providers: [...service.service_providers],
     is_active: service.is_active,
   }
 }
@@ -70,7 +71,7 @@ export function formValuesToServiceInput(values: ServiceFormValues): ServiceInpu
     price: Number(values.price).toFixed(2),
     duration_minutes: Number(values.duration_minutes),
     buffer_minutes: Number(values.buffer_minutes),
-    weekly_availability: [...values.weekly_availability].sort((a, b) => a - b),
+    service_providers: [...values.service_providers].sort((a, b) => a - b),
     is_active: values.is_active,
   }
 }
@@ -116,34 +117,50 @@ export function changedServiceFields(original: Service, input: ServiceInput): Pa
     const before =
       key === 'price'
         ? Number(original.price).toFixed(2)
-        : key === 'weekly_availability'
-          ? [...original.weekly_availability].sort((a, b) => a - b)
+        : key === 'service_providers'
+          ? [...original.service_providers].sort((a, b) => a - b)
           : original[key]
     if (JSON.stringify(before) !== JSON.stringify(input[key])) Object.assign(changes, { [key]: input[key] })
   }
   return changes
 }
 
-/** Errors in a weekly availability form (empty object = valid). */
-export function validateAvailability(input: WeeklyAvailabilityInput): Partial<Record<keyof WeeklyAvailabilityInput, string>> {
-  const errors: Partial<Record<keyof WeeklyAvailabilityInput, string>> = {}
-  if (!input.name.trim()) errors.name = 'Name is required.'
-  else if (input.name.trim().length > SERVICE_LIMITS.availabilityNameMaxLength) {
-    errors.name = `Must be at most ${SERVICE_LIMITS.availabilityNameMaxLength} characters.`
+/** Errors in a service provider form (empty object = valid). */
+export function validateProvider(input: ServiceProviderInput): Partial<Record<keyof ServiceProviderInput, string>> {
+  const errors: Partial<Record<keyof ServiceProviderInput, string>> = {}
+  if (!input.name) errors.name = 'Name is required.'
+  else if (input.name.length > SERVICE_LIMITS.providerNameMaxLength) {
+    errors.name = `Must be at most ${SERVICE_LIMITS.providerNameMaxLength} characters.`
   }
-  if (!isValidAvailability(input.availability)) errors.availability = 'The calendar is invalid.'
+  if (input.description.length > SERVICE_LIMITS.providerDescriptionMaxLength) {
+    errors.description = `Must be at most ${SERVICE_LIMITS.providerDescriptionMaxLength} characters.`
+  }
   return errors
 }
 
-/** Only the changed fields of a weekly availability (for PATCH). */
-export function changedAvailabilityFields(
-  original: WeeklyAvailability,
-  input: WeeklyAvailabilityInput,
-): Partial<WeeklyAvailabilityInput> {
-  const changes: Partial<WeeklyAvailabilityInput> = {}
-  if (original.name !== input.name) changes.name = input.name
-  if (original.availability !== input.availability) changes.availability = input.availability
+/** Only the changed fields of a service provider (for PATCH). */
+export function changedProviderFields(original: ServiceProvider, input: ServiceProviderInput): Partial<ServiceProviderInput> {
+  const changes: Partial<ServiceProviderInput> = {}
+  for (const key of Object.keys(input) as (keyof ServiceProviderInput)[]) {
+    if (original[key] !== input[key]) Object.assign(changes, { [key]: input[key] })
+  }
   return changes
+}
+
+/** Errors in the Add slots form (empty object = valid; times are HH:MM from the selects). */
+export function validateSlots(input: SetSlotsInput): Partial<Record<keyof SetSlotsInput, string>> {
+  const errors: Partial<Record<keyof SetSlotsInput, string>> = {}
+  if (!isIsoDay(input.date_from)) errors.date_from = 'Pick a date.'
+  if (!isIsoDay(input.date_to)) errors.date_to = 'Pick a date.'
+  else if (!errors.date_from) {
+    if (input.date_to < input.date_from) errors.date_to = 'Must not be before the first day.'
+    else if (input.date_to >= addDays(input.date_from, 7 * WEEKS_CHANGED_MAX)) {
+      errors.date_to = `At most ${WEEKS_CHANGED_MAX} weeks at once.`
+    }
+  }
+  if (input.weekdays.length === 0) errors.weekdays = 'Pick at least one day.'
+  if (input.time_to <= input.time_from) errors.time_to = 'Must be after the start time.'
+  return errors
 }
 
 /** "1 h 30 min", "45 min", "2 h". */

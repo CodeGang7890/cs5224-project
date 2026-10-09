@@ -9,8 +9,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { type FormErrors, getFormErrors } from '@/lib/form-errors'
 
-import { openHours } from '../availability'
-import { useAvailabilities, useSaveService } from '../hooks/use-services'
+import { useProviders, useSaveService } from '../hooks/use-services'
 import type { Service, ServiceInput } from '../types'
 import {
   SERVICE_FIELD_LABELS,
@@ -46,7 +45,7 @@ export function ServiceFormDialog({ open, onOpenChange, service }: ServiceFormDi
 function ServiceForm({ service, onDone }: { service?: Service; onDone: () => void }) {
   const isEdit = service !== undefined
   const saveService = useSaveService()
-  const availabilities = useAvailabilities()
+  const providers = useProviders()
   const [values, setValues] = useState<ServiceFormValues>(service ? serviceToFormValues(service) : emptyServiceValues)
   const [errors, setErrors] = useState<FormErrors>({ fields: {} })
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -186,42 +185,42 @@ function ServiceForm({ service, onDone }: { service?: Service; onDone: () => voi
         <fieldset className="grid gap-2">
           <legend className="text-sm font-medium">Who can do it</legend>
           <p className="text-muted-foreground text-xs">
-            The weekly availabilities (e.g. photographers) that can take a booking for this service. A booking goes to
-            the first one free at that time.
+            The service providers (e.g. photographers) who do this service. A booking goes to the first one free at
+            that time, by their schedule.
           </p>
-          {availabilities.isPending ? (
+          {providers.isPending ? (
             <p className="text-muted-foreground text-sm">Loading…</p>
-          ) : availabilities.isError ? (
-            <p className="text-destructive text-sm">Couldn't load your weekly availabilities.</p>
-          ) : availabilities.data.results.length === 0 ? (
+          ) : providers.isError ? (
+            <p className="text-destructive text-sm">Couldn't load your service providers.</p>
+          ) : providers.data.results.length === 0 ? (
             <p className="text-muted-foreground rounded-md border border-dashed p-3 text-sm">
-              No weekly availabilities yet: add one below the services list, then link it here.
+              No service providers yet: add one in the Service providers section, then link them here.
             </p>
           ) : (
             <ul className="grid gap-1 rounded-md border p-2">
-              {availabilities.data.results.map((availability) => (
-                <li key={availability.id}>
+              {providers.data.results.map((provider) => (
+                <li key={provider.id}>
                   <label className="hover:bg-muted/50 flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm">
                     <input
                       type="checkbox"
-                      checked={values.weekly_availability.includes(availability.id)}
+                      checked={values.service_providers.includes(provider.id)}
                       onChange={(e) =>
                         set(
-                          'weekly_availability',
+                          'service_providers',
                           e.target.checked
-                            ? [...values.weekly_availability, availability.id]
-                            : values.weekly_availability.filter((id) => id !== availability.id),
+                            ? [...values.service_providers, provider.id]
+                            : values.service_providers.filter((id) => id !== provider.id),
                         )
                       }
                     />
-                    <span className="font-medium">{availability.name}</span>
-                    <span className="text-muted-foreground text-xs">{openHours(availability.availability)} h/week</span>
+                    <span className="font-medium">{provider.name}</span>
+                    {!provider.is_active && <span className="text-muted-foreground text-xs">(inactive)</span>}
                   </label>
                 </li>
               ))}
             </ul>
           )}
-          {fieldError('weekly_availability') && <p className="text-destructive text-xs">{fieldError('weekly_availability')}</p>}
+          {fieldError('service_providers') && <p className="text-destructive text-xs">{fieldError('service_providers')}</p>}
         </fieldset>
 
         <div className="flex items-center justify-between gap-4 rounded-md border p-3">

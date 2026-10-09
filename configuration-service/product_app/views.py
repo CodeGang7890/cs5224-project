@@ -93,9 +93,11 @@ class ServiceProviderViewSet(BusinessScopedViewSetMixin, viewsets.ModelViewSet):
         query = CalendarQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
         row, bookings = schedule.week_calendar(provider, query.validated_data['week'])
+        monday = schedule.week_start(query.validated_data['week'])
         return Response(WeekCalendarSerializer({
             'service_provider': provider.pk,
-            'week': schedule.week_start(query.validated_data['week']),
+            'week': monday,
+            'time_zone': settings.SCHEDULE_TIME_ZONE,
             'id': row.pk if row else None,
             'availability': _week_letters(row),
             'bookings': [
@@ -113,6 +115,9 @@ class ServiceProviderViewSet(BusinessScopedViewSetMixin, viewsets.ModelViewSet):
                     'total': booking.total,
                     'is_sandbox': booking.is_sandbox,
                     'chat_session': booking.chat_session_id,
+                    'start_block': schedule.week_block(monday, booking.start_time),
+                    'end_block': schedule.week_block(monday, booking.end_time),
+                    'until_block': schedule.week_block(monday, booking.blocked_until - timedelta(microseconds=1)) + 1,
                 }
                 for booking in bookings
             ],

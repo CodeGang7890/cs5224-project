@@ -11,7 +11,7 @@ import {
 
 import { orderKeys, scheduleKeys } from '@/features/orders'
 import { productKeys } from '@/features/products'
-import { availabilityKeys } from '@/features/services'
+import { providerKeys } from '@/features/services'
 import type { ApiError, DetailedPaginated, Paginated } from '@/types/api'
 
 import {
@@ -136,7 +136,7 @@ export function useSendSandboxMessage(sessionId: number) {
       // Confirming made a booking: a new booking, and the calendars changed.
       if (debug.booking_id !== null) {
         void queryClient.invalidateQueries({ queryKey: scheduleKeys.all })
-        void queryClient.invalidateQueries({ queryKey: availabilityKeys.all })
+        void queryClient.invalidateQueries({ queryKey: providerKeys.all })
       }
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: chatSessionKeys.sandboxList() }),

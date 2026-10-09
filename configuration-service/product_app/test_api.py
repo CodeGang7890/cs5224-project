@@ -709,9 +709,31 @@ class ServiceProviderAPITests(ScheduleAPITestCase):
             'id': pending.pk, 'service': 'Portrait', 'customer': 'Alice', 'details': {'name': 'Alice', 'phone': '+65 9123 4567'},
             'start_time': first['start_time'], 'end_time': first['end_time'], 'blocked_until': first['blocked_until'],
             'order_status': 'pending_payment', 'total': '180.00', 'is_sandbox': True, 'chat_session': session.pk,
+            'start_block': 36, 'end_block': 40, 'until_block': 41,
         })
+        self.assertEqual(body['time_zone'], 'Asia/Singapore')
         self.assertEqual(datetime.fromisoformat(first['blocked_until']), at(self.monday, '10:15'))
         self.assertEqual((body['bookings'][1]['id'], body['bookings'][1]['customer']), (paid.pk, None))
+        self.assertEqual([body['bookings'][1][k] for k in ('start_block', 'end_block', 'until_block')], [42, 46, 47])
+
+    def test_calendar_block_positions_of_a_booking_across_weeks(self):
+        # Sunday 23:30 to Monday 00:30 (+ 15 min buffer): the first week sees blocks 670–674, the next -2–2.
+        sunday = self.monday + timedelta(days=6)
+        next_week = WeeklyAvailability.objects.create(
+            service_provider=self.mei, week=self.monday + timedelta(weeks=1), availability='O' * 672
+        )
+        self.week.availability = 'O' * 672
+        self.week.save()
+        book(self.portrait, self.mei, at(sunday, '23:30'))
+        self.login(self.cafe_user)
+        url = self.detail_url(self.mei, 'calendar')
+        first = self.client.get(url, {'week': self.monday.isoformat()}).json()
+        second = self.client.get(url, {'week': next_week.week.isoformat()}).json()
+        blocks = ('start_block', 'end_block', 'until_block')
+        self.assertEqual([first['bookings'][0][k] for k in blocks], [670, 674, 675])
+        self.assertEqual([second['bookings'][0][k] for k in blocks], [-2, 2, 3])
+        self.assertEqual(first['availability'][670:], 'HH')
+        self.assertEqual(second['availability'][:4], 'HHHO')
 
     def test_calendar_of_a_week_without_availability(self):
         self.login(self.cafe_user)
