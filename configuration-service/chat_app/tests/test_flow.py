@@ -1,5 +1,7 @@
 import json
+from datetime import datetime
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase, TestCase
@@ -22,7 +24,7 @@ from ..order_flow import (
     clean_detail_value,
 )
 from ..prompts import (
-    ORDER_STATUS_COMING_SOON_MESSAGE,
+    ORDER_STATUS_SCHEMA,
     confirmation_request_message,
     order_confirmed_message,
     ROUTER_SCHEMA,
@@ -32,7 +34,14 @@ from ..prompts import (
 )
 from ..router import Route, clean_intents
 from ..validators import validate_chat_messages, validate_chat_state_data
-from .test_api import fake_chat_response, fake_ollama_chat, is_question_check, is_router, with_question_check
+from .test_api import (
+    fake_chat_response,
+    fake_ollama_chat,
+    is_order_status_check,
+    is_question_check,
+    is_router,
+    with_question_check,
+)
 
 PRODUCTS = [
     {'id': 1, 'name': 'Kopi C', 'description': '', 'price': '1.80', 'quantity_available': 200},
@@ -49,11 +58,14 @@ class FlowTestMixin:
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def send(self, message, *extractions, reply='OK!', intents=(), question_check=None):
+    def send(self, message, *extractions, reply='OK!', intents=(), question_check=None, order_status=None):
         """Sends a customer message. The router finds `intents` (or returns that dict); the order
-        steps' extraction calls return `extractions`, in order."""
+        steps' extraction calls return `extractions`, in order; the order status extraction
+        returns `order_status` (default: any orders, no numbers)."""
         self.ollama.reset_mock()
         kwargs = {'question_check': question_check} if question_check else {}
+        if order_status is not None:
+            kwargs['order_status'] = order_status
         intents = intents if isinstance(intents, dict) else list(intents)  # a dict: the router's whole JSON
         self.ollama.chat.side_effect = fake_ollama_chat(reply, extractions, intents=intents, **kwargs)
         response = self.client.post(
@@ -63,11 +75,12 @@ class FlowTestMixin:
         return response
 
     def calls(self, structured: bool):
-        """The order steps' extractions (structured) or the reply calls; the router and the
-        question check are left out."""
+        """The order steps' extractions (structured) or the reply calls; the router, the question
+        check and the order status extraction are left out."""
         return [
             c.kwargs for c in self.ollama.chat.call_args_list
             if bool(c.kwargs.get('format')) == structured and not is_question_check(c.kwargs) and not is_router(c.kwargs)
+            and not is_order_status_check(c.kwargs)
         ]
 
     def router_call(self):
@@ -415,45 +428,140 @@ class RouterFlowTests(FlowTestMixin, APITestCase):
         self.assertIn('The customer asked: "Do you deliver?". Answer it only from the information below', prompt)
         self.assertIn('- Q: Do you deliver?\n  A: No, pickup only.', prompt)
 
-    def test_order_status_alone_gets_the_coming_soon_reply_without_a_reply_call(self):
-        response = self.send('Has my order from last week shipped?', intents=['order_status'])
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()['message'], ORDER_STATUS_COMING_SOON_MESSAGE)
-        self.assertEqual(self.calls(structured=False), [])  # no reply call
-        self.assertEqual(self.ollama.chat.call_count, 1)  # only the router
-        debug = response.json()['debug']
-        self.assertEqual(debug['reply_system_prompt'], '')
-        self.assertEqual(debug['route']['intents'], ['order_status'])
-        self.assertEqual(
-            [(m['sent_by'], m['message']) for m in self.session.chat_message_json],
-            [('customer', 'Has my order from last week shipped?'), ('business-automated', ORDER_STATUS_COMING_SOON_MESSAGE)],
+    def order_status_calls(self) -> list[dict]:
+        return [c.kwargs for c in self.ollama.chat.call_args_list if is_order_status_check(c.kwargs)]
+
+    def make_order(self, session=None, quantity=2, status=OrderStatus.PENDING_PAYMENT):
+        session = session or self.session
+        return OrderItem.objects.create(
+            business=session.business, chat_session=session, is_sandbox=session.is_sandbox, order_status=status,
+            created_time=datetime(2026, 9, 5, 14, 30, tzinfo=ZoneInfo('Asia/Singapore')),
+            order_data={'items': [{'product_id': self.kopi.pk, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': quantity}], 'details': {}},
         )
 
-    def test_order_status_after_an_order_is_placed(self):
-        self.at_step('start', last_order_id=1)
-        response = self.send('Is it paid yet?', intents=['order_status'])
-        self.assertEqual(response.json()['message'], ORDER_STATUS_COMING_SOON_MESSAGE)
-        self.assertEqual(self.ollama.chat.call_count, 1)
-
-    def test_order_status_during_an_order_is_mentioned_in_the_reply(self):
-        self.at_step('details_collection', items=[self.kopi_line], items_confirmed=True)
-        self.send('Also, did my last order ship?', {'name': None, 'email': None}, intents=['order_status'])
-        self.assertEqual(len(self.calls(structured=True)), 1)  # the order step still ran
+    def test_order_status_extracts_then_looks_up_then_rewrites_only_the_records(self):
+        order = self.make_order(status=OrderStatus.PAYMENT_RECEIVED)
+        reply = f'Your order #{order.pk} (2 × Kopi C, $3.60) has been paid.'
+        response = self.send('Has my order been paid?', reply=reply, intents=['order_status'], order_status={'kind': 'order', 'numbers': []})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['message'], reply)
+        # 1. the router, 2. the extraction (structured, the conversation), 3. the reply: nothing else.
+        self.assertEqual(self.ollama.chat.call_count, 3)
+        extraction = self.order_status_calls()[0]
+        self.assertEqual(extraction['format'], ORDER_STATUS_SCHEMA)
+        self.assertIn('Never make up a number.', extraction['messages'][0]['content'])
+        self.assertEqual(extraction['messages'][-1], {'role': 'user', 'content': 'Has my order been paid?'})
+        reply_call = self.calls(structured=False)[-1]
+        self.assertIsNone(reply_call.get('tools'))  # no tools: the records are all it gets
         prompt = self.reply_prompt()
-        self.assertIn("## The customer's past order", prompt)
-        self.assertIn('this is coming soon and not available yet', prompt)
+        self.assertIn('## What the records say', prompt)
+        self.assertIn(
+            f'- Order #{order.pk}, placed Sat 5 Sep 2026, 2:30pm: 2 × Kopi C. Total $3.60. Status: Payment received '
+            '(the business has received the payment; the order is not completed yet).',
+            prompt,
+        )
+        self.assertIn('Only tell the customer what "What the records say" says.', prompt)
+        self.assertIn('say honestly that you don\'t know', prompt)
+        debug = response.json()['debug']
+        self.assertEqual(debug['reply_kind'], 'order_status')
+        self.assertEqual(debug['reply_system_prompt'], prompt)
+        self.assertEqual(debug['tool_calls'], [])
+        self.assertEqual(debug['order_status']['extracted'], {'kind': 'order', 'numbers': []})
+        self.assertEqual([o['number'] for o in debug['order_status']['found']['orders']], [order.pk])
+        self.assertEqual(self.session.chat_state_id, 'start')
+
+    def test_someone_elses_number_is_not_found_and_never_reaches_the_model(self):
+        other_chat = ChatSession.objects.create(business=self.cafe, is_sandbox=True, phone_number='+6592222222')
+        real_chat = ChatSession.objects.create(business=self.cafe, phone_number='+6593333333')
+        theirs = self.make_order(other_chat, quantity=9)
+        real = self.make_order(real_chat, quantity=7)
+        response = self.send(
+            f'What about order #{theirs.pk} and #{real.pk}?', reply=f'Order #{theirs.pk} is 9 × Kopi C.', intents=['order_status'],
+            order_status={'kind': 'order', 'numbers': [theirs.pk, real.pk]},
+        )
+        # Nothing of theirs found: the reply is written by code, with no reply LLM call at all.
+        debug = response.json()['debug']
+        self.assertEqual(debug['reply_kind'], 'order_status_not_found')
+        self.assertEqual(self.calls(structured=False), [])
+        self.assertEqual(debug['reply_system_prompt'], '')
+        self.assertEqual(
+            response.json()['message'],
+            f"I couldn't find order #{theirs.pk}, order #{real.pk} among your orders or bookings. Could you check the number?"
+            '\n\nIs there anything else I can help you with?',
+        )
+        self.assertEqual(
+            debug['order_status']['records'],
+            f"- Not found among this customer's orders and bookings: order #{theirs.pk}, order #{real.pk}.",
+        )
+        self.assertEqual((debug['order_status']['found']['orders'], debug['order_status']['found']['bookings']), ([], []))
+
+    def test_a_reply_saying_more_than_the_records_is_replaced(self):
+        order = self.make_order()
+        # The screenshot's case: booking #1 isn't theirs, but the model makes it up anyway.
+        response = self.send(
+            f'Order #{order.pk} and booking #9999?', reply=f'Order #{order.pk} is pending. Your booking #9999 for a Newborn Session is paid.',
+            intents=['order_status'], order_status={'kind': 'any', 'numbers': [order.pk, 9999]},
+        )
+        debug = response.json()['debug']
+        self.assertEqual(debug['reply_kind'], 'order_status_fallback')
+        self.assertNotIn('Newborn', self.session.chat_message_json[-1]['message'])
+        self.assertIn("I couldn't find #9999 among your orders or bookings.", response.json()['message'])
+        # Saying it wasn't found is fine.
+        response = self.send(
+            f'Order #{order.pk} and booking #9999?', reply=f"Order #{order.pk} is pending. I couldn't find booking #9999 among your bookings.",
+            intents=['order_status'], order_status={'kind': 'any', 'numbers': [order.pk, 9999]},
+        )
+        self.assertEqual(response.json()['debug']['reply_kind'], 'order_status')
+        # Asking about its own order, a made-up second number is caught too.
+        response = self.send(
+            f'Order #{order.pk}?', reply=f'Order #{order.pk} is pending, and order #{order.pk + 50} is paid.',
+            intents=['order_status'], order_status={'kind': 'order', 'numbers': [order.pk]},
+        )
+        self.assertEqual(response.json()['debug']['reply_kind'], 'order_status_fallback')
+        self.assertEqual(
+            response.json()['message'],
+            f"Here's what I found:\n- Order #{order.pk} (Sat 5 Sep 2026, 2:30pm): 2 × Kopi C, $3.60. Status: Payment pending."
+            '\n\nIs there anything else I can help you with?',
+        )
+
+    def test_no_orders_or_bookings(self):
+        response = self.send('Show me my orders', reply='Your order #3 is paid.', intents=['order_status'])
+        self.assertEqual(response.json()['debug']['reply_kind'], 'order_status_not_found')
+        self.assertEqual(self.calls(structured=False), [])  # nothing to rephrase: no reply call
+        self.assertEqual(
+            response.json()['message'], "Sorry, I couldn't find any orders or bookings for you. Is there anything else I can help you with?"
+        )
+
+    def test_order_status_during_an_order_puts_the_records_in_the_reply_prompt(self):
+        order = self.make_order()
+        self.at_step('details_collection', items=[self.kopi_line], items_confirmed=True)
+        self.send('Also, did my last order get paid?', {'name': None, 'email': None}, intents=['order_status'])
+        self.assertEqual(len(self.calls(structured=True)), 1)  # the order step still ran
+        self.assertEqual(len(self.order_status_calls()), 1)
+        prompt = self.reply_prompt()
+        self.assertIn("## The customer's past orders and bookings\nThe customer also asked about orders", prompt)
+        self.assertIn(f'- Order #{order.pk}, placed Sat 5 Sep 2026, 2:30pm', prompt)
         self.assertIn('Current step: Details collection', prompt)
+        tools = [spec['function']['name'] for spec in self.calls(structured=False)[-1]['tools']]
+        self.assertNotIn('get_order_details', tools)  # the business tools only: no order lookups
 
     def test_order_status_with_a_question(self):
         response = self.send(
-            'Did my order ship, and do you deliver?',
+            'Did my order get paid, and do you deliver?',
             intents=['question', 'order_status'],
             question_check={'kind': 'answered', 'question': 'Do you deliver?'},
         )
-        self.assertNotEqual(response.json()['message'], ORDER_STATUS_COMING_SOON_MESSAGE)  # an LLM reply
+        self.assertEqual(response.json()['debug']['reply_kind'], 'llm')  # the usual reply prompt
         prompt = self.reply_prompt()
-        self.assertIn("## The customer's past order", prompt)
+        self.assertIn("## The customer's past orders and bookings", prompt)
+        self.assertIn('- This customer has no orders or bookings in the records.', prompt)
         self.assertIn('The customer asked: "Do you deliver?"', prompt)
+
+    def test_no_order_lookup_unless_they_ask_about_their_orders(self):
+        response = self.send('Hi there!', intents=[])
+        self.assertEqual(self.order_status_calls(), [])
+        self.assertIsNone(response.json()['debug']['order_status'])
+        self.assertNotIn('past orders and bookings', self.reply_prompt())
 
     def test_off_topic(self):
         self.send('Write me a poem about the moon', intents=['off_topic'])
@@ -684,6 +792,15 @@ class OrderPlacementFlowTests(FlowTestMixin, APITestCase):
         self.assertIn('say anything about whether it is confirmed or placed', aside)
         self.assertIn('The customer asked: "Do you deliver?"', aside)
         self.assertNotIn('Alice', aside)  # the order isn't in the aside prompt at all
+
+    def test_order_status_at_confirmation_gets_an_aside_with_the_records(self):
+        response = self.send('Wait, was my last order paid?', {'decision': 'none'}, reply='I could not find any.', intents=['order_status'])
+        message = response.json()['message']
+        self.assertTrue(message.startswith('I could not find any.\n\nHere is your order summary:'))
+        self.assertEqual(response.json()['debug']['reply_kind'], 'confirmation_request')
+        aside = self.calls(structured=False)[-1]['messages'][0]['content']
+        self.assertIn("## The customer's past orders and bookings", aside)
+        self.assertIn('- This customer has no orders or bookings in the records.', aside)
 
     def test_confirming_with_a_question_answers_it_after_the_confirmation(self):
         response = self.send(

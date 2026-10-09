@@ -168,11 +168,14 @@ export const FLOW_NODE_META: Record<FlowNodeId, FlowNodeMeta> = {
   },
   order_status: {
     label: 'Order status',
-    description: 'Payment and delivery status of past orders.',
+    description: "The customer's past orders and bookings, and their status.",
     about:
-      'Coming soon: customers will be able to check whether a past order is paid or on its way. For now, the ' +
-      'assistant tells them this is not available yet.',
-    badge: 'Coming soon',
+      'Customers can ask about the orders and bookings they made before (from the same phone number). ' +
+      'The assistant only works out what they ask about; the system then looks it up among that ' +
+      "customer's own orders and bookings (anyone else's are simply not found), and the reply may only " +
+      'repeat what was found, with each status (payment pending, payment received or completed). A reply ' +
+      'that says anything else is replaced by a plain one written by the system. It cannot change or cancel anything.',
+    link: { to: paths.productOrders, label: 'View orders' },
     icon: Truck,
     accentClassName: 'border-t-slate-400',
     iconClassName: 'bg-slate-500/15 text-slate-600 dark:text-slate-400',

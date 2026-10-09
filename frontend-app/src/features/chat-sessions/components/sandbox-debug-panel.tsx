@@ -85,6 +85,31 @@ export function SandboxDebugPanel({ session, onClose }: SandboxDebugPanelProps) 
                 </ol>
               )}
 
+              {debug.order_status && (
+                <>
+                  <p className="text-muted-foreground mt-1">Order status (1 LLM call to extract, then looked up by code)</p>
+                  <KeyValue label="Asked about" value={JSON.stringify(debug.order_status.extracted)} />
+                  <KeyValue
+                    label="Found"
+                    value={
+                      [
+                        ...debug.order_status.found.orders.map((o) => `order #${o.number} (${o.status})`),
+                        ...debug.order_status.found.bookings.map((b) => `booking #${b.number} (${b.status})`),
+                      ].join(', ') || 'nothing of theirs'
+                    }
+                  />
+                  {debug.order_status.found.not_found.length > 0 && (
+                    <KeyValue label="Not found" value={debug.order_status.found.not_found.join(', ')} />
+                  )}
+                  <Collapsible summary="Records given to the reply">
+                    <Pre>{debug.order_status.records}</Pre>
+                  </Collapsible>
+                  <Collapsible summary="Extraction prompt">
+                    <Pre>{debug.order_status.system_prompt}</Pre>
+                  </Collapsible>
+                </>
+              )}
+
               {debug.question_check ? (
                 <>
                   <p className="text-muted-foreground mt-1">Question check (1 LLM call)</p>
@@ -134,7 +159,7 @@ const INTENT_LABELS: Record<Intent, string> = {
   order: 'Order',
   booking: 'Booking',
   question: 'Question',
-  order_status: 'Past order status',
+  order_status: 'Past orders / bookings',
   off_topic: 'Off topic',
 }
 
@@ -145,12 +170,14 @@ const CONFIRMATION_LABELS: Record<NonNullable<SandboxTurnDebug['confirmation']>,
 
 const REPLY_KIND_LABELS: Record<SandboxTurnDebug['reply_kind'], string> = {
   llm: 'The LLM',
+  order_status: 'The LLM, from the order status records only (checked: it named nothing else)',
+  order_status_fallback: 'Written by code: the LLM reply named something not in the records',
+  order_status_not_found: 'Written by code: nothing of theirs found (no LLM call)',
   confirmation_request: 'Template: order summary + "reply CONFIRM" (plus an LLM aside, if any)',
   order_confirmed: 'Template: order confirmed (plus an LLM aside, if any)',
   slot_options: 'Template: the free times offered, numbered (plus an LLM aside, if any)',
   booking_confirmation_request: 'Template: booking summary + "reply CONFIRM" (plus an LLM aside, if any)',
   booking_confirmed: 'Template: booking confirmed (plus an LLM aside, if any)',
-  order_status_coming_soon: 'Template: order status coming soon',
 }
 
 const QUESTION_KIND_LABELS: Record<QuestionCheckDebug['kind'], string> = {

@@ -290,11 +290,18 @@ def fake_chat_response(content: str):
 
 NO_QUESTION = {'kind': 'none', 'question': None}
 NO_INTENTS = {'intents': []}  # the router found nothing to do (e.g. a greeting)
+ANY_ORDERS = {'kind': 'any', 'numbers': []}  # the order status extraction: "my orders"
 
 
 def is_question_check(call_kwargs: dict) -> bool:
     """Whether a mocked ollama `chat` call is the flow's question check (flow.check_customer_question)."""
-    return 'kind' in (call_kwargs.get('format') or {}).get('properties', {})
+    properties = (call_kwargs.get('format') or {}).get('properties', {})
+    return 'kind' in properties and 'question' in properties
+
+
+def is_order_status_check(call_kwargs: dict) -> bool:
+    """Whether a mocked ollama `chat` call is the order status extraction (flow.check_order_status)."""
+    return 'numbers' in (call_kwargs.get('format') or {}).get('properties', {})
 
 
 def is_router(call_kwargs: dict) -> bool:
@@ -306,11 +313,12 @@ def _route(intents) -> dict:
     return intents if isinstance(intents, dict) else {'intents': list(intents)}
 
 
-def fake_ollama_chat(reply: str, extractions=(), question_check=NO_QUESTION, intents=NO_INTENTS):
+def fake_ollama_chat(reply: str, extractions=(), question_check=NO_QUESTION, intents=NO_INTENTS, order_status=ANY_ORDERS):
     """A `side_effect` for the mocked ollama `chat`, for the chat flow (flow.py).
 
     The router returns `intents` (a list of intents, or the whole JSON; default: none). The
-    question check returns `question_check` (default: no question). Other structured calls (with
+    question check returns `question_check` (default: no question), the order status extraction
+    `order_status` (default: any orders, no numbers). Other structured calls (with
     `format`, the order steps' extractions) return the next of `extractions` as JSON (`{}`, i.e.
     nothing found, once they run out). Other calls (the reply) return `reply`.
     """
@@ -321,6 +329,8 @@ def fake_ollama_chat(reply: str, extractions=(), question_check=NO_QUESTION, int
             return fake_chat_response(json.dumps(_route(intents)))
         if is_question_check(kwargs):
             return fake_chat_response(json.dumps(question_check))
+        if is_order_status_check(kwargs):
+            return fake_chat_response(json.dumps(order_status))
         if kwargs.get('format'):
             return fake_chat_response(json.dumps(queue.pop(0) if queue else {}))
         return fake_chat_response(reply)

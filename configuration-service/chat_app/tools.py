@@ -2,7 +2,9 @@
 product / service lookups the flow uses to give the model the right information up front.
 
 Every tool only GETs data, and only the chatting business's data: Toolbox(business) binds
-them to one business, so the model can't pass in (or guess) another business's ID.
+them to one business, so the model can't pass in (or guess) another business's ID. The
+customer's own orders and bookings are deliberately not a tool: the order status branch looks them
+up in code (past_orders.py), so the model can't ask for any order it likes.
 """
 
 import json

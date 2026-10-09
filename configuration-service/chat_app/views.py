@@ -128,7 +128,7 @@ class ChatConfigurationView(APIView):
         summary="Get your business's chat configuration",
         description=(
             'The chat flow is fixed (the router, then Product selection → Details collection → '
-            'Confirmation for orders, the FAQs for questions, and order status, which is coming soon); '
+            'Confirmation for orders, the booking steps, the FAQs for questions, and the customer\'s past orders and bookings for order status); '
             'this is the settings of its steps. If your business has never saved one, you get the '
             'defaults, with `id` and `last_updated` null.'
         ),

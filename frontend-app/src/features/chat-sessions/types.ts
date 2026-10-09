@@ -94,17 +94,37 @@ export interface SandboxTurnDebug {
   /** How the reply was made: by the LLM, or a fixed template. */
   reply_kind:
     | 'llm'
+    | 'order_status'
+    | 'order_status_fallback'
+    | 'order_status_not_found'
     | 'confirmation_request'
     | 'order_confirmed'
     | 'slot_options'
     | 'booking_confirmation_request'
     | 'booking_confirmed'
-    | 'order_status_coming_soon'
   /** The LLM reply's prompt; for a Confirmation template, the prompt of its short aside (empty if none). */
   reply_system_prompt: string
   tool_calls: { name: string; arguments: Record<string, unknown> }[]
   /** The question check (FAQs): does the business's information answer the question? Null unless the router found one. */
   question_check: QuestionCheckDebug | null
+  /** The order status branch: what was asked, and what the records say. Null unless the router found an order status request. */
+  order_status: OrderStatusDebug | null
+}
+
+/** Mirrored from configuration-service `chat_app/flow.py` `check_order_status` / `past_orders.Lookup`. */
+export interface OrderStatusDebug {
+  /** The extraction LLM's JSON: `{kind, numbers}`. */
+  extracted: Record<string, unknown>
+  system_prompt: string
+  /** The records the reply was written from (the only facts it may use). */
+  records: string
+  found: {
+    kind: 'order' | 'booking' | 'any'
+    numbers: number[]
+    orders: { number: number; status: string }[]
+    bookings: { number: number; status: string }[]
+    not_found: string[]
+  }
 }
 
 /** The router's intents, mirrored from configuration-service `chat_app/constants.py` `INTENTS`. */

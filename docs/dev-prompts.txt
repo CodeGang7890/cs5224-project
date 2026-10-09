@@ -876,3 +876,24 @@ Orders: Products / Services / Payment sub tabs
 Chats: Conversations / Unanswered Questions / Chat Sandbox sub tabs
 Additionally, when user is not logged in, don’t even show those tabs: Workflow, Catalog, Orders, Chats.
 But if someone manually type in the url, make sure the guard component saying you need to login is still there, though it’s already not shown in the first place.
+
+Date & Time (GMT+8): 2026-10-09 23:43:47
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Now I want you to work on the branch of the LLM to see existing orders status or past orders.
+Give a system prompt for the branch to that.
+Simply provide tool to get the orders made my this current user (same phone number, same business configuration), it should be able to get the list of all orders.
+For services, it should be able to get down all past services too and its status.
+Then there should be a tool to get in detail, say the status of an order (payment pending, payment received, completed).
+Just keep it simple as of now for this branch of the chatbot. Add test cases.
+
+Date & Time (GM
+Date & Time (GMT+8): 2026-10-10 00:21:28
+AI Model Used: claude-opus-5-5
+Original Prompt:
+Right now I can say any booking or order ID and then the tool may just call it.
+It's not secure, I can see the status of other people's orders!
+Perhaps make the flow for this “Order Status” branch where you extract information first from first LLM, then a deterministic check to query db (sort of like tool call but with extra checks), then second LLM that gets the information and rewrite it to return the output properly to the user. Difference is there’s no particular states for this.
+Please draft the system prompt carefully, you should only tell what’s there from the database.
+If no information, say you don’t know instead of hallucinating.

@@ -228,8 +228,10 @@ class SandboxMessageResponseSerializer(ChatMessageSerializer):
             '`missing`, `issues`, `chat_state_data`), `stop_reason`, `finished`, `confirmation` (Confirmation\'s or Booking confirmation\'s substage: '
             '`not_confirmed` / `confirmed` / null), `order_id` / `booking_id` (placed in this turn, or null), '
             '`missing`, `issues`, `question_check` (`kind`, `question`, `saved`, `system_prompt`; null unless the router '
-            'found a question), `reply_kind` (`llm`, or a fixed template: `confirmation_request`, `order_confirmed`, '
-            '`slot_options`, `booking_confirmation_request`, `booking_confirmed`, `order_status_coming_soon`), `reply_system_prompt` (the aside prompt for templates; may be empty) and '
+            'found a question), `order_status` (`extracted`, `system_prompt`, `records`, `found`; null unless the router found an '
+            'order status request), `reply_kind` (`llm`, `order_status` (the order status prompt), `order_status_fallback` / '
+            '`order_status_not_found` (written by code), or a fixed template: `confirmation_request`, '
+            '`order_confirmed`, `slot_options`, `booking_confirmation_request`, `booking_confirmed`), `reply_system_prompt` (the aside prompt for templates; may be empty) and '
             '`tool_calls` (`name`, `arguments`).'
         ),
     )

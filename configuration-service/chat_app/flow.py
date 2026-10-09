@@ -4,7 +4,7 @@ its steps' settings (ChatConfiguration).
 handle_customer_message() runs one turn:
 1. Save the customer message.
 2. Route (router.route_message): one structured LLM call labels what the message is about (its
-   intents: order, question, order status, off topic). Code decides which handlers run.
+   intents: order, booking, question, order status, off topic). Code decides which handlers run.
 3. Order / book (order_flow.advance): the order steps (Product selection → Details collection →
    Confirmation) or the booking steps (Service selection → Time slot → Booking details → Booking
    confirmation), small deterministic state machines. They run when the router finds the customer
@@ -24,7 +24,14 @@ handle_customer_message() runs one turn:
      saved (never before). At Time slot, it's the free times offered, numbered (worked out in
      code, never by the LLM). The LLM only adds a short aside for anything else in the message
      (e.g. a question).
-   - A message only about a past order gets a fixed reply: checking order status isn't available yet.
+   - A message only about past orders or bookings (no order or booking step ran) gets the order
+     status reply (below).
+5b. Order status (check_order_status), if the router found it: no tools and no states. One
+   structured LLM call extracts what the customer asks about (order / booking, any numbers), then
+   code looks it up among the customer's own orders and bookings only (past_orders.lookup). The
+   reply model gets only those records (prompts.build_order_status_prompt, or a section of the
+   reply / aside prompt); a reply naming any order or booking number the records don't have is
+   replaced by a message written by code (past_orders.reply_is_grounded).
 """
 
 from dataclasses import dataclass
@@ -32,7 +39,7 @@ from dataclasses import dataclass
 from django.db import transaction
 from django.utils import timezone
 
-from . import llm, order_flow, prompts, router
+from . import llm, order_flow, past_orders, prompts, router
 from .constants import (
     SENT_BY_BUSINESS_AUTOMATED,
     SENT_BY_CUSTOMER,
@@ -61,7 +68,9 @@ REPLY_ORDER_CONFIRMED = 'order_confirmed'  # sent only once the order is saved (
 REPLY_SLOT_OPTIONS = 'slot_options'  # the free times offered, numbered (template)
 REPLY_BOOKING_REQUEST = 'booking_confirmation_request'  # the booking summary + "reply CONFIRM" (template)
 REPLY_BOOKING_CONFIRMED = 'booking_confirmed'  # sent only once the booking is saved (template)
-REPLY_ORDER_STATUS_COMING_SOON = 'order_status_coming_soon'  # fixed message
+REPLY_ORDER_STATUS = 'order_status'  # the order status prompt (only the records looked up)
+REPLY_ORDER_STATUS_FALLBACK = 'order_status_fallback'  # its reply named something not in the records
+REPLY_ORDER_STATUS_NOT_FOUND = 'order_status_not_found'  # nothing of theirs found: written by code, no LLM call
 
 
 @dataclass
@@ -99,6 +108,9 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
         check_customer_question(session, message, history, products, services, chosen_service) if route.question else None
     )
 
+    status = check_order_status(session, history, now) if route.order_status else None
+    records = status['records'] if status else None
+
     toolbox = Toolbox(business)
     template = template_reply(business, turn, prompts.detail_labels(chat_config.detail_fields))
     if template is not None:
@@ -109,17 +121,29 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
         answered = check is not None and check['kind'] != prompts.QUESTION_NONE
         if answered or route.order_status or route.off_topic:
             system_prompt = prompts.build_aside_prompt(
-                business, context=context, intents=route.intents, question_check=check
+                business, context=context, intents=route.intents, question_check=check, order_records=records
             )
             aside = llm.generate_chat_reply(system_prompt, history, toolbox).strip()
             if aside:  # before the summary / times, or after the confirmation
                 parts = [aside, text] if aside_first else [text, aside]
         reply = '\n\n'.join(parts)
     elif route.only_order_status and not turn.steps:
-        # Only about a past order, and no order step ran: checking it isn't available yet.
-        reply_kind = REPLY_ORDER_STATUS_COMING_SOON
-        system_prompt = ''
-        reply = prompts.ORDER_STATUS_COMING_SOON_MESSAGE
+        # Only about past orders or bookings, and no order step ran: the order status branch. The
+        # model gets the records looked up and no tools; a reply naming any other order or booking
+        # number made it up, so code writes the reply instead.
+        found = status['found']
+        if not found.orders and not found.bookings:
+            # Nothing of theirs to tell (none, or only numbers that aren't theirs): nothing for an
+            # LLM to rephrase, and nothing it could get wrong.
+            reply_kind, system_prompt = REPLY_ORDER_STATUS_NOT_FOUND, ''
+            reply = prompts.order_status_fallback_message(found)
+        else:
+            reply_kind = REPLY_ORDER_STATUS
+            system_prompt = prompts.build_order_status_prompt(business, records)
+            reply = llm.generate_chat_reply(system_prompt, history)
+            if not past_orders.reply_is_grounded(reply, found):
+                reply_kind = REPLY_ORDER_STATUS_FALLBACK
+                reply = prompts.order_status_fallback_message(found)
     else:
         reply_kind = REPLY_LLM
         system_prompt = prompts.build_reply_prompt(
@@ -135,6 +159,7 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
             went_back=turn.went_back_to is not None and turn.went_back_to == turn.step,
             intents=route.intents,
             question_check=check,
+            order_records=records,
         )
         reply = llm.generate_chat_reply(system_prompt, history, toolbox)
     saved = append_chat_message(session_id, reply.strip() or '…', SENT_BY_BUSINESS_AUTOMATED)
@@ -152,6 +177,10 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
         'issues': turn.issues,
         'question_check': (
             {key: check[key] for key in ('kind', 'question', 'saved', 'system_prompt')} if check else None
+        ),
+        'order_status': (
+            {key: status[key] for key in ('extracted', 'system_prompt', 'records')} | {'found': status['found'].as_dict()}
+            if status else None
         ),
         'reply_kind': reply_kind,
         'reply_system_prompt': system_prompt,
@@ -227,6 +256,27 @@ def check_customer_question(
         'products': products,
         'services': services,
         'mentioned': mentioned,
+    }
+
+
+def check_order_status(session: ChatSession, history: list[dict], now) -> dict:
+    """The order status branch's first two steps: what the customer asks about, then what the
+    records say. One structured LLM call (prompts.ORDER_STATUS_SCHEMA, temperature 0) only extracts
+    the kind (order / booking / any) and the numbers asked about; past_orders.lookup() then finds
+    them among the customer's own orders and bookings (a number that isn't theirs is "not found").
+
+    Returns `extracted` (the LLM's JSON), `system_prompt`, `found` (past_orders.Lookup) and
+    `records` (prompts.format_order_records: the only facts the reply may use).
+    """
+    system_prompt = prompts.build_order_status_extraction_prompt(session.business)
+    extracted = llm.generate_structured(system_prompt, history, prompts.ORDER_STATUS_SCHEMA)
+    kind, numbers = past_orders.clean_request(extracted)
+    found = past_orders.lookup(session, kind, numbers, now)
+    return {
+        'extracted': extracted,
+        'system_prompt': system_prompt,
+        'found': found,
+        'records': prompts.format_order_records(found),
     }
 
 

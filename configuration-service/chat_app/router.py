@@ -8,7 +8,8 @@ model, then decides which handlers run (flow.handle_customer_message):
   router says, because short replies like "Alice", "yes" or "2" carry no intent of their own.
 - question: the FAQ handler (flow.check_customer_question): answered from the business's
   information, or sent to the business as an unanswered question.
-- order_status: checking past orders isn't available yet: the customer is told it's coming soon.
+- order_status: the customer's past orders and bookings (flow.check_order_status: an LLM extracts
+  what they ask about, code looks it up among their own, an LLM rewrites only that).
 - off_topic: the reply declines it politely.
 """
 
@@ -51,8 +52,8 @@ class Route:
 
     @property
     def only_order_status(self) -> bool:
-        """The message is only about a past order (gets the fixed "coming soon" reply, if no order
-        step ran either)."""
+        """The message is only about past orders or bookings (gets the order status prompt, if no
+        order or booking step ran either)."""
         return self.intents == [INTENT_ORDER_STATUS]
 
 
