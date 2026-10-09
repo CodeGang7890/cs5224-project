@@ -26,32 +26,8 @@ env:
   PYTHON_VERSION: '3.14' # matches configuration-service/Dockerfile
 
 jobs:
-  backend-sqlite:
-    name: configuration-service (SQLite)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: configuration-service
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
-          cache-dependency-path: configuration-service/requirements.txt
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-      - name: System checks
-        run: python manage.py check
-      - name: No missing migrations
-        run: python manage.py makemigrations --check --dry-run
-      - name: OpenAPI schema is valid
-        run: python manage.py spectacular --validate --file /tmp/schema.yml
-      - name: Tests
-        run: python manage.py test --noinput
-
-  backend-postgres:
+  # PostgreSQL only: it's what production (infrastructure/cloud_sql.tf) and docker-compose use.
+  backend:
     name: configuration-service (PostgreSQL)
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -88,6 +64,12 @@ jobs:
           cache-dependency-path: configuration-service/requirements.txt
       - name: Install dependencies
         run: pip install -r requirements.txt
+      - name: System checks
+        run: python manage.py check
+      - name: No missing migrations
+        run: python manage.py makemigrations --check --dry-run
+      - name: OpenAPI schema is valid
+        run: python manage.py spectacular --validate --file /tmp/schema.yml
       # What docker-entrypoint.sh does on a fresh database: every migration, then every fixture.
       - name: Migrate and load the fixtures
         run: |
@@ -97,11 +79,11 @@ jobs:
         run: python manage.py test --noinput
 
   # The one check branch protection requires: fails unless every job above succeeded (also when
-  # one was cancelled or skipped), so new jobs only need adding to `needs`.
+  # one was cancelled or skipped), so new jobs (e.g. frontend-app) only need adding to `needs`.
   ci-passed:
     name: CI passed
     if: always()
-    needs: [backend-sqlite, backend-postgres]
+    needs: [backend]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

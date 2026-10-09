@@ -831,3 +831,8 @@ psycopg.errors.ObjectInUse: cannot CREATE INDEX "product_app_weeklyavailability"
 django.db.utils.InternalError: current transaction is aborted, commands ignored until end of transaction block
 
 Please attempt to fix it again, still have some issue with PostgreSQL, don't commit it
+
+Date & Time (GMT+8): 2026-10-09 23:03:17
+AI Model Used: claude-opus-5-5
+Original Prompt:
+Please remove the MySQL pipeline, just leave the PostgreSQL because in the infrastructrure folder we'll be using PostgreSQL in prod, then commit it
