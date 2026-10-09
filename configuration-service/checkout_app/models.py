@@ -81,10 +81,11 @@ class ScheduleItem(models.Model):
     """A time slot a customer booked for a service in a chat (`schedule_data`: the service and
     their details). Like OrderItem, but for product_app.Service.
 
-    Created by checkout_app.services.place_booking(). It takes up its weekly availability from
-    `start_time` until `blocked_until` (the end of the service plus its buffer): no other booking
-    of that availability can overlap it (checkout_app.schedule). While pending payment it shows as
-    on hold (H) in the week's calendar, and once paid or completed as taken (X).
+    Created by checkout_app.services.place_booking(). It takes up its service provider's time from
+    `start_time` until `blocked_until` (the end of the service plus its buffer), and writes that
+    into the provider's WeeklyAvailability: on hold (H) while pending payment, booked (X) once paid
+    or completed, and available (O) again if it's deleted (checkout_app.schedule.sync_booking, run
+    by the signals in checkout_app/signals.py whenever a booking is saved or deleted).
     """
 
     business = models.ForeignKey(
@@ -104,7 +105,7 @@ class ScheduleItem(models.Model):
         default=False,
         help_text='Booked in a Chat Sandbox test chat rather than by a real customer.',
     )
-    # Kept (as null) if the service or availability is deleted: schedule_data has the snapshot.
+    # Kept (as null) if the service or provider is deleted: schedule_data has the snapshot.
     service = models.ForeignKey(
         'product_app.Service',
         on_delete=models.SET_NULL,
@@ -112,13 +113,13 @@ class ScheduleItem(models.Model):
         blank=True,
         related_name='schedule_items',
     )
-    weekly_availability = models.ForeignKey(
-        'product_app.WeeklyAvailability',
+    service_provider = models.ForeignKey(
+        'product_app.ServiceProvider',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name='schedule_items',
-        help_text='Whose calendar it is booked in (e.g. which photographer).',
+        help_text='Who it is booked with (e.g. which photographer).',
     )
     start_time = models.DateTimeField(help_text='When the service starts.')
     end_time = models.DateTimeField(help_text='When the service ends: start_time + its duration.')
@@ -139,7 +140,7 @@ class ScheduleItem(models.Model):
 
     class Meta:
         ordering = ['-start_time', '-id']
-        indexes = [models.Index(fields=['weekly_availability', 'start_time'], name='schedule_item_calendar')]
+        indexes = [models.Index(fields=['service_provider', 'start_time'], name='schedule_item_provider_time')]
         constraints = [
             models.CheckConstraint(
                 condition=Q(order_status__in=OrderStatus.values),
@@ -170,7 +171,7 @@ class ScheduleItem(models.Model):
                 errors['end_time'] = 'Must be start_time plus the service duration.'
             if isinstance(buffer, int) and self.blocked_until != self.end_time + timedelta(minutes=buffer):
                 errors['blocked_until'] = 'Must be end_time plus the service buffer.'
-        for field in ('service', 'weekly_availability', 'chat_session'):
+        for field in ('service', 'service_provider', 'chat_session'):
             related = getattr(self, field) if getattr(self, f'{field}_id') else None
             if related is not None and self.business_id and related.business_id != self.business_id:
                 errors[field] = f"The {field.replace('_', ' ')} must belong to the booking's business."

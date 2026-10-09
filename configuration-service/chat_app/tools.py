@@ -68,10 +68,10 @@ def mentioned_products(business, text: str, limit: int = MENTIONED_PRODUCTS_MAX)
 
 
 def active_services(business) -> list[Service]:
-    """The business's bookable services: active, with at least one weekly availability (model
+    """The business's bookable services: active, with at least one active service provider (model
     instances: the booking steps need them to work out free times; see service_dict for prompts)."""
     return list(
-        Service.objects.filter(business=business, is_active=True, weekly_availability__isnull=False)
+        Service.objects.filter(business=business, is_active=True, service_providers__is_active=True)
         .distinct()
         .order_by('name')
     )

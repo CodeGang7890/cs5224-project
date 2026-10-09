@@ -5,11 +5,12 @@ from . import views
 
 app_name = 'product_app'
 
-# Mounted under /api/ in config/urls.py → /api/products/, /api/faqs/, /api/weekly-availabilities/, /api/services/,
+# Mounted under /api/ in config/urls.py → /api/products/, /api/faqs/, /api/service-providers/, /api/weekly-availabilities/, /api/services/,
 # /api/businesses/<business_id>/products/, /api/businesses/<business_id>/faqs/
 router = DefaultRouter()
 router.register('products', views.ProductViewSet, basename='product')
 router.register('faqs', views.FAQViewSet, basename='faq')
+router.register('service-providers', views.ServiceProviderViewSet, basename='service-provider')
 router.register('weekly-availabilities', views.WeeklyAvailabilityViewSet, basename='weekly-availability')
 router.register('services', views.ServiceViewSet, basename='service')
 

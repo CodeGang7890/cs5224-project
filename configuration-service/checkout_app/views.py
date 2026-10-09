@@ -97,7 +97,7 @@ class ScheduleItemListView(generics.ListAPIView):
             return ScheduleItem.objects.none()
         return (
             ScheduleItem.objects.filter(business_id=get_user_business_id(self.request))
-            .select_related('weekly_availability')
+            .select_related('service_provider')
             .order_by('-start_time', '-id')
         )
 
@@ -129,7 +129,7 @@ class ScheduleItemDetailView(generics.RetrieveAPIView):
 
     def get_object(self):
         business_id = get_user_business_id(self.request)
-        booking = ScheduleItem.objects.select_related('weekly_availability').filter(pk=self.kwargs['pk']).first()
+        booking = ScheduleItem.objects.select_related('service_provider').filter(pk=self.kwargs['pk']).first()
         if booking is None:
             raise NotFound(NO_SCHEDULE_MESSAGE)
         if booking.business_id != business_id:  # 403, not 404, like the rest of the API

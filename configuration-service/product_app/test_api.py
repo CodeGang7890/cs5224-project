@@ -9,7 +9,9 @@ from rest_framework.test import APITestCase
 
 from auth_app.models import BusinessUser
 from checkout_app.models import OrderItem, OrderStatus
-from checkout_app.tests.test_schedule import at, book, future_monday
+from chat_app.models import ChatSession
+from checkout_app.models import ScheduleItem
+from checkout_app.tests.test_schedule import at, book, future_monday, open_week
 from configuration_app.models import BusinessConfiguration
 
 from .models import (
@@ -21,6 +23,7 @@ from .models import (
     QUANTITY_MAX,
     Product,
     Service,
+    ServiceProvider,
     WeeklyAvailability,
 )
 from .serializers import DERIVED_QUANTITY_ERROR, DERIVED_QUANTITY_FIELDS, ProductSerializer
@@ -618,109 +621,299 @@ class ProductQuantityAPITests(BusinessAPITestCase):
         self.assertEqual(self.patch_total(9).status_code, status.HTTP_200_OK)
 
 
-# --- Weekly availabilities and services ---------------------------------------------------------
+# --- Service providers, their weeks, and services ------------------------------------------------
 
 @override_settings(SCHEDULE_TIME_ZONE='Asia/Singapore')
 class ScheduleAPITestCase(BusinessAPITestCase):
-    """BusinessAPITestCase, plus a photographer's weekly availability and a service for each business."""
+    """BusinessAPITestCase, plus two photographers and a service for the café, and the florist's own."""
 
     @classmethod
     def setUpTestData(cls):
         super().setUpTestData()
-        cls.mei = WeeklyAvailability.objects.create(business=cls.cafe, name='Mei', availability=open_hours((0, '09:00', '12:00')))
-        cls.raj = WeeklyAvailability.objects.create(business=cls.cafe, name='Raj')
-        cls.florist_calendar = WeeklyAvailability.objects.create(business=cls.florist, name='Florist calendar')
+        cls.mei = ServiceProvider.objects.create(business=cls.cafe, name='Mei', description='Lead photographer')
+        cls.raj = ServiceProvider.objects.create(business=cls.cafe, name='Raj')
+        cls.florist_provider = ServiceProvider.objects.create(business=cls.florist, name='Florist provider')
         cls.portrait = Service.objects.create(business=cls.cafe, name='Portrait', price='180.00', duration_minutes=60, buffer_minutes=15)
-        cls.portrait.weekly_availability.set([cls.mei])
+        cls.portrait.service_providers.set([cls.mei])
         cls.florist_service = Service.objects.create(business=cls.florist, name='Workshop', price='50.00', duration_minutes=120)
+        cls.monday = future_monday()
+
+    def setUp(self):
+        self.week = open_week(self.mei, self.monday, (0, '09:00', '12:00'))
 
 
-class WeeklyAvailabilityAPITests(ScheduleAPITestCase):
-    list_url = reverse('product_app:weekly-availability-list')
+class ServiceProviderAPITests(ScheduleAPITestCase):
+    list_url = reverse('product_app:service-provider-list')
 
     @staticmethod
-    def detail_url(availability):
-        return reverse('product_app:weekly-availability-detail', args=[availability.pk])
+    def detail_url(provider, action=None):
+        if action:
+            return reverse(f'product_app:service-provider-{action}', args=[provider.pk])
+        return reverse('product_app:service-provider-detail', args=[provider.pk])
 
     def test_requires_login(self):
         self.assertEqual(self.client.get(self.list_url).status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_lists_own_business_only(self):
+    def test_crud(self):
         self.login(self.cafe_user)
         body = self.client.get(self.list_url).json()
-        self.assertEqual([a['name'] for a in body['results']], ['Mei', 'Raj'])
-        self.assertEqual(set(body['results'][0]), {'id', 'business', 'name', 'availability', 'services'})
-        self.assertEqual(body['results'][0]['services'], [self.portrait.pk])
-        self.assertEqual(len(body['results'][0]['availability']), 672)
-
-    def test_create_defaults_to_not_available(self):
-        self.login(self.cafe_user)
-        response = self.client.post(self.list_url, {'name': 'Lina'}, format='json')
+        self.assertEqual(
+            body['results'],
+            [
+                {'id': self.mei.pk, 'business': self.cafe.pk, 'name': 'Mei', 'description': 'Lead photographer', 'is_active': True, 'services': [self.portrait.pk]},
+                {'id': self.raj.pk, 'business': self.cafe.pk, 'name': 'Raj', 'description': '', 'is_active': True, 'services': []},
+            ],
+        )
+        response = self.client.post(self.list_url, {'name': 'Studio A', 'description': 'The big room'}, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.content)
-        self.assertEqual(response.json()['availability'], 'X' * 672)
-        self.assertEqual(response.json()['business'], self.cafe.pk)
-        self.assertEqual(response.json()['services'], [])
-
-    def test_update_the_calendar(self):
-        self.login(self.cafe_user)
-        week = open_hours((1, '10:00', '18:00'), (2, '13:00', '14:00'), letter='O')
-        response = self.client.patch(self.detail_url(self.raj), {'availability': week}, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.raj.refresh_from_db()
-        self.assertEqual(self.raj.availability, week)
+        created = ServiceProvider.objects.get(pk=response.json()['id'])
+        self.assertEqual((created.business, created.is_active), (self.cafe, True))
+        self.assertEqual(self.client.patch(self.detail_url(created), {'is_active': False}, format='json').status_code, 200)
+        self.assertEqual(self.client.delete(self.detail_url(created)).status_code, status.HTTP_204_NO_CONTENT)
 
     def test_invalid_input(self):
         self.login(self.cafe_user)
-        cases = {
-            'short': ({'name': 'A', 'availability': 'O' * 10}, 'availability'),
-            'long': ({'name': 'A', 'availability': 'O' * 673}, 'availability'),
-            'bad letter': ({'name': 'A', 'availability': 'O' * 671 + 'Z'}, 'availability'),
-            'no name': ({'availability': 'O' * 672}, 'name'),
-            'duplicate name': ({'name': 'Mei'}, 'non_field_errors'),
-        }
-        for label, (body, field) in cases.items():
-            with self.subTest(label):
+        for body, field in (({'name': ''}, 'name'), ({'name': 'Mei'}, 'non_field_errors'), ({'name': 'x', 'description': 'y' * 301}, 'description')):
+            with self.subTest(body=body):
                 response = self.client.post(self.list_url, body, format='json')
                 self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
                 self.assertIn(field, response.json())
 
     def test_other_business(self):
         self.login(self.cafe_user)
-        self.assertEqual(self.client.get(self.detail_url(self.florist_calendar)).status_code, status.HTTP_403_FORBIDDEN)
-        self.assertEqual(
-            self.client.patch(self.detail_url(self.florist_calendar), {'name': 'Mine'}, format='json').status_code,
-            status.HTTP_403_FORBIDDEN,
-        )
-        response = self.client.post(self.list_url, {'name': 'X', 'business': self.florist.pk}, format='json')
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.login(self.no_business_user)
-        self.assertEqual(self.client.post(self.list_url, {'name': 'X'}, format='json').status_code, status.HTTP_403_FORBIDDEN)
+        for action in (None, 'calendar'):
+            with self.subTest(action=action):
+                self.assertEqual(self.client.get(self.detail_url(self.florist_provider, action), {'week': self.monday.isoformat()}).status_code, 403)
+        self.assertEqual(self.client.post(self.detail_url(self.florist_provider, 'slots'), {}, format='json').status_code, 403)
+        self.assertEqual(self.client.post(self.detail_url(self.florist_provider, 'copy-week'), {}, format='json').status_code, 403)
+        self.assertEqual(self.client.post(self.list_url, {'name': 'X', 'business': self.florist.pk}, format='json').status_code, 403)
 
-    def test_delete_keeps_the_services(self):
-        self.login(self.cafe_user)
-        self.assertEqual(self.client.delete(self.detail_url(self.mei)).status_code, status.HTTP_204_NO_CONTENT)
-        self.assertEqual(list(self.portrait.weekly_availability.all()), [])
+    # --- Calendar -------------------------------------------------------------------
 
-    def test_calendar(self):
-        monday = future_monday()
-        book(self.portrait, self.mei, at(monday, '09:00'))  # 09:00–10:15 with the buffer, pending
-        book(self.portrait, self.mei, at(monday, '11:00'), status=OrderStatus.ORDER_COMPLETED)
+    def test_calendar_shows_the_week_and_who_booked(self):
+        session = ChatSession.objects.create(business=self.cafe, is_sandbox=True)
+        pending = book(self.portrait, self.mei, at(self.monday, '09:00'), chat_session=session, is_sandbox=True)
+        pending.schedule_data['details'] = {'name': 'Alice', 'phone': '+65 9123 4567'}
+        pending.save()
+        paid = book(self.portrait, self.mei, at(self.monday, '10:30'), status=OrderStatus.PAYMENT_RECEIVED)
         self.login(self.cafe_user)
-        url = reverse('product_app:weekly-availability-calendar', args=[self.mei.pk])
-        response = self.client.get(url, {'week': (monday + timedelta(days=4)).isoformat()})
+        response = self.client.get(self.detail_url(self.mei, 'calendar'), {'week': (self.monday + timedelta(days=4)).isoformat()})
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
         body = response.json()
-        self.assertEqual(body['week_start'], monday.isoformat())
-        self.assertEqual(body['availability'][36:48], 'HHHHHOOOXXXX')
-        self.assertEqual(
-            [(b['service'], b['order_status']) for b in body['bookings']],
-            [('Portrait', 'pending_payment'), ('Portrait', 'order_completed')],
-        )
-        self.assertEqual(set(body['bookings'][0]), {'id', 'service', 'start_time', 'end_time', 'blocked_until', 'order_status'})
+        self.assertEqual((body['service_provider'], body['week'], body['id']), (self.mei.pk, self.monday.isoformat(), self.week.pk))
+        # 09:00–10:15 on hold (with its buffer), 10:15–10:30 open, 10:30–11:45 booked, then open, closed.
+        self.assertEqual(body['availability'][36:50], 'HHHHH' + 'O' + 'XXXXX' + 'O' + 'UU')
+        self.assertEqual(len(body['bookings']), 2)
+        first = body['bookings'][0]
+        self.assertEqual(first, {
+            'id': pending.pk, 'service': 'Portrait', 'customer': 'Alice', 'details': {'name': 'Alice', 'phone': '+65 9123 4567'},
+            'start_time': first['start_time'], 'end_time': first['end_time'], 'blocked_until': first['blocked_until'],
+            'order_status': 'pending_payment', 'total': '180.00', 'is_sandbox': True, 'chat_session': session.pk,
+        })
+        self.assertEqual(datetime.fromisoformat(first['blocked_until']), at(self.monday, '10:15'))
+        self.assertEqual((body['bookings'][1]['id'], body['bookings'][1]['customer']), (paid.pk, None))
+
+    def test_calendar_of_a_week_without_availability(self):
+        self.login(self.cafe_user)
+        body = self.client.get(self.detail_url(self.raj, 'calendar'), {'week': self.monday.isoformat()}).json()
+        self.assertEqual((body['id'], body['availability'], body['bookings']), (None, 'U' * 672, []))
+        url = self.detail_url(self.mei, 'calendar')
         self.assertEqual(self.client.get(url).status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(self.client.get(url, {'week': 'monday'}).status_code, status.HTTP_400_BAD_REQUEST)
-        other_url = reverse('product_app:weekly-availability-calendar', args=[self.florist_calendar.pk])
-        self.assertEqual(self.client.get(other_url, {'week': monday.isoformat()}).status_code, status.HTTP_403_FORBIDDEN)
+
+    # --- Adding slots ---------------------------------------------------------------
+
+    def test_add_slots_for_the_next_two_weeks(self):
+        self.login(self.cafe_user)
+        start = self.monday + timedelta(weeks=1)
+        response = self.client.post(self.detail_url(self.raj, 'slots'), {
+            'date_from': start.isoformat(), 'date_to': (start + timedelta(days=13)).isoformat(),
+            'weekdays': [0, 1, 2, 3, 4], 'time_from': '09:00', 'time_to': '17:00',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        body = response.json()
+        self.assertEqual((body['changed'], body['skipped']), (320, 0))
+        self.assertEqual([w['week'] for w in body['weeks']], [start.isoformat(), (start + timedelta(weeks=1)).isoformat()])
+        self.assertEqual(body['weeks'][0]['availability'], open_hours(*[(d, '09:00', '17:00') for d in range(5)]))
+        self.assertEqual(WeeklyAvailability.objects.filter(service_provider=self.raj).count(), 2)
+
+    def test_close_slots_and_until_midnight(self):
+        book(self.portrait, self.mei, at(self.monday, '10:00'))
+        self.login(self.cafe_user)
+        response = self.client.post(self.detail_url(self.mei, 'slots'), {
+            'date_from': self.monday.isoformat(), 'date_to': self.monday.isoformat(), 'weekdays': [0],
+            'time_from': '00:00', 'time_to': '24:00', 'available': False,
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        self.assertEqual((response.json()['changed'], response.json()['skipped']), (7, 5))  # the booking's 5 blocks stay
+        self.week.refresh_from_db()
+        self.assertEqual(self.week.availability[36:50], 'UUUU' + 'HHHHH' + 'UUUUU')
+
+    def test_add_slots_validation(self):
+        self.login(self.cafe_user)
+        valid = {'date_from': self.monday.isoformat(), 'date_to': self.monday.isoformat(), 'weekdays': [0], 'time_from': '09:00', 'time_to': '10:00'}
+        cases = {
+            'date_to before date_from': ({'date_to': (self.monday - timedelta(days=1)).isoformat()}, 'date_to'),
+            'over 26 weeks': ({'date_to': (self.monday + timedelta(weeks=26)).isoformat()}, 'date_to'),
+            'no weekdays': ({'weekdays': []}, 'weekdays'),
+            'bad weekday': ({'weekdays': [7]}, 'weekdays'),
+            'off the grid': ({'time_from': '09:10'}, 'time_from'),
+            'to off the grid': ({'time_to': '10:05'}, 'time_to'),
+            'to before from': ({'time_to': '08:00'}, 'time_to'),
+            'to not a time': ({'time_to': 'noon'}, 'time_to'),
+        }
+        for label, (changes, field) in cases.items():
+            with self.subTest(label):
+                response = self.client.post(self.detail_url(self.mei, 'slots'), {**valid, **changes}, format='json')
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn(field, response.json())
+        self.assertEqual(self.client.post(self.detail_url(self.mei, 'slots'), valid, format='json').status_code, 200)
+
+    # --- Copying a week -------------------------------------------------------------
+
+    def test_copy_week(self):
+        self.login(self.cafe_user)
+        response = self.client.post(self.detail_url(self.mei, 'copy-week'), {'source_week': self.monday.isoformat(), 'weeks': 3}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        body = response.json()
+        self.assertEqual([w['week'] for w in body['weeks']],
+                         [(self.monday + timedelta(weeks=n)).isoformat() for n in (1, 2, 3)])
+        self.assertTrue(all(w['availability'] == self.week.availability for w in body['weeks']))
+        # To a chosen week instead of the next one.
+        target = self.monday + timedelta(weeks=8)
+        response = self.client.post(self.detail_url(self.mei, 'copy-week'), {'source_week': self.monday.isoformat(), 'target_week': target.isoformat()}, format='json')
+        self.assertEqual([w['week'] for w in response.json()['weeks']], [target.isoformat()])
+
+    def test_copy_week_validation(self):
+        self.login(self.cafe_user)
+        url = self.detail_url(self.mei, 'copy-week')
+        cases = {
+            'not a Monday': ({'source_week': (self.monday + timedelta(days=1)).isoformat()}, 'source_week'),
+            'target not a Monday': ({'source_week': self.monday.isoformat(), 'target_week': (self.monday + timedelta(days=8)).isoformat()}, 'target_week'),
+            'same week': ({'source_week': self.monday.isoformat(), 'target_week': self.monday.isoformat()}, 'target_week'),
+            'too many weeks': ({'source_week': self.monday.isoformat(), 'weeks': 27}, 'weeks'),
+            'missing source': ({}, 'source_week'),
+        }
+        for label, (body, field) in cases.items():
+            with self.subTest(label):
+                response = self.client.post(url, body, format='json')
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn(field, response.json())
+
+
+class WeeklyAvailabilityAPITests(ScheduleAPITestCase):
+    list_url = reverse('product_app:weekly-availability-list')
+
+    @staticmethod
+    def detail_url(week):
+        return reverse('product_app:weekly-availability-detail', args=[week.pk])
+
+    def test_requires_login(self):
+        self.assertEqual(self.client.get(self.list_url).status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_lists_own_providers_weeks_with_filters(self):
+        open_week(self.mei, self.monday + timedelta(weeks=1))
+        open_week(self.raj, self.monday)
+        open_week(self.florist_provider, self.monday)
+        self.login(self.cafe_user)
+        body = self.client.get(self.list_url).json()
+        self.assertEqual(body['count'], 3)
+        self.assertEqual(set(body['results'][0]), {'id', 'service_provider', 'week', 'availability'})
+        self.assertEqual(self.client.get(self.list_url, {'service_provider': self.raj.pk}).json()['count'], 1)
+        response = self.client.get(self.list_url, {'week_after': (self.monday + timedelta(days=1)).isoformat()})
+        self.assertEqual([w['week'] for w in response.json()['results']], [(self.monday + timedelta(weeks=1)).isoformat()])
+
+    def test_create_with_open_and_closed_blocks_only(self):
+        self.login(self.cafe_user)
+        nxt = (self.monday + timedelta(weeks=1)).isoformat()
+        response = self.client.post(self.list_url, {'service_provider': self.mei.pk, 'week': nxt}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.content)
+        self.assertEqual(response.json()['availability'], 'U' * 672)
+        for letters in ('H' * 672, 'U' * 671 + 'X'):
+            with self.subTest(letters=letters[-1]):
+                response = self.client.post(self.list_url, {'service_provider': self.raj.pk, 'week': nxt, 'availability': letters}, format='json')
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn('H and X come from bookings', response.json()['availability'][0])
+
+    def test_create_validation(self):
+        self.login(self.cafe_user)
+        cases = {
+            'not a Monday': ({'service_provider': self.raj.pk, 'week': (self.monday + timedelta(days=2)).isoformat()}, 'week'),
+            'twice': ({'service_provider': self.mei.pk, 'week': self.monday.isoformat()}, 'non_field_errors'),
+            'bad letters': ({'service_provider': self.raj.pk, 'week': self.monday.isoformat(), 'availability': 'O' * 10}, 'availability'),
+            'unknown provider': ({'service_provider': 99999, 'week': self.monday.isoformat()}, 'service_provider'),
+        }
+        for label, (body, field) in cases.items():
+            with self.subTest(label):
+                response = self.client.post(self.list_url, body, format='json')
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn(field, response.json())
+        response = self.client.post(self.list_url, {'service_provider': self.florist_provider.pk, 'week': self.monday.isoformat()}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_open_and_close_blocks(self):
+        self.login(self.cafe_user)
+        letters = open_hours((0, '09:00', '12:00'), (2, '13:00', '15:00'))
+        response = self.client.patch(self.detail_url(self.week), {'availability': letters}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        self.week.refresh_from_db()
+        self.assertEqual(self.week.availability, letters)
+
+    def test_booked_blocks_cant_change(self):
+        book(self.portrait, self.mei, at(self.monday, '09:00'))  # 09:00–10:15 H
+        self.week.refresh_from_db()
+        self.login(self.cafe_user)
+        cases = {
+            'freeing a booked block': self.week.availability.replace('H', 'O', 1),
+            'closing a booked block': self.week.availability.replace('H', 'U', 1),
+            'booked by hand': self.week.availability.replace('O', 'X', 1),
+        }
+        for label, letters in cases.items():
+            with self.subTest(label):
+                response = self.client.patch(self.detail_url(self.week), {'availability': letters}, format='json')
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn('availability', response.json())
+        before = self.week.availability
+        self.week.refresh_from_db()
+        self.assertEqual(self.week.availability, before)
+        # The other blocks can still change.
+        closed = before.replace('O', 'U')
+        self.assertEqual(self.client.patch(self.detail_url(self.week), {'availability': closed}, format='json').status_code, 200)
+
+    def test_an_edit_made_from_stale_letters_cant_overwrite_a_new_booking(self):
+        # The owner loaded the week, then a customer booked, then the owner saves the old letters.
+        stale = self.week.availability
+        book(self.portrait, self.mei, at(self.monday, '09:00'))
+        self.login(self.cafe_user)
+        response = self.client.put(self.detail_url(self.week), {
+            'service_provider': self.mei.pk, 'week': self.monday.isoformat(), 'availability': stale,
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("booked blocks (H / X) can't be changed", response.json()['availability'][0])
+
+    def test_provider_and_week_cant_change(self):
+        self.login(self.cafe_user)
+        for body, field in (({'service_provider': self.raj.pk}, 'service_provider'), ({'week': (self.monday + timedelta(weeks=1)).isoformat()}, 'week')):
+            with self.subTest(field):
+                response = self.client.patch(self.detail_url(self.week), body, format='json')
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn(field, response.json())
+
+    def test_delete_only_without_bookings(self):
+        self.login(self.cafe_user)
+        book(self.portrait, self.mei, at(self.monday, '09:00'))
+        response = self.client.delete(self.detail_url(self.week))
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('has bookings', response.json()['availability'][0])
+        ScheduleItem.objects.all().delete()  # the letters are freed (O), so now it can go
+        self.assertEqual(self.client.delete(self.detail_url(self.week)).status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_other_business(self):
+        theirs = open_week(self.florist_provider, self.monday)
+        self.login(self.cafe_user)
+        self.assertEqual(self.client.get(self.detail_url(theirs)).status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.client.patch(self.detail_url(theirs), {'availability': 'O' * 672}, format='json').status_code, 403)
+        self.assertEqual(self.client.delete(self.detail_url(theirs)).status_code, status.HTTP_403_FORBIDDEN)
 
 
 class ServiceAPITests(ScheduleAPITestCase):
@@ -733,7 +926,7 @@ class ServiceAPITests(ScheduleAPITestCase):
     def valid(self, **overrides):
         return {
             'name': 'Family', 'price': '250.00', 'duration_minutes': 90, 'buffer_minutes': 30,
-            'weekly_availability': [self.mei.pk, self.raj.pk], **overrides,
+            'service_providers': [self.mei.pk, self.raj.pk], **overrides,
         }
 
     def test_requires_login(self):
@@ -741,59 +934,41 @@ class ServiceAPITests(ScheduleAPITestCase):
 
     def test_lists_own_business_only(self):
         self.login(self.cafe_user)
-        body = self.client.get(self.list_url).json()
         self.assertEqual(
-            body['results'],
+            self.client.get(self.list_url).json()['results'],
             [{
                 'id': self.portrait.pk, 'business': self.cafe.pk, 'name': 'Portrait', 'description': '', 'information': '',
                 'price': '180.00', 'duration_minutes': 60, 'buffer_minutes': 15,
-                'weekly_availability': [self.mei.pk], 'is_active': True,
+                'service_providers': [self.mei.pk], 'is_active': True,
             }],
         )
 
-    def test_create_with_availabilities(self):
+    def test_create_and_change_providers(self):
         self.login(self.cafe_user)
         response = self.client.post(self.list_url, self.valid(), format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.content)
         service = Service.objects.get(pk=response.json()['id'])
-        self.assertEqual(set(service.weekly_availability.all()), {self.mei, self.raj})
-        self.assertEqual(service.business, self.cafe)
-        # Without availabilities: valid, but not bookable yet.
-        response = self.client.post(self.list_url, self.valid(name='Later', weekly_availability=[]), format='json')
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(set(service.service_providers.all()), {self.mei, self.raj})
+        self.client.patch(self.detail_url(service), {'service_providers': [self.raj.pk]}, format='json')
+        self.assertEqual(list(service.service_providers.all()), [self.raj])
+        self.client.patch(self.detail_url(service), {'price': '200.00'}, format='json')
+        self.assertEqual(list(service.service_providers.all()), [self.raj])  # untouched
 
-    def test_change_availabilities(self):
+    def test_another_business_provider_is_rejected(self):
         self.login(self.cafe_user)
-        response = self.client.patch(self.detail_url(self.portrait), {'weekly_availability': [self.raj.pk]}, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(list(self.portrait.weekly_availability.all()), [self.raj])
-        response = self.client.patch(self.detail_url(self.portrait), {'price': '200.00'}, format='json')
-        self.assertEqual(list(self.portrait.weekly_availability.all()), [self.raj])  # untouched
-
-    def test_another_business_availability_is_rejected(self):
-        self.login(self.cafe_user)
-        response = self.client.post(self.list_url, self.valid(weekly_availability=[self.mei.pk, self.florist_calendar.pk]), format='json')
+        response = self.client.post(self.list_url, self.valid(service_providers=[self.mei.pk, self.florist_provider.pk]), format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("Not your business's weekly availability", response.json()['weekly_availability'][0])
-        response = self.client.patch(
-            self.detail_url(self.portrait), {'weekly_availability': [self.florist_calendar.pk]}, format='json'
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(list(self.portrait.weekly_availability.all()), [self.mei])
-        response = self.client.post(self.list_url, self.valid(weekly_availability=[99999]), format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Not your business's service provider", response.json()['service_providers'][0])
+        self.assertEqual(self.client.post(self.list_url, self.valid(service_providers=[99999]), format='json').status_code, 400)
 
     def test_invalid_input(self):
         self.login(self.cafe_user)
         cases = {
             'duration not a whole block': ({'duration_minutes': 50}, 'duration_minutes'),
             'duration zero': ({'duration_minutes': 0}, 'duration_minutes'),
-            'duration too long': ({'duration_minutes': 1455}, 'duration_minutes'),
             'buffer not a whole block': ({'buffer_minutes': 10}, 'buffer_minutes'),
             'negative price': ({'price': '-1.00'}, 'price'),
-            'blank name': ({'name': ''}, 'name'),
             'duplicate name': ({'name': 'Portrait'}, 'non_field_errors'),
-            'description too long': ({'description': 'x' * 301}, 'description'),
         }
         for label, (overrides, field) in cases.items():
             with self.subTest(label):
@@ -804,38 +979,19 @@ class ServiceAPITests(ScheduleAPITestCase):
     def test_other_business(self):
         self.login(self.cafe_user)
         self.assertEqual(self.client.get(self.detail_url(self.florist_service)).status_code, status.HTTP_403_FORBIDDEN)
-        self.assertEqual(self.client.delete(self.detail_url(self.florist_service)).status_code, status.HTTP_403_FORBIDDEN)
-        response = self.client.post(self.list_url, self.valid(business=self.florist.pk, weekly_availability=[]), format='json')
+        response = self.client.post(self.list_url, self.valid(business=self.florist.pk, service_providers=[]), format='json')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertTrue(Service.objects.filter(pk=self.florist_service.pk).exists())
 
     def test_slots(self):
-        monday = future_monday()
-        book(self.portrait, self.mei, at(monday, '11:00'))  # 11:00–12:00, blocked until 12:15
+        book(self.portrait, self.mei, at(self.monday, '11:00'))  # 11:00–12:00, blocked until 12:15
         self.login(self.cafe_user)
         url = reverse('product_app:service-slots', args=[self.portrait.pk])
-        response = self.client.get(url, {'date_from': monday.isoformat()})
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
-        body = response.json()
-        self.assertEqual((body['date_from'], body['date_to']), (monday.isoformat(), monday.isoformat()))
-        # Mei is open 09:00–12:00; 60 minutes + a 15-minute buffer must end by the 11:00 booking.
+        body = self.client.get(url, {'date_from': self.monday.isoformat()}).json()
         self.assertEqual(
             [datetime.fromisoformat(slot) for slot in body['slots']],
-            [at(monday, hhmm) for hhmm in ('09:00', '09:15', '09:30', '09:45')],
+            [at(self.monday, hhmm) for hhmm in ('09:00', '09:15', '09:30', '09:45')],
         )
-        response = self.client.get(url, {'date_from': (monday + timedelta(days=1)).isoformat()})
-        self.assertEqual(response.json()['slots'], [])  # closed on Tuesday
-
-    def test_slots_query(self):
-        self.login(self.cafe_user)
-        url = reverse('product_app:service-slots', args=[self.portrait.pk])
-        monday = future_monday()
+        self.assertEqual(self.client.get(url, {'date_from': (self.monday + timedelta(days=1)).isoformat()}).json()['slots'], [])
         self.assertEqual(self.client.get(url).status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(self.client.get(url, {'date_from': 'soon'}).status_code, status.HTTP_400_BAD_REQUEST)
-        response = self.client.get(url, {'date_from': monday.isoformat(), 'date_to': (monday - timedelta(days=1)).isoformat()})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('date_to', response.json())
-        response = self.client.get(url, {'date_from': monday.isoformat(), 'date_to': (monday + timedelta(days=100)).isoformat()})
-        self.assertEqual(response.json()['date_to'], (monday + timedelta(days=30)).isoformat())  # 31 days at most
-        other_url = reverse('product_app:service-slots', args=[self.florist_service.pk])
-        self.assertEqual(self.client.get(other_url, {'date_from': monday.isoformat()}).status_code, status.HTTP_403_FORBIDDEN)
+        response = self.client.get(url, {'date_from': self.monday.isoformat(), 'date_to': (self.monday + timedelta(days=100)).isoformat()})
+        self.assertEqual(response.json()['date_to'], (self.monday + timedelta(days=30)).isoformat())

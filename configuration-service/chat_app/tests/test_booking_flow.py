@@ -11,10 +11,9 @@ from auth_app.models import BusinessUser
 from checkout_app.models import OrderStatus, ScheduleItem
 from checkout_app.schedule import local
 from checkout_app.services import place_booking
-from checkout_app.tests.test_schedule import at, book, future_monday
+from checkout_app.tests.test_schedule import at, book, day_letters, future_monday, open_week
 from configuration_app.models import BusinessConfiguration
-from product_app.models import Product, Service, WeeklyAvailability
-from product_app.tests import open_hours
+from product_app.models import Product, Service, ServiceProvider
 
 from ..models import ChatSession
 from ..order_flow import (
@@ -50,7 +49,8 @@ def times(options: list[str]) -> list[str]:
 
 
 class StudioTestData:
-    """A photography studio: two photographers' calendars and services, "now" fixed on a Monday at 08:00."""
+    """A photography studio: two photographers (with their next three weeks open) and services,
+    "now" fixed on a Monday at 08:00."""
 
     @classmethod
     def setUpTestData(cls):
@@ -58,20 +58,23 @@ class StudioTestData:
             business_name='Snap Studio', description='Portrait and family photography.', location='Singapore'
         )
         cls.user = BusinessUser.objects.create_user(username='studio', password='123', business=cls.studio)
-        cls.mei = WeeklyAvailability.objects.create(business=cls.studio, name='Mei', availability=open_hours(*WEEKDAYS))
-        cls.raj = WeeklyAvailability.objects.create(business=cls.studio, name='Raj', availability=open_hours(*RAJ_DAYS))
+        cls.mei = ServiceProvider.objects.create(business=cls.studio, name='Mei')
+        cls.raj = ServiceProvider.objects.create(business=cls.studio, name='Raj')
+        cls.monday = future_monday()
+        for weeks in range(3):
+            open_week(cls.mei, cls.monday + timedelta(weeks=weeks), *WEEKDAYS)
+            open_week(cls.raj, cls.monday + timedelta(weeks=weeks), *RAJ_DAYS)
         cls.family = Service.objects.create(
             business=cls.studio, name='Family Shoot', price='250.00', duration_minutes=90, buffer_minutes=30,
             description='Up to 6 people, in the studio.', information='Bring up to 3 outfits. Pets welcome.',
         )
-        cls.family.weekly_availability.set([cls.mei, cls.raj])
+        cls.family.service_providers.set([cls.mei, cls.raj])
         cls.portrait = Service.objects.create(
             business=cls.studio, name='Portrait Session', price='180.00', duration_minutes=60, buffer_minutes=15,
         )
-        cls.portrait.weekly_availability.set([cls.mei])
+        cls.portrait.service_providers.set([cls.mei])
         Service.objects.create(business=cls.studio, name='Retired', price='1.00', duration_minutes=60, is_active=False)
         Service.objects.create(business=cls.studio, name='Nobody Does It', price='1.00', duration_minutes=60)
-        cls.monday = future_monday()
         cls.now = at(cls.monday, '08:00')
 
 
@@ -157,11 +160,14 @@ class BookingFlowAPITests(StudioTestData, FlowTestMixin, APITestCase):
             'Please reply CONFIRM to book it, or tell me what you would like to change.',
         )
         self.assertFalse(ScheduleItem.objects.exists())
+        self.assertEqual(day_letters(self.mei, self.monday, '10:00', '13:00'), 'O' * 12)  # nothing on hold yet
 
         # 4. Confirms: the booking is saved first, then the customer is told, and back to the start.
         response = self.send('Confirm', {'decision': 'confirm'})
         booking = ScheduleItem.objects.get()
-        self.assertEqual((booking.service, booking.weekly_availability, booking.chat_session), (self.family, self.mei, self.session))
+        self.assertEqual((booking.service, booking.service_provider, booking.chat_session), (self.family, self.mei, self.session))
+        # Mei's week: 10:30–12:30 (the session and its buffer) went from O to H (pending payment).
+        self.assertEqual(day_letters(self.mei, self.monday, '10:00', '13:00'), 'OO' + 'H' * 8 + 'OO')
         self.assertEqual((booking.start_time, booking.end_time, booking.blocked_until),
                          (at(self.monday, '10:30'), at(self.monday, '12:00'), at(self.monday, '12:30')))
         self.assertEqual((booking.order_status, booking.is_sandbox), (OrderStatus.PENDING_PAYMENT, True))
@@ -270,7 +276,7 @@ class BookingFlowAPITests(StudioTestData, FlowTestMixin, APITestCase):
         self.assertIn('## Services that can be booked\n', prompt)
         self.assertIn(f'- id {self.family.pk}: Family Shoot, $250.00 (1 h 30 min). Up to 6 people, in the studio.', prompt)
         self.assertNotIn('Retired', prompt)  # inactive
-        self.assertNotIn('Nobody Does It', prompt)  # no weekly availability: can't be booked
+        self.assertNotIn('Nobody Does It', prompt)  # no service provider: can't be booked
         self.assertIn('Do not suggest or promise any dates or times', prompt)
         self.assertNotIn('## Products on sale', prompt)  # the studio sells no products
         extraction = self.calls(structured=True)[0]['messages'][0]['content']

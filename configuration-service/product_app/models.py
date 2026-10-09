@@ -163,23 +163,26 @@ class FAQ(models.Model):
         return self.question
 
 
-# --- Services and their weekly availability -------------------------------------------------
+# --- Services, their providers and the providers' weekly availability ---------------------------
 
 SLOT_MINUTES = 15  # every block of a weekly availability is 15 minutes
 SLOTS_PER_DAY = 24 * 60 // SLOT_MINUTES  # 96
 DAYS_PER_WEEK = 7
 AVAILABILITY_LENGTH = SLOTS_PER_DAY * DAYS_PER_WEEK  # 672
-# One letter per block. In a WeeklyAvailability as stored (the recurring weekly template the
-# business edits), only O blocks can be booked. In a week's calendar (checkout_app.schedule.week_calendar),
-# bookings are drawn over the template: pending payment as H, paid or completed as X.
-SLOT_AVAILABLE = 'O'
-SLOT_TAKEN = 'X'
-SLOT_ON_HOLD = 'H'
-SLOT_LETTERS = (SLOT_AVAILABLE, SLOT_TAKEN, SLOT_ON_HOLD)
+# One letter per block of a provider's week. The business opens (O) or closes (U) blocks; the
+# bookings (checkout_app.ScheduleItem) set them to H or X themselves, and only they can (see
+# checkout_app.schedule): H while a booking is pending payment, X once it's paid or completed.
+SLOT_AVAILABLE = 'O'  # open: customers can book it
+SLOT_UNAVAILABLE = 'U'  # not open for booking
+SLOT_ON_HOLD = 'H'  # booked, payment pending
+SLOT_BOOKED = 'X'  # booked and paid (or done)
+SLOT_LETTERS = (SLOT_AVAILABLE, SLOT_UNAVAILABLE, SLOT_ON_HOLD, SLOT_BOOKED)
+BOOKED_LETTERS = (SLOT_ON_HOLD, SLOT_BOOKED)  # taken by a booking
 AVAILABILITY_PATTERN = rf'^[{"".join(SLOT_LETTERS)}]{{{AVAILABILITY_LENGTH}}}$'
-NOT_AVAILABLE_WEEK = SLOT_TAKEN * AVAILABILITY_LENGTH
+UNAVAILABLE_WEEK = SLOT_UNAVAILABLE * AVAILABILITY_LENGTH
 
-WEEKLY_AVAILABILITY_NAME_MAX_LENGTH = 150
+SERVICE_PROVIDER_NAME_MAX_LENGTH = 150
+SERVICE_PROVIDER_DESCRIPTION_MAX_LENGTH = 300
 SERVICE_NAME_MAX_LENGTH = PRODUCT_NAME_MAX_LENGTH
 SERVICE_DESCRIPTION_MAX_LENGTH = PRODUCT_DESCRIPTION_MAX_LENGTH
 SERVICE_INFORMATION_MAX_LENGTH = PRODUCT_INFORMATION_MAX_LENGTH
@@ -188,19 +191,19 @@ SERVICE_BUFFER_MAX_MINUTES = 24 * 60
 
 
 def default_availability() -> str:
-    """A new WeeklyAvailability: nothing bookable until the business opens some blocks."""
-    return NOT_AVAILABLE_WEEK
+    """A new week: nothing open until the business opens some blocks."""
+    return UNAVAILABLE_WEEK
 
 
 def block_index(weekday: int, minute_of_day: int) -> int:
-    """The position in a weekly availability of the block starting at `minute_of_day` (0–1439) on
+    """The position in a week's availability of the block starting at `minute_of_day` (0–1439) on
     `weekday` (0 = Monday, as datetime.weekday())."""
     return weekday * SLOTS_PER_DAY + minute_of_day // SLOT_MINUTES
 
 
 def validate_availability(value) -> None:
-    """A weekly availability: exactly AVAILABILITY_LENGTH letters, each O (available), X (taken)
-    or H (on hold); block 0 is Monday 00:00–00:15, block 96 Tuesday 00:00, and so on."""
+    """A week's availability: exactly AVAILABILITY_LENGTH letters, each O (available), U
+    (unavailable), H (on hold) or X (booked); block 0 is Monday 00:00–00:15, block 96 Tuesday 00:00."""
     if not isinstance(value, str) or len(value) != AVAILABILITY_LENGTH:
         raise ValidationError(
             f'Must be exactly {AVAILABILITY_LENGTH} letters: one per {SLOT_MINUTES}-minute block of the week, '
@@ -209,9 +212,15 @@ def validate_availability(value) -> None:
     wrong = sorted(set(value) - set(SLOT_LETTERS))
     if wrong:
         raise ValidationError(
-            f'Each block must be {SLOT_AVAILABLE} (available), {SLOT_TAKEN} (taken) or {SLOT_ON_HOLD} (on hold); '
-            f'found {", ".join(repr(letter) for letter in wrong)}.'
+            f'Each block must be {SLOT_AVAILABLE} (available), {SLOT_UNAVAILABLE} (unavailable), {SLOT_ON_HOLD} '
+            f'(on hold) or {SLOT_BOOKED} (booked); found {", ".join(repr(letter) for letter in wrong)}.'
         )
+
+
+def validate_monday(value) -> None:
+    """A week is identified by its Monday."""
+    if value is not None and value.weekday() != 0:
+        raise ValidationError('Must be a Monday: the first day of the week.')
 
 
 def validate_slot_minutes(value) -> None:
@@ -220,47 +229,83 @@ def validate_slot_minutes(value) -> None:
         raise ValidationError(f'Must be a multiple of {SLOT_MINUTES} minutes.')
 
 
-class WeeklyAvailability(models.Model):
-    """When someone (e.g. one photographer) can take bookings, every week: a calendar of
-    15-minute blocks (see validate_availability). Services list which availabilities can do them."""
+class ServiceProvider(models.Model):
+    """Who (or what) a service is booked with: one photographer, one teacher, one venue... Each
+    has a calendar of WeeklyAvailability weeks, and does the Services that list it."""
 
     business = models.ForeignKey(
         'configuration_app.BusinessConfiguration',
         on_delete=models.CASCADE,
-        related_name='weekly_availabilities',
+        related_name='service_providers',
     )
     name = models.CharField(
-        max_length=WEEKLY_AVAILABILITY_NAME_MAX_LENGTH,
-        help_text='Whose calendar this is, e.g. "Photographer: Mei" (not shown to customers).',
+        max_length=SERVICE_PROVIDER_NAME_MAX_LENGTH,
+        help_text='e.g. "Mei Lin" or "Studio A" (not shown to customers).',
     )
-    availability = models.CharField(
-        max_length=AVAILABILITY_LENGTH,
-        default=default_availability,
-        validators=[validate_availability],
-        help_text=(
-            f'{AVAILABILITY_LENGTH} letters, one per {SLOT_MINUTES}-minute block of the week from Monday 00:00 '
-            f'(local time): {SLOT_AVAILABLE} = available, {SLOT_TAKEN} = taken, {SLOT_ON_HOLD} = on hold. Only '
-            f'{SLOT_AVAILABLE} blocks can be booked.'
-        ),
+    description = models.CharField(
+        max_length=SERVICE_PROVIDER_DESCRIPTION_MAX_LENGTH,
+        blank=True,
+        help_text='Optional note for the business, e.g. "Lead photographer".',
     )
+    is_active = models.BooleanField(default=True, help_text='Inactive providers take no new bookings.')
 
     class Meta:
         ordering = ['business', 'name']
-        verbose_name_plural = 'weekly availabilities'
         constraints = [
-            models.CheckConstraint(condition=~Q(name=''), name='weekly_availability_name_not_empty'),
-            models.CheckConstraint(
-                condition=Q(availability__regex=AVAILABILITY_PATTERN), name='weekly_availability_valid'
-            ),
+            models.CheckConstraint(condition=~Q(name=''), name='service_provider_name_not_empty'),
             models.UniqueConstraint(
                 fields=['business', 'name'],
-                name='weekly_availability_name_unique_per_business',
-                violation_error_message='This business already has a weekly availability with this name.',
+                name='service_provider_name_unique_per_business',
+                violation_error_message='This business already has a service provider with this name.',
             ),
         ]
 
     def __str__(self) -> str:
         return self.name
+
+
+class WeeklyAvailability(models.Model):
+    """One service provider's availability in one week (`week`: its Monday), in 15-minute blocks
+    of local time (settings.SCHEDULE_TIME_ZONE); see validate_availability. A week without a row
+    is all unavailable."""
+
+    service_provider = models.ForeignKey(
+        ServiceProvider,
+        on_delete=models.CASCADE,
+        related_name='weekly_availabilities',
+    )
+    week = models.DateField(validators=[validate_monday], help_text='The Monday of the week.')
+    availability = models.CharField(
+        max_length=AVAILABILITY_LENGTH,
+        default=default_availability,
+        validators=[validate_availability],
+        help_text=(
+            f'{AVAILABILITY_LENGTH} letters, one per {SLOT_MINUTES}-minute block from Monday 00:00 (local '
+            f'time): {SLOT_AVAILABLE} = available, {SLOT_UNAVAILABLE} = unavailable, {SLOT_ON_HOLD} = on hold '
+            f'(booked, payment pending), {SLOT_BOOKED} = booked. Bookings set {SLOT_ON_HOLD} and {SLOT_BOOKED}.'
+        ),
+    )
+
+    class Meta:
+        ordering = ['service_provider', 'week']
+        verbose_name_plural = 'weekly availabilities'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['service_provider', 'week'],
+                name='weekly_availability_unique_week',
+                violation_error_message='This service provider already has an availability for this week.',
+            ),
+            models.CheckConstraint(
+                condition=Q(availability__regex=AVAILABILITY_PATTERN), name='weekly_availability_letters_valid'
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f'{self.service_provider} – week of {self.week:%d %b %Y}' if self.week else str(self.service_provider)
+
+    @property
+    def business_id(self):
+        return self.service_provider.business_id
 
     def block(self, weekday: int, minute_of_day: int) -> str:
         """The letter of the block starting at `minute_of_day` on `weekday` (0 = Monday)."""
@@ -268,21 +313,21 @@ class WeeklyAvailability(models.Model):
 
 
 class Service(models.Model):
-    """Something a customer books a time for (e.g. a photoshoot), done by the people whose weekly
-    availabilities it lists. Booked as checkout_app.ScheduleItem."""
+    """Something a customer books a time for (e.g. a photoshoot), with one of the service providers
+    it lists. Booked as checkout_app.ScheduleItem."""
 
     business = models.ForeignKey(
         'configuration_app.BusinessConfiguration',
         on_delete=models.CASCADE,
         related_name='services',
     )
-    # Which calendars can take a booking for this service: e.g. one photographer does every
-    # service, another only some. They must be the same business's (checked by the serializer and admin).
-    weekly_availability = models.ManyToManyField(
-        WeeklyAvailability,
+    # Who can do it: e.g. one photographer does every service, another only some. They must be the
+    # same business's (checked by the serializer and admin).
+    service_providers = models.ManyToManyField(
+        ServiceProvider,
         blank=True,
         related_name='services',
-        help_text='The weekly availabilities (e.g. photographers) that can do this service.',
+        help_text='The service providers (e.g. photographers) who can do this service.',
     )
     name = models.CharField(max_length=SERVICE_NAME_MAX_LENGTH)
     description = models.TextField(

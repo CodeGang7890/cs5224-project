@@ -8,10 +8,9 @@ from django.test import SimpleTestCase, TestCase, override_settings
 
 from chat_app.models import ChatSession
 from configuration_app.models import BusinessConfiguration
-from product_app.models import Service, WeeklyAvailability
+from product_app.models import Service, ServiceProvider, WeeklyAvailability
 
 from ..models import OrderItem, OrderStatus, ScheduleItem
-from ..schedule import template_open
 from ..validators import validate_order_data, validate_schedule_data
 
 VALID_ORDER_DATA = {
@@ -168,7 +167,7 @@ class ScheduleItemModelTests(TestCase):
     def setUpTestData(cls):
         cls.studio = BusinessConfiguration.objects.create(business_name='Snap Studio', location='Singapore')
         cls.other = BusinessConfiguration.objects.create(business_name='Other', location='Singapore')
-        cls.mei = WeeklyAvailability.objects.create(business=cls.studio, name='Mei')
+        cls.mei = ServiceProvider.objects.create(business=cls.studio, name='Mei')
         cls.family = Service.objects.create(business=cls.studio, name='Family', price='250.00', duration_minutes=60, buffer_minutes=30)
         cls.start = datetime(2030, 1, 7, 1, 0, tzinfo=dt_timezone.utc)
 
@@ -176,7 +175,7 @@ class ScheduleItemModelTests(TestCase):
         fields = {
             'business': self.studio,
             'service': self.family,
-            'weekly_availability': self.mei,
+            'service_provider': self.mei,
             'start_time': self.start,
             'end_time': self.start + timedelta(hours=1),
             'blocked_until': self.start + timedelta(minutes=90),
@@ -191,7 +190,7 @@ class ScheduleItemModelTests(TestCase):
         self.assertEqual(booking.order_status, OrderStatus.PENDING_PAYMENT)
         self.assertEqual(booking.total, Decimal('250.00'))
         self.assertEqual(str(booking), f'Booking #{booking.pk} (Snap Studio)')
-        self.make(service=None, weekly_availability=None).full_clean()  # e.g. both deleted since
+        self.make(service=None, service_provider=None).full_clean()  # e.g. both deleted since
 
     def test_times_must_match_the_snapshot(self):
         with self.assertRaises(ValidationError) as ctx:
@@ -208,9 +207,9 @@ class ScheduleItemModelTests(TestCase):
 
     def test_related_records_must_be_the_same_business(self):
         theirs = Service.objects.create(business=self.other, name='Theirs', price=1, duration_minutes=60)
-        their_calendar = WeeklyAvailability.objects.create(business=self.other, name='Them')
+        their_provider = ServiceProvider.objects.create(business=self.other, name='Them')
         their_chat = ChatSession.objects.create(business=self.other, is_sandbox=True)
-        for field, value in (('service', theirs), ('weekly_availability', their_calendar), ('chat_session', their_chat)):
+        for field, value in (('service', theirs), ('service_provider', their_provider), ('chat_session', their_chat)):
             with self.subTest(field), self.assertRaises(ValidationError) as ctx:
                 self.make(**{field: value}).full_clean()
             self.assertIn(field, ctx.exception.message_dict)
@@ -236,7 +235,7 @@ class ScheduleItemModelTests(TestCase):
                 validate_schedule_data(value)
             self.assertTrue(any(message_part in m for m in ctx.exception.messages), ctx.exception.messages)
 
-    def test_kept_when_the_service_availability_or_chat_is_deleted(self):
+    def test_kept_when_the_service_provider_or_chat_is_deleted(self):
         chat = ChatSession.objects.create(business=self.studio, is_sandbox=True)
         booking = self.make(chat_session=chat)
         booking.save()
@@ -244,7 +243,7 @@ class ScheduleItemModelTests(TestCase):
         self.mei.delete()
         chat.delete()
         booking.refresh_from_db()
-        self.assertEqual((booking.service, booking.weekly_availability, booking.chat_session), (None, None, None))
+        self.assertEqual((booking.service, booking.service_provider, booking.chat_session), (None, None, None))
         self.assertEqual(booking.schedule_data['service']['name'], 'Family')
 
     def test_deleted_with_business(self):
@@ -262,22 +261,39 @@ class SampleScheduleItemFixtureTests(TestCase):
     ]
 
     def test_fixture_is_valid(self):
-        bookings = list(ScheduleItem.objects.select_related('service', 'weekly_availability'))
+        bookings = list(ScheduleItem.objects.select_related('service', 'service_provider'))
         self.assertEqual(len(bookings), 6)
         for booking in bookings:
             with self.subTest(booking=booking.pk):
                 booking.full_clean()  # loaddata skips validation; this also checks the times match the snapshot
                 self.assertEqual(booking.business_id, 4)
-                self.assertTrue(booking.service.weekly_availability.filter(pk=booking.weekly_availability_id).exists())
-                self.assertTrue(template_open(booking.weekly_availability.availability, booking.start_time, booking.end_time))
-                self.assertEqual(booking.schedule_data['service']['name'], booking.service.name)
+                self.assertTrue(booking.service.service_providers.filter(pk=booking.service_provider_id).exists())
         # No two bookings of one photographer overlap (with their buffers).
         for a in bookings:
             for b in bookings:
-                if a.pk < b.pk and a.weekly_availability_id == b.weekly_availability_id:
+                if a.pk < b.pk and a.service_provider_id == b.service_provider_id:
                     self.assertFalse(a.start_time < b.blocked_until and b.start_time < a.blocked_until, (a.pk, b.pk))
         self.assertEqual({b.order_status for b in bookings}, set(OrderStatus.values))
         self.assertEqual([b.pk for b in bookings if b.is_sandbox], [5])
+
+    def test_the_letters_match_the_bookings(self):
+        """Each booking's blocks (duration and open buffer) are H while pending, X once paid; no
+        other block is H or X."""
+        expected = {}
+        for booking in ScheduleItem.objects.all():
+            letter = 'H' if booking.order_status == OrderStatus.PENDING_PAYMENT else 'X'
+            moment = booking.start_time
+            while moment < booking.blocked_until:
+                local = moment.astimezone(dt_timezone(timedelta(hours=8)))
+                monday = local.date() - timedelta(days=local.weekday())
+                expected[(booking.service_provider_id, monday, local.weekday() * 96 + (local.hour * 60 + local.minute) // 15)] = letter
+                moment += timedelta(minutes=15)
+        for week in WeeklyAvailability.objects.all():
+            for index, letter in enumerate(week.availability):
+                key = (week.service_provider_id, week.week, index)
+                if letter in 'HX' or key in expected:
+                    with self.subTest(week=str(week), index=index):
+                        self.assertEqual(letter, expected.get(key))
 
     def test_the_booking_made_in_a_chat(self):
         booking = ScheduleItem.objects.get(pk=1)

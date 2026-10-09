@@ -50,8 +50,8 @@ class ScheduleItemFilter(django_filters.FilterSet):
         help_text='Sandbox (test) bookings: `include` (the default), `exclude` or `only`.',
     )
     service = django_filters.NumberFilter(field_name='service_id', help_text='Only bookings of this service (ID).')
-    weekly_availability = django_filters.NumberFilter(
-        field_name='weekly_availability_id', help_text='Only bookings in this weekly availability (ID).'
+    service_provider = django_filters.NumberFilter(
+        field_name='service_provider_id', help_text='Only bookings with this service provider (ID).'
     )
     start_time = django_filters.IsoDateTimeFromToRangeFilter(
         help_text='Use `start_time_after` / `start_time_before` (ISO 8601, inclusive).',

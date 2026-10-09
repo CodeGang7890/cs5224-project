@@ -74,9 +74,9 @@ class ScheduleItemSerializer(serializers.ModelSerializer):
     """A booking, read only (bookings are created by the chat flow when a customer confirms)."""
 
     schedule_data = ScheduleDataJSONField(read_only=True)
-    weekly_availability_name = serializers.CharField(
-        source='weekly_availability.name', read_only=True, default=None,
-        help_text='Whose calendar it is booked in (null if that availability was deleted).',
+    service_provider_name = serializers.CharField(
+        source='service_provider.name', read_only=True, default=None,
+        help_text='Who it is booked with (null if that provider was deleted).',
     )
     total = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True, help_text="The service's price.")
 
@@ -88,8 +88,8 @@ class ScheduleItemSerializer(serializers.ModelSerializer):
             'chat_session',
             'is_sandbox',
             'service',
-            'weekly_availability',
-            'weekly_availability_name',
+            'service_provider',
+            'service_provider_name',
             'start_time',
             'end_time',
             'blocked_until',

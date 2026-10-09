@@ -9,7 +9,7 @@ from rest_framework.test import APITestCase
 from auth_app.models import BusinessUser
 from chat_app.models import ChatSession
 from configuration_app.models import BusinessConfiguration
-from product_app.models import Service, WeeklyAvailability
+from product_app.models import Service, ServiceProvider
 
 from ..models import OrderItem, OrderStatus
 from .test_models import VALID_ORDER_DATA
@@ -175,12 +175,12 @@ class ScheduleAPITests(APITestCase):
         cls.user = BusinessUser.objects.create_user(username='studio', password='123', business=cls.studio)
         cls.no_business_user = BusinessUser.objects.create_superuser(username='admin', password='123')
         cls.session = ChatSession.objects.create(business=cls.studio, phone_number='+6591234567')
-        cls.mei = WeeklyAvailability.objects.create(business=cls.studio, name='Mei')
-        cls.raj = WeeklyAvailability.objects.create(business=cls.studio, name='Raj')
+        cls.mei = ServiceProvider.objects.create(business=cls.studio, name='Mei')
+        cls.raj = ServiceProvider.objects.create(business=cls.studio, name='Raj')
         cls.portrait = Service.objects.create(business=cls.studio, name='Portrait', price='180.00', duration_minutes=60)
         cls.family = Service.objects.create(business=cls.studio, name='Family', price='250.00', duration_minutes=90, buffer_minutes=30)
         cls.workshop = Service.objects.create(business=cls.florist, name='Workshop', price='50.00', duration_minutes=120)
-        theirs = WeeklyAvailability.objects.create(business=cls.florist, name='Them')
+        theirs = ServiceProvider.objects.create(business=cls.florist, name='Them')
         monday = future_monday()
         cls.monday = monday
         cls.early = book(cls.portrait, cls.mei, at(monday, '09:00'), chat_session=cls.session)
@@ -206,10 +206,10 @@ class ScheduleAPITests(APITestCase):
         self.assertEqual(body['total_pages'], 1)
         first = body['results'][0]
         self.assertEqual(set(first), {
-            'id', 'business', 'chat_session', 'is_sandbox', 'service', 'weekly_availability', 'weekly_availability_name',
+            'id', 'business', 'chat_session', 'is_sandbox', 'service', 'service_provider', 'service_provider_name',
             'start_time', 'end_time', 'blocked_until', 'order_status', 'schedule_data', 'total', 'created_time', 'updated_time',
         })
-        self.assertEqual((first['weekly_availability_name'], first['total'], first['order_status']), ('Raj', '250.00', 'payment_received'))
+        self.assertEqual((first['service_provider_name'], first['total'], first['order_status']), ('Raj', '250.00', 'payment_received'))
         self.assertEqual(first['schedule_data']['service']['name'], 'Family')
         self.assertEqual(datetime.fromisoformat(first['start_time']), at(self.monday + timedelta(days=2), '14:00'))
         self.assertEqual(datetime.fromisoformat(first['blocked_until']), at(self.monday + timedelta(days=2), '16:00'))
@@ -220,7 +220,7 @@ class ScheduleAPITests(APITestCase):
         self.assertEqual(self.ids({'sandbox': 'exclude'}), [self.late.pk, self.early.pk])
         self.assertEqual(self.ids({'sandbox': 'only'}), [self.sandbox.pk])
         self.assertEqual(self.ids({'service': self.portrait.pk}), [self.sandbox.pk, self.early.pk])
-        self.assertEqual(self.ids({'weekly_availability': self.raj.pk}), [self.late.pk])
+        self.assertEqual(self.ids({'service_provider': self.raj.pk}), [self.late.pk])
         self.assertEqual(self.ids({'start_time_before': at(self.monday, '23:59').isoformat()}), [self.early.pk])
         self.assertEqual(self.ids({'ordering': 'start_time'}), [self.early.pk, self.sandbox.pk, self.late.pk])
         for params in ({'order_status': 'lost'}, {'sandbox': 'yes'}, {'ordering': 'price'}, {'start_time_after': 'soon'}):
@@ -243,8 +243,8 @@ class ScheduleAPITests(APITestCase):
                 response = getattr(self.client, method)(schedule_url(self.early.pk), {}, format='json')
                 self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
-    def test_a_deleted_availability_shows_as_null(self):
-        WeeklyAvailability.objects.filter(pk=self.raj.pk).delete()
+    def test_a_deleted_provider_shows_as_null(self):
+        ServiceProvider.objects.filter(pk=self.raj.pk).delete()
         self.client.force_authenticate(self.user)
         first = self.client.get(SCHEDULE_LIST_URL).json()['results'][0]
-        self.assertEqual((first['weekly_availability'], first['weekly_availability_name']), (None, None))
+        self.assertEqual((first['service_provider'], first['service_provider_name']), (None, None))
