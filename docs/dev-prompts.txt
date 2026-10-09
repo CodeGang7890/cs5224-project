@@ -776,3 +776,38 @@ When booking is confirmed and initial status is pending payment, the letters sho
 Update the APIs and the frontend UI appropriately.
 Business owners should be able to see each of the ServiceProvider schedule conveniently, and add more slots etc conveniently too for the upcoming days (maybe option to copy availability of previous week).
 Additionally, there should be a way for them to click on a “Schedule Block” and see who orders that and the status (confirmed / not etc).
+
+Date & Time (GMT+8): 2026-10-09 21:29:44
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Now I want to make a GitHub Action CI/CD pipeline.
+For now please just make for configuration-service and frontend-app.
+Ensure all test cases should pass.
+When someone makes a PR to main branch, it should require all the pipelines to pass.
+When pushed to main branch, it should also run the pipeline and run the status checks.
+
+Date & Time (GMT+8): 2026-10-09 21:41:33
+AI Model Used: claude-opus-5-5
+Original Prompt:
+please commmit it, 2 separate commits, one for the migration issue and the other one for the github action, include dev-prompts.txt
+
+Date & Time (GMT+8): 2026-10-09 22:00:06
+AI Model Used: claude-opus-5-5
+Original Prompt:
+The CI jobs are failing, can u see?
+
+Date & Time (GMT+8): 2026-10-09 22:03:54
+AI Model Used: claude-opus-5-5
+Original Prompt:
+ok can u undo the latest commit first right now (reset the commit, dont make another commit to undo it)
+
+Date & Time (GMT+8): 2026-10-09 22:07:03
+AI Model Used: claude-opus-5-5
+Original Prompt:
+Ok now try and make the CI for just the configuration-service first
+Do not commit anything first
+The last error was this:
+django.db.utils.DataError: Problem installing fixture '/home/runner/work/cs5224-project/cs5224-project/configuration-service/product_app/fixtures/sample_services.json': Could not load product_app.WeeklyAvailability(pk=1): invalid regular expression: invalid repetition count(s)
+Error: Process completed with exit code 1.
+Is that using PostgreSQL or what?

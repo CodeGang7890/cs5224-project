@@ -1,3 +1,4 @@
+import re
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -10,6 +11,7 @@ from configuration_app.models import BusinessConfiguration
 
 from .models import (
     AVAILABILITY_LENGTH,
+    AVAILABILITY_PATTERN,
     SLOT_LETTERS,
     FAQ,
     FAQ_ANSWER_MAX_LENGTH,
@@ -394,6 +396,14 @@ class WeeklyAvailabilityModelTests(TestCase):
         with self.assertRaises(ValidationError) as ctx:
             validate_availability('O' * 670 + 'ZA')
         self.assertIn("found 'A', 'Z'", ctx.exception.messages[0])
+
+    def test_letters_pattern_works_on_postgresql(self):
+        # PostgreSQL rejects regex repeat counts over 255 (`[OUHX]{672}` failed every insert there).
+        counts = [int(n) for n in re.findall(r'\{(\d+)\}', AVAILABILITY_PATTERN)]
+        self.assertTrue(counts)
+        self.assertLessEqual(max(counts), 255)
+        for length, valid in ((AVAILABILITY_LENGTH, True), (AVAILABILITY_LENGTH - 1, False), (AVAILABILITY_LENGTH + 1, False)):
+            self.assertEqual(bool(re.fullmatch(AVAILABILITY_PATTERN, 'U' * length)), valid)
 
     def test_invalid_availability_rejected_by_database(self):
         for value in ('O' * 671, 'O' * 671 + 'A'):

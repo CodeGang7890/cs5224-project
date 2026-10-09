@@ -178,7 +178,9 @@ SLOT_ON_HOLD = 'H'  # booked, payment pending
 SLOT_BOOKED = 'X'  # booked and paid (or done)
 SLOT_LETTERS = (SLOT_AVAILABLE, SLOT_UNAVAILABLE, SLOT_ON_HOLD, SLOT_BOOKED)
 BOOKED_LETTERS = (SLOT_ON_HOLD, SLOT_BOOKED)  # taken by a booking
-AVAILABILITY_PATTERN = rf'^[{"".join(SLOT_LETTERS)}]{{{AVAILABILITY_LENGTH}}}$'
+# Exactly AVAILABILITY_LENGTH letters, written as days of blocks: PostgreSQL rejects repeat counts
+# over 255 (so `[OUHX]{672}` fails on every insert there, while SQLite's Python regex allows it).
+AVAILABILITY_PATTERN = rf'^([{"".join(SLOT_LETTERS)}]{{{SLOTS_PER_DAY}}}){{{DAYS_PER_WEEK}}}$'
 UNAVAILABLE_WEEK = SLOT_UNAVAILABLE * AVAILABILITY_LENGTH
 
 SERVICE_PROVIDER_NAME_MAX_LENGTH = 150
