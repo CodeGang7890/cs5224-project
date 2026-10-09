@@ -12,6 +12,13 @@ STEP_CONFIRMATION = 'confirmation'
 ORDER_STEPS = [STEP_PRODUCT_SELECTION, STEP_DETAILS_COLLECTION, STEP_CONFIRMATION]  # in order
 CHAT_STEPS = [STEP_START, *ORDER_STEPS]
 
+# Confirmation's substages. `not_confirmed`: the summary was sent (a fixed template, so the LLM
+# can't claim the order is confirmed) and the chat waits for the customer to confirm. `confirmed`:
+# the order was saved (checkout_app) and the fixed confirmation message sent; the chat then goes
+# straight back to `start`, so `confirmed` only exists within that turn.
+CONFIRMATION_NOT_CONFIRMED = 'not_confirmed'
+CONFIRMATION_CONFIRMED = 'confirmed'
+
 STEP_LABELS = {
     STEP_START: 'Start',
     STEP_PRODUCT_SELECTION: 'Product selection',

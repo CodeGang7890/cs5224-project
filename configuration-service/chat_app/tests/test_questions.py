@@ -326,7 +326,7 @@ class QuestionCheckFlowTests(APITestCase):
         self.assertEqual(call['messages'][-1], {'role': 'user', 'content': 'Does the kaya toast have eggs?'})
 
     def test_runs_even_after_the_order_is_done(self):
-        self.session.chat_state_data = {'completed': True}
+        self.session.chat_state_data = {'last_order_id': 1}
         self.session.save()
         self.send('do you sell gift vouchers?', {'kind': 'unanswered', 'question': 'Do you sell gift vouchers?'})
         self.assertEqual(sum(is_question_check(c.kwargs) for c in self.ollama.chat.call_args_list), 1)

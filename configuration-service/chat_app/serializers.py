@@ -123,8 +123,9 @@ class ChatStateDataSerializer(serializers.Serializer):
     items_confirmed = serializers.BooleanField(
         required=False, help_text='True once the customer said the items are everything they want.'
     )
-    completed = serializers.BooleanField(required=False, help_text='True once the customer confirmed the order.')
-    order_id = serializers.IntegerField(required=False, help_text='The order placed when the customer confirmed.')
+    last_order_id = serializers.IntegerField(
+        required=False, help_text='The last order placed in this chat (the chat then went back to the start).'
+    )
 
 
 @extend_schema_field(ChatStateDataSerializer)
@@ -212,9 +213,10 @@ class SandboxMessageResponseSerializer(ChatMessageSerializer):
             'For debugging, not stored: `before` / `after` (`chat_state_id`, `chat_state_data`), '
             '`route` (the router\'s `intents`, `extracted` and `system_prompt`), `steps` (per order step: '
             '`step`, `system_prompt`, `extracted` (the LLM\'s JSON), `complete`, `go_back`, `go_back_to`, '
-            '`missing`, `issues`, `chat_state_data`), `stop_reason`, `finished`, `order_id`, `missing`, '
-            '`issues`, `question_check` (`kind`, `question`, `saved`, `system_prompt`; null unless the router '
-            'found a question), `reply_system_prompt` (empty for the fixed order status reply) and '
+            '`missing`, `issues`, `chat_state_data`), `stop_reason`, `finished`, `confirmation` (Confirmation\'s substage: `not_confirmed` / '
+            '`confirmed` / null), `order_id` (placed in this turn, or null), `missing`, `issues`, `question_check` (`kind`, `question`, `saved`, `system_prompt`; null unless the router '
+            'found a question), `reply_kind` (`llm`, or a fixed template: `confirmation_request`, `order_confirmed`, '
+            '`order_status_coming_soon`), `reply_system_prompt` (the aside prompt for templates; may be empty) and '
             '`tool_calls` (`name`, `arguments`).'
         ),
     )

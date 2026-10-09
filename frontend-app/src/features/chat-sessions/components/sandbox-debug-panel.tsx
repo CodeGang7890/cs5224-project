@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { CHAT_STEP_LABELS } from '@/features/workflow'
 
 import { useSandboxTurnDebug } from '../hooks/use-chat-sessions'
-import type { ChatSession, FlowStepDebug, Intent, QuestionCheckDebug } from '../types'
+import type { ChatSession, FlowStepDebug, Intent, QuestionCheckDebug, SandboxTurnDebug } from '../types'
 
 function stepLabel(step: string): string {
   return CHAT_STEP_LABELS[step as ChatSession['chat_state_id']] ?? step
@@ -53,7 +53,8 @@ export function SandboxDebugPanel({ session, onClose }: SandboxDebugPanelProps) 
                 mono
               />
               {debug.finished.length > 0 && <KeyValue label="Completed" value={debug.finished.join(', ')} />}
-              {debug.order_id !== null && <KeyValue label="Order" value={`#${debug.order_id}`} mono />}
+              {debug.confirmation && <KeyValue label="Confirmation" value={CONFIRMATION_LABELS[debug.confirmation]} />}
+              {debug.order_id !== null && <KeyValue label="Order placed" value={`#${debug.order_id}`} mono />}
               <KeyValue label="Stopped" value={debug.stop_reason} />
 
               <p className="text-muted-foreground mt-1">Router (1 LLM call)</p>
@@ -110,14 +111,13 @@ export function SandboxDebugPanel({ session, onClose }: SandboxDebugPanelProps) 
                 value={debug.tool_calls.length ? debug.tool_calls.map((call) => call.name).join(', ') : 'none'}
                 mono
               />
+              <KeyValue label="Made by" value={REPLY_KIND_LABELS[debug.reply_kind]} />
               {debug.reply_system_prompt ? (
-                <Collapsible summary="Reply system prompt">
+                <Collapsible summary={debug.reply_kind === 'llm' ? 'Reply system prompt' : 'Aside system prompt'}>
                   <Pre>{debug.reply_system_prompt}</Pre>
                 </Collapsible>
               ) : (
-                <p className="text-muted-foreground italic">
-                  No LLM reply: the fixed "coming soon" reply to a message only about a past order.
-                </p>
+                <p className="text-muted-foreground italic">No LLM call for the reply.</p>
               )}
             </>
           ) : (
@@ -134,6 +134,18 @@ const INTENT_LABELS: Record<Intent, string> = {
   question: 'Question',
   order_status: 'Past order status',
   off_topic: 'Off topic',
+}
+
+const CONFIRMATION_LABELS: Record<NonNullable<SandboxTurnDebug['confirmation']>, string> = {
+  not_confirmed: 'Not confirmed: summary sent, waiting for CONFIRM',
+  confirmed: 'Confirmed: order saved, then the customer was told',
+}
+
+const REPLY_KIND_LABELS: Record<SandboxTurnDebug['reply_kind'], string> = {
+  llm: 'The LLM',
+  confirmation_request: 'Template: order summary + "reply CONFIRM" (plus an LLM aside, if any)',
+  order_confirmed: 'Template: order confirmed (plus an LLM aside, if any)',
+  order_status_coming_soon: 'Template: order status coming soon',
 }
 
 const QUESTION_KIND_LABELS: Record<QuestionCheckDebug['kind'], string> = {

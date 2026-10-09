@@ -9,9 +9,11 @@ Product selection → Details collection → Confirmation (constants.ORDER_STEPS
 2. Check deterministically (the CHECKS below) whether that completes the step, updating
    ChatSession.chat_state_data. If it does, move to the next step and repeat 1–2 there, so one
    message can complete several steps ("2 Kopi C please, that's all, I'm Alice, alice@example.com").
-   Confirmation completing marks the order `completed`.
-Then commit_turn() saves chat_state_id / chat_state_data and, if the customer confirmed, places the
-order (checkout_app: an OrderItem, with its stock reserved) in the same transaction.
+Confirmation has two substages: `not_confirmed` (the chat sends the order summary, a fixed
+template, and waits) and `confirmed`. When the customer confirms, commit_turn() places the order
+(checkout_app: an OrderItem, with its stock reserved) in the same transaction as saving the state,
+and only then is the customer told it's confirmed (again a fixed template). The chat then goes back
+to `start`, keeping only `last_order_id`, so the customer can order again.
 """
 
 import copy
@@ -28,6 +30,8 @@ from checkout_app.services import OrderError, place_order
 from . import llm, prompts
 from .constants import (
     CHAT_STEPS,
+    CONFIRMATION_CONFIRMED,
+    CONFIRMATION_NOT_CONFIRMED,
     DETAIL_TYPE_EMAIL,
     DETAIL_TYPE_NUMBER,
     DETAIL_TYPE_PHONE,
@@ -90,6 +94,16 @@ class Turn:
     # Set when Confirmation passed with this message: chat_state_data at that moment. commit_turn()
     # then places the order, or undoes the confirmation if it can't.
     confirmation: dict | None = None
+    # Set by commit_turn() once the order is saved: the OrderItem's pk.
+    placed_order_id: int | None = None
+
+    @property
+    def confirmation_status(self) -> str | None:
+        """Confirmation's substage after this turn (None: not at Confirmation). Only valid after
+        commit_turn(): `confirmed` means the order is in the database."""
+        if self.placed_order_id is not None:
+            return CONFIRMATION_CONFIRMED
+        return CONFIRMATION_NOT_CONFIRMED if self.step == STEP_CONFIRMATION else None
 
 
 def advance(
@@ -109,9 +123,6 @@ def advance(
     """
     step = step if step in CHAT_STEPS else STEP_START
     turn = Turn(step=step, data=copy.deepcopy(state_data))
-    if turn.data.get('completed'):
-        turn.stop_reason = 'The order was already placed: no extraction, reply only.'
-        return turn
     if step == STEP_START:
         if not start_order:
             turn.stop_reason = 'No order in progress, and the router found no wish to order: reply only.'
@@ -125,7 +136,8 @@ def advance(
     # request to go back to it. This also means one go-back per message at most.
     entered_now = turn.step == STEP_START
     for _ in range(MAX_STEPS_PER_MESSAGE):
-        # A confirmation reached with this message hasn't shown the customer the summary yet.
+        # A confirmation reached with this message hasn't shown the customer the summary yet: the
+        # reply will (substage not_confirmed).
         if step == STEP_CONFIRMATION and entered_now:
             turn.stop_reason = (
                 'Confirmation reached with this message: not checked until the customer has seen the summary.'
@@ -154,12 +166,10 @@ def advance(
         if result.go_back:
             step = STEP_PRODUCT_SELECTION
         elif result.complete:
-            if step == STEP_CONFIRMATION and 'order_id' not in turn.data and turn.confirmation is None:
-                turn.confirmation = copy.deepcopy(turn.data)
             turn.finished.append(STEP_LABELS[step])
-            if NEXT_STEP[step] is None:
-                turn.data['completed'] = True
-                turn.stop_reason = 'Confirmation completed: the order is confirmed.'
+            if NEXT_STEP[step] is None:  # Confirmation: commit_turn() places the order
+                turn.confirmation = copy.deepcopy(turn.data)
+                turn.stop_reason = 'The customer confirmed: placing the order.'
                 break
             step = NEXT_STEP[step]
         else:
@@ -369,40 +379,48 @@ def commit_turn(session_id: int, turn: Turn) -> None:
     """Saves where the order is and what it has collected, placing the order if the customer confirmed.
 
     One transaction, with the session row locked: the order (checkout_app.services.place_order,
-    which locks the products and reserves their stock) and the saved state can't disagree. If the
-    order can't be placed (e.g. sold out since it was chosen), the confirmation is undone: the
-    chat stays at Confirmation, and the problems go into the reply prompt. A collected name also
-    fills in an empty display_name.
+    which locks the products and reserves their stock) and the saved state can't disagree. Once
+    the order is saved, the chat goes back to `start` with only `last_order_id` (and
+    `turn.placed_order_id` is set, for the confirmation message). If it can't be placed (e.g. sold
+    out since it was chosen), the chat goes back to Product selection with everything kept, and the
+    problems go into the reply prompt. A collected name also fills in an empty display_name.
     """
     with transaction.atomic():
         session = ChatSession.objects.select_for_update().select_related('business').get(pk=session_id)
+        details = turn.data.get('details', {})
+        if turn.confirmation is not None and not turn.confirmation.get('items'):
+            # Can't happen (Product selection needs items), but never place an empty order.
+            turn.confirmation, turn.step, turn.missing = None, STEP_PRODUCT_SELECTION, [PRODUCTS_MISSING]
+            turn.stop_reason += ' Nothing was chosen, so no order was placed.'
         if turn.confirmation is not None:
             data = turn.confirmation
-            if not data.get('items'):
-                turn.stop_reason += ' Nothing was chosen, so no order was placed.'
+            details = data.get('details', {})
+            try:
+                order = place_order(
+                    session.business,
+                    data.get('items', []),
+                    details,
+                    chat_session=session,
+                    is_sandbox=session.is_sandbox,
+                )
+            except OrderError as exc:
+                label = STEP_LABELS[STEP_CONFIRMATION]
+                turn.step = STEP_PRODUCT_SELECTION
+                turn.data = {key: value for key, value in data.items() if key != 'items_confirmed'}
+                turn.finished = [f for f in turn.finished if f != label]
+                turn.missing = []
+                turn.issues = [*exc.problems, 'The order was not placed: ask the customer what to change.']
+                turn.stop_reason = f'The order could not be placed: {exc} Back to Product selection.'
             else:
-                try:
-                    order = place_order(
-                        session.business,
-                        data['items'],
-                        data.get('details', {}),
-                        chat_session=session,
-                        is_sandbox=session.is_sandbox,
-                    )
-                except OrderError as exc:
-                    label = STEP_LABELS[STEP_CONFIRMATION]
-                    turn.step, turn.data = STEP_CONFIRMATION, data
-                    turn.finished = [f for f in turn.finished if f != label]
-                    turn.missing = []
-                    turn.issues = [*exc.problems, 'The order was not placed: ask the customer what to change.']
-                    turn.stop_reason = f'The order could not be placed: {exc}'
-                else:
-                    turn.data['order_id'] = order.pk
+                turn.placed_order_id = order.pk
+                turn.step = STEP_START
+                turn.data = {'last_order_id': order.pk}
+                turn.stop_reason = f'Order #{order.pk} placed: back to the start.'
         validate_chat_state_data(turn.data)
         session.chat_state_id = turn.step
         session.chat_state_data = turn.data
         fields = ['chat_state_id', 'chat_state_data']
-        name = turn.data.get('details', {}).get('name')  # a field with the key `name`, if any
+        name = details.get('name')  # a field with the key `name`, if any
         if isinstance(name, str) and not session.display_name:
             session.display_name = name[:DISPLAY_NAME_MAX_LENGTH]
             fields.append('display_name')

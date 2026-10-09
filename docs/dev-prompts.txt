@@ -729,3 +729,12 @@ So the main change is:
 - ChatFlow model may be deprecated or replaced, essentially the flow / blocks are fixed but owners can customise each individual parts (as of now, only details collection can be customised, product selection will just be based on the products available, FAQs is just based on the FAQ instance, and for past orders/status just give a generic reply saying that this feature is coming soon and it's not available yet
 
 Please change the model and API and frontend etc appropriately, please double check, take your time, add test cases / modify existing ones as necessary
+
+Date & Time (GMT+8): 2026-10-09 14:49:57
+AI Model Used: claude-opus-5-5
+Original Prompt:
+[Image #3]
+/goal
+There is a bug.
+- First, do not confirm the order or say nothing about order is confirmed until it's in the database. Problem is it says confirmed and it's in confirmation stage, but then the user still has to reply "no, I dont need anything else" before it's written to the database. That's now how it's suppposed to work. Once the bot said confirmed, it needs to be there already in OrderItem table.
+- Second, In Confirmation stage add a substage inside like not_confirmed, in that case simply reiiterate all the details and ask the user to say confirm. Once it's confirmed already, deterministically create the Order, then only then reply order it's confirmed. Afterwards, the state should go back to start (for the order flow).

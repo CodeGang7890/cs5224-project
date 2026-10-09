@@ -27,10 +27,8 @@ export interface ChatStateData {
   items_confirmed?: boolean
   /** Collected customer details by field key (the Details collection step's fields), e.g. `postal_code`. */
   details?: Record<string, string | number>
-  /** True once the customer confirmed the order. */
-  completed?: boolean
-  /** The order (Orders tab) placed when the customer confirmed. */
-  order_id?: number
+  /** The last order (Orders tab) placed in this chat; once placed, the chat goes back to the start. */
+  last_order_id?: number
 }
 
 /** A conversation between a business and one customer, or a sandbox (test) chat. */
@@ -77,11 +75,15 @@ export interface SandboxTurnDebug {
   steps: FlowStepDebug[]
   stop_reason: string
   finished: string[]
-  /** `chat_state_data.order_id` after the turn (placed now or earlier), or null. */
+  /** Confirmation's substage after the turn (null: not at Confirmation). `confirmed`: the order is saved. */
+  confirmation: 'not_confirmed' | 'confirmed' | null
+  /** The order placed in this turn, or null. */
   order_id: number | null
   missing: string[]
   issues: string[]
-  /** Empty for the fixed "coming soon" reply to a message only about a past order (no LLM reply). */
+  /** How the reply was made: by the LLM, or a fixed template. */
+  reply_kind: 'llm' | 'confirmation_request' | 'order_confirmed' | 'order_status_coming_soon'
+  /** The LLM reply's prompt; for a Confirmation template, the prompt of its short aside (empty if none). */
   reply_system_prompt: string
   tool_calls: { name: string; arguments: Record<string, unknown> }[]
   /** The question check (FAQs): does the business's information answer the question? Null unless the router found one. */

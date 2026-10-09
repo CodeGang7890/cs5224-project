@@ -9,15 +9,19 @@ handle_customer_message() runs one turn:
    Confirmation, a small deterministic state machine. They run when the router finds the
    customer wants to order, and on every message while an order is in progress.
 4. Save chat_state_id / chat_state_data (order_flow.commit_turn). If the customer confirmed, this
-   also places the order (checkout_app: an OrderItem, with its stock reserved) in the same transaction.
+   also places the order (checkout_app: an OrderItem, with its stock reserved) in the same
+   transaction, and the chat goes back to the start.
 5. Answer questions (check_customer_question, the FAQ handler), if the router found one: one
    structured LLM call with the business's information decides whether it answers the question.
    An unanswered (real) question is saved for the business (questions.ask_business), and the
    reply prompt is told what to do about it.
 6. Reply: ask the LLM for the reply, with a prompt putting together what the handlers found (the
    order step, what's known, what's still missing, what went wrong, the question, an order status
-   request, an off-topic message), and save it. A message only about a past order gets a fixed
-   reply instead: checking order status isn't available yet.
+   request, an off-topic message), and save it. Except:
+   - At Confirmation, the reply is a fixed template: the order summary and "reply CONFIRM" while
+     it's not confirmed, or "order #N is confirmed" once the order is saved (never before). The
+     LLM only adds a short aside for anything else in the message (e.g. a question).
+   - A message only about a past order gets a fixed reply: checking order status isn't available yet.
 """
 
 from dataclasses import dataclass
@@ -32,6 +36,12 @@ from .tools import Toolbox, active_products, business_faqs, mentioned_products
 
 # How many of the latest messages the LLM sees (keeps the prompt within the context window).
 HISTORY_MAX_MESSAGES = 20
+
+# How the reply was made (debug.reply_kind).
+REPLY_LLM = 'llm'
+REPLY_CONFIRMATION_REQUEST = 'confirmation_request'  # the order summary + "reply CONFIRM" (template)
+REPLY_ORDER_CONFIRMED = 'order_confirmed'  # sent only once the order is saved (template)
+REPLY_ORDER_STATUS_COMING_SOON = 'order_status_coming_soon'  # fixed message
 
 
 @dataclass
@@ -62,11 +72,33 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
     check = check_customer_question(session, message, history, products) if route.question else None
 
     toolbox = Toolbox(business)
-    if route.only_order_status and not turn.steps:
+    if turn.confirmation_status is not None:
+        # Confirmation: fixed templates, so only the database decides what the customer is told is
+        # confirmed. Anything else in the message (a question...) gets a short LLM aside.
+        labels = prompts.detail_labels(chat_config.detail_fields)
+        if turn.placed_order_id is not None:
+            reply_kind = REPLY_ORDER_CONFIRMED
+            template = prompts.order_confirmed_message(business, turn.placed_order_id, turn.confirmation, labels)
+        else:
+            reply_kind = REPLY_CONFIRMATION_REQUEST
+            template = prompts.confirmation_request_message(turn.data, labels)
+        system_prompt, parts = '', [template]
+        answered = check is not None and check['kind'] != prompts.QUESTION_NONE
+        if answered or route.order_status or route.off_topic:
+            system_prompt = prompts.build_aside_prompt(
+                business, placed_order_id=turn.placed_order_id, intents=route.intents, question_check=check
+            )
+            aside = llm.generate_chat_reply(system_prompt, history, toolbox).strip()
+            if aside:  # after the confirmation, or before the request to confirm
+                parts = [template, aside] if turn.placed_order_id is not None else [aside, template]
+        reply = '\n\n'.join(parts)
+    elif route.only_order_status and not turn.steps:
         # Only about a past order, and no order step ran: checking it isn't available yet.
+        reply_kind = REPLY_ORDER_STATUS_COMING_SOON
         system_prompt = ''
         reply = prompts.ORDER_STATUS_COMING_SOON_MESSAGE
     else:
+        reply_kind = REPLY_LLM
         system_prompt = prompts.build_reply_prompt(
             business,
             turn.step,
@@ -89,12 +121,14 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
         'steps': turn.steps,
         'stop_reason': turn.stop_reason,
         'finished': turn.finished,
-        'order_id': turn.data.get('order_id'),
+        'confirmation': turn.confirmation_status,
+        'order_id': turn.placed_order_id,
         'missing': turn.missing,
         'issues': turn.issues,
         'question_check': (
             {key: check[key] for key in ('kind', 'question', 'saved', 'system_prompt')} if check else None
         ),
+        'reply_kind': reply_kind,
         'reply_system_prompt': system_prompt,
         'tool_calls': toolbox.calls,
     }

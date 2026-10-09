@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { CircleCheck, ReceiptText } from 'lucide-react'
+import { CircleCheck } from 'lucide-react'
 import { Link } from 'react-router'
 
 import { Badge } from '@/components/ui/badge'
@@ -20,7 +20,7 @@ interface ChatStateSummaryProps {
   className?: string
 }
 
-/** What the chat flow has collected (order, customer details), and whether the order is confirmed. */
+/** What the order steps have collected (order, customer details), and the last order placed in the chat. */
 export function ChatStateSummary({ data, className }: ChatStateSummaryProps) {
   const labels = useDetailLabels()
   const items = data.items ?? []
@@ -42,15 +42,10 @@ export function ChatStateSummary({ data, className }: ChatStateSummaryProps) {
           </Field>
         ))
       )}
-      {data.completed && (
-        <Badge variant="outline" className="border-emerald-500/50 text-emerald-700 dark:text-emerald-400">
-          <CircleCheck /> Order confirmed
-        </Badge>
-      )}
-      {data.order_id && (
-        <Badge variant="outline" asChild>
-          <Link to={`${paths.orders}?order=${data.order_id}`} title="Open this order in the Orders tab">
-            <ReceiptText /> Order #{data.order_id}
+      {data.last_order_id && (
+        <Badge variant="outline" className="border-emerald-500/50 text-emerald-700 dark:text-emerald-400" asChild>
+          <Link to={`${paths.orders}?order=${data.last_order_id}`} title="Open this order in the Orders tab">
+            <CircleCheck /> Order #{data.last_order_id} placed
           </Link>
         </Badge>
       )}

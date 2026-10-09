@@ -362,7 +362,7 @@ VALID_STATE_DATA = {
     'items': [{'product_id': 1, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 2}],
     'details': {'name': 'Alice', 'email': 'alice@example.com'},
     'items_confirmed': True,
-    'completed': False,
+    'last_order_id': 3,
 }
 
 
@@ -398,7 +398,9 @@ class ValidateChatStateDataTests(SimpleTestCase):
             'blank detail': ({'details': {'email': ''}}, 'details: email must be a non-blank string or a number'),
             'bool detail': ({'details': {'agreed': True}}, 'details: agreed must be a non-blank string or a number'),
             'list detail': ({'details': {'notes': ['a']}}, 'details: notes must be a non-blank string or a number'),
-            'completed not bool': ({'completed': 'yes'}, 'completed must be true or false'),
+            'old completed flag': ({'completed': True}, 'Unknown field(s) completed'),
+            'last_order_id zero': ({'last_order_id': 0}, 'last_order_id must be a positive integer'),
+            'last_order_id text': ({'last_order_id': '3'}, 'last_order_id must be a positive integer'),
             'items_confirmed not bool': ({'items_confirmed': 1}, 'items_confirmed must be true or false'),
         }
         for label, (value, message_part) in cases.items():
@@ -433,3 +435,34 @@ class SampleChatSessionFixtureTests(TestCase):
 def _utc(iso_string: str) -> str:
     from datetime import datetime, timezone
     return datetime.fromisoformat(iso_string).astimezone(timezone.utc).isoformat()
+
+
+class LastOrderIdMigrationTests(TestCase):
+    """Migration 0008: chats whose order was placed go back to the start, keeping last_order_id."""
+
+    def test_converts_old_state(self):
+        from importlib import import_module
+
+        from django.apps import apps
+
+        migration = import_module('chat_app.migrations.0008_chat_state_last_order_id')
+        business = BusinessConfiguration.objects.create(business_name='B', location='SG')
+        items = [{'product_id': 1, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 1}]
+        done = ChatSession.objects.create(business=business, is_sandbox=True, chat_state_id='confirmation')
+        open_order = ChatSession.objects.create(business=business, is_sandbox=True, chat_state_id='product_selection')
+        untouched = ChatSession.objects.create(business=business, is_sandbox=True, chat_state_data={'items': items})
+        # Written with update(), as the old keys no longer pass validation.
+        ChatSession.objects.filter(pk=done.pk).update(chat_state_data={'items': items, 'completed': True, 'order_id': 7})
+        ChatSession.objects.filter(pk=open_order.pk).update(chat_state_data={'items': items, 'completed': False})
+
+        migration.to_last_order_id(apps, None)
+        for session in (done, open_order, untouched):
+            session.refresh_from_db()
+            session.full_clean()
+        self.assertEqual((done.chat_state_id, done.chat_state_data), ('start', {'last_order_id': 7}))
+        self.assertEqual((open_order.chat_state_id, open_order.chat_state_data), ('product_selection', {'items': items}))
+        self.assertEqual(untouched.chat_state_data, {'items': items})
+
+        migration.to_completed(apps, None)  # backwards
+        done.refresh_from_db()
+        self.assertEqual((done.chat_state_id, done.chat_state_data), ('confirmation', {'completed': True, 'order_id': 7}))

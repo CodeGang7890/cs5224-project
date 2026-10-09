@@ -23,6 +23,8 @@ from ..order_flow import (
 )
 from ..prompts import (
     ORDER_STATUS_COMING_SOON_MESSAGE,
+    confirmation_request_message,
+    order_confirmed_message,
     ROUTER_SCHEMA,
     build_extraction_prompt,
     build_reply_prompt,
@@ -169,30 +171,53 @@ class ChatFlowAPITests(FlowTestMixin, APITestCase):
         self.assertEqual(self.session.display_name, 'Alice')
         self.assertIn('## Still needed\n- Email', self.reply_prompt())
 
-        # 4. The email: moves to confirmation, without asking the LLM about confirmation yet.
+        # 4. The email: moves to confirmation, without asking the LLM about confirmation yet. The
+        #    reply is the fixed summary (no LLM reply), so it can't claim the order is confirmed.
         response = self.send('alice@example.com', {'name': None, 'email': 'alice@example.com'}, intents=['order'])
-        self.assertIn('not checked until the customer has seen the summary', response.json()['debug']['stop_reason'])
+        debug = response.json()['debug']
+        self.assertIn('not checked until the customer has seen the summary', debug['stop_reason'])
         self.assertEqual(self.session.chat_state_id, 'confirmation')
         self.assertEqual(self.session.chat_state_data['details'], {'name': 'Alice', 'email': 'alice@example.com'})
         self.assertEqual(len(self.calls(structured=True)), 1)
-        self.assertIn('Current step: Confirmation', self.reply_prompt())
-        self.assertIn('Name: Alice, Email: alice@example.com', self.reply_prompt())
+        self.assertEqual(self.calls(structured=False), [])
+        self.assertEqual((debug['confirmation'], debug['reply_kind'], debug['order_id']), ('not_confirmed', 'confirmation_request', None))
+        self.assertEqual(
+            response.json()['message'],
+            'Here is your order summary:\n'
+            '- 2 × Kopi C, $1.80 each\n'
+            'Total: $3.60\n\n'
+            'Your details:\n'
+            '- Name: Alice\n'
+            '- Email: alice@example.com\n\n'
+            'Please reply CONFIRM to place your order, or tell me what you would like to change.',
+        )
+        self.assertFalse(OrderItem.objects.exists())
 
-        # 5. Confirms: the order is placed and completed, at the last step.
-        self.send('Yes', {'decision': 'confirm'}, reply='Thanks Alice, your order is confirmed!')
-        self.assertEqual(self.session.chat_state_id, 'confirmation')
-        self.assertIs(self.session.chat_state_data['completed'], True)
-        self.assertIn('Done (order confirmed)', self.reply_prompt())
+        # 5. Confirms: the order is saved first, then the customer is told (a fixed message), and
+        #    the chat goes back to the start.
+        response = self.send('Confirm', {'decision': 'confirm'})
+        order = OrderItem.objects.get()
+        debug = response.json()['debug']
+        self.assertEqual((debug['confirmation'], debug['reply_kind'], debug['order_id']), ('confirmed', 'order_confirmed', order.pk))
+        self.assertEqual(debug['finished'], ['Confirmation'])
+        self.assertTrue(response.json()['message'].startswith(f'Thank you! Your order #{order.pk} with Kopi Café is confirmed.\n'))
+        self.assertIn('- 2 × Kopi C, $1.80 each\nTotal: $3.60', response.json()['message'])
+        self.assertEqual(self.calls(structured=False), [])
+        self.assertEqual((self.session.chat_state_id, self.session.chat_state_data), ('start', {'last_order_id': order.pk}))
 
-        # 6. After that: no more extraction, just replies, even if the router hears "order".
-        response = self.send('Thank you! Can I add one more?', intents=['order'])
+        # 6. After that: back at the start, with the order mentioned, and no extraction.
+        response = self.send('Thank you!')
         self.assertEqual(self.calls(structured=True), [])
         self.assertEqual(response.json()['debug']['steps'], [])
-        self.assertIn('The order is confirmed and complete', self.reply_prompt())
+        prompt = self.reply_prompt()
+        self.assertIn('Current step: Start (no order in progress).', prompt)
+        self.assertIn(f'Last order placed in this chat: #{order.pk} (payment pending).', prompt)
+        self.assertIn('Never tell the customer that an order is confirmed, placed or complete', prompt)
 
         messages = self.session.chat_message_json
         self.assertEqual(len(messages), 14)
-        self.assertEqual(messages[11]['message'], 'Thanks Alice, your order is confirmed!')
+        self.assertEqual(messages[11]['sent_by'], 'business-automated')
+        self.assertIn(f'order #{order.pk}', messages[11]['message'])
         validate_chat_messages(messages)
         validate_chat_state_data(self.session.chat_state_data)
         self.session.full_clean()
@@ -222,10 +247,10 @@ class ChatFlowAPITests(FlowTestMixin, APITestCase):
             {'items': [{'product_id': self.toast.pk, 'quantity': 3}], 'done_choosing': True},
             {'name': None, 'email': None},  # details already known: passes straight through
         )
-        # Back at confirmation, with the new order, to show the updated summary.
+        # Back at confirmation, with the new order: the updated summary.
         self.assertEqual(self.session.chat_state_id, 'confirmation')
-        self.assertNotIn('completed', self.session.chat_state_data)
-        self.assertIn('Current step: Confirmation', self.reply_prompt())
+        self.assertIn('- 3 × Kaya Toast Set, $5.50 each\nTotal: $16.50', self.session.chat_message_json[-1]['message'])
+        self.assertFalse(OrderItem.objects.exists())
 
     def test_change_of_details_at_confirmation_keeps_the_confirmed_order(self):
         self.session.chat_state_id = 'confirmation'
@@ -404,8 +429,8 @@ class RouterFlowTests(FlowTestMixin, APITestCase):
             [('customer', 'Has my order from last week shipped?'), ('business-automated', ORDER_STATUS_COMING_SOON_MESSAGE)],
         )
 
-    def test_order_status_after_the_order_is_done(self):
-        self.at_step('confirmation', items=[self.kopi_line], items_confirmed=True, completed=True, order_id=1)
+    def test_order_status_after_an_order_is_placed(self):
+        self.at_step('start', last_order_id=1)
         response = self.send('Is it paid yet?', intents=['order_status'])
         self.assertEqual(response.json()['message'], ORDER_STATUS_COMING_SOON_MESSAGE)
         self.assertEqual(self.ollama.chat.call_count, 1)
@@ -523,9 +548,9 @@ class CustomDetailFieldsFlowTests(FlowTestMixin, APITestCase):
         self.assertEqual(
             self.session.chat_state_data['details'], {'name': 'Alice', 'postal_code': 238801, 'notes': 'Less sugar'}
         )
-        self.assertIn(
-            'Customer details: Receiver name: Alice, Postal code: 238801, Customisation notes: Less sugar.',
-            self.reply_prompt(),
+        self.assertIn(  # the summary, labelled with the business's fields
+            '- Receiver name: Alice\n- Postal code: 238801\n- Customisation notes: Less sugar',
+            self.session.chat_message_json[-1]['message'],
         )
         self.session.full_clean()
 
@@ -593,11 +618,15 @@ class OrderPlacementFlowTests(FlowTestMixin, APITestCase):
         self.kopi.refresh_from_db()
         self.assertEqual((self.kopi.quantity_available, self.kopi.quantity_on_hold), (7, 3))
 
-        self.assertIs(self.session.chat_state_data['completed'], True)
-        self.assertEqual(self.session.chat_state_data['order_id'], order.pk)
-        self.assertIn(f'Order number: #{order.pk} (placed; payment pending).', self.reply_prompt())
+        # The chat goes back to the start; the reply is the fixed confirmation, with the order number.
+        self.assertEqual((self.session.chat_state_id, self.session.chat_state_data), ('start', {'last_order_id': order.pk}))
+        self.assertEqual(
+            response.json()['message'],
+            f'Thank you! Your order #{order.pk} with Kopi Café is confirmed.\n'
+            '- 3 × Kopi C, $1.80 each\nTotal: $5.40\n\nYour details:\n- Name: Alice\n- Email: alice@example.com',
+        )
         self.assertEqual(response.json()['debug']['order_id'], order.pk)
-        self.assertEqual(response.json()['debug']['finished'], ['Confirmation'])
+        self.assertEqual(self.calls(structured=False), [])  # no LLM reply
 
         # Later messages don't order again.
         self.send('Thanks!')
@@ -605,7 +634,67 @@ class OrderPlacementFlowTests(FlowTestMixin, APITestCase):
         self.assertEqual(OrderItem.objects.count(), 1)
         self.kopi.refresh_from_db()
         self.assertEqual(self.kopi.quantity_available, 7)
-        self.assertIn('already placed in this chat (order #', self.router_call()['messages'][0]['content'])
+        self.assertIn(f'(their last order in this chat, #{order.pk}, has been placed)', self.router_call()['messages'][0]['content'])
+
+    def test_the_customer_can_order_again(self):
+        first = self.send('Yes', {'decision': 'confirm'}).json()['debug']['order_id']
+        self.send(
+            '2 more Kopi C please',
+            {'items': [{'product_id': self.kopi.pk, 'quantity': 2}], 'done_choosing': False},
+            intents=['order'],
+        )
+        self.assertEqual(self.session.chat_state_id, 'product_selection')
+        self.assertEqual(self.session.chat_state_data['last_order_id'], first)
+        self.assertNotIn('details', self.session.chat_state_data)  # a new order starts from scratch
+        self.send("That's all", {'items': [{'product_id': self.kopi.pk, 'quantity': 2}], 'done_choosing': True},
+                  {'name': 'Alice', 'email': 'alice@example.com'})
+        self.assertEqual(self.session.chat_state_id, 'confirmation')
+        second = self.send('Confirm', {'decision': 'confirm'}).json()['debug']['order_id']
+        self.assertEqual(OrderItem.objects.count(), 2)
+        self.assertEqual(self.session.chat_state_data, {'last_order_id': second})
+        self.kopi.refresh_from_db()
+        self.assertEqual(self.kopi.quantity_available, 5)
+
+    def test_not_confirmed_resends_the_summary(self):
+        # E.g. "no, I don't need anything else" isn't a confirmation: the summary is sent again.
+        for message in ("No, I don't need anything else", 'Hmm'):
+            with self.subTest(message):
+                response = self.send(message, {'decision': 'none'})
+                self.assertFalse(OrderItem.objects.exists())
+                self.assertEqual(self.session.chat_state_id, 'confirmation')
+                self.assertEqual(response.json()['debug']['confirmation'], 'not_confirmed')
+                self.assertTrue(response.json()['message'].startswith('Here is your order summary:\n- 3 × Kopi C'))
+                self.assertTrue(response.json()['message'].endswith('Please reply CONFIRM to place your order, or tell me what you would like to change.'))
+                self.assertEqual(self.calls(structured=False), [])
+        extraction = self.calls(structured=True)[0]['messages'][0]['content']
+        self.assertIn('"confirm" only if it clearly agrees to place the order as summarised', extraction)
+        self.assertIn('such as "no, nothing else"', extraction)
+
+    def test_a_question_at_confirmation_is_answered_before_the_summary(self):
+        response = self.send(
+            'Do you deliver?', {'decision': 'none'}, reply='We are pickup only.', intents=['question'],
+            question_check={'kind': 'answered', 'question': 'Do you deliver?'},
+        )
+        message = response.json()['message']
+        self.assertTrue(message.startswith('We are pickup only.\n\nHere is your order summary:'))
+        self.assertEqual(response.json()['debug']['reply_kind'], 'confirmation_request')
+        aside = self.calls(structured=False)[-1]['messages'][0]['content']
+        self.assertEqual(response.json()['debug']['reply_system_prompt'], aside)
+        self.assertIn('Right after your reply, they are automatically sent the order summary', aside)
+        self.assertIn('say nothing about whether it is confirmed or placed', aside)
+        self.assertIn('The customer asked: "Do you deliver?"', aside)
+        self.assertNotIn('Alice', aside)  # the order isn't in the aside prompt at all
+
+    def test_confirming_with_a_question_answers_it_after_the_confirmation(self):
+        response = self.send(
+            'Yes! And are you open on Sunday?', {'decision': 'confirm'}, reply='Yes, 9am to 5pm.',
+            intents=['order', 'question'], question_check={'kind': 'answered', 'question': 'Are you open on Sunday?'},
+        )
+        order = OrderItem.objects.get()
+        message = response.json()['message']
+        self.assertTrue(message.startswith(f'Thank you! Your order #{order.pk} with Kopi Café is confirmed.'))
+        self.assertTrue(message.endswith('\n\nYes, 9am to 5pm.'))
+        self.assertIn(f"order #{order.pk} has just been saved", response.json()['debug']['reply_system_prompt'])
 
     def test_not_confirming_places_nothing(self):
         for decision in ('none', 'change'):
@@ -613,26 +702,28 @@ class OrderPlacementFlowTests(FlowTestMixin, APITestCase):
                 self.send('Hmm', {'decision': decision}, {'items': []}, {'name': None, 'email': None})
         self.assertFalse(OrderItem.objects.exists())
 
-    def test_sold_out_since_chosen_undoes_the_confirmation(self):
+    def test_sold_out_since_chosen_goes_back_to_product_selection(self):
         # Someone else ordered 8 of the 10 in the meantime.
         other = OrderItem.objects.create(business=self.cafe, order_data={
             'items': [{'product_id': self.kopi.pk, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 8}], 'details': {},
         })
-        response = self.send('Yes', {'decision': 'confirm'})
+        response = self.send('Yes', {'decision': 'confirm'}, reply='Sorry, only 2 are left.')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(list(OrderItem.objects.all()), [other])
         self.kopi.refresh_from_db()
         self.assertEqual((self.kopi.quantity_available, self.kopi.quantity_on_hold), (2, 8))
-        # Still at confirmation, not completed, and the reply explains why.
-        self.assertEqual(self.session.chat_state_id, 'confirmation')
-        self.assertNotIn('completed', self.session.chat_state_data)
-        self.assertNotIn('order_id', self.session.chat_state_data)
+        # Back at product selection with everything kept, and the reply explains why (no confirmation).
+        self.assertEqual(self.session.chat_state_id, 'product_selection')
+        self.assertEqual(self.session.chat_state_data['details'], {'name': 'Alice', 'email': 'alice@example.com'})
+        self.assertNotIn('items_confirmed', self.session.chat_state_data)
+        debug = response.json()['debug']
+        self.assertEqual((debug['confirmation'], debug['order_id'], debug['reply_kind']), (None, None, 'llm'))
         prompt = self.reply_prompt()
-        self.assertIn('Current step: Confirmation', prompt)
+        self.assertIn('Current step: Product selection', prompt)
         self.assertIn('- Only 2 Kopi C are left.', prompt)
-        self.assertIn('the order was NOT placed', prompt)
+        self.assertIn('The order was not placed', prompt)
         self.assertNotIn('just completed: Confirmation', prompt)
-        self.assertIn('The order could not be placed', response.json()['debug']['stop_reason'])
+        self.assertIn('The order could not be placed', debug['stop_reason'])
 
     def test_product_deactivated_since_chosen(self):
         Product.objects.filter(pk=self.kopi.pk).update(is_active=False)
@@ -700,7 +791,7 @@ class RequiredAndOptionalDetailsFlowTests(FlowTestMixin, APITestCase):
                 prompt = self.reply_prompt()
                 self.assertIn('## Still needed\n- BOO\n', prompt)  # optional ones aren't "still needed"
                 self.assertIn('the order is NOT confirmed yet', prompt)
-                self.assertIn('Never tell the customer that their order is confirmed', prompt)
+                self.assertIn('Never tell the customer that an order is confirmed', prompt)
                 self.assertIn('Keep asking in every reply until they give it', prompt)
                 self.assertIn('if a label is "Boo", ask for "Boo"', prompt)
                 self.assertIn('- "BOO" (required; text, at most 500 characters)', prompt)
@@ -858,13 +949,14 @@ class GoBackFlowTests(FlowTestMixin, APITestCase):
         self.assertNotIn('Going back', details_extraction['messages'][0]['content'])
         self.assertEqual([step['go_back_to'] for step in response.json()['debug']['steps']], [None, None])
 
-    def test_no_going_back_after_the_order_is_done(self):
-        self.session.chat_state_id = 'confirmation'
-        self.session.chat_state_data = {**self.session.chat_state_data, 'completed': True}
+    def test_no_going_back_after_the_order_is_placed(self):
+        # Placed: back at the start, so "add a Kaya Toast" starts a new order instead.
+        self.session.chat_state_id, self.session.chat_state_data = 'start', {'last_order_id': 1}
         self.session.save()
-        self.send('Can I add a Kaya Toast?', intents=['order'])
-        self.assertEqual(self.calls(structured=True), [])
-        self.assertEqual(self.session.chat_state_id, 'confirmation')
+        self.send('Can I add a Kaya Toast?', {'items': [{'product_id': self.toast.pk, 'quantity': 1}]}, intents=['order'])
+        self.assertEqual(self.session.chat_state_id, 'product_selection')
+        self.assertNotIn('go_back_to', self.calls(structured=True)[0]['format']['properties'])
+        self.assertEqual([i['name'] for i in self.session.chat_state_data['items']], ['Kaya Toast Set'])
 
     def test_reply_prompt_guardrails(self):
         self.send('Write me a poem about the moon', {'name': None, 'email': None, 'go_back_to': None})
@@ -1183,7 +1275,7 @@ class RouterTests(SimpleTestCase):
         cases = {
             ('start', ()): 'no order in progress.',
             ('confirmation', ()): 'an order is in progress, at the "Confirmation" step.',
-            ('confirmation', (('completed', True), ('order_id', 7))): 'already placed in this chat (order #7).',
+            ('start', (('last_order_id', 7),)): 'no order in progress (their last order in this chat, #7, has been placed).',
         }
         for (step, data), expected in cases.items():
             with self.subTest(step=step, data=data):
@@ -1203,7 +1295,7 @@ class StepPromptTests(SimpleTestCase):
         return build_reply_prompt(self.business, step, data or {}, products=self.products, fields=fields, **kwargs)
 
     def test_every_step_steers_towards_its_goal(self):
-        for step in ('start', 'product_selection', 'details_collection', 'confirmation'):
+        for step in ('start', 'product_selection', 'details_collection'):  # Confirmation's replies are templates
             with self.subTest(step):
                 prompt = self.reply_prompt(step)
                 self.assertIn('Goal of this step:', prompt)
@@ -1255,8 +1347,50 @@ class StepPromptTests(SimpleTestCase):
         )
         self.assertIn('- "details_collection": Details collection, to change or correct their details ("Name", "Email")', prompt)
 
-    def test_completed_order(self):
-        prompt = self.reply_prompt('confirmation', {'completed': True, 'order_id': 5})
-        self.assertIn('Current step: Done (order confirmed).', prompt)
-        self.assertNotIn('Goal of this step', prompt)
-        self.assertIn('Order number: #5', prompt)
+    def test_never_claims_an_order_is_confirmed(self):
+        for step in ('start', 'product_selection', 'details_collection'):
+            with self.subTest(step):
+                self.assertIn(
+                    'Never tell the customer that an order is confirmed, placed or complete: when an order is saved, '
+                    'the system sends the confirmation itself.',
+                    self.reply_prompt(step),
+                )
+
+    def test_after_an_order(self):
+        prompt = self.reply_prompt('start', {'last_order_id': 5})
+        self.assertIn('Last order placed in this chat: #5 (payment pending).', prompt)
+        self.assertIn("don't go over it again unless they ask", prompt)
+
+
+class ConfirmationTemplateTests(SimpleTestCase):
+    business = SimpleNamespace(business_name='Bloom', description='', location='SG')
+    data = {
+        'items': [
+            {'product_id': 1, 'name': 'Rose Bouquet', 'unit_price': '98.00', 'quantity': 3},
+            {'product_id': 2, 'name': 'Card', 'unit_price': '1.10', 'quantity': 3},
+        ],
+        'items_confirmed': True,
+        'details': {'name': 'Sanjay', 'card_message': 'Happy Graduation!'},
+    }
+    labels = {'name': 'Name on card'}  # card_message has no label (e.g. since removed): its key
+
+    def test_confirmation_request(self):
+        self.assertEqual(
+            confirmation_request_message(self.data, self.labels),
+            'Here is your order summary:\n'
+            '- 3 × Rose Bouquet, $98.00 each\n'
+            '- 3 × Card, $1.10 each\n'
+            'Total: $297.30\n\n'
+            'Your details:\n'
+            '- Name on card: Sanjay\n'
+            '- card_message: Happy Graduation!\n\n'
+            'Please reply CONFIRM to place your order, or tell me what you would like to change.',
+        )
+
+    def test_order_confirmed(self):
+        message = order_confirmed_message(self.business, 12, self.data, self.labels)
+        self.assertTrue(message.startswith('Thank you! Your order #12 with Bloom is confirmed.\n- 3 × Rose Bouquet'))
+        self.assertNotIn('CONFIRM', message)
+
+    def test_no_details(self):
+        self.assertNotIn('Your details', confirmation_request_message({'items': self.data['items']}, {}))
