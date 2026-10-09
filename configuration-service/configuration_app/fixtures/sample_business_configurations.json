@@ -25,5 +25,14 @@
       "description": "One-on-one and small-group strength training with certified coaches.",
       "location": "1 Kent Ridge Road, Singapore 119224"
     }
+  },
+  {
+    "model": "configuration_app.businessconfiguration",
+    "pk": 4,
+    "fields": {
+      "business_name": "Lumen & Lens Photography Studio",
+      "description": "Lumen & Lens is a natural-light photography studio in a Tanjong Pagar shophouse, run by photographers Mei Lin Tan and Arjun Pillai. We photograph portraits, couples, families, newborns, maternity, graduations, pets and corporate headshots, in the studio or at a location nearby, and cover small events. Every session includes professional editing and an online gallery of your photos within 7 days. Book a time slot in this chat: we confirm your booking straight away, and you pay a deposit afterwards.",
+      "location": "88 Tanjong Pagar Road, #03-01, Singapore 088509"
+    }
   }
 ]

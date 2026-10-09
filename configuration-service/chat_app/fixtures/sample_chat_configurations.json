@@ -56,5 +56,41 @@
         }
       ]
     }
+  },
+  {
+    "model": "chat_app.chatconfiguration",
+    "pk": 3,
+    "fields": {
+      "business": 4,
+      "last_updated": "2026-09-01T00:00:00Z",
+      "detail_fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "max_length": 150
+        },
+        {
+          "key": "phone",
+          "label": "Phone",
+          "type": "phone"
+        },
+        {
+          "key": "people",
+          "label": "Number of people",
+          "type": "number",
+          "min_value": 1,
+          "max_value": 12
+        },
+        {
+          "key": "notes",
+          "label": "Anything we should know",
+          "type": "text",
+          "max_length": 300,
+          "required": false,
+          "description": "e.g. outfits, pets, accessibility needs"
+        }
+      ]
+    }
   }
 ]

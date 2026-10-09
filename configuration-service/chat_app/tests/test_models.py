@@ -422,10 +422,12 @@ class SampleChatSessionFixtureTests(TestCase):
 
     def test_fixture_is_valid(self):
         sessions = ChatSession.objects.all()
-        self.assertEqual(sessions.count(), 19)
+        self.assertEqual(sessions.count(), 20)
         self.assertEqual(sessions.filter(is_sandbox=True).count(), 2)
         self.assertEqual(sessions.get(pk=1).chat_state_id, 'confirmation')
         self.assertEqual(sessions.get(pk=6).chat_state_id, 'start')  # FitLab has no saved configuration
+        # 20: Lumen & Lens, a booking made in the chat (checkout_app sample_schedule_items pk 1).
+        self.assertEqual((sessions.get(pk=20).chat_state_id, sessions.get(pk=20).chat_state_data), ('start', {'last_booking_id': 1}))
         for session in sessions:
             with self.subTest(session=session.pk):
                 session.full_clean()  # loaddata skips validation

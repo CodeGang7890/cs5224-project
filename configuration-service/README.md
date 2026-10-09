@@ -37,7 +37,7 @@ pip install -r requirements.txt
 python manage.py migrate
 
 # 4. Load sample data (businesses, business users, products, FAQs)
-python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions sample_order_items sample_unanswered_questions
+python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_services sample_chat_configurations sample_chat_sessions sample_order_items sample_schedule_items sample_unanswered_questions
 
 # 5. Create the local admin superuser (username: superuser, password: 123)
 DJANGO_SUPERUSER_PASSWORD=123 python manage.py createsuperuser --noinput --username superuser --email superuser@example.com
@@ -66,18 +66,20 @@ python manage.py runserver
 The fixtures are JSON files in each app's `fixtures/` folder. Load them all with:
 
 ```bash
-python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions sample_order_items sample_unanswered_questions
+python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_services sample_chat_configurations sample_chat_sessions sample_order_items sample_schedule_items sample_unanswered_questions
 ```
 
 | Fixture | File | Contents |
 | --- | --- | --- |
-| `sample_business_configurations` | `configuration_app/fixtures/` | 3 businesses: Kopi & Co. Café, Bloom & Twine Florist Studio (with a full, realistic description), FitLab Personal Training |
-| `sample_business_users` | `auth_app/fixtures/` | 4 business users linked to those businesses |
+| `sample_business_configurations` | `configuration_app/fixtures/` | 4 businesses: Kopi & Co. Café, Bloom & Twine Florist Studio (with a full, realistic description), FitLab Personal Training, Lumen & Lens Photography Studio (sells time slots, not products) |
+| `sample_business_users` | `auth_app/fixtures/` | 5 business users linked to those businesses |
 | `sample_products` | `product_app/fixtures/` | 19 products (one of them inactive). Each has a short description and longer information. Bloom & Twine Florist Studio has 12 realistic products across fresh, dried / preserved, soap and crochet flowers ($5.90 to $288; one sold out, and one down to its last piece), each with detailed information about the product itself (what's in it, size, how long it lasts, care, allergies and pets), with no prices, variants or logistics. Bloom is self-collection only: it doesn't deliver. Kopi & Co. Café's 5 have long, detailed information (ingredients, sizes, options, allergens, storage, and a few product FAQs) for testing `get_product_details`, with some details deliberately left out to test "I don't know" |
-| `sample_faqs` | `product_app/fixtures/` | 34 FAQs: 12 for Kopi & Co. Café (hours, reservations, halal, delivery, payment, vegetarian options, sugar levels, catering, parking, Wi-Fi, pets, cancellations), 20 for Bloom & Twine Florist Studio (2 of them from answered questions; self-collection only: where and when to collect, same-day collection, collecting for someone else, hours, payment, care, card messages, cancellations, substitutions, corporate, weddings, workshops, allergies and pets…), 2 for FitLab |
-| `sample_chat_configurations` | `chat_app/fixtures/` | 2 chat flows, both start → product selection → details collection → confirmation: Kopi & Co. Café (asks for name, email and pickup time) and Bloom & Twine Florist Studio (asks for name, card message and collection date) |
-| `sample_chat_sessions` | `chat_app/fixtures/` | 17 customer chats: 11 with Kopi & Co. Café (at different steps of its flow, over 1–12 Sep, one with no messages yet), 5 with Bloom & Twine Florist Studio (one choosing products, one giving details, and three where customers asked things the FAQs don't cover), 1 with FitLab. `+6591234567` chats with both the café and the florist. Plus 2 sandbox (test) chats for Kopi & Co. Café, one without a phone number |
+| `sample_services` | `product_app/fixtures/` | Lumen & Lens Photography Studio's 2 photographers' weekly availability (Mei Lin: Tue–Sun; Arjun: Wed–Sun) and 8 services (portrait, couple, family, newborn, maternity, graduation, corporate headshots, pets; 30 minutes to 3 hours, $150 to $480), each linked to the photographers who do it |
+| `sample_faqs` | `product_app/fixtures/` | 40 FAQs: 6 for Lumen & Lens Photography Studio (location, payment, changes, delivery of photos, outfits, locations), and 12 for Kopi & Co. Café (hours, reservations, halal, delivery, payment, vegetarian options, sugar levels, catering, parking, Wi-Fi, pets, cancellations), 20 for Bloom & Twine Florist Studio (2 of them from answered questions; self-collection only: where and when to collect, same-day collection, collecting for someone else, hours, payment, care, card messages, cancellations, substitutions, corporate, weddings, workshops, allergies and pets…), 2 for FitLab |
+| `sample_chat_configurations` | `chat_app/fixtures/` | 3 configurations: Lumen & Lens (asks for name, phone, number of people and optional notes), and 2 chat flows, both start → product selection → details collection → confirmation: Kopi & Co. Café (asks for name, email and pickup time) and Bloom & Twine Florist Studio (asks for name, card message and collection date) |
+| `sample_chat_sessions` | `chat_app/fixtures/` | 17 customer chats: 11 with Kopi & Co. Café (at different steps of its flow, over 1–12 Sep, one with no messages yet), 5 with Bloom & Twine Florist Studio (one choosing products, one giving details, and three where customers asked things the FAQs don't cover), 1 with FitLab, 1 with Lumen & Lens (a customer booking a family shoot through the chat). `+6591234567` chats with both the café and the florist. Plus 2 sandbox (test) chats for Kopi & Co. Café, one without a phone number |
 | `sample_unanswered_questions` | `chat_app/fixtures/` | 5 questions Bloom & Twine Florist Studio's customers asked that the assistant couldn't answer: 2 answered (now FAQs, with the answer in the chat), 2 open (waiting for the owner) and 1 dismissed |
+| `sample_schedule_items` | `checkout_app/fixtures/` | 6 Lumen & Lens bookings (Sep–Oct 2026, in every status, one from a sandbox chat, one made in the sample chat) |
 | `sample_order_items` | `checkout_app/fixtures/` | 30 orders: 4 for Kopi & Co. Café (one per status, plus a pending sandbox order) and 26 for Bloom & Twine Florist Studio (8 Aug to 12 Sep 2026: birthdays, anniversaries, a Teachers' Day rush, grand openings; mostly completed, the latest paid or pending payment). They aren't linked to chats. They count towards the products' quantities on hold and sold |
 
 Every sample account uses the password **`123`**, so you can log in as anyone while testing:
@@ -88,6 +90,7 @@ Every sample account uses the password **`123`**, so you can log in as anyone wh
 | `bloom_owner` | Bloom & Twine Florist Studio (2) | API only |
 | `bloom_staff` | Bloom & Twine Florist Studio (2) | API only |
 | `fitlab_owner` | FitLab Personal Training (3) | API only |
+| `lumen_owner` | Lumen & Lens Photography Studio (4) | API only |
 | `superuser` (created by the `createsuperuser` command, not a fixture) | none | Django Admin (full access). Gets 403 on product/FAQ changes, because it has no business. |
 
 Business users aren't staff, so they can't log in to Django Admin.
@@ -397,7 +400,7 @@ You can also use your Django Admin login instead (**cookieAuth**). If you're log
 | `python manage.py makemigrations` | Creates migration files after you change models |
 | `python manage.py migrate` | Applies migrations to the database |
 | `python manage.py createsuperuser` | Creates an admin user |
-| `python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions sample_order_items sample_unanswered_questions` | Loads the sample data |
+| `python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_services sample_chat_configurations sample_chat_sessions sample_order_items sample_schedule_items sample_unanswered_questions` | Loads the sample data |
 | `python manage.py flush --noinput` | Deletes all rows from every table (keeps the tables); see [Resetting the local database](#resetting-the-local-database) |
 | `python manage.py test` | Runs all tests (see [Running tests](#running-tests)) |
 | `python manage.py check` | Checks the project configuration for problems |
@@ -441,7 +444,7 @@ To put the data back to the sample state, delete every row (the tables and migra
 
 ```bash
 python manage.py flush --noinput
-python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions sample_order_items sample_unanswered_questions
+python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_services sample_chat_configurations sample_chat_sessions sample_order_items sample_schedule_items sample_unanswered_questions
 DJANGO_SUPERUSER_PASSWORD=123 python manage.py createsuperuser --noinput --username superuser --email superuser@example.com
 ```
 
@@ -453,7 +456,7 @@ To delete the database file itself and rebuild it from the migrations (e.g. afte
 ```bash
 rm db.sqlite3
 python manage.py migrate
-python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_chat_configurations sample_chat_sessions sample_order_items sample_unanswered_questions
+python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_services sample_chat_configurations sample_chat_sessions sample_order_items sample_schedule_items sample_unanswered_questions
 DJANGO_SUPERUSER_PASSWORD=123 python manage.py createsuperuser --noinput --username superuser --email superuser@example.com
 ```
 

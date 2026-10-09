@@ -304,5 +304,59 @@
       "question": "Do you sell balloons to go with the flowers?",
       "answer": "Not at the moment, sorry! We focus on flowers, but you're welcome to bring your own balloon when you collect your order, and we'll happily tie it to the wrapping for you."
     }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 35,
+    "fields": {
+      "business": 4,
+      "question": "Where is the studio?",
+      "answer": "Our studio is at 88 Tanjong Pagar Road, #03-01, a 3-minute walk from Tanjong Pagar MRT (exit A). There is paid parking at the Tanjong Pagar Plaza car park."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 36,
+    "fields": {
+      "business": 4,
+      "question": "How do I pay for my booking?",
+      "answer": "Once your booking is confirmed in the chat, we send you a payment link for a 30% deposit, by PayNow or card. The rest is paid on the day of your session."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 37,
+    "fields": {
+      "business": 4,
+      "question": "Can I change or cancel my booking?",
+      "answer": "You can reschedule for free up to 48 hours before your session: just message us here. Deposits are refundable up to 7 days before the session."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 38,
+    "fields": {
+      "business": 4,
+      "question": "When do I get my photos?",
+      "answer": "Your edited photos are in your online gallery within 7 days of the session (newborn sessions within 10 days). You can download them all in full resolution."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 39,
+    "fields": {
+      "business": 4,
+      "question": "What should we wear?",
+      "answer": "Solid colours and soft neutrals photograph best; avoid big logos and neon. You are welcome to bring outfit changes: there is a changing room in the studio."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 40,
+    "fields": {
+      "business": 4,
+      "question": "Do you shoot outside the studio?",
+      "answer": "Yes: any session can be at a location within the city area (e.g. the Botanic Gardens or Tiong Bahru) at no extra cost, except Newborn Sessions, which are only in the studio."
+    }
   }
 ]

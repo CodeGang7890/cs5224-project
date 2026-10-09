@@ -11,6 +11,7 @@ from configuration_app.models import BusinessConfiguration
 from product_app.models import Service, WeeklyAvailability
 
 from ..models import OrderItem, OrderStatus, ScheduleItem
+from ..schedule import template_open
 from ..validators import validate_order_data, validate_schedule_data
 
 VALID_ORDER_DATA = {
@@ -250,3 +251,45 @@ class ScheduleItemModelTests(TestCase):
         self.make().save()
         self.studio.delete()
         self.assertFalse(ScheduleItem.objects.exists())
+
+
+class SampleScheduleItemFixtureTests(TestCase):
+    """checkout_app/fixtures/sample_schedule_items.json: Lumen & Lens's bookings."""
+
+    fixtures = [
+        'sample_business_configurations', 'sample_services', 'sample_chat_configurations', 'sample_chat_sessions',
+        'sample_schedule_items',
+    ]
+
+    def test_fixture_is_valid(self):
+        bookings = list(ScheduleItem.objects.select_related('service', 'weekly_availability'))
+        self.assertEqual(len(bookings), 6)
+        for booking in bookings:
+            with self.subTest(booking=booking.pk):
+                booking.full_clean()  # loaddata skips validation; this also checks the times match the snapshot
+                self.assertEqual(booking.business_id, 4)
+                self.assertTrue(booking.service.weekly_availability.filter(pk=booking.weekly_availability_id).exists())
+                self.assertTrue(template_open(booking.weekly_availability.availability, booking.start_time, booking.end_time))
+                self.assertEqual(booking.schedule_data['service']['name'], booking.service.name)
+        # No two bookings of one photographer overlap (with their buffers).
+        for a in bookings:
+            for b in bookings:
+                if a.pk < b.pk and a.weekly_availability_id == b.weekly_availability_id:
+                    self.assertFalse(a.start_time < b.blocked_until and b.start_time < a.blocked_until, (a.pk, b.pk))
+        self.assertEqual({b.order_status for b in bookings}, set(OrderStatus.values))
+        self.assertEqual([b.pk for b in bookings if b.is_sandbox], [5])
+
+    def test_the_booking_made_in_a_chat(self):
+        booking = ScheduleItem.objects.get(pk=1)
+        session = booking.chat_session
+        self.assertEqual(session.pk, 20)
+        self.assertEqual(session.chat_state_data, {'last_booking_id': 1})
+        self.assertEqual(booking.schedule_data['details'], {
+            'name': 'Priya Raman', 'phone': '+65 9123 0001', 'people': 4, 'notes': 'Bringing our dog Mochi',
+        })
+        confirm, reply = session.chat_message_json[-2:]
+        self.assertEqual(confirm['message'], 'CONFIRM')
+        self.assertTrue(reply['message'].startswith('Thank you! Your booking #1 with Lumen & Lens Photography Studio is confirmed.'))
+        # Saved after the customer confirmed, and before they were told.
+        self.assertLessEqual(datetime.fromisoformat(confirm['message_time']), booking.created_time)
+        self.assertLessEqual(booking.created_time, datetime.fromisoformat(reply['message_time']))

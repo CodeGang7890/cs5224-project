@@ -131,7 +131,7 @@ class SampleProductAndFAQFixtureTests(TestCase):
 
     def test_fixtures_are_valid(self):
         self.assertEqual(Product.objects.count(), 19)
-        self.assertEqual(FAQ.objects.count(), 34)
+        self.assertEqual(FAQ.objects.count(), 40)  # 35–40: Lumen & Lens
         for record in [*Product.objects.all(), *FAQ.objects.all()]:
             with self.subTest(record=str(record)):
                 record.full_clean()  # loaddata skips validation
@@ -448,3 +448,36 @@ class ServiceModelTests(TestCase):
         self.make_service().save()
         self.business.delete()
         self.assertFalse(Service.objects.exists())
+
+
+class SampleServiceFixtureTests(TestCase):
+    """product_app/fixtures/sample_services.json: Lumen & Lens Photography Studio (business 4)."""
+
+    fixtures = ['sample_business_configurations', 'sample_services']
+
+    def test_fixture_is_valid(self):
+        self.assertEqual(WeeklyAvailability.objects.count(), 2)
+        self.assertEqual(Service.objects.count(), 8)
+        for item in [*WeeklyAvailability.objects.all(), *Service.objects.all()]:
+            with self.subTest(item=str(item)):
+                item.full_clean()  # loaddata skips validation
+                self.assertEqual(item.business_id, 4)
+        for service in Service.objects.all():
+            with self.subTest(service=service.name):
+                self.assertTrue(service.is_active)
+                self.assertTrue(service.description and service.information)
+                self.assertTrue(service.weekly_availability.exists())  # bookable
+
+    def test_two_photographers(self):
+        mei = WeeklyAvailability.objects.get(name='Photographer: Mei Lin')
+        arjun = WeeklyAvailability.objects.get(name='Photographer: Arjun')
+        both = {'Individual Portrait Session', 'Couple Photoshoot', 'Graduation Portraits'}
+        self.assertEqual(set(mei.services.values_list('name', flat=True)),
+                         both | {'Family Portrait Session', 'Newborn Session', 'Maternity Shoot'})
+        self.assertEqual(set(arjun.services.values_list('name', flat=True)), both | {'Corporate Headshots', 'Pet Photoshoot'})
+        # Mei: Tue–Sat 09:00–13:00 and 14:00–18:00 (Saturday 17:00 on hold), Sunday 10:00–16:00, Mondays off.
+        self.assertEqual(mei.block(0, 10 * 60), 'X')
+        self.assertEqual((mei.block(1, 9 * 60), mei.block(1, 13 * 60), mei.block(1, 14 * 60)), ('O', 'X', 'O'))
+        self.assertEqual((mei.block(5, 17 * 60), mei.block(6, 10 * 60)), ('H', 'O'))
+        # Arjun: Wed–Sun 10:00–19:00, with lunch.
+        self.assertEqual((arjun.block(1, 11 * 60), arjun.block(2, 10 * 60), arjun.block(6, 18 * 60 + 45)), ('X', 'O', 'O'))
