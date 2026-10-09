@@ -1,0 +1,118 @@
+# CI for configuration-service (Django). Runs on every pull request to main and every push to
+# main. Branch protection on main requires the "CI passed" check, which only passes when every
+# job below does (see the README's CI section).
+#
+# No `paths` filters on purpose: a required check that never runs (filtered out) would leave pull
+# requests waiting forever.
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# A newer push to the same pull request / branch cancels the run in progress.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: '3.14' # matches configuration-service/Dockerfile
+
+jobs:
+  backend-sqlite:
+    name: configuration-service (SQLite)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: configuration-service
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: configuration-service/requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: System checks
+        run: python manage.py check
+      - name: No missing migrations
+        run: python manage.py makemigrations --check --dry-run
+      - name: OpenAPI schema is valid
+        run: python manage.py spectacular --validate --file /tmp/schema.yml
+      - name: Tests
+        run: python manage.py test --noinput
+
+  backend-postgres:
+    name: configuration-service (PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: configuration-service
+    services:
+      postgres:
+        image: postgres:17-alpine # same as docker-compose.yml
+        env:
+          POSTGRES_DB: configuration_service
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DJANGO_DB_ENGINE: postgresql
+      POSTGRES_DB: configuration_service
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: '5432'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: configuration-service/requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      # What docker-entrypoint.sh does on a fresh database: every migration, then every fixture.
+      - name: Migrate and load the fixtures
+        run: |
+          python manage.py migrate --noinput
+          python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_services sample_chat_configurations sample_chat_sessions sample_order_items sample_schedule_items sample_unanswered_questions
+      - name: Tests
+        run: python manage.py test --noinput
+
+  # The one check branch protection requires: fails unless every job above succeeded (also when
+  # one was cancelled or skipped), so new jobs only need adding to `needs`.
+  ci-passed:
+    name: CI passed
+    if: always()
+    needs: [backend-sqlite, backend-postgres]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check the results
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Job results: $RESULTS"
+          for result in $RESULTS; do
+            if [ "$result" != "success" ]; then
+              echo "::error::Not every CI job succeeded."
+              exit 1
+            fi
+          done
