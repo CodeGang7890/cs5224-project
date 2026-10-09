@@ -99,7 +99,7 @@ class ToolboxTests(TestCase):
 
     def test_specs(self):
         specs = {spec['function']['name']: spec['function'] for spec in self.toolbox.specs}
-        self.assertEqual(list(specs), ['list_products', 'get_product_details', 'list_faqs'])
+        self.assertEqual(list(specs), ['list_products', 'get_product_details', 'list_services', 'get_service_details', 'list_faqs'])
         self.assertIn('information', specs['get_product_details']['description'])
         parameters = specs['get_product_details']['parameters']
         self.assertEqual(parameters['required'], ['product'])

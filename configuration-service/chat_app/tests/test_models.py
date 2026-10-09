@@ -27,7 +27,10 @@ DETAIL_FIELDS = [
 
 class ChatStepsTests(SimpleTestCase):
     def test_steps_constant(self):
-        self.assertEqual(CHAT_STEPS, ['start', 'product_selection', 'details_collection', 'confirmation'])
+        self.assertEqual(CHAT_STEPS, [
+            'start', 'product_selection', 'details_collection', 'confirmation',
+            'service_selection', 'slot_selection', 'booking_details', 'booking_confirmation',
+        ])
 
 
 class ValidateDetailFieldsTests(SimpleTestCase):

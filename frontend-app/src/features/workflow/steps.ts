@@ -1,6 +1,10 @@
 import {
+  CalendarCheck,
+  CalendarClock,
   CircleCheck,
   ClipboardList,
+  ClipboardPen,
+  Clock,
   MessageCircleQuestion,
   Route,
   ShoppingBag,
@@ -18,6 +22,10 @@ export const CHAT_STEP_LABELS: Record<ChatStep, string> = {
   product_selection: 'Product selection',
   details_collection: 'Details collection',
   confirmation: 'Confirmation',
+  service_selection: 'Service selection',
+  slot_selection: 'Time slot',
+  booking_details: 'Booking details',
+  booking_confirmation: 'Booking confirmation',
 }
 
 /** The blocks of the (fixed) chat flow diagram on the Workflow tab. */
@@ -26,9 +34,16 @@ export const FLOW_NODES = [
   'product_selection',
   'details_collection',
   'confirmation',
+  'service_selection',
+  'slot_selection',
+  'booking_details',
+  'booking_confirmation',
   'faqs',
   'order_status',
 ] as const
+
+/** The blocks whose settings are the Details collection fields (both ask for the same details). */
+export const DETAILS_NODES: readonly FlowNodeId[] = ['details_collection', 'booking_details']
 
 export type FlowNodeId = (typeof FLOW_NODES)[number]
 
@@ -55,10 +70,11 @@ export const FLOW_NODE_META: Record<FlowNodeId, FlowNodeMeta> = {
     label: 'Router',
     description: 'Reads each customer message and decides what it is about.',
     about:
-      'Every customer message starts here. The assistant decides what the message is about: ordering, a ' +
-      'question about your business, a past order, or something off topic. One message can be about several ' +
-      'things (for example "2 roses please, and do you deliver?"), and each part goes to its own branch. Once ' +
-      'an order has started, the order steps keep going until the customer confirms it.',
+      'Every customer message starts here. The assistant decides what the message is about: ordering ' +
+      'products, booking a service, a question about your business, a past order, or something off topic. ' +
+      'One message can be about several things (for example "2 roses please, and do you deliver?"), and each ' +
+      'part goes to its own branch. Once an order or a booking has started, its steps keep going until the ' +
+      'customer confirms it.',
     icon: Route,
     accentClassName: 'border-t-emerald-500',
     iconClassName: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
@@ -91,6 +107,50 @@ export const FLOW_NODE_META: Record<FlowNodeId, FlowNodeMeta> = {
       'customer can go back and change their products or details.',
     link: { to: paths.orders, label: 'View orders' },
     icon: CircleCheck,
+    accentClassName: 'border-t-violet-500',
+    iconClassName: 'bg-violet-500/15 text-violet-600 dark:text-violet-400',
+  },
+  service_selection: {
+    label: 'Service selection',
+    description: 'The customer picks a service to book.',
+    about:
+      'The customer chooses one of your active services that someone can do (it has at least one weekly ' +
+      'availability). Changing the service later drops the time chosen, since the times depend on it.',
+    link: { to: paths.service, label: 'Manage services' },
+    icon: CalendarClock,
+    accentClassName: 'border-t-teal-500',
+    iconClassName: 'bg-teal-500/15 text-teal-600 dark:text-teal-400',
+  },
+  slot_selection: {
+    label: 'Time slot',
+    description: 'The customer picks a free time.',
+    about:
+      'The assistant offers free times, worked out from your weekly availability and existing bookings ' +
+      '(never made up by the AI), numbered so the customer can reply with a number, or ask for another day, ' +
+      'time or part of the day. A time is free if someone who does the service has the whole duration ' +
+      'available and no other booking (or its buffer) is in the way.',
+    link: { to: paths.service, label: 'Edit weekly availability' },
+    icon: Clock,
+    accentClassName: 'border-t-cyan-500',
+    iconClassName: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400',
+  },
+  booking_details: {
+    label: 'Booking details',
+    description: "Collects the customer's details (the same as for orders).",
+    about: '',
+    icon: ClipboardPen,
+    accentClassName: 'border-t-amber-500',
+    iconClassName: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+  },
+  booking_confirmation: {
+    label: 'Booking confirmation',
+    description: 'The customer confirms the booking.',
+    about:
+      'The assistant shows the booking summary (service, time, price and details) and asks the customer to ' +
+      'reply CONFIRM. Confirming saves the booking first (in the Orders tab, under Services), then tells the ' +
+      'customer; if someone else took that time in the meantime, they choose another.',
+    link: { to: `${paths.orders}?tab=services`, label: 'View bookings' },
+    icon: CalendarCheck,
     accentClassName: 'border-t-violet-500',
     iconClassName: 'bg-violet-500/15 text-violet-600 dark:text-violet-400',
   },

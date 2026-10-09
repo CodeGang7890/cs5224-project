@@ -13,7 +13,7 @@ import type { ApiError } from '@/types/api'
 import { normalizeDetailField } from '../details'
 import { FLOW_EDGES, flowNodes, type StepNode } from '../diagram'
 import { useSaveChatConfiguration } from '../hooks/use-chat-configuration'
-import type { FlowNodeId } from '../steps'
+import { DETAILS_NODES, type FlowNodeId } from '../steps'
 import type { ChatConfiguration, DetailField } from '../types'
 import { DetailFieldsDialog } from './detail-fields-dialog'
 import { StepInfoDialog } from './step-info-dialog'
@@ -47,14 +47,15 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
   const isDirty = JSON.stringify(normalized(fields)) !== JSON.stringify(normalized(savedFields))
 
   const [nodes, setNodes, onNodesChange] = useNodesState<StepNode>(flowNodes(savedFields))
-  // The Details collection block lists the (maybe unsaved) details.
+  // The details blocks list the (maybe unsaved) details.
   useEffect(() => {
     setNodes((current) =>
-      current.map((node) => (node.id === 'details_collection' ? { ...node, data: { ...node.data, fields } } : node)),
+      current.map((node) => (DETAILS_NODES.includes(node.data.nodeId) ? { ...node, data: { ...node.data, fields } } : node)),
     )
   }, [fields, setNodes])
 
   const [openNode, setOpenNode] = useState<FlowNodeId | null>(null)
+  const detailsOpen = openNode !== null && DETAILS_NODES.includes(openNode)
 
   // --- Save / discard -------------------------------------------------------------------
 
@@ -168,13 +169,13 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
       </div>
 
       <DetailFieldsDialog
-        open={openNode === 'details_collection'}
+        open={detailsOpen}
         onOpenChange={(open) => !open && setOpenNode(null)}
         fields={fields}
         onApply={setFields}
       />
 
-      <StepInfoDialog nodeId={openNode === 'details_collection' ? null : openNode} onClose={() => setOpenNode(null)} />
+      <StepInfoDialog nodeId={detailsOpen ? null : openNode} onClose={() => setOpenNode(null)} />
 
       <ConfirmDialog
         open={saveOpen}
@@ -184,7 +185,7 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
           <span className="grid gap-2">
             <span>
               The assistant will ask new customers for these {fields.length} detail{fields.length === 1 ? '' : 's'}{' '}
-              at the Details collection step.
+              at the Details collection and Booking details steps.
             </span>
             {saveErrorMessage && (
               <span role="alert" className="text-destructive">

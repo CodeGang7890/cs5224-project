@@ -126,6 +126,18 @@ class ChatStateDataSerializer(serializers.Serializer):
     last_order_id = serializers.IntegerField(
         required=False, help_text='The last order placed in this chat (the chat then went back to the start).'
     )
+    service = serializers.DictField(
+        required=False,
+        help_text='The service chosen for a booking: `{service_id, name, price, duration_minutes, buffer_minutes}`.',
+    )
+    slot = serializers.DateTimeField(required=False, help_text='The start time chosen for the booking.')
+    slot_options = serializers.ListField(
+        child=serializers.DateTimeField(), required=False,
+        help_text='The free start times offered to the customer, numbered from 1 in this order.',
+    )
+    last_booking_id = serializers.IntegerField(
+        required=False, help_text='The last booking (ScheduleItem) made in this chat.'
+    )
 
 
 @extend_schema_field(ChatStateDataSerializer)
@@ -213,10 +225,11 @@ class SandboxMessageResponseSerializer(ChatMessageSerializer):
             'For debugging, not stored: `before` / `after` (`chat_state_id`, `chat_state_data`), '
             '`route` (the router\'s `intents`, `extracted` and `system_prompt`), `steps` (per order step: '
             '`step`, `system_prompt`, `extracted` (the LLM\'s JSON), `complete`, `go_back`, `go_back_to`, '
-            '`missing`, `issues`, `chat_state_data`), `stop_reason`, `finished`, `confirmation` (Confirmation\'s substage: `not_confirmed` / '
-            '`confirmed` / null), `order_id` (placed in this turn, or null), `missing`, `issues`, `question_check` (`kind`, `question`, `saved`, `system_prompt`; null unless the router '
+            '`missing`, `issues`, `chat_state_data`), `stop_reason`, `finished`, `confirmation` (Confirmation\'s or Booking confirmation\'s substage: '
+            '`not_confirmed` / `confirmed` / null), `order_id` / `booking_id` (placed in this turn, or null), '
+            '`missing`, `issues`, `question_check` (`kind`, `question`, `saved`, `system_prompt`; null unless the router '
             'found a question), `reply_kind` (`llm`, or a fixed template: `confirmation_request`, `order_confirmed`, '
-            '`order_status_coming_soon`), `reply_system_prompt` (the aside prompt for templates; may be empty) and '
+            '`slot_options`, `booking_confirmation_request`, `booking_confirmed`, `order_status_coming_soon`), `reply_system_prompt` (the aside prompt for templates; may be empty) and '
             '`tool_calls` (`name`, `arguments`).'
         ),
     )

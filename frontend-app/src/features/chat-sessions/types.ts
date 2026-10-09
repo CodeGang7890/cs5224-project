@@ -29,6 +29,14 @@ export interface ChatStateData {
   details?: Record<string, string | number>
   /** The last order (Orders tab) placed in this chat; once placed, the chat goes back to the start. */
   last_order_id?: number
+  /** The service chosen for a booking (a snapshot). */
+  service?: { service_id: number; name: string; price: string; duration_minutes: number; buffer_minutes: number }
+  /** The start time chosen for the booking (ISO 8601). */
+  slot?: string
+  /** The free start times offered to the customer, numbered from 1 in this order (ISO 8601). */
+  slot_options?: string[]
+  /** The last booking (Orders tab → Services) made in this chat. */
+  last_booking_id?: number
 }
 
 /** A conversation between a business and one customer, or a sandbox (test) chat. */
@@ -79,10 +87,19 @@ export interface SandboxTurnDebug {
   confirmation: 'not_confirmed' | 'confirmed' | null
   /** The order placed in this turn, or null. */
   order_id: number | null
+  /** The booking placed in this turn, or null. */
+  booking_id: number | null
   missing: string[]
   issues: string[]
   /** How the reply was made: by the LLM, or a fixed template. */
-  reply_kind: 'llm' | 'confirmation_request' | 'order_confirmed' | 'order_status_coming_soon'
+  reply_kind:
+    | 'llm'
+    | 'confirmation_request'
+    | 'order_confirmed'
+    | 'slot_options'
+    | 'booking_confirmation_request'
+    | 'booking_confirmed'
+    | 'order_status_coming_soon'
   /** The LLM reply's prompt; for a Confirmation template, the prompt of its short aside (empty if none). */
   reply_system_prompt: string
   tool_calls: { name: string; arguments: Record<string, unknown> }[]
@@ -91,7 +108,7 @@ export interface SandboxTurnDebug {
 }
 
 /** The router's intents, mirrored from configuration-service `chat_app/constants.py` `INTENTS`. */
-export type Intent = 'order' | 'question' | 'order_status' | 'off_topic'
+export type Intent = 'order' | 'booking' | 'question' | 'order_status' | 'off_topic'
 
 export interface RouteDebug {
   intents: Intent[]

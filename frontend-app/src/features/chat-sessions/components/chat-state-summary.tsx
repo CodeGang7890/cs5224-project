@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { CircleCheck } from 'lucide-react'
+import { CalendarCheck, CircleCheck } from 'lucide-react'
 import { Link } from 'react-router'
 
 import { Badge } from '@/components/ui/badge'
@@ -20,18 +20,34 @@ interface ChatStateSummaryProps {
   className?: string
 }
 
-/** What the order steps have collected (order, customer details), and the last order placed in the chat. */
+/** "Tue 14 Oct, 2:00 pm" (browser local time). */
+function formatSlot(iso: string): string {
+  return new Date(iso).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+}
+
+/** What the order / booking steps have collected (order or booking, customer details), and the last ones placed in the chat. */
 export function ChatStateSummary({ data, className }: ChatStateSummaryProps) {
   const labels = useDetailLabels()
   const items = data.items ?? []
   const details = Object.entries(data.details ?? {})
   return (
     <dl className={cn('flex flex-wrap items-center gap-x-4 gap-y-1 text-xs', className)}>
-      <Field label="Order">
-        {items.length > 0
-          ? `${items.map((item) => `${item.quantity} × ${item.name}`).join(', ')} · $${orderTotal(items)}`
-          : '—'}
-      </Field>
+      {data.service ? (
+        <Field label="Booking">
+          {`${data.service.name} · $${data.service.price} · `}
+          {data.slot
+            ? formatSlot(data.slot)
+            : data.slot_options?.length
+              ? `${data.slot_options.length} time${data.slot_options.length === 1 ? '' : 's'} offered`
+              : 'no time yet'}
+        </Field>
+      ) : (
+        <Field label="Order">
+          {items.length > 0
+            ? `${items.map((item) => `${item.quantity} × ${item.name}`).join(', ')} · $${orderTotal(items)}`
+            : '—'}
+        </Field>
+      )}
       {details.length === 0 ? (
         <Field label="Details">—</Field>
       ) : (
@@ -41,6 +57,13 @@ export function ChatStateSummary({ data, className }: ChatStateSummaryProps) {
             {String(value)}
           </Field>
         ))
+      )}
+      {data.last_booking_id && (
+        <Badge variant="outline" className="border-emerald-500/50 text-emerald-700 dark:text-emerald-400" asChild>
+          <Link to={`${paths.orders}?tab=services&booking=${data.last_booking_id}`} title="Open this booking in the Orders tab">
+            <CalendarCheck /> Booking #{data.last_booking_id} made
+          </Link>
+        </Badge>
       )}
       {data.last_order_id && (
         <Badge variant="outline" className="border-emerald-500/50 text-emerald-700 dark:text-emerald-400" asChild>

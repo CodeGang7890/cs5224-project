@@ -1,7 +1,13 @@
-"""The order sub-flow: a small deterministic state machine over the fixed order steps.
+"""The order and booking sub-flows: small deterministic state machines over fixed steps.
 
-Product selection → Details collection → Confirmation (constants.ORDER_STEPS), started from the
-`start` step when the router finds the customer wants to order. advance() runs one message:
+- Ordering products: Product selection → Details collection → Confirmation (constants.ORDER_STEPS),
+  started from `start` when the router finds the customer wants to order.
+- Booking a service: Service selection → Time slot → Booking details → Booking confirmation
+  (constants.BOOKING_STEPS), started when the router finds they want to book. The free times are
+  worked out in code (checkout_app.schedule): the LLM only extracts what the customer asked for
+  (a number from the times offered, a day, a time, a part of the day), and the times offered are
+  stored (chat_state_data.slot_options) so "the 2nd one" maps to a time the code chose.
+advance() runs one message:
 1. Extract: ask the LLM for the step's JSON output (prompts.extraction_schema) about the
    conversation so far. At the step the chat was at when the message arrived, the extraction can
    also say `go_back_to` an earlier step (GO_BACK_TARGETS): the chat then returns there, keeping
@@ -9,41 +15,55 @@ Product selection → Details collection → Confirmation (constants.ORDER_STEPS
 2. Check deterministically (the CHECKS below) whether that completes the step, updating
    ChatSession.chat_state_data. If it does, move to the next step and repeat 1–2 there, so one
    message can complete several steps ("2 Kopi C please, that's all, I'm Alice, alice@example.com").
-Confirmation has two substages: `not_confirmed` (the chat sends the order summary, a fixed
+Both confirmations have two substages: `not_confirmed` (the chat sends the summary, a fixed
 template, and waits) and `confirmed`. When the customer confirms, commit_turn() places the order
-(checkout_app: an OrderItem, with its stock reserved) in the same transaction as saving the state,
-and only then is the customer told it's confirmed (again a fixed template). The chat then goes back
-to `start`, keeping only `last_order_id`, so the customer can order again.
+(checkout_app.place_order: an OrderItem, with its stock reserved) or the booking
+(checkout_app.place_booking: a ScheduleItem, taking up its time) in the same transaction as saving
+the state, and only then is the customer told it's confirmed (again a fixed template). The chat
+then goes back to `start`, keeping only `last_order_id` / `last_booking_id`, so the customer can
+order or book again.
 """
 
 import copy
 import math
 import re
 from dataclasses import dataclass, field
+from datetime import date, datetime, time, timedelta
 
 from django.core.exceptions import ValidationError
 from django.core.validators import EmailValidator
 from django.db import transaction
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 
-from checkout_app.services import OrderError, place_order
+from checkout_app.schedule import free_slots, local, schedule_tz, start_problem
+from checkout_app.services import BookingError, OrderError, place_booking, place_order
+from product_app.models import Service
 
 from . import llm, prompts
 from .constants import (
+    BOOKING_STEPS,
     CHAT_STEPS,
     CONFIRMATION_CONFIRMED,
     CONFIRMATION_NOT_CONFIRMED,
+    CONFIRMATION_STEPS,
     DETAIL_TYPE_EMAIL,
     DETAIL_TYPE_NUMBER,
     DETAIL_TYPE_PHONE,
     ORDER_STEPS,
+    STEP_BOOKING_CONFIRMATION,
+    STEP_BOOKING_DETAILS,
     STEP_CONFIRMATION,
     STEP_DETAILS_COLLECTION,
     STEP_LABELS,
     STEP_PRODUCT_SELECTION,
+    STEP_SERVICE_SELECTION,
+    STEP_SLOT_SELECTION,
     STEP_START,
 )
+from .prompts import PARTS_OF_DAY
 from .models import DISPLAY_NAME_MAX_LENGTH, ChatConfiguration, ChatSession
-from .validators import DETAIL_TEXT_DEFAULT_MAX_LENGTH, is_required_detail, validate_chat_state_data
+from .validators import DETAIL_TEXT_DEFAULT_MAX_LENGTH, SLOT_OPTIONS_MAX, is_required_detail, validate_chat_state_data
 
 EMAIL_MAX_LENGTH = 254
 PRODUCTS_MISSING = 'which products, and how many of each'
@@ -51,20 +71,48 @@ PRODUCTS_CONFIRMATION_MISSING = (
     'the customer to confirm that this is everything they want (recap the order and ask if they want anything else)'
 )
 
-# The step after each order step (None: the last one).
+SERVICE_MISSING = 'which service they would like to book'
+SLOT_MISSING = 'a time for the booking: one of the times offered, or another day or time'
+
+# The step after each step (None: the last one, a confirmation).
 NEXT_STEP = {
     STEP_PRODUCT_SELECTION: STEP_DETAILS_COLLECTION,
     STEP_DETAILS_COLLECTION: STEP_CONFIRMATION,
     STEP_CONFIRMATION: None,
+    STEP_SERVICE_SELECTION: STEP_SLOT_SELECTION,
+    STEP_SLOT_SELECTION: STEP_BOOKING_DETAILS,
+    STEP_BOOKING_DETAILS: STEP_BOOKING_CONFIRMATION,
+    STEP_BOOKING_CONFIRMATION: None,
 }
+# Where a "change" (or a step whose earlier choice is gone) goes back to: the flow's first step.
+FIRST_STEP = {step: ORDER_STEPS[0] for step in ORDER_STEPS} | {step: BOOKING_STEPS[0] for step in BOOKING_STEPS}
 # The earlier steps the customer can go back to from each step, to change what was collected there.
 GO_BACK_TARGETS = {
     STEP_PRODUCT_SELECTION: [],
     STEP_DETAILS_COLLECTION: [STEP_PRODUCT_SELECTION],
     STEP_CONFIRMATION: [STEP_PRODUCT_SELECTION, STEP_DETAILS_COLLECTION],
+    STEP_SERVICE_SELECTION: [],
+    STEP_SLOT_SELECTION: [STEP_SERVICE_SELECTION],
+    STEP_BOOKING_DETAILS: [STEP_SERVICE_SELECTION, STEP_SLOT_SELECTION],
+    STEP_BOOKING_CONFIRMATION: [STEP_SERVICE_SELECTION, STEP_SLOT_SELECTION, STEP_BOOKING_DETAILS],
 }
 # Each step is visited at most twice in one message (once more after a "change" at confirmation).
-MAX_STEPS_PER_MESSAGE = 2 * len(ORDER_STEPS) + 1
+MAX_STEPS_PER_MESSAGE = 2 * max(len(ORDER_STEPS), len(BOOKING_STEPS)) + 1
+
+# Times offered at the Time slot step: at most this many, spread out (at most a few a day).
+SLOT_OPTIONS_OFFERED = min(6, SLOT_OPTIONS_MAX)
+SLOT_OPTIONS_PER_DAY = 3
+DEFAULT_SLOT_DAYS = 7  # when the customer hasn't said which days
+
+
+@dataclass
+class StepContext:
+    """What the steps' checks need besides the extraction and chat_state_data."""
+
+    products: list[dict]  # tools.active_products
+    services: list[Service]  # tools.active_services
+    fields: list[dict]  # ChatConfiguration.detail_fields
+    now: datetime
 
 
 @dataclass
@@ -94,16 +142,17 @@ class Turn:
     # Set when Confirmation passed with this message: chat_state_data at that moment. commit_turn()
     # then places the order, or undoes the confirmation if it can't.
     confirmation: dict | None = None
-    # Set by commit_turn() once the order is saved: the OrderItem's pk.
+    # Set by commit_turn() once the order / booking is saved: the OrderItem's / ScheduleItem's pk.
     placed_order_id: int | None = None
+    placed_booking_id: int | None = None
 
     @property
     def confirmation_status(self) -> str | None:
-        """Confirmation's substage after this turn (None: not at Confirmation). Only valid after
-        commit_turn(): `confirmed` means the order is in the database."""
-        if self.placed_order_id is not None:
+        """Confirmation's (or Booking confirmation's) substage after this turn (None: at neither).
+        Only valid after commit_turn(): `confirmed` means the order / booking is in the database."""
+        if self.placed_order_id is not None or self.placed_booking_id is not None:
             return CONFIRMATION_CONFIRMED
-        return CONFIRMATION_NOT_CONFIRMED if self.step == STEP_CONFIRMATION else None
+        return CONFIRMATION_NOT_CONFIRMED if self.step in CONFIRMATION_STEPS else None
 
 
 def advance(
@@ -114,22 +163,31 @@ def advance(
     products: list[dict],
     *,
     start_order: bool,
+    start_booking: bool = False,
+    services: list[Service] = (),
+    now: datetime | None = None,
 ) -> Turn:
-    """Runs the extraction + check of the current order step, moving on while steps complete.
+    """Runs the extraction + check of the current step, moving on while steps complete.
 
-    `step` / `state_data`: the session's chat_state_id / chat_state_data. At `start` (no order in
-    progress), nothing happens unless the router found the customer wants to order (`start_order`):
-    then the order starts at Product selection, on this same message.
+    `step` / `state_data`: the session's chat_state_id / chat_state_data. At `start` (nothing in
+    progress), nothing happens unless the router found the customer wants to order (`start_order`:
+    the order starts at Product selection) or book (`start_booking`, if `services` (the bookable
+    ones) isn't empty: the booking starts at Service selection), on this same message. Ordering
+    wins if it's both.
     """
     step = step if step in CHAT_STEPS else STEP_START
     turn = Turn(step=step, data=copy.deepcopy(state_data))
     if step == STEP_START:
-        if not start_order:
-            turn.stop_reason = 'No order in progress, and the router found no wish to order: reply only.'
+        if start_order:
+            step = STEP_PRODUCT_SELECTION
+        elif start_booking and services:
+            step = STEP_SERVICE_SELECTION
+        else:
+            turn.stop_reason = 'Nothing in progress, and the router found no wish to order or book: reply only.'
             return turn
-        step = STEP_PRODUCT_SELECTION
 
     business, fields = chat_config.business, chat_config.detail_fields
+    context = StepContext(products=products, services=list(services), fields=fields, now=now or timezone.now())
     # Going back is only offered at the step the chat was at when this message arrived. A step
     # reached during this message (e.g. Details collection, right after "That's all" finished
     # Product selection) would otherwise read the message that completed the earlier step as a
@@ -138,13 +196,15 @@ def advance(
     for _ in range(MAX_STEPS_PER_MESSAGE):
         # A confirmation reached with this message hasn't shown the customer the summary yet: the
         # reply will (substage not_confirmed).
-        if step == STEP_CONFIRMATION and entered_now:
+        if step in CONFIRMATION_STEPS and entered_now:
             turn.stop_reason = (
-                'Confirmation reached with this message: not checked until the customer has seen the summary.'
+                f'{STEP_LABELS[step]} reached with this message: not checked until the customer has seen the summary.'
             )
             break
         targets = [] if entered_now else GO_BACK_TARGETS[step]
-        system_prompt = prompts.build_extraction_prompt(business, step, turn.data, products, fields, go_back=targets)
+        system_prompt = prompts.build_extraction_prompt(
+            business, step, turn.data, products, fields, go_back=targets, services=context.services, now=context.now
+        )
         extracted = llm.generate_structured(system_prompt, history, prompts.extraction_schema(step, fields, targets))
         target = extracted.get('go_back_to')
         if isinstance(target, str) and target in targets:
@@ -152,6 +212,10 @@ def advance(
             # want a Kaya Toast" updates the order straight away.
             if target == STEP_PRODUCT_SELECTION:
                 turn.data.pop('items_confirmed', None)  # the order must be recapped and confirmed again
+            if target == STEP_SLOT_SELECTION and 'slot' in turn.data:
+                # A new time must be chosen: the old one is offered again, as number 1 (so a time
+                # without a day, "11am instead", keeps its day), then the next free times.
+                turn.data['slot_options'] = _reoffer(turn.data.pop('slot'), turn.data, context)
             turn.steps.append(_debug_step(step, system_prompt, extracted, CheckResult(complete=False), turn.data, target))
             turn.went_back_to = target
             step = target
@@ -159,17 +223,20 @@ def advance(
             turn.missing, turn.issues = [], []
             continue
 
-        result = CHECKS[step](extracted, turn.data, products, fields)
+        result = CHECKS[step](extracted, turn.data, context)
         turn.missing, turn.issues = result.missing, result.issues
         turn.steps.append(_debug_step(step, system_prompt, extracted, result, turn.data))
 
         if result.go_back:
-            step = STEP_PRODUCT_SELECTION
+            step = FIRST_STEP[step]
         elif result.complete:
             turn.finished.append(STEP_LABELS[step])
-            if NEXT_STEP[step] is None:  # Confirmation: commit_turn() places the order
+            if NEXT_STEP[step] is None:  # a confirmation: commit_turn() places the order / booking
                 turn.confirmation = copy.deepcopy(turn.data)
-                turn.stop_reason = 'The customer confirmed: placing the order.'
+                turn.stop_reason = (
+                    'The customer confirmed: placing the booking.' if step == STEP_BOOKING_CONFIRMATION
+                    else 'The customer confirmed: placing the order.'
+                )
                 break
             step = NEXT_STEP[step]
         else:
@@ -315,10 +382,190 @@ def check_confirmation(extracted: dict, data: dict, products: list[dict], fields
     return CheckResult(complete=decision == 'confirm', go_back=decision == 'change')
 
 
+# --- Booking checks ------------------------------------------------------------------------
+
+def service_snapshot(service: Service) -> dict:
+    """chat_state_data.service: what the customer chose, as they were shown it."""
+    return {
+        'service_id': service.pk,
+        'name': service.name,
+        'price': str(service.price),
+        'duration_minutes': service.duration_minutes,
+        'buffer_minutes': service.buffer_minutes,
+    }
+
+
+def check_service_selection(extracted: dict, data: dict, services: list[Service]) -> CheckResult:
+    """Complete once a bookable service is chosen (one of `services`). Choosing another service
+    drops the time chosen or offered (the times depend on the service)."""
+    by_id = {service.pk: service for service in services}
+    issues = []
+    chosen_id = _as_int(extracted.get('service_id'))
+    if chosen_id is not None:
+        service = by_id.get(chosen_id)
+        if service is None:
+            issues.append('The service the customer asked for cannot be booked.')
+        elif data.get('service', {}).get('service_id') != service.pk:
+            data['service'] = service_snapshot(service)
+            data.pop('slot', None)
+            data.pop('slot_options', None)
+    current = data.get('service')
+    if current and current['service_id'] not in by_id:
+        issues.append(f'{current["name"]} cannot be booked any more.')
+        for key in ('service', 'slot', 'slot_options'):
+            data.pop(key, None)
+    if data.get('service') and not issues:
+        return CheckResult(complete=True)
+    return CheckResult(complete=False, missing=[SERVICE_MISSING], issues=issues)
+
+
+def _parse_day(value) -> date | None:
+    try:
+        return date.fromisoformat(value) if isinstance(value, str) else None
+    except ValueError:
+        return None
+
+
+def _parse_clock(value) -> time | None:
+    """'14:30' (or '9:00', '14:30:00') → a time; anything else → None."""
+    match = re.fullmatch(r'(\d{1,2}):(\d{2})(?::00)?', value.strip()) if isinstance(value, str) else None
+    if not match or int(match[1]) > 23 or int(match[2]) > 59:
+        return None
+    return time(int(match[1]), int(match[2]))
+
+
+def offer_slots(service: Service, date_from: date, date_to: date, part: str | None, now: datetime) -> list[datetime]:
+    """Free start times to offer for `service` between the days (inclusive), in `part` of the day if
+    given: spread out (at least the service's duration, or an hour, apart; at most
+    SLOT_OPTIONS_PER_DAY a day), at most SLOT_OPTIONS_OFFERED."""
+    slots = free_slots(service, date_from, date_to, now)
+    if part in PARTS_OF_DAY:
+        low, high = PARTS_OF_DAY[part]
+        slots = [slot for slot in slots if low <= local(slot).hour < high]
+    gap = timedelta(minutes=max(service.duration_minutes, 60))
+    offered, per_day = [], {}
+    for slot in slots:
+        day = local(slot).date()
+        taken = per_day.setdefault(day, [])
+        if len(taken) < SLOT_OPTIONS_PER_DAY and (not taken or slot - taken[-1] >= gap):
+            taken.append(slot)
+            offered.append(slot)
+            if len(offered) == SLOT_OPTIONS_OFFERED:
+                break
+    return offered
+
+
+def _reoffer(old_slot: str, data: dict, context: StepContext) -> list[str]:
+    """Times to offer when going back to Time slot: the old time first, then the next free ones."""
+    service = next((s for s in context.services if s.pk == data.get('service', {}).get('service_id')), None)
+    today = local(context.now).date()
+    others = offer_slots(service, today, today + timedelta(days=DEFAULT_SLOT_DAYS - 1), None, context.now) if service else []
+    return [old_slot, *[slot.isoformat() for slot in others if slot.isoformat() != old_slot]][:SLOT_OPTIONS_OFFERED]
+
+
+def _describe_days(date_from: date, date_to: date, part: str | None) -> str:
+    when = f'on {date_from:%a} {date_from.day} {date_from:%b}' if date_from == date_to else (
+        f'from {date_from:%a} {date_from.day} {date_from:%b} to {date_to:%a} {date_to.day} {date_to:%b}'
+    )
+    return f'{when} in the {part}' if part else when
+
+
+def check_slot_selection(extracted: dict, data: dict, services: list[Service], now: datetime) -> CheckResult:
+    """Complete once a free start time for the chosen service is picked; otherwise offers some.
+
+    The LLM only says what the customer asked for; the times are checked and chosen here
+    (checkout_app.schedule.start_problem / free_slots):
+    - `choice`: the number of one of the times offered (chat_state_data.slot_options) → that time,
+      if it's still free;
+    - `time` (HH:MM) on `date` (default: the day of the time chosen before, else of the first time
+      offered, else today) → that exact time, if it's free; otherwise other times that day are offered;
+    - `date` / `date_to` / `part_of_day` → times offered then (if none, the next free days);
+    - nothing new: a time chosen before (e.g. back here after a "change") passes if still free;
+      the times already offered stay; otherwise times in the next DEFAULT_SLOT_DAYS days are offered.
+    """
+    current = data.get('service', {})
+    service = next((s for s in services if s.pk == current.get('service_id')), None)
+    if service is None:
+        for key in ('service', 'slot', 'slot_options'):
+            data.pop(key, None)
+        problem = f'{current["name"]} cannot be booked any more.' if current else 'No service is chosen yet.'
+        return CheckResult(complete=False, missing=[SERVICE_MISSING], issues=[problem], go_back=True)
+
+    today = local(now).date()
+    options = [parse_datetime(option) for option in data.get('slot_options', [])]
+    choice = _as_int(extracted.get('choice'))
+    day, day_to = _parse_day(extracted.get('date')), _parse_day(extracted.get('date_to'))
+    at = _parse_clock(extracted.get('time'))
+    part = extracted.get('part_of_day') if extracted.get('part_of_day') in PARTS_OF_DAY else None
+    issues: list[str] = []
+
+    def pick(start: datetime) -> CheckResult:
+        data['slot'] = start.isoformat()
+        data.pop('slot_options', None)
+        return CheckResult(complete=True)
+
+    if choice is not None and options:
+        if 1 <= choice <= len(options):
+            problem = start_problem(service, options[choice - 1], now)
+            if problem is None:
+                return pick(options[choice - 1])
+            issues.append(problem)  # e.g. booked by someone else since it was offered
+        else:
+            issues.append(f'There is no time number {choice}: please pick one of the numbers listed.')
+
+    window = None
+    if at is not None:
+        if day is None and data.get('slot'):
+            day = local(parse_datetime(data['slot'])).date()
+        elif day is None and options:
+            day = local(options[0]).date()
+        on = day or today
+        start = datetime.combine(on, at, tzinfo=schedule_tz())
+        problem = start_problem(service, start, now)
+        if problem is None:
+            return pick(start)
+        issues.append(problem)
+        window = (on, on)  # other times that day
+    elif day is not None or part is not None:
+        start_day = day or today
+        window = (start_day, day_to or (day if day else today + timedelta(days=DEFAULT_SLOT_DAYS - 1)))
+    elif not issues and data.get('slot'):
+        problem = start_problem(service, parse_datetime(data['slot']), now)
+        if problem is None:
+            return CheckResult(complete=True)
+        issues.append(problem)
+    elif not issues and options:
+        return CheckResult(complete=False, missing=[SLOT_MISSING])  # still choosing from the times offered
+
+    data.pop('slot', None)
+    default = (today, today + timedelta(days=DEFAULT_SLOT_DAYS - 1))
+    if window is None:
+        window, part = default, None
+    elif window[1] < today:
+        issues.append('That day has already passed.')
+        window, part = default, None
+    start_day, end_day = max(window[0], today), max(window[1], window[0])
+    offered = offer_slots(service, start_day, end_day, part, now)
+    if not offered and window != default:
+        issues.append(f'There are no free times for {service.name} {_describe_days(start_day, end_day, part)}.')
+        after = max(end_day + timedelta(days=1), today)
+        offered = offer_slots(service, after, after + timedelta(days=DEFAULT_SLOT_DAYS - 1), None, now)
+    if offered:
+        data['slot_options'] = [slot.isoformat() for slot in offered]
+    else:
+        data.pop('slot_options', None)
+    return CheckResult(complete=False, missing=[SLOT_MISSING], issues=issues)
+
+
+# Every check, by step: (extraction, chat_state_data (updated in place), StepContext) → CheckResult.
 CHECKS = {
-    STEP_PRODUCT_SELECTION: check_product_selection,
-    STEP_DETAILS_COLLECTION: check_details_collection,
-    STEP_CONFIRMATION: check_confirmation,
+    STEP_PRODUCT_SELECTION: lambda extracted, data, ctx: check_product_selection(extracted, data, ctx.products, ctx.fields),
+    STEP_DETAILS_COLLECTION: lambda extracted, data, ctx: check_details_collection(extracted, data, ctx.products, ctx.fields),
+    STEP_CONFIRMATION: lambda extracted, data, ctx: check_confirmation(extracted, data, ctx.products, ctx.fields),
+    STEP_SERVICE_SELECTION: lambda extracted, data, ctx: check_service_selection(extracted, data, ctx.services),
+    STEP_SLOT_SELECTION: lambda extracted, data, ctx: check_slot_selection(extracted, data, ctx.services, ctx.now),
+    STEP_BOOKING_DETAILS: lambda extracted, data, ctx: check_details_collection(extracted, data, ctx.products, ctx.fields),
+    STEP_BOOKING_CONFIRMATION: lambda extracted, data, ctx: check_confirmation(extracted, data, ctx.products, ctx.fields),
 }
 
 
@@ -375,31 +622,46 @@ def _parse_number(text: str) -> int | float | None:
 
 # --- Persistence --------------------------------------------------------------------------
 
-def commit_turn(session_id: int, turn: Turn) -> None:
-    """Saves where the order is and what it has collected, placing the order if the customer confirmed.
+def _after_placed(data: dict, key: str, pk: int) -> dict:
+    """chat_state_data once an order / booking is placed: back to the start, keeping only the last
+    order and booking placed (`key`: `last_order_id` or `last_booking_id`)."""
+    kept = {k: data[k] for k in ('last_order_id', 'last_booking_id') if k in data}
+    return {**kept, key: pk}
+
+
+def commit_turn(session_id: int, turn: Turn, now: datetime | None = None) -> None:
+    """Saves where the chat is and what it has collected, placing the order or booking if the
+    customer confirmed.
 
     One transaction, with the session row locked: the order (checkout_app.services.place_order,
-    which locks the products and reserves their stock) and the saved state can't disagree. Once
-    the order is saved, the chat goes back to `start` with only `last_order_id` (and
-    `turn.placed_order_id` is set, for the confirmation message). If it can't be placed (e.g. sold
-    out since it was chosen), the chat goes back to Product selection with everything kept, and the
-    problems go into the reply prompt. A collected name also fills in an empty display_name.
+    which locks the products and reserves their stock) or booking (place_booking, which locks the
+    service's calendars) and the saved state can't disagree. Once it's saved, the chat goes back to
+    `start` with only `last_order_id` / `last_booking_id` (and `turn.placed_order_id` /
+    `placed_booking_id` is set, for the confirmation message). If it can't be placed, the chat goes
+    back, keeping everything: an order to Product selection (e.g. sold out since it was chosen), a
+    booking to Time slot with fresh times offered (e.g. someone else booked that time); the problems
+    go into the reply. A collected name also fills in an empty display_name.
     """
     with transaction.atomic():
         session = ChatSession.objects.select_for_update().select_related('business').get(pk=session_id)
         details = turn.data.get('details', {})
-        if turn.confirmation is not None and not turn.confirmation.get('items'):
-            # Can't happen (Product selection needs items), but never place an empty order.
-            turn.confirmation, turn.step, turn.missing = None, STEP_PRODUCT_SELECTION, [PRODUCTS_MISSING]
-            turn.stop_reason += ' Nothing was chosen, so no order was placed.'
-        if turn.confirmation is not None:
+        booking = turn.step == STEP_BOOKING_CONFIRMATION
+        if turn.confirmation is not None and not (
+            turn.confirmation.get('service') and turn.confirmation.get('slot') if booking else turn.confirmation.get('items')
+        ):
+            # Can't happen (the earlier steps need them), but never place an empty order / booking.
+            turn.confirmation, turn.step = None, FIRST_STEP[turn.step]
+            turn.missing = [SERVICE_MISSING if booking else PRODUCTS_MISSING]
+            turn.stop_reason += ' Nothing was chosen, so nothing was placed.'
+        if turn.confirmation is not None and booking:
+            _place_booking(session, turn, now)
+        elif turn.confirmation is not None:
             data = turn.confirmation
-            details = data.get('details', {})
             try:
                 order = place_order(
                     session.business,
                     data.get('items', []),
-                    details,
+                    data.get('details', {}),
                     chat_session=session,
                     is_sandbox=session.is_sandbox,
                 )
@@ -414,8 +676,10 @@ def commit_turn(session_id: int, turn: Turn) -> None:
             else:
                 turn.placed_order_id = order.pk
                 turn.step = STEP_START
-                turn.data = {'last_order_id': order.pk}
+                turn.data = _after_placed(data, 'last_order_id', order.pk)
                 turn.stop_reason = f'Order #{order.pk} placed: back to the start.'
+        if turn.confirmation is not None:
+            details = turn.confirmation.get('details', {})
         validate_chat_state_data(turn.data)
         session.chat_state_id = turn.step
         session.chat_state_data = turn.data
@@ -425,3 +689,38 @@ def commit_turn(session_id: int, turn: Turn) -> None:
             session.display_name = name[:DISPLAY_NAME_MAX_LENGTH]
             fields.append('display_name')
         session.save(update_fields=fields)
+
+
+def _place_booking(session: ChatSession, turn: Turn, now: datetime | None) -> None:
+    """commit_turn() for Booking confirmation: place_booking(), or back to Time slot if it can't."""
+    data = turn.confirmation
+    now = now or timezone.now()
+    try:
+        booked = place_booking(
+            session.business,
+            data['service']['service_id'],
+            parse_datetime(data['slot']),
+            data.get('details', {}),
+            price=data['service']['price'],
+            chat_session=session,
+            is_sandbox=session.is_sandbox,
+            now=now,
+        )
+    except BookingError as exc:
+        label = STEP_LABELS[STEP_BOOKING_CONFIRMATION]
+        turn.step = STEP_SLOT_SELECTION
+        turn.data = {key: value for key, value in data.items() if key not in ('slot', 'slot_options')}
+        service = Service.objects.filter(business=session.business, pk=data['service']['service_id'], is_active=True).first()
+        today = local(now).date()
+        offered = offer_slots(service, today, today + timedelta(days=DEFAULT_SLOT_DAYS - 1), None, now) if service else []
+        if offered:
+            turn.data['slot_options'] = [slot.isoformat() for slot in offered]
+        turn.finished = [f for f in turn.finished if f != label]
+        turn.missing = [SLOT_MISSING]
+        turn.issues = [*exc.problems, 'The booking was not made: please choose another time.']
+        turn.stop_reason = f'The booking could not be made: {exc} Back to Time slot.'
+    else:
+        turn.placed_booking_id = booked.pk
+        turn.step = STEP_START
+        turn.data = _after_placed(data, 'last_booking_id', booked.pk)
+        turn.stop_reason = f'Booking #{booked.pk} placed: back to the start.'

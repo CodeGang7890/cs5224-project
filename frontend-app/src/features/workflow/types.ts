@@ -2,7 +2,16 @@
  * The chat flow's steps, mirrored from configuration-service `chat_app/constants.py`. The flow is
  * fixed: `ChatSession.chat_state_id` is one of these.
  */
-export const CHAT_STEPS = ['start', 'product_selection', 'details_collection', 'confirmation'] as const
+export const CHAT_STEPS = [
+  'start',
+  'product_selection',
+  'details_collection',
+  'confirmation',
+  'service_selection',
+  'slot_selection',
+  'booking_details',
+  'booking_confirmation',
+] as const
 
 export type ChatStep = (typeof CHAT_STEPS)[number]
 
@@ -11,7 +20,7 @@ export const DETAIL_FIELD_TYPES = ['text', 'number', 'email', 'phone'] as const
 
 export type DetailFieldType = (typeof DETAIL_FIELD_TYPES)[number]
 
-/** One customer detail the Details collection step asks for (see `details.ts` for the rules). */
+/** One customer detail the Details collection (and Booking details) step asks for (see `details.ts` for the rules). */
 export interface DetailField {
   /** e.g. `postal_code`: the key in `ChatSession.chat_state_data.details`. */
   key: string

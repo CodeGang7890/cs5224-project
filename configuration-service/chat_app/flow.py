@@ -5,9 +5,10 @@ handle_customer_message() runs one turn:
 1. Save the customer message.
 2. Route (router.route_message): one structured LLM call labels what the message is about (its
    intents: order, question, order status, off topic). Code decides which handlers run.
-3. Order (order_flow.advance): the order steps, Product selection → Details collection →
-   Confirmation, a small deterministic state machine. They run when the router finds the
-   customer wants to order, and on every message while an order is in progress.
+3. Order / book (order_flow.advance): the order steps (Product selection → Details collection →
+   Confirmation) or the booking steps (Service selection → Time slot → Booking details → Booking
+   confirmation), small deterministic state machines. They run when the router finds the customer
+   wants to order (or book), and on every message while one is in progress.
 4. Save chat_state_id / chat_state_data (order_flow.commit_turn). If the customer confirmed, this
    also places the order (checkout_app: an OrderItem, with its stock reserved) in the same
    transaction, and the chat goes back to the start.
@@ -18,9 +19,11 @@ handle_customer_message() runs one turn:
 6. Reply: ask the LLM for the reply, with a prompt putting together what the handlers found (the
    order step, what's known, what's still missing, what went wrong, the question, an order status
    request, an off-topic message), and save it. Except:
-   - At Confirmation, the reply is a fixed template: the order summary and "reply CONFIRM" while
-     it's not confirmed, or "order #N is confirmed" once the order is saved (never before). The
-     LLM only adds a short aside for anything else in the message (e.g. a question).
+   - At Confirmation (and Booking confirmation), the reply is a fixed template: the summary and
+     "reply CONFIRM" while it's not confirmed, or "order / booking #N is confirmed" once it is
+     saved (never before). At Time slot, it's the free times offered, numbered (worked out in
+     code, never by the LLM). The LLM only adds a short aside for anything else in the message
+     (e.g. a question).
    - A message only about a past order gets a fixed reply: checking order status isn't available yet.
 """
 
@@ -30,9 +33,23 @@ from django.db import transaction
 from django.utils import timezone
 
 from . import llm, order_flow, prompts, router
-from .constants import SENT_BY_BUSINESS_AUTOMATED, SENT_BY_CUSTOMER
+from .constants import (
+    SENT_BY_BUSINESS_AUTOMATED,
+    SENT_BY_CUSTOMER,
+    STEP_BOOKING_CONFIRMATION,
+    STEP_CONFIRMATION,
+    STEP_SLOT_SELECTION,
+)
 from .models import ChatConfiguration, ChatSession
-from .tools import Toolbox, active_products, business_faqs, mentioned_products
+from .tools import (
+    Toolbox,
+    active_products,
+    active_services,
+    business_faqs,
+    mentioned_products,
+    mentioned_services,
+    service_dict,
+)
 
 # How many of the latest messages the LLM sees (keeps the prompt within the context window).
 HISTORY_MAX_MESSAGES = 20
@@ -41,6 +58,9 @@ HISTORY_MAX_MESSAGES = 20
 REPLY_LLM = 'llm'
 REPLY_CONFIRMATION_REQUEST = 'confirmation_request'  # the order summary + "reply CONFIRM" (template)
 REPLY_ORDER_CONFIRMED = 'order_confirmed'  # sent only once the order is saved (template)
+REPLY_SLOT_OPTIONS = 'slot_options'  # the free times offered, numbered (template)
+REPLY_BOOKING_REQUEST = 'booking_confirmation_request'  # the booking summary + "reply CONFIRM" (template)
+REPLY_BOOKING_CONFIRMED = 'booking_confirmed'  # sent only once the booking is saved (template)
 REPLY_ORDER_STATUS_COMING_SOON = 'order_status_coming_soon'  # fixed message
 
 
@@ -61,36 +81,39 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
     business = session.business
     history = to_llm_history(session.chat_message_json)
     products = active_products(business)
+    services = active_services(business)
     chat_config = ChatConfiguration.for_business(business)
     before = {'chat_state_id': session.chat_state_id, 'chat_state_data': session.chat_state_data}
+    now = timezone.now()
 
-    route = router.route_message(business, session.chat_state_id, session.chat_state_data, history, products)
-    turn = order_flow.advance(
-        chat_config, session.chat_state_id, session.chat_state_data, history, products, start_order=route.start_order
+    route = router.route_message(
+        business, session.chat_state_id, session.chat_state_data, history, products, services
     )
-    order_flow.commit_turn(session_id, turn)
-    check = check_customer_question(session, message, history, products) if route.question else None
+    turn = order_flow.advance(
+        chat_config, session.chat_state_id, session.chat_state_data, history, products,
+        start_order=route.start_order, start_booking=route.start_booking, services=services, now=now,
+    )
+    order_flow.commit_turn(session_id, turn, now)
+    chosen_service = turn.data.get('service', {}).get('service_id')
+    check = (
+        check_customer_question(session, message, history, products, services, chosen_service) if route.question else None
+    )
 
     toolbox = Toolbox(business)
-    if turn.confirmation_status is not None:
-        # Confirmation: fixed templates, so only the database decides what the customer is told is
-        # confirmed. Anything else in the message (a question...) gets a short LLM aside.
-        labels = prompts.detail_labels(chat_config.detail_fields)
-        if turn.placed_order_id is not None:
-            reply_kind = REPLY_ORDER_CONFIRMED
-            template = prompts.order_confirmed_message(business, turn.placed_order_id, turn.confirmation, labels)
-        else:
-            reply_kind = REPLY_CONFIRMATION_REQUEST
-            template = prompts.confirmation_request_message(turn.data, labels)
-        system_prompt, parts = '', [template]
+    template = template_reply(business, turn, prompts.detail_labels(chat_config.detail_fields))
+    if template is not None:
+        # Fixed templates: only the database decides what the customer is told is confirmed, and
+        # only code which times are free. Anything else in the message gets a short LLM aside.
+        reply_kind, text, context, aside_first = template
+        system_prompt, parts = '', [text]
         answered = check is not None and check['kind'] != prompts.QUESTION_NONE
         if answered or route.order_status or route.off_topic:
             system_prompt = prompts.build_aside_prompt(
-                business, placed_order_id=turn.placed_order_id, intents=route.intents, question_check=check
+                business, context=context, intents=route.intents, question_check=check
             )
             aside = llm.generate_chat_reply(system_prompt, history, toolbox).strip()
-            if aside:  # after the confirmation, or before the request to confirm
-                parts = [template, aside] if turn.placed_order_id is not None else [aside, template]
+            if aside:  # before the summary / times, or after the confirmation
+                parts = [aside, text] if aside_first else [text, aside]
         reply = '\n\n'.join(parts)
     elif route.only_order_status and not turn.steps:
         # Only about a past order, and no order step ran: checking it isn't available yet.
@@ -105,6 +128,7 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
             turn.data,
             products=products,
             fields=chat_config.detail_fields,
+            services=services,
             missing=turn.missing,
             issues=turn.issues,
             finished=turn.finished,
@@ -123,6 +147,7 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
         'finished': turn.finished,
         'confirmation': turn.confirmation_status,
         'order_id': turn.placed_order_id,
+        'booking_id': turn.placed_booking_id,
         'missing': turn.missing,
         'issues': turn.issues,
         'question_check': (
@@ -135,12 +160,37 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
     return TurnResult(reply=saved, debug=debug)
 
 
-def check_customer_question(session: ChatSession, message: str, history: list[dict], products: list[dict]) -> dict:
+def template_reply(business, turn: order_flow.Turn, labels: dict) -> tuple[str, str, str, bool] | None:
+    """The fixed reply for where the turn ended, if it has one: (reply_kind, the message, the aside
+    prompt's context, whether an aside goes before it). None: the LLM writes the reply."""
+    if turn.placed_order_id is not None:
+        text = prompts.order_confirmed_message(business, turn.placed_order_id, turn.confirmation, labels)
+        return REPLY_ORDER_CONFIRMED, text, prompts.aside_after_order(turn.placed_order_id), False
+    if turn.placed_booking_id is not None:
+        text = prompts.booking_confirmed_message(business, turn.placed_booking_id, turn.confirmation, labels)
+        return REPLY_BOOKING_CONFIRMED, text, prompts.aside_after_booking(turn.placed_booking_id), False
+    if turn.step == STEP_CONFIRMATION:
+        text = prompts.confirmation_request_message(turn.data, labels)
+        return REPLY_CONFIRMATION_REQUEST, text, prompts.ASIDE_BEFORE_ORDER_SUMMARY, True
+    if turn.step == STEP_BOOKING_CONFIRMATION:
+        text = prompts.booking_request_message(turn.data, labels)
+        return REPLY_BOOKING_REQUEST, text, prompts.ASIDE_BEFORE_BOOKING_SUMMARY, True
+    if turn.step == STEP_SLOT_SELECTION and turn.data.get('service'):
+        text = prompts.slot_options_message(turn.data, turn.issues)
+        return REPLY_SLOT_OPTIONS, text, prompts.ASIDE_BEFORE_SLOT_OPTIONS, True
+    return None
+
+
+def check_customer_question(
+    session: ChatSession, message: str, history: list[dict], products: list[dict], services: list = (),
+    chosen_service_id: int | None = None,
+) -> dict:
     """The FAQ handler: does the customer's question get answered by the business's information?
 
     Runs when the router finds a question. One structured LLM call (prompts.QUESTION_CHECK_SCHEMA,
-    temperature 0) sees the business's description, FAQs, products on sale and the full
-    information of the products the message mentions, and returns a `kind`: none / answered /
+    temperature 0) sees the business's description, FAQs, products on sale, bookable services and
+    the full information of the products and services the message mentions (and of the service
+    being booked, `chosen_service_id`), and returns a `kind`: none / answered /
     unanswered, plus the question. An unanswered question is saved for the business
     (questions.ask_business: not twice while open, at most a few per chat): this is decided here,
     not left to the reply model, which tends to answer from imagination instead of calling a tool.
@@ -152,8 +202,12 @@ def check_customer_question(session: ChatSession, message: str, history: list[di
 
     business = session.business
     faqs = business_faqs(business)
-    mentioned = mentioned_products(business, message)
-    system_prompt = prompts.build_question_check_prompt(business, faqs, products, mentioned)
+    mentioned = mentioned_products(business, message) + mentioned_services(business, message)
+    # The service being booked: the question is likely about it, even if it isn't named.
+    chosen = next((s for s in services if s.pk == chosen_service_id), None)
+    if chosen is not None and all(item['name'] != chosen.name for item in mentioned):
+        mentioned.append(service_dict(chosen, with_information=True))
+    system_prompt = prompts.build_question_check_prompt(business, faqs, products, mentioned, services)
     extracted = llm.generate_structured(system_prompt, history, prompts.QUESTION_CHECK_SCHEMA)
     kind = extracted.get('kind') if extracted.get('kind') in prompts.QUESTION_KINDS else prompts.QUESTION_NONE
     question = extracted.get('question')
@@ -171,6 +225,7 @@ def check_customer_question(session: ChatSession, message: str, history: list[di
         'system_prompt': system_prompt,
         'faqs': faqs,
         'products': products,
+        'services': services,
         'mentioned': mentioned,
     }
 

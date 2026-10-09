@@ -205,12 +205,25 @@ def validate_chat_messages(value) -> None:
 
 # --- ChatSession.chat_state_data ----------------------------------------------------------
 
-STATE_DATA_FIELDS = {'items', 'items_confirmed', 'details', 'last_order_id'}
+STATE_DATA_FIELDS = {
+    'items', 'items_confirmed', 'details', 'last_order_id',
+    'service', 'slot', 'slot_options', 'last_booking_id',
+}
+STATE_SERVICE_FIELDS = {'service_id', 'name', 'price', 'duration_minutes', 'buffer_minutes'}
+SLOT_OPTIONS_MAX = 10
 STATE_ITEM_FIELDS = {'product_id', 'name', 'unit_price', 'quantity'}
 
 
 def _is_int(value) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _is_aware_datetime(value) -> bool:
+    try:
+        moment = parse_datetime(value) if isinstance(value, str) else None
+    except ValueError:
+        return False
+    return moment is not None and is_aware(moment)
 
 
 def validate_chat_state_data(value) -> None:
@@ -225,7 +238,13 @@ def validate_chat_state_data(value) -> None:
     - ``details``: the collected customer details, by field key (e.g. ``{"name": "Alice",
       "postal_code": 123456}``): non-blank strings or numbers.
     - ``last_order_id``: the checkout_app OrderItem placed by the last order confirmed in this chat
-      (once placed, the chat goes back to the start, keeping only this).
+      (once placed, the chat goes back to the start, keeping only this and ``last_booking_id``).
+    - ``service``: the service chosen for a booking, ``{service_id, name, price, duration_minutes,
+      buffer_minutes}`` (a snapshot; ``price`` a decimal string).
+    - ``slot``: the start time chosen for it, an ISO 8601 date-time with a timezone.
+    - ``slot_options``: the start times offered to the customer, numbered from 1 in this order
+      (ISO 8601 date-times, at most SLOT_OPTIONS_MAX).
+    - ``last_booking_id``: the checkout_app ScheduleItem booked last in this chat.
 
     Raises a ``ValidationError`` listing every problem found.
     """
@@ -267,8 +286,28 @@ def validate_chat_state_data(value) -> None:
 
     if not isinstance(value.get('items_confirmed', False), bool):
         errors.append('items_confirmed must be true or false.')
-    if 'last_order_id' in value and (not _is_int(value['last_order_id']) or value['last_order_id'] < 1):
-        errors.append('last_order_id must be a positive integer.')
+    for key in ('last_order_id', 'last_booking_id'):
+        if key in value and (not _is_int(value[key]) or value[key] < 1):
+            errors.append(f'{key} must be a positive integer.')
+
+    if 'service' in value:
+        service = value['service']
+        if not isinstance(service, dict) or service.keys() != STATE_SERVICE_FIELDS:
+            errors.append(f'service must be an object with exactly {", ".join(sorted(STATE_SERVICE_FIELDS))}.')
+        elif not (
+            _is_int(service['service_id']) and isinstance(service['name'], str) and service['name'].strip()
+            and isinstance(service['price'], str) and _is_int(service['duration_minutes'])
+            and service['duration_minutes'] > 0 and _is_int(service['buffer_minutes']) and service['buffer_minutes'] >= 0
+        ):
+            errors.append('service: invalid service_id, name, price, duration_minutes or buffer_minutes.')
+    if 'slot' in value and not _is_aware_datetime(value['slot']):
+        errors.append('slot must be an ISO 8601 date-time with a timezone.')
+    if 'slot_options' in value:
+        options = value['slot_options']
+        if not isinstance(options, list) or len(options) > SLOT_OPTIONS_MAX:
+            errors.append(f'slot_options must be a list of at most {SLOT_OPTIONS_MAX} date-times.')
+        elif not all(_is_aware_datetime(option) for option in options):
+            errors.append('slot_options must be ISO 8601 date-times with a timezone.')
 
     if errors:
         raise ValidationError(errors)

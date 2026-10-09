@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 
 import { detailFieldsOrDefault, isRequiredDetail } from '../details'
 import type { StepNode } from '../diagram'
-import { FLOW_NODE_META } from '../steps'
+import { DETAILS_NODES, FLOW_NODE_META } from '../steps'
 
 // Arrows still need handles, but nothing can be connected, so they're hidden.
 const handleClassName = 'opacity-0! pointer-events-none!'
@@ -15,7 +15,9 @@ const handleClassName = 'opacity-0! pointer-events-none!'
 export function StepNodeView({ data, selected }: NodeProps<StepNode>) {
   const meta = FLOW_NODE_META[data.nodeId]
   const Icon = meta.icon
-  const isDetails = data.nodeId === 'details_collection'
+  const isDetails = DETAILS_NODES.includes(data.nodeId)
+  // Blocks with a next step in their branch.
+  const hasNext = ['router', 'product_selection', 'details_collection', 'service_selection', 'slot_selection', 'booking_details'].includes(data.nodeId)
 
   return (
     <div
@@ -61,7 +63,7 @@ export function StepNodeView({ data, selected }: NodeProps<StepNode>) {
           <Info className="size-3" /> Click for more
         </p>
       )}
-      {(data.nodeId === 'router' || data.nodeId === 'product_selection' || isDetails) && (
+      {hasNext && (
         <Handle type="source" position={Position.Right} className={handleClassName} />
       )}
     </div>
