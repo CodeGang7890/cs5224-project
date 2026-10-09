@@ -3,8 +3,8 @@ import { useSearchParams } from 'react-router'
 import { ORDER_STATUSES, type OrderSandboxFilter, type OrderStatus, type ScheduleListParams, type ScheduleOrdering } from '../types'
 import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from './use-order-params'
 
-// The Orders tab's Services sub-tab keeps its filters, sorting, paging and the open booking in
-// the URL (`?tab=services&status=…&booking=12`), like the orders list.
+// The Orders section's Services sub-tab (/orders/services) keeps its filters, sorting, paging and
+// the open booking in the URL (`?status=…&booking=12`), like the orders list.
 
 export const DEFAULT_SCHEDULE_ORDERING: ScheduleOrdering = '-start_time'
 const DEFAULT_SANDBOX: OrderSandboxFilter = 'include'

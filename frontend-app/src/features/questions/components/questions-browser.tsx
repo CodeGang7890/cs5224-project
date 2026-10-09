@@ -224,7 +224,7 @@ function QuestionCard({
           <p className="whitespace-pre-wrap break-words">{item.answer ?? 'The FAQ for this answer was deleted.'}</p>
           <p className="text-muted-foreground text-xs">
             Answered {item.answered_time && new Date(item.answered_time).toLocaleString()}
-            {item.faq !== null && ' · saved to your FAQs (edit it in the FAQ tab)'}
+            {item.faq !== null && ' · saved to your FAQs (edit it in Catalog → FAQs)'}
           </p>
         </div>
       )}

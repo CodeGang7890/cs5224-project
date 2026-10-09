@@ -34,7 +34,7 @@ const WEEK_PARAM = 'week'
 /** The grid opens scrolled to this hour. */
 const SCROLL_TO_HOUR = 8
 
-/** `?provider=` and `?week=` (any day; read as its Monday) of the Service tab. */
+/** `?provider=` and `?week=` (any day; read as its Monday) of Catalog → Services. */
 function useScheduleParams(providers: ServiceProvider[]) {
   const [searchParams, setSearchParams] = useSearchParams()
   const requested = Number(searchParams.get(PROVIDER_PARAM))

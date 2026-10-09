@@ -60,14 +60,14 @@ export function ChatStateSummary({ data, className }: ChatStateSummaryProps) {
       )}
       {data.last_booking_id && (
         <Badge variant="outline" className="border-emerald-500/50 text-emerald-700 dark:text-emerald-400" asChild>
-          <Link to={`${paths.orders}?tab=services&booking=${data.last_booking_id}`} title="Open this booking in the Orders tab">
+          <Link to={`${paths.serviceOrders}?booking=${data.last_booking_id}`} title="Open this booking in the Orders tab">
             <CalendarCheck /> Booking #{data.last_booking_id} made
           </Link>
         </Badge>
       )}
       {data.last_order_id && (
         <Badge variant="outline" className="border-emerald-500/50 text-emerald-700 dark:text-emerald-400" asChild>
-          <Link to={`${paths.orders}?order=${data.last_order_id}`} title="Open this order in the Orders tab">
+          <Link to={`${paths.productOrders}?order=${data.last_order_id}`} title="Open this order in the Orders tab">
             <CircleCheck /> Order #{data.last_order_id} placed
           </Link>
         </Badge>

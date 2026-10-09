@@ -21,7 +21,7 @@ const priceFormat = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2,
 
 type FormState<T> = { open: false } | { open: true; item?: T }
 
-/** The Service tab: services (what customers book), service providers (who with) and their schedules (when). */
+/** Catalog → Services: services (what customers book), service providers (who with) and their schedules (when). */
 export function ServiceManager() {
   const [actionError, setActionError] = useState<string | null>(null)
   return (

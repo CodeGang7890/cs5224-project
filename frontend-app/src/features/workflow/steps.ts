@@ -85,7 +85,7 @@ export const FLOW_NODE_META: Record<FlowNodeId, FlowNodeMeta> = {
     about:
       'The customer chooses what to order. Only your active products that are in stock can be ordered, up to ' +
       'the quantity available. The assistant recaps the order and asks whether that is everything before moving on.',
-    link: { to: paths.product, label: 'Manage products' },
+    link: { to: paths.catalogProducts, label: 'Manage products' },
     icon: ShoppingBag,
     accentClassName: 'border-t-sky-500',
     iconClassName: 'bg-sky-500/15 text-sky-600 dark:text-sky-400',
@@ -105,7 +105,7 @@ export const FLOW_NODE_META: Record<FlowNodeId, FlowNodeMeta> = {
       'The assistant shows the order summary (items, total and details) and asks the customer to reply YES. ' +
       'Confirming places the order: it appears in the Orders tab, with its stock reserved. Until then, the ' +
       'customer can go back and change their products or details.',
-    link: { to: paths.orders, label: 'View orders' },
+    link: { to: paths.productOrders, label: 'View orders' },
     icon: CircleCheck,
     accentClassName: 'border-t-violet-500',
     iconClassName: 'bg-violet-500/15 text-violet-600 dark:text-violet-400',
@@ -116,7 +116,7 @@ export const FLOW_NODE_META: Record<FlowNodeId, FlowNodeMeta> = {
     about:
       'The customer chooses one of your active services that someone can do (it has at least one weekly ' +
       'availability). Changing the service later drops the time chosen, since the times depend on it.',
-    link: { to: paths.service, label: 'Manage services' },
+    link: { to: paths.catalogServices, label: 'Manage services' },
     icon: CalendarClock,
     accentClassName: 'border-t-teal-500',
     iconClassName: 'bg-teal-500/15 text-teal-600 dark:text-teal-400',
@@ -129,7 +129,7 @@ export const FLOW_NODE_META: Record<FlowNodeId, FlowNodeMeta> = {
       '(never made up by the AI), numbered so the customer can reply with a number, or ask for another day, ' +
       'time or part of the day. A time is free if a provider who does the service has the whole duration ' +
       'available and nothing booked in the buffer after it. Once booked, the time goes on hold until paid.',
-    link: { to: paths.service, label: 'Edit schedules' },
+    link: { to: paths.catalogServices, label: 'Edit schedules' },
     icon: Clock,
     accentClassName: 'border-t-cyan-500',
     iconClassName: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400',
@@ -149,7 +149,7 @@ export const FLOW_NODE_META: Record<FlowNodeId, FlowNodeMeta> = {
       'The assistant shows the booking summary (service, time, price and details) and asks the customer to ' +
       'reply CONFIRM. Confirming saves the booking first (in the Orders tab, under Services), then tells the ' +
       'customer; if someone else took that time in the meantime, they choose another.',
-    link: { to: `${paths.orders}?tab=services`, label: 'View bookings' },
+    link: { to: paths.serviceOrders, label: 'View bookings' },
     icon: CalendarCheck,
     accentClassName: 'border-t-violet-500',
     iconClassName: 'bg-violet-500/15 text-violet-600 dark:text-violet-400',
@@ -161,7 +161,7 @@ export const FLOW_NODE_META: Record<FlowNodeId, FlowNodeMeta> = {
       'Questions are answered only from your FAQs and product information. If they do not answer a question, ' +
       'the assistant tells the customer it will check, and the question appears in Chats → Unanswered ' +
       'questions. Answering it there replies in the chat and saves it as an FAQ.',
-    link: { to: paths.faq, label: 'Manage FAQs' },
+    link: { to: paths.catalogFaqs, label: 'Manage FAQs' },
     icon: MessageCircleQuestion,
     accentClassName: 'border-t-rose-500',
     iconClassName: 'bg-rose-500/15 text-rose-600 dark:text-rose-400',

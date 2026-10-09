@@ -45,7 +45,7 @@ function BookingSummary({ booking, timeZone, providerName }: { booking: Calendar
       ? null
       : booking.is_sandbox
         ? `${paths.chatSandbox}?session=${booking.chat_session}`
-        : `${paths.chats}?chat=${booking.chat_session}`
+        : `${paths.conversations}?chat=${booking.chat_session}`
 
   return (
     <>
@@ -93,7 +93,7 @@ function BookingSummary({ booking, timeZone, providerName }: { booking: Calendar
           <span className="text-muted-foreground self-center text-xs">The chat it came from was deleted.</span>
         )}
         <Button asChild variant="outline" size="sm">
-          <Link to={`${paths.orders}?tab=services&booking=${booking.id}`}>
+          <Link to={`${paths.serviceOrders}?booking=${booking.id}`}>
             Open in Orders <ExternalLink />
           </Link>
         </Button>

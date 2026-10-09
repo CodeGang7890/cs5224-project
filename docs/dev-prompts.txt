@@ -863,3 +863,16 @@ Date & Time (GMT+8): 2026-10-09 23:23:25
 AI Model Used: claude-opus-5-5
 Original Prompt:
 ok please commit this, including dev-prompts.txt regarding this fix
+
+Date & Time (GMT+8): 2026-10-09 23:24:28
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+I want you to revamp the frontend-app tabs, because currently there’re too many tabs.
+Home -> keep as it is, to be revamped later
+Workflow -> keep as it is
+Catalog: Products / Services / FAQs sub tabs
+Orders: Products / Services / Payment sub tabs
+Chats: Conversations / Unanswered Questions / Chat Sandbox sub tabs
+Additionally, when user is not logged in, don’t even show those tabs: Workflow, Catalog, Orders, Chats.
+But if someone manually type in the url, make sure the guard component saying you need to login is still there, though it’s already not shown in the first place.
