@@ -64,10 +64,23 @@ the source mounted, so hot reload works; file watching uses polling (`CHOKIDAR_U
 | Chats | `/chats` |
 | Chat Sandbox | `/chat-sandbox` |
 
-Home shows a random number fetched from `configuration-service` (see [Connecting to configuration-service](#connecting-to-configuration-service)). **Product** and **FAQ** let you add, edit and delete your business's products and FAQs (see [Managing products and FAQs](#managing-products-and-faqs)). **Workflow** is a drag-and-drop editor for your business's chat flow (see [Editing the chat workflow](#editing-the-chat-workflow)). **Orders** lists the orders customers confirmed in chats, read only (see [Orders](#orders)). **Chats** lists your business's conversations, read only (see [Chats](#chats)). **Chat Sandbox** lets you chat with your assistant as a pretend customer (see [Chat Sandbox](#chat-sandbox)). The other pages are placeholders for now. Workflow, Product, Orders, FAQ, Chats and Chat Sandbox require login: when you're logged out, they show "You need to be logged in to access this page" with a Log In button (see [Login-protected pages](#login-protected-pages)).
+Home shows the **WhatsApp** card (connect your business's WhatsApp number, see [Connecting WhatsApp](#connecting-whatsapp)) and a random number fetched from `configuration-service` (see [Connecting to configuration-service](#connecting-to-configuration-service)). **Product** and **FAQ** let you add, edit and delete your business's products and FAQs (see [Managing products and FAQs](#managing-products-and-faqs)). **Workflow** is a drag-and-drop editor for your business's chat flow (see [Editing the chat workflow](#editing-the-chat-workflow)). **Orders** lists the orders customers confirmed in chats, read only (see [Orders](#orders)). **Chats** lists your business's conversations, read only (see [Chats](#chats)). **Chat Sandbox** lets you chat with your assistant as a pretend customer (see [Chat Sandbox](#chat-sandbox)). The other pages are placeholders for now. Workflow, Product, Orders, FAQ, Chats and Chat Sandbox require login: when you're logged out, they show "You need to be logged in to access this page" with a Log In button (see [Login-protected pages](#login-protected-pages)).
 
 The top right shows **Log In** when you're logged out. When you're logged in, it shows your username, a profile icon and **Log Out** (see [Authentication](#authentication)). The profile modal's open state is kept in the URL as `?profile`, so you can link to it directly and the browser's back button closes it.
 
+
+## Connecting WhatsApp
+
+The **WhatsApp** card on Home (login required; your account must belong to a business) connects your business's WhatsApp Business number, so customers' messages reach your assistant (through `messaging-ingester`). It uses `GET`/`PUT`/`DELETE /api/configuration/whatsapp/` on configuration-service.
+
+1. From your Meta app, enter:
+   - **Phone Number ID**: WhatsApp → API Setup, the digits under your phone number (not the number itself).
+   - **Access token**: a permanent System User token (Business Settings → System users). The one on API Setup expires after 24 hours.
+   - **App Secret**: App settings → Basic.
+2. Click **Connect WhatsApp** and confirm.
+3. The card then shows a **Callback URL** and a **Verify token**, with copy buttons. In Meta, open WhatsApp → Configuration → Webhook, paste both, click *Verify and save*, and subscribe to the **messages** field.
+
+The access token and App Secret are stored encrypted and never shown again. Once connected, the details are shown locked. To change them, click **Edit**: the Phone Number ID becomes editable, and each saved secret (shown as dots) gets a **Replace** button, which opens an empty field for the new value (**Keep current** undoes it). Then **Save changes**; **Cancel** discards everything you typed. **Disconnect** deletes the saved settings; connecting again gives a new verify token. Every save and disconnect asks for confirmation.
 ## Connecting to configuration-service
 
 The Home tab calls `GET /api/configuration/random-number/` on the Django backend in `../configuration-service`. To see it working:
