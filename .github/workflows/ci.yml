@@ -1,5 +1,5 @@
-# CI for configuration-service (Django). Runs on every pull request to main and every push to
-# main. Branch protection on main requires the "CI passed" check, which only passes when every
+# CI for configuration-service (Django) and frontend-app (React). Runs on every pull request to
+# main and every push to main. Branch protection on main requires the "CI passed" check, which only passes when every
 # job below does (see the README's CI section).
 #
 # No `paths` filters on purpose: a required check that never runs (filtered out) would leave pull
@@ -24,6 +24,7 @@ permissions:
 
 env:
   PYTHON_VERSION: '3.14' # matches configuration-service/Dockerfile
+  NODE_VERSION: '24' # LTS
 
 jobs:
   # PostgreSQL only: it's what production (infrastructure/cloud_sql.tf) and docker-compose use.
@@ -78,12 +79,34 @@ jobs:
       - name: Tests
         run: python manage.py test --noinput
 
+  frontend:
+    name: frontend-app (lint + build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend-app
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend-app/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      # tsc -b type-checks the whole app, then vite builds it.
+      - name: Type-check and build
+        run: npm run build
+
   # The one check branch protection requires: fails unless every job above succeeded (also when
-  # one was cancelled or skipped), so new jobs (e.g. frontend-app) only need adding to `needs`.
+  # one was cancelled or skipped), so new jobs only need adding to `needs`.
   ci-passed:
     name: CI passed
     if: always()
-    needs: [backend]
+    needs: [backend, frontend]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
