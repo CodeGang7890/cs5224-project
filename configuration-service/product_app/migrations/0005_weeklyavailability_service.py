@@ -52,7 +52,7 @@ class Migration(migrations.Migration):
         ),
         migrations.AddConstraint(
             model_name='weeklyavailability',
-            constraint=models.CheckConstraint(condition=models.Q(('availability__regex', '^[OXH]{672}$')), name='weekly_availability_valid'),
+            constraint=models.CheckConstraint(condition=models.Q(('availability__regex', '^([OXH]{96}){7}$')), name='weekly_availability_valid'),  # written as 7 days of 96 blocks: PostgreSQL rejects regex repeat counts over 255 (was {672})
         ),
         migrations.AddConstraint(
             model_name='weeklyavailability',

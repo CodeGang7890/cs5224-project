@@ -35,6 +35,11 @@ def to_providers(apps, schema_editor):
                 service_provider=provider, week=later, availability=week,
                 business_id=template.business_id, name=f'{template.name} {later.isoformat()}',  # removed in 0007
             )
+    if schema_editor.connection.vendor == 'postgresql':
+        # Run the deferred foreign key checks of the rows written above now: PostgreSQL refuses to
+        # CREATE INDEX on a table with pending trigger events, and the index for the new
+        # service_provider column is only created at the end of this migration.
+        schema_editor.execute('SET CONSTRAINTS ALL IMMEDIATE')
 
 
 class Migration(migrations.Migration):

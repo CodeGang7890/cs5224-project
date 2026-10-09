@@ -811,3 +811,23 @@ The last error was this:
 django.db.utils.DataError: Problem installing fixture '/home/runner/work/cs5224-project/cs5224-project/configuration-service/product_app/fixtures/sample_services.json': Could not load product_app.WeeklyAvailability(pk=1): invalid regular expression: invalid repetition count(s)
 Error: Process completed with exit code 1.
 Is that using PostgreSQL or what?
+
+Date & Time (GMT+8): 2026-10-09 22:55:33
+AI Model Used: claude-opus-5-5
+Original Prompt:
+EEE
+======================================================================
+ERROR: test_templates_become_providers_with_weeks (product_app.tests.ServiceProvidersMigrationTests.test_templates_become_providers_with_weeks)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/opt/hostedtoolcache/Python/3.14.8/x64/lib/python3.14/site-packages/django/db/backends/utils.py", line 103, in _execute
+    return self.cursor.execute(sql)
+           ~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/opt/hostedtoolcache/Python/3.14.8/x64/lib/python3.14/site-packages/psycopg/cursor.py", line 117, in execute
+    raise ex.with_traceback(None)
+psycopg.errors.ObjectInUse: cannot CREATE INDEX "product_app_weeklyavailability" because it has pending trigger events
+  File "/opt/hostedtoolcache/Python/3.14.8/x64/lib/python3.14/site-packages/psycopg/cursor.py", line 117, in execute
+    raise ex.with_traceback(None)
+django.db.utils.InternalError: current transaction is aborted, commands ignored until end of transaction block
+
+Please attempt to fix it again, still have some issue with PostgreSQL, don't commit it

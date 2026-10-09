@@ -1,5 +1,6 @@
 # The letters constraint as days of blocks (`^([OUHX]{96}){7}$`): PostgreSQL rejects regex repeat
-# counts over 255, so 0007's `^[OUHX]{672}$` failed on every insert there (SQLite allows it).
+# counts over 255, so the first version of 0007 (`^[OUHX]{672}$`) failed every insert there (SQLite
+# allows it). 0005 and 0007 were corrected since; this fixes databases that applied the old 0007.
 
 from django.db import migrations, models
 

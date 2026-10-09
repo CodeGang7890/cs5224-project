@@ -50,7 +50,8 @@ def to_providers(apps, schema_editor):
         found.save(update_fields=['availability'])
     if schema_editor.connection.vendor == 'postgresql':
         # Run the deferred foreign key checks of the rows written above now: PostgreSQL refuses to
-        # ALTER a table with pending trigger events, and the next operations alter scheduleitem.
+        # ALTER a table (or CREATE INDEX, which Django leaves to the end of the migration) with
+        # pending trigger events, and the next operations alter scheduleitem.
         schema_editor.execute('SET CONSTRAINTS ALL IMMEDIATE')
 
 
