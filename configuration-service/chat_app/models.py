@@ -6,16 +6,17 @@ from django.utils import timezone
 
 from product_app.models import FAQ_QUESTION_MAX_LENGTH
 
-from .constants import START_BLOCK
+from .constants import CHAT_STEPS, STEP_LABELS, STEP_START
 from .validators import (
-    is_valid_block_id,
-    validate_chat_config,
+    default_detail_fields,
     validate_chat_messages,
     validate_chat_state_data,
+    validate_detail_fields,
 )
 
 PHONE_NUMBER_MAX_LENGTH = 16  # E.164: "+" and up to 15 digits
 DISPLAY_NAME_MAX_LENGTH = 150
+CHAT_STEP_MAX_LENGTH = 32
 
 # E.164, e.g. +6591234567: "+", a country code that doesn't start with 0, 7–15 digits in total.
 phone_number_validator = RegexValidator(
@@ -25,14 +26,24 @@ phone_number_validator = RegexValidator(
 
 
 class ChatConfiguration(models.Model):
-    """A business's chat flow: a list of blocks (see validators.validate_chat_config)."""
+    """A business's settings for the chat flow's steps.
+
+    The flow itself is fixed in code (flow.py): the router, then the order steps (Product
+    selection → Details collection → Confirmation), the FAQs and order status. The business only
+    configures the steps' settings; so far, which details the Details collection step asks for.
+    A business that hasn't saved any uses the defaults (for_business).
+    """
 
     business = models.OneToOneField(
         'configuration_app.BusinessConfiguration',
         on_delete=models.CASCADE,
         related_name='chat_configuration',
     )
-    config_json = models.JSONField(validators=[validate_chat_config])
+    detail_fields = models.JSONField(
+        default=default_detail_fields,
+        validators=[validate_detail_fields],
+        help_text='The customer details the Details collection step asks for (see validators.detail_field_errors).',
+    )
     last_updated = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -41,24 +52,12 @@ class ChatConfiguration(models.Model):
     def __str__(self) -> str:
         return f'Chat configuration for {self.business}'
 
-    @property
-    def start_block(self) -> dict:
-        """The START_BLOCK (a valid config_json has exactly one)."""
-        return next(block for block in self.config_json if block['block_type'] == START_BLOCK)
-
-    @property
-    def start_block_id(self):
-        """`id` of the START_BLOCK."""
-        return self.start_block['id']
-
-    def get_block(self, block_id) -> dict | None:
-        """The block with this `id`, or None. Types must match too, so "1" doesn't find block 1."""
-        if block_id is None:
-            return None
-        return next(
-            (block for block in self.config_json if type(block['id']) is type(block_id) and block['id'] == block_id),
-            None,
-        )
+    @classmethod
+    def for_business(cls, business) -> 'ChatConfiguration':
+        """The business's configuration, or an unsaved one with the default settings."""
+        config = cls.objects.filter(business=business).first() or cls()
+        config.business = business  # also saves a query when the saved one reads it
+        return config
 
 
 class ChatSession(models.Model):
@@ -89,19 +88,19 @@ class ChatSession(models.Model):
     created_time = models.DateTimeField(default=timezone.now, editable=False)
     last_chat_time = models.DateTimeField(default=timezone.now)
     chat_message_json = models.JSONField(default=list, blank=True, validators=[validate_chat_messages])
-    # A block `id` from the business's ChatConfiguration.config_json (int or string, like the
-    # block ids themselves), or null when the chat isn't at any block (e.g. no configuration).
-    chat_state_id = models.JSONField(
-        null=True,
-        blank=True,
-        help_text="ID of the chat flow block the customer is at, from the business's chat configuration.",
+    # The step of the (fixed) chat flow the customer is at: constants.CHAT_STEPS.
+    chat_state_id = models.CharField(
+        max_length=CHAT_STEP_MAX_LENGTH,
+        choices=[(step, STEP_LABELS[step]) for step in CHAT_STEPS],
+        default=STEP_START,
+        help_text='The chat flow step the customer is at: start (no order in progress) or an order step.',
     )
     is_sandbox = models.BooleanField(
         default=False,
         help_text='A test chat from the Chat Sandbox rather than a real customer.',
     )
-    # What the chat flow has collected so far (chosen products, customer details, completed).
-    # See validators.validate_chat_state_data and flow.py.
+    # What the order steps have collected so far (chosen products, customer details, completed).
+    # See validators.validate_chat_state_data and order_flow.py.
     chat_state_data = models.JSONField(
         default=dict,
         blank=True,
@@ -124,6 +123,7 @@ class ChatSession(models.Model):
                 name='chat_session_phone_required_unless_sandbox',
                 violation_error_message='A phone number is required, except for sandbox sessions.',
             ),
+            models.CheckConstraint(condition=Q(chat_state_id__in=CHAT_STEPS), name='chat_session_step_valid'),
         ]
 
     def __str__(self) -> str:
@@ -134,26 +134,6 @@ class ChatSession(models.Model):
         super().clean()
         if not self.is_sandbox and not self.phone_number:
             raise ValidationError({'phone_number': 'A phone number is required, except for sandbox sessions.'})
-        self._validate_chat_state_id()
-
-    def _validate_chat_state_id(self) -> None:
-        """chat_state_id must be the id of a block in the business's chat configuration."""
-        state_id = self.chat_state_id
-        if state_id is None or self.business_id is None:
-            return
-        if not is_valid_block_id(state_id):
-            raise ValidationError({'chat_state_id': 'Must be null, an integer or a non-blank string.'})
-        chat_config = ChatConfiguration.objects.filter(business_id=self.business_id).first()
-        if chat_config is None:
-            raise ValidationError(
-                {'chat_state_id': 'This business has no chat configuration, so chat_state_id must be null.'}
-            )
-        # Compare types too, so "1" doesn't match block 1 (same rule as next_block_id).
-        block_ids = [block.get('id') for block in chat_config.config_json if isinstance(block, dict)]
-        if not any(type(block_id) is type(state_id) and block_id == state_id for block_id in block_ids):
-            raise ValidationError(
-                {'chat_state_id': f"{state_id!r} is not a block id in this business's chat configuration."}
-            )
 
 
 class QuestionStatus(models.TextChoices):
@@ -168,7 +148,8 @@ QUESTION_STATUS_MAX_LENGTH = 16
 class UnansweredQuestion(models.Model):
     """A customer question the chat assistant couldn't answer from the FAQs or product details.
 
-    Created by the reply step's `ask_business` tool (tools.Toolbox, see questions.py). The business
+    Saved by the chat's question check (flow.check_customer_question calls questions.ask_business)
+    when the router finds a question that the business's information doesn't answer. The business
     owner answers it in the Chats tab, which saves the Q&A as an FAQ and sends the answer in the
     chat, or dismisses it.
     """

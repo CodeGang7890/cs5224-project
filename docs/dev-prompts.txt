@@ -707,3 +707,25 @@ Original Prompt:
 [Image #7] it doesnt call the tool at all to make FAQ for new unanswered questions, can u please fix it, it seems somethign is wrong
 so if what user ask is nonsense detect it and dont entertain
 but if it's legit thing that is not in the FAQ or product info, never assume or make up information, and you have to create this UnansweredQuestion instance to notify the business owner
+
+Date & Time (GMT+8): 2026-10-09 12:12:01
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+I'll have a larger hosted model later, but for now we'll just settle with the local lightweight model
+There'll me another type besides product ordering, which is booking, but it's for later
+I think the ChatFlow would be fixed instead of letting user customise it, but the owners can click on individual blocks to customise or configure it, but probably this model will be deprecated later
+
+/goal
+Now I want you to draft me a change on using this Router + sub-flows model
+Where each flow is a small deterministic state machine like we have right now
+So I imagine eventually we'll have something like this:
+
+user input -> about orders -> product selection -> details collection -> confirmation                                                                                                                  
+           -> about general questions -> FAQ corpus (No RAG yet)                                                                                                                                                   
+           -> about past orders / status -> view payment status / shipping status (has different system prompt or tools provided)
+
+So the main change is:
+- This additional router LLM
+- ChatFlow model may be deprecated or replaced, essentially the flow / blocks are fixed but owners can customise each individual parts (as of now, only details collection can be customised, product selection will just be based on the products available, FAQs is just based on the FAQ instance, and for past orders/status just give a generic reply saying that this feature is coming soon and it's not available yet
+
+Please change the model and API and frontend etc appropriately, please double check, take your time, add test cases / modify existing ones as necessary

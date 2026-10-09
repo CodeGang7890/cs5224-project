@@ -5,54 +5,24 @@
     "fields": {
       "business": 1,
       "last_updated": "2026-01-01T00:00:00Z",
-      "config_json": [
+      "detail_fields": [
         {
-          "id": 1,
-          "next_block_id": 2,
-          "block_type": "START_BLOCK",
-          "position_x": 100,
-          "position_y": 100
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "max_length": 150
         },
         {
-          "id": 2,
-          "next_block_id": 3,
-          "block_type": "PRODUCT_SELECTION_BLOCK",
-          "position_x": 400,
-          "position_y": 100
+          "key": "email",
+          "label": "Email",
+          "type": "email"
         },
         {
-          "id": 3,
-          "next_block_id": 4,
-          "block_type": "DETAILS_COLLECTION_BLOCK",
-          "position_x": 700,
-          "position_y": 100,
-          "fields": [
-            {
-              "key": "name",
-              "label": "Name",
-              "type": "text",
-              "max_length": 150
-            },
-            {
-              "key": "email",
-              "label": "Email",
-              "type": "email"
-            },
-            {
-              "key": "pickup_time",
-              "label": "Pickup time",
-              "type": "text",
-              "max_length": 50,
-              "description": "When they will collect the order, e.g. 9:30am today"
-            }
-          ]
-        },
-        {
-          "id": 4,
-          "next_block_id": null,
-          "block_type": "CONFIRMATION_BLOCK",
-          "position_x": 1000,
-          "position_y": 100
+          "key": "pickup_time",
+          "label": "Pickup time",
+          "type": "text",
+          "max_length": 50,
+          "description": "When they will collect the order, e.g. 9:30am today"
         }
       ]
     }
@@ -63,56 +33,26 @@
     "fields": {
       "business": 2,
       "last_updated": "2026-09-01T00:00:00Z",
-      "config_json": [
+      "detail_fields": [
         {
-          "id": 1,
-          "next_block_id": 2,
-          "block_type": "START_BLOCK",
-          "position_x": 100,
-          "position_y": 100
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "max_length": 150
         },
         {
-          "id": 2,
-          "next_block_id": 3,
-          "block_type": "PRODUCT_SELECTION_BLOCK",
-          "position_x": 400,
-          "position_y": 100
+          "key": "card_message",
+          "label": "Card message",
+          "type": "text",
+          "max_length": 200,
+          "description": "The message printed on the greeting card that comes with the flowers"
         },
         {
-          "id": 3,
-          "next_block_id": 4,
-          "block_type": "DETAILS_COLLECTION_BLOCK",
-          "position_x": 700,
-          "position_y": 100,
-          "fields": [
-            {
-              "key": "name",
-              "label": "Name",
-              "type": "text",
-              "max_length": 150
-            },
-            {
-              "key": "card_message",
-              "label": "Card message",
-              "type": "text",
-              "max_length": 200,
-              "description": "The message printed on the greeting card that comes with the flowers"
-            },
-            {
-              "key": "collection_date",
-              "label": "Collection date",
-              "type": "text",
-              "max_length": 50,
-              "description": "The date the customer will collect the flowers from our studio, e.g. Saturday 20 September"
-            }
-          ]
-        },
-        {
-          "id": 4,
-          "next_block_id": null,
-          "block_type": "CONFIRMATION_BLOCK",
-          "position_x": 1000,
-          "position_y": 100
+          "key": "collection_date",
+          "label": "Collection date",
+          "type": "text",
+          "max_length": 50,
+          "description": "The date the customer will collect the flowers from our studio, e.g. Saturday 20 September"
         }
       ]
     }

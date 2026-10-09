@@ -6,22 +6,14 @@ from django.utils.dateparse import parse_datetime
 from django.utils.timezone import is_aware
 
 from .constants import (
-    BLOCK_TYPES,
     DEFAULT_DETAIL_FIELDS,
     DETAIL_FIELD_TYPES,
     DETAIL_TYPE_NUMBER,
     DETAIL_TYPE_TEXT,
-    DETAILS_COLLECTION_BLOCK,
     MESSAGE_SENDERS,
-    SEND_MESSAGE_BLOCK,
-    START_BLOCK,
 )
 
-BLOCK_FIELDS = {'id', 'next_block_id', 'block_type', 'position_x', 'position_y'}
-# Extra block keys, and the block type each is allowed on. `message` is required on its type.
-OPTIONAL_BLOCK_FIELDS = {'fields': DETAILS_COLLECTION_BLOCK, 'message': SEND_MESSAGE_BLOCK}
-
-# --- DETAILS_COLLECTION_BLOCK `fields`: the customer details it asks for --------------------
+# --- ChatConfiguration.detail_fields: the customer details the Details collection step asks for
 DETAIL_FIELDS_MAX = 20
 DETAIL_KEY_MAX_LENGTH = 40
 DETAIL_KEY_PATTERN = re.compile(r'^[a-z][a-z0-9_]*$')  # e.g. postal_code
@@ -43,114 +35,35 @@ def is_required_detail(detail_field: dict) -> bool:
     return detail_field.get('required', True) is not False
 
 
-def block_detail_fields(block: dict) -> list[dict]:
-    """The customer details a DETAILS_COLLECTION_BLOCK asks for: its `fields`, or the defaults."""
-    return block.get('fields') or copy.deepcopy(DEFAULT_DETAIL_FIELDS)
+def default_detail_fields() -> list[dict]:
+    """ChatConfiguration.detail_fields' default: name and email (a fresh copy each time)."""
+    return copy.deepcopy(DEFAULT_DETAIL_FIELDS)
 
 
 def _is_number(value) -> bool:
-    # bool is a subclass of int, but True/False aren't valid coordinates.
+    # bool is a subclass of int, but True/False aren't valid numbers here.
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
-def is_valid_block_id(value) -> bool:
-    """Block IDs can be any int or non-blank string (e.g. a UUID)."""
-    if isinstance(value, bool):
-        return False
-    return isinstance(value, int) or (isinstance(value, str) and value.strip() != '')
-
-
 def validate_chat_config(value) -> None:
-    """Validate a ChatConfiguration.config_json: a list of flow blocks.
+    """Legacy: validated ChatConfiguration.config_json, the user-built block graph that migration
+    0007 replaced with the fixed flow + detail_fields. Kept only because migration 0001 refers to it."""
 
-    Each block is ``{id, next_block_id, block_type, position_x, position_y}``, plus an optional
-    ``fields`` on a DETAILS_COLLECTION_BLOCK (see ``_detail_field_errors``) and a required
-    ``message`` on a SEND_MESSAGE_BLOCK (a non-blank string of at most CHAT_MESSAGE_MAX_LENGTH
-    characters: what it sends the customer). Rules:
-    - ``id`` is an int or non-blank string (e.g. a UUID), unique across blocks.
-    - ``next_block_id`` is null or the ``id`` of another block in the list.
-    - ``block_type`` is one of ``BLOCK_TYPES``; there must be exactly one ``START_BLOCK``.
-    - ``position_x`` / ``position_y`` are numbers.
 
-    Raises a ``ValidationError`` listing every problem found.
-    """
-    if not isinstance(value, list):
-        raise ValidationError('Chat configuration must be a list of blocks.')
-
-    errors = []
-    ids = set()
-    blocks = []  # (index, block) pairs that passed the per-block checks
-    for index, block in enumerate(value):
-        prefix = f'Block {index}'
-        if not isinstance(block, dict):
-            errors.append(f'{prefix}: must be an object.')
-            continue
-        missing = BLOCK_FIELDS - block.keys()
-        unknown = block.keys() - BLOCK_FIELDS - OPTIONAL_BLOCK_FIELDS.keys()
-        if missing:
-            errors.append(f'{prefix}: missing field(s) {", ".join(sorted(missing))}.')
-        if unknown:
-            errors.append(f'{prefix}: unknown field(s) {", ".join(sorted(unknown))}.')
-        if missing:
-            continue
-        for key, allowed_type in OPTIONAL_BLOCK_FIELDS.items():
-            if key in block and block['block_type'] != allowed_type:
-                errors.append(f'{prefix}: {key} is only allowed on a {allowed_type}.')
-        if 'fields' in block and block['block_type'] == DETAILS_COLLECTION_BLOCK:
-            errors.extend(_detail_field_errors(block['fields'], prefix))
-        if block['block_type'] == SEND_MESSAGE_BLOCK:
-            message = block.get('message')
-            if not isinstance(message, str) or not message.strip():
-                errors.append(f'{prefix}: a {SEND_MESSAGE_BLOCK} needs a non-blank message.')
-            elif len(message) > CHAT_MESSAGE_MAX_LENGTH:
-                errors.append(f'{prefix}: message must be at most {CHAT_MESSAGE_MAX_LENGTH} characters.')
-
-        block_id = block['id']
-        if not is_valid_block_id(block_id):
-            errors.append(f'{prefix}: id must be an integer or a non-blank string.')
-        elif block_id in ids:
-            errors.append(f'{prefix}: duplicate id {block_id!r}.')
-        else:
-            ids.add(block_id)
-
-        next_id = block['next_block_id']
-        if next_id is not None and not is_valid_block_id(next_id):
-            errors.append(f'{prefix}: next_block_id must be null, an integer or a non-blank string.')
-
-        if block['block_type'] not in BLOCK_TYPES:
-            errors.append(
-                f'{prefix}: block_type must be one of {", ".join(BLOCK_TYPES)} '
-                f'(got {block["block_type"]!r}).'
-            )
-        for field in ('position_x', 'position_y'):
-            if not _is_number(block[field]):
-                errors.append(f'{prefix}: {field} must be a number.')
-        blocks.append((index, block))
-
-    # Checked after the loop, so next_block_id can point at a block further down the list.
-    for index, block in blocks:
-        next_id = block['next_block_id']
-        if next_id is None or not is_valid_block_id(next_id):
-            continue
-        if next_id == block['id']:
-            errors.append(f'Block {index}: next_block_id must not point at the block itself.')
-        elif next_id not in ids:
-            errors.append(f'Block {index}: next_block_id {next_id!r} does not match any block id.')
-
-    start_count = sum(1 for _, block in blocks if block['block_type'] == START_BLOCK)
-    if start_count != 1:
-        errors.append(f'There must be exactly one {START_BLOCK} (found {start_count}).')
-
+def validate_detail_fields(value) -> None:
+    """Validate a ChatConfiguration.detail_fields: the customer details the Details collection step
+    asks for (see ``detail_field_errors``). Raises a ``ValidationError`` listing every problem."""
+    errors = detail_field_errors(value)
     if errors:
         raise ValidationError(errors)
 
 
-def _detail_field_errors(fields, prefix: str) -> list[str]:
-    """Errors in a DETAILS_COLLECTION_BLOCK's `fields`: the customer details it asks for.
+def detail_field_errors(fields) -> list[str]:
+    """Errors in a list of detail fields.
 
     A list of 1 to DETAIL_FIELDS_MAX fields, each ``{key, label, type}`` plus optional keys:
     - ``key``: lowercase letters, digits and underscores, starting with a letter (e.g.
-      ``postal_code``), unique in the block. It's the key in chat_state_data['details'].
+      ``postal_code``), unique. It's the key in chat_state_data['details'].
     - ``label``: non-blank, what the customer is asked for (e.g. "Postal code").
     - ``type``: one of DETAIL_FIELD_TYPES.
     - ``description`` (any type): a hint for the assistant, e.g. "6 digits".
@@ -160,14 +73,14 @@ def _detail_field_errors(fields, prefix: str) -> list[str]:
     - ``min_value`` / ``max_value`` (number only): numbers, min ≤ max.
     """
     if not isinstance(fields, list):
-        return [f'{prefix}: fields must be a list.']
+        return ['Details must be a list.']
     if not 1 <= len(fields) <= DETAIL_FIELDS_MAX:
-        return [f'{prefix}: fields must have between 1 and {DETAIL_FIELDS_MAX} items.']
+        return [f'There must be between 1 and {DETAIL_FIELDS_MAX} details.']
 
     errors = []
     keys = set()
     for index, item in enumerate(fields):
-        where = f'{prefix}, field {index}'
+        where = f'Detail {index}'
         if not isinstance(item, dict):
             errors.append(f'{where}: must be an object.')
             continue
@@ -218,9 +131,9 @@ def _detail_field_errors(fields, prefix: str) -> list[str]:
             errors.append(f'{where}: min_value must not be greater than max_value.')
         if 'required' in item and not isinstance(item['required'], bool):
             errors.append(f'{where}: required must be true or false.')
-    # Otherwise the block would complete as soon as the chat reaches it, before asking anything.
+    # Otherwise Details collection would complete as soon as the chat reaches it, before asking anything.
     if not any(isinstance(item, dict) and is_required_detail(item) for item in fields):
-        errors.append(f'{prefix}: at least one field must be required.')
+        errors.append('At least one detail must be required.')
     return errors
 
 
@@ -311,7 +224,7 @@ def validate_chat_state_data(value) -> None:
       when the items change).
     - ``details``: the collected customer details, by field key (e.g. ``{"name": "Alice",
       "postal_code": 123456}``): non-blank strings or numbers.
-    - ``completed``: true once the customer confirmed and the flow reached its last block.
+    - ``completed``: true once the customer confirmed the order (the last order step).
     - ``order_id``: the checkout_app OrderItem placed when the customer confirmed.
 
     Raises a ``ValidationError`` listing every problem found.

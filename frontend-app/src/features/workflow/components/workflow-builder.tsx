@@ -15,20 +15,12 @@ export function WorkflowBuilder() {
     return (
       <div className="flex flex-col gap-3" aria-busy="true" aria-label="Loading workflow">
         <Skeleton className="h-9 w-64" />
-        <div className="flex h-[calc(100svh-16rem)] min-h-[520px] gap-3 rounded-xl border p-3">
-          <div className="grid w-60 content-start gap-2">
-            {Array.from({ length: 3 }, (_, i) => (
-              <Skeleton key={i} className="h-20 w-full" />
-            ))}
-          </div>
-          <Skeleton className="flex-1" />
-        </div>
+        <Skeleton className="h-[calc(100svh-16rem)] min-h-[520px] rounded-xl" />
       </div>
     )
   }
 
-  // `data` is null (not undefined) when there's simply no configuration yet. If a later
-  // re-fetch fails, keep showing the editor so unsaved edits aren't lost.
+  // If a later re-fetch fails, keep showing the editor so unsaved edits aren't lost.
   if (data === undefined) {
     const message =
       error?.status === 403

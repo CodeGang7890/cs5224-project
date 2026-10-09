@@ -1,6 +1,4 @@
 import copy
-import json
-import uuid
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
@@ -8,137 +6,15 @@ from django.test import SimpleTestCase, TestCase
 
 from configuration_app.models import BusinessConfiguration
 
-from ..constants import BLOCK_TYPES, MESSAGE_SENDERS
+from ..constants import CHAT_STEPS, DEFAULT_DETAIL_FIELDS, MESSAGE_SENDERS
 from ..models import ChatConfiguration, ChatSession
 from ..validators import (
     CHAT_MESSAGE_MAX_LENGTH,
-    block_detail_fields,
     is_required_detail,
-    validate_chat_config,
     validate_chat_messages,
     validate_chat_state_data,
+    validate_detail_fields,
 )
-
-VALID_CONFIG = [
-    {'id': 1, 'next_block_id': 2, 'block_type': 'START_BLOCK', 'position_x': 100, 'position_y': 100},
-    {'id': 2, 'next_block_id': 3, 'block_type': 'PRODUCT_SELECTION_BLOCK', 'position_x': 300, 'position_y': 100},
-    {'id': 3, 'next_block_id': None, 'block_type': 'CONFIRMATION_BLOCK', 'position_x': 500, 'position_y': 100},
-]
-
-
-def config(**changes_by_index):
-    """A copy of VALID_CONFIG, with e.g. `b1={'block_type': 'X'}` merged into block 1."""
-    blocks = copy.deepcopy(VALID_CONFIG)
-    for key, changes in changes_by_index.items():
-        blocks[int(key[1:])].update(changes)
-    return blocks
-
-
-class ValidateChatConfigTests(SimpleTestCase):
-    def assertInvalid(self, value, message_part):
-        with self.assertRaises(ValidationError) as ctx:
-            validate_chat_config(value)
-        self.assertTrue(
-            any(message_part in message for message in ctx.exception.messages),
-            f'{message_part!r} not in {ctx.exception.messages}',
-        )
-
-    def test_valid_config(self):
-        validate_chat_config(VALID_CONFIG)
-
-    def test_block_types_constant(self):
-        self.assertEqual(
-            BLOCK_TYPES,
-            ['START_BLOCK', 'PRODUCT_SELECTION_BLOCK', 'DETAILS_COLLECTION_BLOCK', 'CONFIRMATION_BLOCK', 'SEND_MESSAGE_BLOCK'],
-        )
-
-    def test_every_block_type_accepted(self):
-        blocks = [
-            {'id': str(i), 'next_block_id': None, 'block_type': t, 'position_x': 0, 'position_y': 0}
-            for i, t in enumerate(BLOCK_TYPES)
-        ]
-        blocks[-1]['message'] = 'Thanks for your order!'  # SEND_MESSAGE_BLOCK requires one
-        validate_chat_config(blocks)
-
-    def test_non_start_blocks_can_repeat(self):
-        blocks = config()
-        blocks.append({**blocks[2], 'id': 4})
-        blocks[2]['next_block_id'] = 4
-        validate_chat_config(blocks)
-
-    def test_uuid_ids_and_forward_references(self):
-        start, product, end = (str(uuid.uuid4()) for _ in range(3))
-        blocks = config(
-            b0={'id': start, 'next_block_id': product},
-            b1={'id': product, 'next_block_id': end},
-            b2={'id': end},
-        )
-        validate_chat_config(list(reversed(blocks)))  # START_BLOCK doesn't have to come first
-
-    def test_float_positions_accepted(self):
-        validate_chat_config(config(b0={'position_x': 12.5, 'position_y': -3.25}))
-
-    def test_not_a_list(self):
-        for bad in ({'id': 1}, None, 'START_BLOCK', 42, True):
-            with self.subTest(value=bad):
-                self.assertInvalid(bad, 'must be a list')
-
-    def test_json_encoded_string_is_not_parsed(self):
-        # The value must already be a list, not a JSON string of one.
-        self.assertInvalid(json.dumps(VALID_CONFIG), 'must be a list')
-
-    def test_nested_list_rejected(self):
-        self.assertInvalid([VALID_CONFIG], 'must be an object')
-
-    def test_block_type_is_case_sensitive(self):
-        self.assertInvalid(config(b1={'block_type': 'product_selection_block'}), 'block_type must be one of')
-
-    def test_block_not_an_object(self):
-        self.assertInvalid([*VALID_CONFIG, 'oops'], 'must be an object')
-
-    def test_missing_and_unknown_fields(self):
-        blocks = config()
-        del blocks[1]['position_y']
-        self.assertInvalid(blocks, 'missing field(s) position_y')
-        self.assertInvalid(config(b1={'colour': 'red'}), 'unknown field(s) colour')
-
-    def test_invalid_block_type(self):
-        self.assertInvalid(config(b1={'block_type': 'PAYMENT_BLOCK'}), 'block_type must be one of')
-
-    def test_exactly_one_start_block(self):
-        self.assertInvalid(config(b1={'block_type': 'START_BLOCK'}), 'exactly one START_BLOCK (found 2)')
-        self.assertInvalid(config(b0={'block_type': 'CONFIRMATION_BLOCK'}), 'exactly one START_BLOCK (found 0)')
-        self.assertInvalid([], 'exactly one START_BLOCK (found 0)')
-
-    def test_duplicate_id(self):
-        self.assertInvalid(config(b2={'id': 1}), 'duplicate id 1')
-
-    def test_invalid_id_types(self):
-        for bad in (None, True, '', '  ', 1.5, [1], {'a': 1}):
-            with self.subTest(id=bad):
-                self.assertInvalid(config(b2={'id': bad}), 'id must be an integer or a non-blank string')
-
-    def test_next_block_id_must_exist(self):
-        self.assertInvalid(config(b2={'next_block_id': 99}), 'next_block_id 99 does not match any block id')
-        # Types must match exactly: '2' is not the block with id 2.
-        self.assertInvalid(config(b0={'next_block_id': '2'}), "next_block_id '2' does not match")
-
-    def test_next_block_id_cannot_point_at_itself(self):
-        self.assertInvalid(config(b2={'next_block_id': 3}), 'must not point at the block itself')
-
-    def test_invalid_next_block_id_type(self):
-        self.assertInvalid(config(b2={'next_block_id': True}), 'next_block_id must be null')
-
-    def test_positions_must_be_numbers(self):
-        for bad in ('100', None, True):
-            with self.subTest(position=bad):
-                self.assertInvalid(config(b0={'position_x': bad}), 'position_x must be a number')
-
-    def test_reports_all_errors(self):
-        with self.assertRaises(ValidationError) as ctx:
-            validate_chat_config(config(b1={'block_type': 'X', 'position_y': 'y'}, b2={'id': 1}))
-        self.assertEqual(len(ctx.exception.messages), 4)  # block_type, position_y, duplicate id, dangling next id
-
 
 DETAIL_FIELDS = [
     {'key': 'name', 'label': 'Receiver name', 'type': 'text', 'max_length': 150},
@@ -149,66 +25,52 @@ DETAIL_FIELDS = [
 ]
 
 
-def details_config(fields):
-    """VALID_CONFIG with a DETAILS_COLLECTION_BLOCK (id 4, between product selection and confirmation)."""
-    blocks = config(b1={'next_block_id': 4})
-    blocks.append({
-        'id': 4, 'next_block_id': 3, 'block_type': 'DETAILS_COLLECTION_BLOCK',
-        'position_x': 0, 'position_y': 0, 'fields': fields,
-    })
-    return blocks
+class ChatStepsTests(SimpleTestCase):
+    def test_steps_constant(self):
+        self.assertEqual(CHAT_STEPS, ['start', 'product_selection', 'details_collection', 'confirmation'])
 
 
 class ValidateDetailFieldsTests(SimpleTestCase):
-    """The optional `fields` of a DETAILS_COLLECTION_BLOCK (validate_chat_config)."""
+    """ChatConfiguration.detail_fields (validate_detail_fields)."""
 
     def errors(self, value) -> list[str]:
         try:
-            validate_chat_config(value)
+            validate_detail_fields(value)
         except ValidationError as exc:
             return exc.messages
         return []
 
     def assertInvalid(self, fields, message_part):
-        messages = self.errors(details_config(fields))
+        messages = self.errors(fields)
         self.assertTrue(any(message_part in m for m in messages), f'{message_part!r} not in {messages}')
 
     def test_valid_fields(self):
-        validate_chat_config(details_config(DETAIL_FIELDS))
-        validate_chat_config(details_config([{'key': 'a', 'label': 'A', 'type': 'number'}]))  # no bounds
-        validate_chat_config(details_config([  # optional fields, on every type, next to a required one
+        validate_detail_fields(DETAIL_FIELDS)
+        validate_detail_fields(DEFAULT_DETAIL_FIELDS)
+        validate_detail_fields([{'key': 'a', 'label': 'A', 'type': 'number'}])  # no bounds
+        validate_detail_fields([  # optional fields, on every type, next to a required one
             {'key': 'name', 'label': 'Name', 'type': 'text', 'required': True},
             {'key': 'notes', 'label': 'Notes', 'type': 'text', 'required': False},
             {'key': 'n', 'label': 'N', 'type': 'number', 'required': False},
             {'key': 'e', 'label': 'E', 'type': 'email', 'required': False},
             {'key': 'p', 'label': 'P', 'type': 'phone', 'required': False},
-        ]))
-        validate_chat_config(details_config([{'key': 'x', 'label': 'X', 'type': 'number', 'min_value': 1.5, 'max_value': 1.5}]))
-
-    def test_fields_are_optional(self):
-        blocks = details_config(DETAIL_FIELDS)
-        del blocks[-1]['fields']
-        validate_chat_config(blocks)
-        self.assertEqual([f['key'] for f in block_detail_fields(blocks[-1])], ['name', 'email'])  # the defaults
-        self.assertEqual(block_detail_fields(details_config(DETAIL_FIELDS)[-1]), DETAIL_FIELDS)
-
-    def test_fields_only_on_details_blocks(self):
-        blocks = config(b1={'fields': DETAIL_FIELDS})
-        self.assertIn('Block 1: fields is only allowed on a DETAILS_COLLECTION_BLOCK.', self.errors(blocks))
+        ])
+        validate_detail_fields([{'key': 'x', 'label': 'X', 'type': 'number', 'min_value': 1.5, 'max_value': 1.5}])
 
     def test_invalid_fields(self):
         field = {'key': 'notes', 'label': 'Notes', 'type': 'text'}
         cases = {
-            'not a list': ({'key': 'a'}, 'fields must be a list'),
-            'empty': ([], 'fields must have between 1 and 20 items'),
-            'too many': ([{**field, 'key': f'f{i}'} for i in range(21)], 'fields must have between 1 and 20 items'),
-            'field not an object': (['notes'], 'field 0: must be an object'),
-            'missing keys': ([{'key': 'notes'}], 'field 0: missing label, type'),
+            'not a list': ({'key': 'a'}, 'Details must be a list'),
+            'null': (None, 'Details must be a list'),
+            'empty': ([], 'There must be between 1 and 20 details'),
+            'too many': ([{**field, 'key': f'f{i}'} for i in range(21)], 'There must be between 1 and 20 details'),
+            'field not an object': (['notes'], 'Detail 0: must be an object'),
+            'missing keys': ([{'key': 'notes'}], 'Detail 0: missing label, type'),
             'uppercase key': ([{**field, 'key': 'Notes'}], 'key must be lowercase letters'),
             'key with space': ([{**field, 'key': 'postal code'}], 'key must be lowercase letters'),
             'key starting with digit': ([{**field, 'key': '1st'}], 'key must be lowercase letters'),
             'key too long': ([{**field, 'key': 'k' * 41}], 'max 40 characters'),
-            'duplicate key': ([field, {**field, 'label': 'Other'}], "field 1: duplicate key 'notes'"),
+            'duplicate key': ([field, {**field, 'label': 'Other'}], "Detail 1: duplicate key 'notes'"),
             'blank label': ([{**field, 'label': '  '}], 'label must be a non-blank string'),
             'label too long': ([{**field, 'label': 'x' * 101}], 'at most 100 characters'),
             'unknown type': ([{**field, 'type': 'date'}], 'type must be one of text, number, email, phone'),
@@ -217,7 +79,7 @@ class ValidateDetailFieldsTests(SimpleTestCase):
             'max_length on email': ([{**field, 'type': 'email', 'max_length': 5}], 'max_length not allowed for type email'),
             'unknown key': ([{**field, 'placeholder': 'x'}], 'placeholder not allowed for type text'),
             'required not a bool': ([{**field, 'required': 'yes'}], 'required must be true or false'),
-            'all optional': ([{**field, 'required': False}], 'at least one field must be required'),
+            'all optional': ([{**field, 'required': False}], 'At least one detail must be required'),
             'max_length zero': ([{**field, 'max_length': 0}], 'max_length must be an integer from 1 to 2000'),
             'max_length too big': ([{**field, 'max_length': 2001}], 'max_length must be an integer from 1 to 2000'),
             'max_length bool': ([{**field, 'max_length': True}], 'max_length must be an integer from 1 to 2000'),
@@ -231,63 +93,11 @@ class ValidateDetailFieldsTests(SimpleTestCase):
                 self.assertInvalid(fields, message_part)
 
     def test_every_field_error_is_listed(self):
-        messages = self.errors(details_config([
+        messages = self.errors([
             {'key': 'Bad', 'label': '', 'type': 'text'},
             {'key': 'ok', 'label': 'OK', 'type': 'number', 'min_value': 5, 'max_value': 1},
-        ]))
+        ])
         self.assertEqual(len(messages), 3, messages)
-
-
-def send_message_config(**block_changes):
-    """VALID_CONFIG with a SEND_MESSAGE_BLOCK (id 5) between product selection and confirmation."""
-    blocks = config(b1={'next_block_id': 5})
-    blocks.append({
-        'id': 5, 'next_block_id': 3, 'block_type': 'SEND_MESSAGE_BLOCK', 'position_x': 0, 'position_y': 0,
-        'message': 'Great choice! Just a few more questions.', **block_changes,
-    })
-    return blocks
-
-
-class ValidateSendMessageBlockTests(SimpleTestCase):
-    """A SEND_MESSAGE_BLOCK's required `message` (validate_chat_config)."""
-
-    def assertInvalid(self, value, message_part):
-        with self.assertRaises(ValidationError) as ctx:
-            validate_chat_config(value)
-        self.assertTrue(
-            any(message_part in message for message in ctx.exception.messages),
-            f'{message_part!r} not in {ctx.exception.messages}',
-        )
-
-    def test_valid(self):
-        validate_chat_config(send_message_config())
-        validate_chat_config(send_message_config(message='x' * CHAT_MESSAGE_MAX_LENGTH))
-        validate_chat_config(send_message_config(message='Line 1\nLine 2 🎉'))
-
-    def test_invalid_message(self):
-        blocks = send_message_config()
-        del blocks[-1]['message']
-        cases = {
-            'missing': (blocks, 'Block 3: a SEND_MESSAGE_BLOCK needs a non-blank message.'),
-            'empty': (send_message_config(message=''), 'needs a non-blank message'),
-            'blank': (send_message_config(message='  \n '), 'needs a non-blank message'),
-            'not a string': (send_message_config(message=['hi']), 'needs a non-blank message'),
-            'null': (send_message_config(message=None), 'needs a non-blank message'),
-            'too long': (send_message_config(message='x' * (CHAT_MESSAGE_MAX_LENGTH + 1)), 'message must be at most 4096 characters'),
-        }
-        for label, (value, message_part) in cases.items():
-            with self.subTest(label):
-                self.assertInvalid(value, message_part)
-
-    def test_message_only_on_send_message_blocks(self):
-        self.assertInvalid(config(b1={'message': 'Hi'}), 'Block 1: message is only allowed on a SEND_MESSAGE_BLOCK.')
-
-    def test_send_message_block_can_be_last_and_repeat(self):
-        blocks = send_message_config()
-        blocks[2]['next_block_id'] = 6
-        blocks.append({'id': 6, 'next_block_id': None, 'block_type': 'SEND_MESSAGE_BLOCK',
-                       'position_x': 0, 'position_y': 0, 'message': 'Thank you!'})
-        validate_chat_config(blocks)
 
 
 class ChatConfigurationModelTests(TestCase):
@@ -296,43 +106,48 @@ class ChatConfigurationModelTests(TestCase):
         cls.business = BusinessConfiguration.objects.create(business_name='Test Café', location='Singapore')
 
     def test_valid_configuration(self):
-        chat_config = ChatConfiguration(business=self.business, config_json=VALID_CONFIG)
+        chat_config = ChatConfiguration(business=self.business, detail_fields=DETAIL_FIELDS)
         chat_config.full_clean()
         chat_config.save()
         self.assertEqual(self.business.chat_configuration, chat_config)
         self.assertIsNotNone(chat_config.last_updated)
 
-    def test_invalid_config_json_rejected_by_full_clean(self):
+    def test_default_detail_fields(self):
+        chat_config = ChatConfiguration.objects.create(business=self.business)
+        self.assertEqual(chat_config.detail_fields, DEFAULT_DETAIL_FIELDS)
+        chat_config.detail_fields[0]['label'] = 'Changed'  # each configuration gets its own copy
+        self.assertEqual(ChatConfiguration(business=self.business).detail_fields[0]['label'], 'Name')
+
+    def test_invalid_detail_fields_rejected_by_full_clean(self):
         with self.assertRaises(ValidationError) as ctx:
-            ChatConfiguration(business=self.business, config_json=config(b2={'id': 1})).full_clean()
-        self.assertIn('config_json', ctx.exception.message_dict)
+            ChatConfiguration(business=self.business, detail_fields=[]).full_clean()
+        self.assertIn('detail_fields', ctx.exception.message_dict)
 
     def test_last_updated_changes_on_save(self):
-        chat_config = ChatConfiguration.objects.create(business=self.business, config_json=VALID_CONFIG)
+        chat_config = ChatConfiguration.objects.create(business=self.business)
         first = chat_config.last_updated
-        chat_config.config_json = config(b0={'position_x': 150})
+        chat_config.detail_fields = DETAIL_FIELDS
         chat_config.save()
         self.assertGreater(chat_config.last_updated, first)
 
     def test_one_configuration_per_business(self):
-        ChatConfiguration.objects.create(business=self.business, config_json=VALID_CONFIG)
+        ChatConfiguration.objects.create(business=self.business)
         with self.assertRaises(IntegrityError), transaction.atomic():
-            ChatConfiguration.objects.create(business=self.business, config_json=VALID_CONFIG)
+            ChatConfiguration.objects.create(business=self.business)
 
     def test_deleted_with_business(self):
-        ChatConfiguration.objects.create(business=self.business, config_json=VALID_CONFIG)
+        ChatConfiguration.objects.create(business=self.business)
         self.business.delete()
         self.assertFalse(ChatConfiguration.objects.exists())
 
-    def test_get_block_matches_id_and_type(self):
-        blocks = config(b1={'next_block_id': 'x'}, b2={'id': 'x'})
-        chat_config = ChatConfiguration(business=self.business, config_json=blocks)
-        self.assertEqual(chat_config.get_block(1)['block_type'], 'START_BLOCK')
-        self.assertEqual(chat_config.get_block('x')['block_type'], 'CONFIRMATION_BLOCK')
-        self.assertIsNone(chat_config.get_block('1'))  # "1" is not block 1
-        self.assertIsNone(chat_config.get_block(None))
-        self.assertIsNone(chat_config.get_block(99))
-        self.assertEqual(chat_config.start_block['id'], 1)
+    def test_for_business_returns_the_saved_one_or_the_defaults(self):
+        unsaved = ChatConfiguration.for_business(self.business)
+        self.assertIsNone(unsaved.pk)
+        self.assertEqual((unsaved.business, unsaved.detail_fields), (self.business, DEFAULT_DETAIL_FIELDS))
+        self.assertFalse(ChatConfiguration.objects.exists())  # nothing saved
+        saved = ChatConfiguration.objects.create(business=self.business, detail_fields=DETAIL_FIELDS)
+        self.assertEqual(ChatConfiguration.for_business(self.business), saved)
+        self.assertEqual(ChatConfiguration.for_business(self.business).detail_fields, DETAIL_FIELDS)
 
 
 class SampleChatConfigurationFixtureTests(TestCase):
@@ -341,23 +156,16 @@ class SampleChatConfigurationFixtureTests(TestCase):
     def test_fixture_is_valid(self):
         chat_config = ChatConfiguration.objects.get(business_id=1)
         chat_config.full_clean()  # loaddata skips validation
-        self.assertEqual(
-            [block['block_type'] for block in chat_config.config_json],
-            ['START_BLOCK', 'PRODUCT_SELECTION_BLOCK', 'DETAILS_COLLECTION_BLOCK', 'CONFIRMATION_BLOCK'],
-        )
-        details = chat_config.config_json[2]
-        self.assertEqual([f['key'] for f in details['fields']], ['name', 'email', 'pickup_time'])
+        self.assertEqual([f['key'] for f in chat_config.detail_fields], ['name', 'email', 'pickup_time'])
 
     def test_florist_fixture_is_valid(self):
         chat_config = ChatConfiguration.objects.get(business_id=2)
         chat_config.full_clean()
-        self.assertEqual(
-            [block['block_type'] for block in chat_config.config_json],
-            ['START_BLOCK', 'PRODUCT_SELECTION_BLOCK', 'DETAILS_COLLECTION_BLOCK', 'CONFIRMATION_BLOCK'],
-        )
-        details = chat_config.config_json[2]
-        self.assertEqual([f['key'] for f in details['fields']], ['name', 'card_message', 'collection_date'])
-        self.assertTrue(all(is_required_detail(f) for f in details['fields']))
+        self.assertEqual([f['key'] for f in chat_config.detail_fields], ['name', 'card_message', 'collection_date'])
+        self.assertTrue(all(is_required_detail(f) for f in chat_config.detail_fields))
+
+    def test_fitlab_has_none_and_uses_the_defaults(self):
+        self.assertEqual(ChatConfiguration.for_business(BusinessConfiguration.objects.get(pk=3)).detail_fields, DEFAULT_DETAIL_FIELDS)
 
 
 # --- ChatSession ----------------------------------------------------------------------------
@@ -448,7 +256,6 @@ class ChatSessionModelTests(TestCase):
     def setUpTestData(cls):
         cls.business = BusinessConfiguration.objects.create(business_name='Test Café', location='Singapore')
         cls.other_business = BusinessConfiguration.objects.create(business_name='Other', location='Singapore')
-        ChatConfiguration.objects.create(business=cls.business, config_json=VALID_CONFIG)
 
     def make_session(self, **overrides):
         fields = {
@@ -456,7 +263,7 @@ class ChatSessionModelTests(TestCase):
             'phone_number': '+6591234567',
             'display_name': 'Alice',
             'chat_message_json': VALID_MESSAGES,
-            'chat_state_id': 2,
+            'chat_state_id': 'product_selection',
         }
         return ChatSession(**{**fields, **overrides})
 
@@ -477,7 +284,8 @@ class ChatSessionModelTests(TestCase):
         session = ChatSession(business=self.business, phone_number='+6591234567')
         session.full_clean()  # no name, no messages, no state
         self.assertEqual(session.chat_message_json, [])
-        self.assertIsNone(session.chat_state_id)
+        self.assertEqual(session.chat_state_id, 'start')
+        self.assertEqual(session.chat_state_data, {})
 
     def test_phone_number_format(self):
         for good in ('+6591234567', '+14155552671', '+441234567890'):
@@ -490,24 +298,18 @@ class ChatSessionModelTests(TestCase):
     def test_invalid_messages_rejected(self):
         self.assertFieldInvalid(self.make_session(chat_message_json=messages(m0={'sent_by': 'bot'})), 'chat_message_json')
 
-    def test_chat_state_id_must_be_a_block_of_the_business(self):
-        for block_id in (1, 2, 3):
-            with self.subTest(chat_state_id=block_id):
-                self.make_session(chat_state_id=block_id).full_clean()
-        for bad in (99, '2', True, 2.0, '', [2]):
+    def test_chat_state_id_must_be_a_step(self):
+        for step in CHAT_STEPS:  # with or without a saved configuration: the steps are fixed
+            with self.subTest(chat_state_id=step):
+                self.make_session(chat_state_id=step).full_clean()
+                self.make_session(business=self.other_business, chat_state_id=step).full_clean()
+        for bad in ('done', 'START', '', '2', None):
             with self.subTest(chat_state_id=bad):
                 self.assertFieldInvalid(self.make_session(chat_state_id=bad), 'chat_state_id')
 
-    def test_chat_state_id_with_string_block_ids(self):
-        chat_config = self.business.chat_configuration
-        chat_config.config_json = config(b0={'id': 'start', 'next_block_id': 2})
-        chat_config.save()
-        self.make_session(chat_state_id='start').full_clean()
-        self.assertFieldInvalid(self.make_session(chat_state_id=1), 'chat_state_id')
-
-    def test_chat_state_id_must_be_null_without_configuration(self):
-        self.make_session(business=self.other_business, chat_state_id=None).full_clean()
-        self.assertFieldInvalid(self.make_session(business=self.other_business, chat_state_id=1), 'chat_state_id')
+    def test_invalid_step_rejected_by_database(self):
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            self.make_session(chat_state_id='done').save()
 
     def test_phone_number_unique_per_business(self):
         self.make_session().save()
@@ -517,7 +319,7 @@ class ChatSessionModelTests(TestCase):
 
     def test_same_phone_number_in_another_business(self):
         self.make_session().save()
-        other = self.make_session(business=self.other_business, chat_state_id=None)
+        other = self.make_session(business=self.other_business)
         other.full_clean()
         other.save()
 
@@ -544,7 +346,7 @@ class ChatSessionModelTests(TestCase):
         self.assertEqual(ChatSession.objects.filter(is_sandbox=True).count(), 4)
 
     def test_sandbox_session_chat_state_id_still_checked(self):
-        self.assertFieldInvalid(self.make_session(is_sandbox=True, chat_state_id=99), 'chat_state_id')
+        self.assertFieldInvalid(self.make_session(is_sandbox=True, chat_state_id='done'), 'chat_state_id')
 
     def test_empty_phone_number_rejected_by_database(self):
         with self.assertRaises(IntegrityError), transaction.atomic():
@@ -617,9 +419,11 @@ class SampleChatSessionFixtureTests(TestCase):
         sessions = ChatSession.objects.all()
         self.assertEqual(sessions.count(), 19)
         self.assertEqual(sessions.filter(is_sandbox=True).count(), 2)
+        self.assertEqual(sessions.get(pk=1).chat_state_id, 'confirmation')
+        self.assertEqual(sessions.get(pk=6).chat_state_id, 'start')  # FitLab has no saved configuration
         for session in sessions:
             with self.subTest(session=session.pk):
-                session.full_clean()  # loaddata skips validation, including chat_state_id
+                session.full_clean()  # loaddata skips validation
                 if session.chat_message_json:
                     self.assertEqual(session.last_chat_time.isoformat(), _utc(session.chat_message_json[-1]['message_time']))
                 else:  # no messages yet: last chat time is when it was created

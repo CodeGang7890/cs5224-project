@@ -1,15 +1,7 @@
-import type { ApiError } from '@/types/api'
-
 import type { ChatSession } from './types'
 
 /** Backend limit for one message (`CHAT_MESSAGE_MAX_LENGTH`). */
 export const CHAT_MESSAGE_MAX_LENGTH = 4096
-
-/** Creating a session returns 400 `non_field_errors` when the business has no chat configuration. */
-export function isMissingChatConfiguration(error: ApiError): boolean {
-  const data = error.data as { non_field_errors?: unknown } | undefined
-  return error.status === 400 && Array.isArray(data?.non_field_errors)
-}
 
 /** What to call a session in the UI. */
 export function sessionLabel(session: ChatSession): string {

@@ -1,14 +1,7 @@
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from .constants import (
-    BLOCK_TYPES,
-    DETAIL_FIELD_TYPES,
-    DETAILS_COLLECTION_BLOCK,
-    MESSAGE_SENDERS,
-    SEND_MESSAGE_BLOCK,
-    START_BLOCK,
-)
+from .constants import DETAIL_FIELD_TYPES, MESSAGE_SENDERS
 from .llm import CHAT_PROMPT_MAX_LENGTH, OLLAMA_MODEL, OLLAMA_OPTIONS
 from product_app.models import FAQ_QUESTION_MAX_LENGTH
 
@@ -22,7 +15,7 @@ from .validators import (
     DETAIL_LABEL_MAX_LENGTH,
     DETAIL_TEXT_DEFAULT_MAX_LENGTH,
     DETAIL_TEXT_MAX_LENGTH,
-    validate_chat_config,
+    validate_detail_fields,
 )
 
 
@@ -43,29 +36,16 @@ class ChatResponseSerializer(serializers.Serializer):
 
 
 # --- Chat configuration -------------------------------------------------------------------
-# config_json is stored and validated as plain JSON (validate_chat_config). The serializers
-# below only describe its shape in the Swagger docs.
-
-BLOCK_ID_SCHEMA = {'oneOf': [{'type': 'integer'}, {'type': 'string'}]}
-
-
-@extend_schema_field(BLOCK_ID_SCHEMA)
-class _BlockIdSchemaField(serializers.JSONField):
-    pass
-
-
-@extend_schema_field({**BLOCK_ID_SCHEMA, 'nullable': True})
-class _NextBlockIdSchemaField(serializers.JSONField):
-    pass
-
+# detail_fields is stored and validated as plain JSON (validate_detail_fields). The serializer
+# below only describes its shape in the Swagger docs.
 
 class ChatDetailFieldSerializer(serializers.Serializer):
-    """One customer detail a DETAILS_COLLECTION_BLOCK asks for."""
+    """One customer detail the Details collection step asks for."""
 
     key = serializers.RegexField(
         r'^[a-z][a-z0-9_]*$',
         max_length=DETAIL_KEY_MAX_LENGTH,
-        help_text='Unique in the block, e.g. `postal_code`: the key in `chat_state_data.details`.',
+        help_text='Unique, e.g. `postal_code`: the key in `chat_state_data.details`.',
     )
     label = serializers.CharField(max_length=DETAIL_LABEL_MAX_LENGTH, help_text='What the customer is asked for.')
     type = serializers.ChoiceField(choices=DETAIL_FIELD_TYPES)
@@ -87,43 +67,26 @@ class ChatDetailFieldSerializer(serializers.Serializer):
     max_value = serializers.FloatField(required=False, help_text='`number` only; at least `min_value`.')
 
 
-class ChatBlockSerializer(serializers.Serializer):
-    id = _BlockIdSchemaField(help_text='Integer or non-blank string (e.g. a UUID), unique in the list.')
-    next_block_id = _NextBlockIdSchemaField(help_text='`id` of the next block, or null for the last one.')
-    block_type = serializers.ChoiceField(
-        choices=BLOCK_TYPES, help_text=f'Exactly one block must be a `{START_BLOCK}`.'
-    )
-    position_x = serializers.FloatField()
-    position_y = serializers.FloatField()
-    fields = ChatDetailFieldSerializer(
-        many=True,
-        required=False,
-        help_text=(
-            f'`{DETAILS_COLLECTION_BLOCK}` only: the customer details it asks for (1 to '
-            f'{DETAIL_FIELDS_MAX}). Without it, the block asks for name and email.'
-        ),
-    )
-    message = serializers.CharField(
-        required=False,
-        max_length=CHAT_MESSAGE_MAX_LENGTH,
-        help_text=f'`{SEND_MESSAGE_BLOCK}` only, and required there: the message it sends the customer.',
-    )
-
-
-@extend_schema_field(ChatBlockSerializer(many=True))
-class ChatConfigJSONField(serializers.JSONField):
+@extend_schema_field(ChatDetailFieldSerializer(many=True))
+class DetailFieldsJSONField(serializers.JSONField):
     pass
 
 
 class ChatConfigurationSerializer(serializers.ModelSerializer):
-    config_json = ChatConfigJSONField(
-        validators=[validate_chat_config],
-        help_text='The chat flow: a list of blocks. See the block schema for the rules.',
+    # Null while the business hasn't saved its configuration (GET returns the defaults).
+    id = serializers.IntegerField(read_only=True, allow_null=True)
+    last_updated = serializers.DateTimeField(read_only=True, allow_null=True)
+    detail_fields = DetailFieldsJSONField(
+        validators=[validate_detail_fields],
+        help_text=(
+            f'The customer details the Details collection step asks for (1 to {DETAIL_FIELDS_MAX}). '
+            'See the detail field schema for the rules.'
+        ),
     )
 
     class Meta:
         model = ChatConfiguration
-        fields = ['id', 'business', 'config_json', 'last_updated']
+        fields = ['id', 'business', 'detail_fields', 'last_updated']
         read_only_fields = ['id', 'business', 'last_updated']
 
 
@@ -157,9 +120,11 @@ class ChatStateDataSerializer(serializers.Serializer):
         required=False,
         help_text="The customer's details collected so far, by field key (strings or numbers).",
     )
-    completed = serializers.BooleanField(
-        required=False, help_text='True once the customer confirmed and the flow reached its last block.'
+    items_confirmed = serializers.BooleanField(
+        required=False, help_text='True once the customer said the items are everything they want.'
     )
+    completed = serializers.BooleanField(required=False, help_text='True once the customer confirmed the order.')
+    order_id = serializers.IntegerField(required=False, help_text='The order placed when the customer confirmed.')
 
 
 @extend_schema_field(ChatStateDataSerializer)
@@ -178,9 +143,6 @@ class ChatSessionSerializer(serializers.ModelSerializer):
         help_text="The customer's phone number, in international format (e.g. +6591234567).",
     )
     chat_message_json = ChatMessagesJSONField(read_only=True)
-    chat_state_id = _NextBlockIdSchemaField(
-        read_only=True, help_text='`id` of the chat flow block the customer is at.'
-    )
     chat_state_data = ChatStateDataJSONField(
         read_only=True, help_text='What the chat flow has collected so far.'
     )
@@ -199,7 +161,7 @@ class ChatSessionSerializer(serializers.ModelSerializer):
             'chat_state_data',
             'is_sandbox',
         ]
-        read_only_fields = ['id', 'business', 'created_time', 'last_chat_time', 'is_sandbox']
+        read_only_fields = ['id', 'business', 'created_time', 'last_chat_time', 'chat_state_id', 'is_sandbox']
 
     def validate_phone_number(self, value: str) -> str:
         # `business` isn't a writable field, so DRF can't build the (business, phone_number)
@@ -248,9 +210,12 @@ class SandboxMessageResponseSerializer(ChatMessageSerializer):
     debug = serializers.JSONField(
         help_text=(
             'For debugging, not stored: `before` / `after` (`chat_state_id`, `chat_state_data`), '
-            '`steps` (per block: `block_id`, `block_type`, `system_prompt`, `extracted` (the LLM\'s '
-            'JSON), `complete`, `go_back`, `missing`, `issues`, `chat_state_data`), `stop_reason`, '
-            '`finished`, `missing`, `issues`, `reply_system_prompt` and `tool_calls` (`name`, `arguments`).'
+            '`route` (the router\'s `intents`, `extracted` and `system_prompt`), `steps` (per order step: '
+            '`step`, `system_prompt`, `extracted` (the LLM\'s JSON), `complete`, `go_back`, `go_back_to`, '
+            '`missing`, `issues`, `chat_state_data`), `stop_reason`, `finished`, `order_id`, `missing`, '
+            '`issues`, `question_check` (`kind`, `question`, `saved`, `system_prompt`; null unless the router '
+            'found a question), `reply_system_prompt` (empty for the fixed order status reply) and '
+            '`tool_calls` (`name`, `arguments`).'
         ),
     )
 

@@ -1,34 +1,18 @@
-import { BLOCK_META, useChatConfiguration } from '@/features/workflow'
+import { CHAT_STEP_LABELS, CHAT_STEPS } from '@/features/workflow'
 
 import type { ChatSession } from '../types'
 
-export interface ChatStep {
-  /** The block id as a query-string value (what `chat_state_id` expects). */
+export interface ChatStepOption {
+  /** The step as a query-string value (what `chat_state_id` expects). */
   value: string
   label: string
 }
 
-/**
- * The business's workflow blocks as "current step" options and labels. When a block type is
- * used more than once, later ones are numbered ("Confirmation 2").
- */
+const STEP_OPTIONS: ChatStepOption[] = CHAT_STEPS.map((step) => ({ value: step, label: CHAT_STEP_LABELS[step] }))
+
+/** The chat flow's (fixed) steps as "current step" options and labels. */
 export function useChatSteps() {
-  const { data } = useChatConfiguration()
-  const blocks = data?.config_json ?? []
-
-  const seen: Record<string, number> = {}
-  const steps: ChatStep[] = blocks.map((block) => {
-    const count = (seen[block.block_type] = (seen[block.block_type] ?? 0) + 1)
-    const label = BLOCK_META[block.block_type].label
-    return { value: String(block.id), label: count > 1 ? `${label} ${count}` : label }
-  })
-
-  /** Label of a session's current step; `null` if it isn't at a block (or the block was removed). */
-  const stepLabel = (stateId: ChatSession['chat_state_id']): string | null => {
-    if (stateId === null) return null
-    const index = blocks.findIndex((block) => block.id === stateId)
-    return index === -1 ? `Removed step (${stateId})` : steps[index].label
-  }
-
-  return { steps, stepLabel }
+  /** Label of a session's current step (the raw value if it's unknown). */
+  const stepLabel = (step: ChatSession['chat_state_id']): string => CHAT_STEP_LABELS[step] ?? step
+  return { steps: STEP_OPTIONS, stepLabel }
 }

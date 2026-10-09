@@ -1,7 +1,7 @@
 import type { DetailField, DetailFieldType } from './types'
 
-// Customer details a DETAILS_COLLECTION_BLOCK asks for. Limits mirror configuration-service
-// `chat_app/validators.py` (`_detail_field_errors`); keep them in sync.
+// Customer details the Details collection step asks for. Limits mirror configuration-service
+// `chat_app/validators.py` (`detail_field_errors`); keep them in sync.
 export const DETAIL_LIMITS = {
   fieldsMax: 20,
   keyMaxLength: 40,
@@ -20,7 +20,7 @@ export const DETAIL_TYPE_LABELS: Record<DetailFieldType, string> = {
   phone: 'Phone number',
 }
 
-/** What a block asks for when it has no `fields` (configuration-service `DEFAULT_DETAIL_FIELDS`). */
+/** What the step asks for until the business changes it (configuration-service `DEFAULT_DETAIL_FIELDS`). */
 export const DEFAULT_DETAIL_FIELDS: DetailField[] = [
   { key: 'name', label: 'Name', type: 'text', max_length: 150 },
   { key: 'email', label: 'Email', type: 'email' },
@@ -37,8 +37,8 @@ export function isPresetKey(key: string): boolean {
   return PRESET_DETAIL_FIELDS.some((preset) => preset.key === key)
 }
 
-/** A block's fields, or the defaults (like the backend's `block_detail_fields`). */
-export function blockDetailFields(fields: DetailField[] | undefined): DetailField[] {
+/** The given fields, or the defaults when there are none. */
+export function detailFieldsOrDefault(fields: DetailField[] | undefined): DetailField[] {
   return fields && fields.length > 0 ? fields : DEFAULT_DETAIL_FIELDS.map((f) => ({ ...f }))
 }
 

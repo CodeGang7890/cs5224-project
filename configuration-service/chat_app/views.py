@@ -14,6 +14,7 @@ from config.pagination import DetailedPageNumberPagination
 
 from . import flow, llm, questions
 from .filters import ChatSessionFilter, UnansweredQuestionFilter
+from .constants import STEP_START
 from .models import ChatConfiguration, ChatSession, UnansweredQuestion
 from .serializers import (
     ChatConfigurationSerializer,
@@ -29,28 +30,14 @@ from .serializers import (
     UnansweredQuestionSerializer,
 )
 
-NO_CHAT_CONFIGURATION_MESSAGE = 'Your business has no chat configuration yet. Create one with PUT.'
-SESSION_NEEDS_CONFIGURATION_MESSAGE = (
-    'Your business has no chat configuration yet, so a chat session has no Start block to begin at. '
-    'Set up the workflow first.'
-)
-
 NO_CHAT_SESSION_MESSAGE = 'No chat session found for this phone number at this business.'
 NOT_SANDBOX_MESSAGE = 'This is a real customer chat session; only sandbox chat sessions can be used here.'
 
-SAMPLE_CONFIG_JSON = [
-    {'id': 1, 'next_block_id': 2, 'block_type': 'START_BLOCK', 'position_x': 100, 'position_y': 100},
-    {'id': 2, 'next_block_id': 3, 'block_type': 'PRODUCT_SELECTION_BLOCK', 'position_x': 300, 'position_y': 100},
-    {
-        'id': 3, 'next_block_id': 4, 'block_type': 'DETAILS_COLLECTION_BLOCK', 'position_x': 500, 'position_y': 100,
-        'fields': [
-            {'key': 'name', 'label': 'Name', 'type': 'text', 'max_length': 150},
-            {'key': 'email', 'label': 'Email', 'type': 'email'},
-            {'key': 'postal_code', 'label': 'Postal code', 'type': 'number', 'min_value': 10000, 'max_value': 999999},
-            {'key': 'notes', 'label': 'Customisation notes', 'type': 'text', 'max_length': 200},
-        ],
-    },
-    {'id': 4, 'next_block_id': None, 'block_type': 'CONFIRMATION_BLOCK', 'position_x': 700, 'position_y': 100},
+SAMPLE_DETAIL_FIELDS = [
+    {'key': 'name', 'label': 'Name', 'type': 'text', 'max_length': 150},
+    {'key': 'email', 'label': 'Email', 'type': 'email'},
+    {'key': 'postal_code', 'label': 'Postal code', 'type': 'number', 'min_value': 10000, 'max_value': 999999},
+    {'key': 'notes', 'label': 'Customisation notes', 'type': 'text', 'max_length': 200, 'required': False},
 ]
 
 
@@ -132,45 +119,47 @@ def get_user_business(request: Request):
 
 
 class ChatConfigurationView(APIView):
-    """The logged-in user's business's chat configuration (each business has at most one)."""
+    """The logged-in user's business's chat configuration: the settings of the (fixed) chat flow's steps."""
 
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
         tags=['Chat configuration'],
         summary="Get your business's chat configuration",
+        description=(
+            'The chat flow is fixed (the router, then Product selection → Details collection → '
+            'Confirmation for orders, the FAQs for questions, and order status, which is coming soon); '
+            'this is the settings of its steps. If your business has never saved one, you get the '
+            'defaults, with `id` and `last_updated` null.'
+        ),
         responses={
             200: ChatConfigurationSerializer,
             403: OpenApiResponse(description='Your account is not linked to a business.'),
-            404: OpenApiResponse(description='Your business has no chat configuration yet.'),
         },
     )
     def get(self, request: Request) -> Response:
         business = get_user_business(request)
-        chat_config = ChatConfiguration.objects.filter(business=business).first()
-        if chat_config is None:
-            raise NotFound(NO_CHAT_CONFIGURATION_MESSAGE)
-        return Response(ChatConfigurationSerializer(chat_config).data)
+        return Response(ChatConfigurationSerializer(ChatConfiguration.for_business(business)).data)
 
     @extend_schema(
         tags=['Chat configuration'],
-        summary="Replace your business's chat flow (config_json)",
+        summary="Replace your business's chat configuration (detail_fields)",
         description=(
-            'Replaces `config_json`, after checking it with `validate_chat_config`. '
-            "Creates the configuration (201) if your business doesn't have one yet. "
-            '`id`, `business` and `last_updated` are read-only.'
+            'Replaces `detail_fields` (the customer details the Details collection step asks for), after '
+            "checking it with `validate_detail_fields`. Creates the configuration (201) if your business "
+            "hasn't saved one yet. `id`, `business` and `last_updated` are read-only."
         ),
         request=ChatConfigurationSerializer,
         responses={
             200: ChatConfigurationSerializer,
             201: ChatConfigurationSerializer,
-            400: OpenApiResponse(description='Invalid `config_json`; every problem is listed.'),
+            400: OpenApiResponse(description='Invalid `detail_fields`; every problem is listed.'),
             403: OpenApiResponse(description='Your account is not linked to a business.'),
         },
         examples=[
             OpenApiExample(
-                'Start → product selection → details collection → confirmation',
-                value={'config_json': SAMPLE_CONFIG_JSON},
+                'Name, email, postal code and optional notes',
+                value={'detail_fields': SAMPLE_DETAIL_FIELDS},
                 request_only=True,
             ),
         ],
@@ -188,18 +177,16 @@ class ChatConfigurationView(APIView):
 
 
 def create_chat_session(serializer, business, *, is_sandbox: bool) -> Response:
-    """Validates and saves a new session that starts at the business's START_BLOCK."""
+    """Validates and saves a new session, at the start of the chat flow (no order in progress)."""
     serializer.is_valid(raise_exception=True)
-    chat_config = ChatConfiguration.objects.filter(business=business).first()
-    if chat_config is None:
-        raise ValidationError({'non_field_errors': [SESSION_NEEDS_CONFIGURATION_MESSAGE]})
     now = timezone.now()
     serializer.save(
         business=business,
         created_time=now,
         last_chat_time=now,
         chat_message_json=[],
-        chat_state_id=chat_config.start_block_id,
+        chat_state_id=STEP_START,
+        chat_state_data={},
         is_sandbox=is_sandbox,
     )
     return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -230,7 +217,7 @@ class ChatSessionListView(generics.ListCreateAPIView):
             'Real customer chats only, unless `sandbox=include` (real and sandbox) or `sandbox=only`. '
             'Most recent chat first unless `ordering` is given.\n\n'
             '**Filters** (optional, combined with AND): `sandbox`, `phone_number` (exact), `search`, '
-            '`display_name`, `chat_state_id`, `has_messages`, `created_time_after` / '
+            '`display_name`, `chat_state_id` (a step), `has_messages`, `created_time_after` / '
             '`created_time_before`, `last_chat_time_after` / `last_chat_time_before`.\n\n'
             '**Sorting:** `ordering`, e.g. `display_name` or `-created_time`.\n\n'
             '**Pagination:** `page` (from 1) and `page_size` (default 20, max 100). The response '
@@ -254,17 +241,13 @@ class ChatSessionListView(generics.ListCreateAPIView):
         description=(
             'Creates a chat session for your business with the given customer phone number '
             '(unique within your business). The backend sets the rest: `created_time` and '
-            '`last_chat_time` are now, `chat_message_json` is empty and `chat_state_id` is the '
-            "`id` of the START_BLOCK in your business's chat configuration, which must exist."
+            '`last_chat_time` are now, `chat_message_json` is empty and `chat_state_id` is `start` '
+            '(no order in progress).'
         ),
         request=ChatSessionSerializer,
         responses={
             201: ChatSessionSerializer,
-            400: OpenApiResponse(
-                description=(
-                    'Invalid or duplicate phone number, or your business has no chat configuration.'
-                ),
-            ),
+            400: OpenApiResponse(description='Invalid or duplicate phone number.'),
             403: OpenApiResponse(description='Your account is not linked to a business.'),
         },
         examples=[
@@ -311,8 +294,8 @@ class CustomerMessageView(APIView):
         summary='Send a customer message and get the reply',
         description=(
             'Finds the chat session for `business_id` + `phone_number`, appends the message '
-            '(`sent_by: customer`), runs the chat flow (which may move `chat_state_id` to the next '
-            'block and update `chat_state_data`), asks the LLM for a reply, appends the reply '
+            '(`sent_by: customer`), runs the chat flow (the router, then the handlers: the order steps may '
+            'move `chat_state_id` on and update `chat_state_data`), asks the LLM for a reply, appends the reply '
             '(`sent_by: business-automated`) and returns it. `last_chat_time` is set to the time '
             'of each appended message. The customer message is kept even if the LLM fails.'
         ),
@@ -394,13 +377,12 @@ class SandboxChatSessionListView(generics.ListCreateAPIView):
         description=(
             'Creates a sandbox (test) chat session for your business. `display_name` and '
             '`phone_number` are optional, and a business can have any number of sandbox sessions. '
-            'Like real sessions, it starts at the START_BLOCK of your chat configuration, which must '
-            'exist, with no messages.'
+            'Like real sessions, it starts at the `start` step, with no messages.'
         ),
         request=SandboxChatSessionSerializer,
         responses={
             201: SandboxChatSessionSerializer,
-            400: OpenApiResponse(description='Invalid input, or your business has no chat configuration.'),
+            400: OpenApiResponse(description='Invalid input.'),
             403: OpenApiResponse(description='Your account is not linked to a business.'),
         },
         examples=[
@@ -449,9 +431,10 @@ class SandboxChatMessageView(APIView):
             'Same flow as `POST /api/chat/sessions/messages/`, for one of your sandbox sessions: '
             'appends the message (`sent_by: customer`), runs the chat flow (`chat_state_id` / '
             '`chat_state_data`), asks the LLM for a reply, appends it (`sent_by: business-automated`) '
-            'and returns it, plus `debug`: what happened inside the turn (state before/after, each '
-            "block's extraction prompt, the LLM's JSON and the check result, the reply prompt and tool "
-            'calls), for the Chat Sandbox\'s debug panel. The message is kept if the LLM fails.'
+            'and returns it, plus `debug`: what happened inside the turn (state before/after, the router\'s '
+            "intents, each order step's extraction prompt, the LLM's JSON and the check result, the question "
+            'check, the reply prompt and tool calls), for the Chat Sandbox\'s debug panel. The message is '
+            'kept if the LLM fails.'
         ),
         request=SandboxMessageRequestSerializer,
         responses={
@@ -515,7 +498,7 @@ class UnansweredQuestionListView(generics.ListAPIView):
         summary="List your business's unanswered questions",
         description=(
             'Questions customers asked that the chat assistant couldn\'t answer from your FAQs or product '
-            'details (it saves them with its `ask_business` tool), newest first. `status=open` gives the '
+            'details (saved by its question check), newest first. `status=open` gives the '
             'ones still waiting for you (the Chats tab\'s alert). Questions from sandbox chats are included '
             'unless `sandbox=exclude`. A page past the end returns 404; an invalid filter returns 400.'
         ),

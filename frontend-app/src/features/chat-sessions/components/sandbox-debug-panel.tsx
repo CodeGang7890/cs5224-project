@@ -3,14 +3,13 @@ import { Bug, CircleCheck, CircleDashed, Undo2, X } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { BLOCK_META, useChatConfiguration, type BlockType } from '@/features/workflow'
+import { CHAT_STEP_LABELS } from '@/features/workflow'
 
 import { useSandboxTurnDebug } from '../hooks/use-chat-sessions'
-import type { ChatSession, FlowStepDebug, QuestionCheckDebug } from '../types'
+import type { ChatSession, FlowStepDebug, Intent, QuestionCheckDebug } from '../types'
 
-function blockLabel(blockType: string | undefined): string {
-  if (!blockType) return 'Unknown block'
-  return BLOCK_META[blockType as BlockType]?.label ?? blockType
+function stepLabel(step: string): string {
+  return CHAT_STEP_LABELS[step as ChatSession['chat_state_id']] ?? step
 }
 
 interface SandboxDebugPanelProps {
@@ -19,14 +18,12 @@ interface SandboxDebugPanelProps {
 }
 
 /**
- * For debugging the chat flow: the session's saved state (`chat_state_id`, its block,
- * `chat_state_data`) and what happened inside the latest message's turn (from the send response).
+ * For debugging the chat flow: the session's saved state (`chat_state_id`, `chat_state_data`) and
+ * what happened inside the latest message's turn (from the send response): the router, the order
+ * steps, the question check and the reply.
  */
 export function SandboxDebugPanel({ session, onClose }: SandboxDebugPanelProps) {
-  const { data: chatConfig } = useChatConfiguration()
   const debug = useSandboxTurnDebug(session.id)
-  // Same rule as the backend: the id's type must match too ("2" is not block 2).
-  const block = chatConfig?.config_json.find((b) => b.id === session.chat_state_id)
 
   return (
     <aside className="flex max-h-[60svh] min-h-0 w-full shrink-0 flex-col border-t md:max-h-none md:w-96 md:border-t-0 md:border-l">
@@ -42,11 +39,7 @@ export function SandboxDebugPanel({ session, onClose }: SandboxDebugPanelProps) 
       <div className="grid flex-1 grid-cols-[minmax(0,1fr)] content-start gap-5 overflow-x-hidden overflow-y-auto p-3 text-xs">
         <Section title="Saved state" hint="ChatSession, as last fetched">
           <KeyValue label="chat_state_id" value={JSON.stringify(session.chat_state_id)} mono />
-          <KeyValue
-            label="Block"
-            value={block ? blockLabel(block.block_type) : 'Not in the workflow: the next message starts at the Start block'}
-          />
-          {block && <Json value={block} />}
+          <KeyValue label="Step" value={stepLabel(session.chat_state_id)} />
           <p className="text-muted-foreground mt-1">chat_state_data</p>
           <Json value={session.chat_state_data} />
         </Section>
@@ -63,8 +56,22 @@ export function SandboxDebugPanel({ session, onClose }: SandboxDebugPanelProps) 
               {debug.order_id !== null && <KeyValue label="Order" value={`#${debug.order_id}`} mono />}
               <KeyValue label="Stopped" value={debug.stop_reason} />
 
+              <p className="text-muted-foreground mt-1">Router (1 LLM call)</p>
+              <KeyValue
+                label="Intents"
+                value={
+                  debug.route.intents.length
+                    ? debug.route.intents.map((intent) => INTENT_LABELS[intent]).join(', ')
+                    : 'None (e.g. a greeting)'
+                }
+              />
+              <Collapsible summary="Router prompt and LLM JSON">
+                <Json value={debug.route.extracted} />
+                <Pre>{debug.route.system_prompt}</Pre>
+              </Collapsible>
+
               <p className="text-muted-foreground mt-1">
-                Extraction steps ({debug.steps.length} LLM call{debug.steps.length === 1 ? '' : 's'})
+                Order steps ({debug.steps.length} LLM call{debug.steps.length === 1 ? '' : 's'})
               </p>
               {debug.steps.length === 0 ? (
                 <p className="text-muted-foreground italic">None</p>
@@ -76,21 +83,7 @@ export function SandboxDebugPanel({ session, onClose }: SandboxDebugPanelProps) 
                 </ol>
               )}
 
-              {debug.sent_messages.length > 0 && (
-                <>
-                  <p className="text-muted-foreground mt-1">Sent by Send message blocks (no LLM)</p>
-                  <ul className="grid gap-1">
-                    {debug.sent_messages.map((sent, index) => (
-                      <li key={index} className="rounded-md border p-2">
-                        <span className="text-muted-foreground font-mono">{JSON.stringify(sent.block_id)}: </span>
-                        <span className="break-words whitespace-pre-wrap">{sent.message}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-
-              {debug.question_check && (
+              {debug.question_check ? (
                 <>
                   <p className="text-muted-foreground mt-1">Question check (1 LLM call)</p>
                   <KeyValue label="Kind" value={QUESTION_KIND_LABELS[debug.question_check.kind]} />
@@ -101,6 +94,11 @@ export function SandboxDebugPanel({ session, onClose }: SandboxDebugPanelProps) 
                   <Collapsible summary="Question check prompt">
                     <Pre>{debug.question_check.system_prompt}</Pre>
                   </Collapsible>
+                </>
+              ) : (
+                <>
+                  <p className="text-muted-foreground mt-1">Question check</p>
+                  <p className="text-muted-foreground italic">Not run: the router found no question.</p>
                 </>
               )}
 
@@ -117,7 +115,9 @@ export function SandboxDebugPanel({ session, onClose }: SandboxDebugPanelProps) 
                   <Pre>{debug.reply_system_prompt}</Pre>
                 </Collapsible>
               ) : (
-                <p className="text-muted-foreground italic">No LLM reply: the flow ended on a Send message block.</p>
+                <p className="text-muted-foreground italic">
+                  No LLM reply: the fixed "coming soon" reply to a message only about a past order.
+                </p>
               )}
             </>
           ) : (
@@ -129,9 +129,15 @@ export function SandboxDebugPanel({ session, onClose }: SandboxDebugPanelProps) 
   )
 }
 
+const INTENT_LABELS: Record<Intent, string> = {
+  order: 'Order',
+  question: 'Question',
+  order_status: 'Past order status',
+  off_topic: 'Off topic',
+}
+
 const QUESTION_KIND_LABELS: Record<QuestionCheckDebug['kind'], string> = {
-  none: 'No question about the business',
-  off_topic: 'Off topic: declined',
+  none: 'No question about the business after all',
   answered: 'Answered from the business information',
   unanswered: 'Not in the business information: asked the team',
 }
@@ -147,8 +153,7 @@ function StepCard({ index, step }: { index: number; step: FlowStepDebug }) {
     <li className="grid gap-1.5 rounded-md border p-2">
       <div className="flex items-center justify-between gap-2">
         <span className="font-medium">
-          {index + 1}. {blockLabel(step.block_type)}{' '}
-          <span className="text-muted-foreground font-mono">({JSON.stringify(step.block_id)})</span>
+          {index + 1}. {stepLabel(step.step)}
         </span>
         {step.go_back ? (
           <Badge variant="outline" className="border-amber-500/50 text-amber-700 dark:text-amber-400">

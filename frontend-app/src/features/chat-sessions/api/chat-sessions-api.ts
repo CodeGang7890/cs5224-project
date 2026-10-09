@@ -11,8 +11,8 @@ export async function listChatSessions(params: ChatSessionListParams): Promise<D
 
 // Sandbox (test) chat sessions of the logged-in user's business.
 
-// The backend's chat flow makes several calls to the local LLM per message (one per block it
-// passes, plus the reply), far longer than the client's 15 s default.
+// The backend's chat flow makes several calls to the local LLM per message (the router, one per
+// order step it passes, maybe the question check, plus the reply), far longer than the client's 15 s default.
 const SEND_MESSAGE_TIMEOUT_MS = 300_000
 
 export async function listSandboxSessions(page: number): Promise<Paginated<ChatSession>> {
