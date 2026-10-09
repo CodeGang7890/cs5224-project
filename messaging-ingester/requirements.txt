@@ -1,0 +1,6 @@
+fastapi>=0.142,<0.143
+uvicorn>=0.54,<1
+httpx>=0.28,<0.29
+google-cloud-pubsub>=2.42,<3
+# Used by FastAPI's TestClient in the tests.
+httpx2>=2.13,<3

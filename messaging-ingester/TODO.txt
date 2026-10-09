@@ -19,3 +19,131 @@ Messaging Ingester check request came from Meta, pull out information, publish t
 3. Pub/Sub -> Messaging Service -> Database
 4. Messaging Service -> Whatsapp API -> Customer
 5. Chat Sandbox connects to Configuration Service (which reads the Database)
+
+Example call:
+curl -i -X POST `
+     https://graph.facebook.com/v25.0/{phone_number_id}/messages `
+     -H 'Authorization: Bearer {access_token}' `
+     -H 'Content-Type: application/json' `
+     -d '{
+        \"messaging_product\": \"whatsapp\",
+        \"to\": \"6587438485\",
+        \"type\": \"template\",
+        \"template\": {
+            \"name\": \"hello_world\" ,
+            \"language\": { \"code\": \"en_US\" }
+        }
+    }'
+Note: Phone number ID is different than phone number, given by Meta.
+
+Webhook for messages sent/delivered/read by business owner in our case:
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "1402880644763944",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15556367390",
+              "phone_number_id": "1359207187280395"
+            },
+            "contacts": [
+              {
+                "wa_id": "6587438485",
+                "user_id": "SG.1798376287874115"
+              }
+            ],
+            "statuses": [
+              {
+                "id": "wamid.HBgKNjU4NzQzODQ4NRUCABEYEkM4MzAwMjRDM0E1OTlBOUNFRQA=",
+                "status": "sent" / "delivered" / "read",
+                "timestamp": "1791366349",
+                "recipient_id": "6587438485",
+                "recipient_logical_id": "200043135037619",
+                "recipient_user_id": "SG.1798376287874115",
+                "conversation": {
+                  "id": "47aff61b2ac0b300c6a1f8d9a200a584",
+                  "expiration_timestamp": "1791366349",
+                  "origin": {
+                    "type": "utility"
+                  }
+                },
+                "pricing": {
+                  "billable": true,
+                  "pricing_model": "PMP",
+                  "category": "utility",
+                  "type": "regular"
+                },
+                "internal_1p_only_data": {
+                  "webhook_extra_data": "FQAWnqj/hcraxQcWoNnInaiBHDbQxPKns/r9BBgJZ3JhcGhfYXBpTBaWyJfZoozqBBbQxPKns/r9BBaeqP+FytrFByUCAAA=",
+                  "account_context": {
+                    "cs_id": "1359207187280395",
+                    "pma_id": "1402880644763944",
+                    "app_id": "2123613568231951",
+                    "account_context_type": "paid_messaging"
+                  }
+                }
+              }
+            ]
+          },
+          "field": "messages"
+        }
+      ]
+    }
+  ]
+}
+
+Webhook for messages sent by customers of the business owners:
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "1402880644763944",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15556367390",
+              "phone_number_id": "1359207187280395"
+            },
+            "contacts": [
+              {
+                "profile": {
+                  "name": "Merry Rosalie"
+                },
+                "wa_id": "6587438485",
+                "user_id": "SG.1798376287874115",
+                "country_code": "SG"
+              }
+            ],
+            "messages": [
+              {
+                "from": "6587438485",
+                "from_user_id": "SG.1798376287874115",
+                "id": "wamid.HBgKNjU4NzQzODQ4NRUCABIYIEE1NUY2NzNCRTIzMTRDQjZCQTIxMDg3OTAzNkNFNDM1AA==",
+                "timestamp": "1791366359",
+                "text": {
+                  "body": "Hello"
+                },
+                "from_logical_id": "200043135037619",
+                "type": "text",
+                "internal_1p_only_data": {
+                  "account_context": {
+                    "waac_id": "1672840474454410",
+                    "cs_id": "1359207187280395",
+                    "account_context_type": "non_paid_messaging"
+                  }
+                }
+              }
+            ]
+          },
+          "field": "messages"
+        }
+      ]
+    }
+  ]
+}
