@@ -1,5 +1,5 @@
 import copy
-from datetime import date, datetime, timedelta, timezone as dt_timezone
+from datetime import datetime, timedelta, timezone as dt_timezone
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
@@ -270,8 +270,8 @@ class ScheduleItemModelTests(TestCase):
 
 
 class SampleScheduleItemFixtureTests(TestCase):
-    """checkout_app/fixtures/sample_schedule_items.json: Lumen & Lens's and Rally Point Courts's
-    bookings, from September to the end of November 2026."""
+    """checkout_app/fixtures/sample_schedule_items.json: 30 Lumen & Lens and Rally Point Courts
+    bookings: none in September, a few in October, a few upcoming in November 2026."""
 
     fixtures = [
         'sample_business_configurations', 'sample_services', 'sample_chat_configurations', 'sample_chat_sessions',
@@ -280,7 +280,7 @@ class SampleScheduleItemFixtureTests(TestCase):
 
     def test_fixture_is_valid(self):
         bookings = list(ScheduleItem.objects.select_related('service', 'service_provider'))
-        self.assertEqual(len(bookings), 1019)
+        self.assertEqual(len(bookings), 30)
         providers_of = {s.pk: set(s.service_providers.values_list('pk', flat=True)) for s in Service.objects.all()}
         for booking in bookings:
             with self.subTest(booking=booking.pk):
@@ -327,7 +327,7 @@ class SampleScheduleItemFixtureTests(TestCase):
 
     def test_a_few_payments_failed_and_their_time_is_free(self):
         failed = ScheduleItem.objects.filter(order_status=OrderStatus.PAYMENT_FAILED)
-        self.assertEqual(sorted(failed.values_list('business_id', flat=True)), [4, 5, 5, 5])
+        self.assertEqual(sorted(failed.values_list('business_id', flat=True)), [4, 5, 5])
         for booking in failed:
             local = booking.start_time.astimezone(dt_timezone(timedelta(hours=8)))
             week = WeeklyAvailability.objects.get(
@@ -337,9 +337,15 @@ class SampleScheduleItemFixtureTests(TestCase):
             with self.subTest(booking=booking.pk):
                 self.assertEqual(week.availability[index], 'O')
 
-    def test_lots_of_court_bookings_on_the_hour_until_the_end_of_november(self):
+    def test_sparse_bookings_from_october_to_november(self):
+        sgt = dt_timezone(timedelta(hours=8))
+        months = sorted({b.start_time.astimezone(sgt).month for b in ScheduleItem.objects.all()})
+        self.assertEqual(months, [10, 11])  # September is empty
+        self.assertEqual(ScheduleItem.objects.filter(business_id=4).count(), 12)
+
+    def test_court_bookings_on_the_hour(self):
         courts = ScheduleItem.objects.filter(business_id=5)
-        self.assertGreater(courts.count(), 900)
+        self.assertEqual(courts.count(), 18)
         self.assertEqual(set(courts.values_list('order_status', flat=True)), set(OrderStatus.values))
         sgt = dt_timezone(timedelta(hours=8))
         days = set()
@@ -350,12 +356,12 @@ class SampleScheduleItemFixtureTests(TestCase):
                 self.assertTrue(9 <= start.hour <= 20)  # the last one ends at 9pm
                 self.assertEqual(set(booking.schedule_data['details']) - {'players'}, {'name', 'email'})
             days.add(start.date())
-        self.assertEqual((min(days), max(days)), (date(2026, 9, 7), date(2026, 11, 30)))
+        self.assertEqual((min(days).month, max(days).month), (10, 11))
         # Booked in advance, never after "now" (11 Oct 2026); only past ones are completed.
         now = datetime(2026, 10, 11, 12, tzinfo=sgt)
         self.assertFalse(courts.filter(created_time__gt=now).exists())
         self.assertFalse(courts.filter(order_status=OrderStatus.ORDER_COMPLETED, start_time__gt=now).exists())
-        self.assertGreater(ScheduleItem.objects.filter(business_id=4).count(), 25)
+
 
     def test_the_booking_made_in_a_chat(self):
         booking = ScheduleItem.objects.get(pk=1)

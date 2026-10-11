@@ -978,3 +978,12 @@ Original Prompt:
 Please grey out product or service selection block if there’s nothing.
 Say if there’s no product, grey out the product selection route from the frontend-app.
 Same with service. No need to update the backend, just the UI.
+
+Date & Time (GMT+8): 2026-10-11 22:30:54
+AI Model Used: claude-opus-5-5
+Original Prompt:
+The fixture for schedule is too much, can you please reduce it significantly. Just make the booking for September 2026 empty.
+Just a few sparse bookings here and there for October, and a few future ones in November.
+Around 30 bookings should be good enough. Now there're like 1k bookings.
+Please modify it.
+Update the test cases too when necesssary.
