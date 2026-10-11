@@ -1,30 +1,37 @@
 """Pull-based Pub/Sub consumer: payment events published by payment-ingester.
 
-Topic `payment-events`, one message per payment event; the data is JSON `{payment_id, status}`,
-where status is `success` or `fail` (see payment-ingester/README.md).
+Topic `payment-events`, one message per payment event; the data is JSON
+`{payment_reference, status}`: the order's / booking's 128-bit payment reference (32 hex
+characters, from configuration-service) and `success` or `fail` (see payment-ingester/README.md).
 
-For now each event is only logged, then the consumer sleeps PROCESSING_SECONDS as a stand-in for
-the real work (see TODO.txt), then acknowledges it. The subscriber uses streaming pull: the client
-library keeps a connection open and calls `handle()` on its own threads, at most
-PUBSUB_MAX_MESSAGES at a time.
+Each event goes through the payment flow (app/payments.py: updates the order / booking in
+PostgreSQL). The subscriber uses streaming pull: the client library keeps a connection open and
+calls `handle()` on its own threads, at most PUBSUB_MAX_MESSAGES at a time.
 
-- Handled → ack. Handling raised → nack, so Pub/Sub redelivers it.
-- Not JSON, or not the contract's shape → logged and acked: redelivering it would never help.
-- Pub/Sub delivers at least once: make the real work idempotent per `payment_id` (TODO).
+- Applied → ack. Pub/Sub delivers at least once: a repeated event changes nothing.
+- No such payment reference, or the order / booking isn't waiting for this payment → logged as an
+  error and acked: redelivering it would never help.
+- Not JSON, or not the contract's shape → logged and acked, for the same reason.
+- Anything else raised (e.g. the database is down) → nack, so Pub/Sub redelivers it.
 """
 
 import json
 import logging
+import re
 import time
+from collections.abc import Callable
 
 from google.api_core import exceptions as google_exceptions
 from google.cloud import pubsub_v1
 
 from . import config
+from .db import get_session
+from .payments import STATUS_AFTER, PaymentEventError, apply_payment
 
 logger = logging.getLogger(__name__)
 
-STATUSES = ('success', 'fail')
+STATUSES = tuple(STATUS_AFTER)  # success, fail
+PAYMENT_REFERENCE = re.compile(r'^[0-9a-f]{32}$')  # configuration-service's 128-bit references
 
 
 class InvalidMessageError(ValueError):
@@ -32,27 +39,30 @@ class InvalidMessageError(ValueError):
 
 
 def parse(data: bytes) -> dict:
-    """The message's JSON, checked against the contract: a `payment_id` and a known `status`."""
+    """The message's JSON, checked against the contract: a `payment_reference` and a known `status`."""
     try:
         payload = json.loads(data)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise InvalidMessageError(f'not JSON: {exc}') from exc
     if not isinstance(payload, dict):
         raise InvalidMessageError('not a JSON object')
-    if not payload.get('payment_id'):
-        raise InvalidMessageError('missing payment_id')
+    reference = payload.get('payment_reference')
+    if not isinstance(reference, str) or not PAYMENT_REFERENCE.match(reference.lower()):
+        raise InvalidMessageError(f'payment_reference must be 32 hex characters, not {reference!r}')
+    payload['payment_reference'] = reference.lower()
     if payload.get('status') not in STATUSES:
         raise InvalidMessageError(f'status must be one of {", ".join(STATUSES)}, not {payload.get("status")!r}')
     return payload
 
 
-def process(payload: dict) -> None:
-    """The work for one payment event: for now, log it and wait (the real logic comes later)."""
-    logger.info('Payment %s: %s', payload['payment_id'], payload['status'])
-    time.sleep(config.PROCESSING_SECONDS)
+def process(payload: dict, session_factory: Callable = get_session) -> None:
+    """The work for one payment event: the payment flow, in its own session."""
+    logger.info('Payment %s: %s', payload['payment_reference'], payload['status'])
+    with session_factory() as session:
+        apply_payment(session, payload['payment_reference'], payload['status'])
 
 
-def handle(message) -> None:
+def handle(message, session_factory: Callable = get_session) -> None:
     """Callback for each pulled message (runs on the client library's threads)."""
     try:
         payload = parse(message.data)
@@ -61,7 +71,11 @@ def handle(message) -> None:
         message.ack()
         return
     try:
-        process(payload)
+        process(payload, session_factory)
+    except PaymentEventError as exc:
+        logger.error('Pub/Sub message %s not applied: %s', message.message_id, exc)
+        message.ack()
+        return
     except Exception:
         logger.exception('Processing Pub/Sub message %s failed; it will be redelivered', message.message_id)
         message.nack()

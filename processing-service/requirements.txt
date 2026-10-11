@@ -5,5 +5,8 @@ uvicorn-worker>=0.4,<0.5
 uvicorn>=0.54,<1
 # Pull consumer of the payment events (app/consumer.py).
 google-cloud-pubsub>=2.42,<3
+# configuration-service's PostgreSQL, through the ORM (app/models.py, app/payments.py).
+SQLAlchemy>=2.0,<2.1
+psycopg[binary]>=3.2,<4
 # Used by FastAPI's TestClient in the tests.
 httpx2>=2.13,<3

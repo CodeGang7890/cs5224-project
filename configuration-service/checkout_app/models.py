@@ -1,3 +1,4 @@
+import secrets
 from datetime import timedelta
 from decimal import Decimal
 
@@ -19,6 +20,31 @@ class OrderStatus(models.TextChoices):
 
 
 ORDER_STATUS_MAX_LENGTH = 32
+
+# The reference the payment of an order / booking is made under (the payment provider gets it, and
+# its payment events come back with it: processing-service finds the order / booking by it).
+PAYMENT_REFERENCE_BITS = 128
+PAYMENT_REFERENCE_LENGTH = PAYMENT_REFERENCE_BITS // 4  # 32 hex characters
+PAYMENT_REFERENCE_PATTERN = rf'^[0-9a-f]{{{PAYMENT_REFERENCE_LENGTH}}}$'
+
+
+def new_payment_reference() -> str:
+    """A random 128-bit payment reference: 32 lowercase hex characters.
+
+    Not checked for duplicates (the user asked): with 2^128 possible values, the chance of any two
+    of even billions of references colliding is negligible (birthday bound ≈ n² / 2^129).
+    """
+    return secrets.token_hex(PAYMENT_REFERENCE_BITS // 8)
+
+
+def payment_reference_field():
+    return models.CharField(
+        max_length=PAYMENT_REFERENCE_LENGTH,
+        default=new_payment_reference,
+        editable=False,
+        db_index=True,
+        help_text='Random 128-bit reference (32 hex characters) the payment is made under.',
+    )
 
 
 class OrderItem(models.Model):
@@ -56,6 +82,7 @@ class OrderItem(models.Model):
         choices=OrderStatus.choices,
         default=OrderStatus.PENDING_PAYMENT,
     )
+    payment_reference = payment_reference_field()
     # Not auto_now_add, so fixtures and tests can set it (like ChatSession.created_time).
     created_time = models.DateTimeField(default=timezone.now, editable=False)
     updated_time = models.DateTimeField(auto_now=True)
@@ -66,6 +93,10 @@ class OrderItem(models.Model):
             models.CheckConstraint(
                 condition=Q(order_status__in=OrderStatus.values),
                 name='order_item_status_valid',
+            ),
+            models.CheckConstraint(
+                condition=Q(payment_reference__regex=PAYMENT_REFERENCE_PATTERN),
+                name='order_item_payment_reference_valid',
             ),
         ]
 
@@ -137,6 +168,7 @@ class ScheduleItem(models.Model):
         choices=OrderStatus.choices,
         default=OrderStatus.PENDING_PAYMENT,
     )
+    payment_reference = payment_reference_field()
     created_time = models.DateTimeField(default=timezone.now, editable=False)
     updated_time = models.DateTimeField(auto_now=True)
 
@@ -147,6 +179,10 @@ class ScheduleItem(models.Model):
             models.CheckConstraint(
                 condition=Q(order_status__in=OrderStatus.values),
                 name='schedule_item_status_valid',
+            ),
+            models.CheckConstraint(
+                condition=Q(payment_reference__regex=PAYMENT_REFERENCE_PATTERN),
+                name='schedule_item_payment_reference_valid',
             ),
             models.CheckConstraint(condition=Q(end_time__gt=F('start_time')), name='schedule_item_ends_after_start'),
             models.CheckConstraint(

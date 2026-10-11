@@ -1,2 +1,4 @@
 # For scripts/publish_dummy_payments.py (the service itself isn't built yet: see TODO.txt).
 google-cloud-pubsub>=2.42,<3
+# Reads the pending orders' / bookings' payment references from configuration-service's database.
+psycopg[binary]>=3.2,<4

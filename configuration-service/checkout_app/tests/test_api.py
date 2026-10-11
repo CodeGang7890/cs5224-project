@@ -70,8 +70,12 @@ class OrderListAPITests(OrderAPITestCase):
         paid = next(o for o in body['results'] if o['id'] == self.paid.pk)
         self.assertEqual(
             set(paid),
-            {'id', 'business', 'chat_session', 'is_sandbox', 'order_status', 'order_data', 'total', 'created_time', 'updated_time'},
+            {
+                'id', 'business', 'chat_session', 'is_sandbox', 'order_status', 'payment_reference', 'order_data', 'total',
+                'created_time', 'updated_time',
+            },
         )
+        self.assertEqual(paid['payment_reference'], self.paid.payment_reference)
         self.assertEqual(paid['order_status'], 'payment_received')
         self.assertEqual(paid['chat_session'], self.session.pk)
         self.assertEqual(paid['order_data'], VALID_ORDER_DATA)
@@ -86,6 +90,8 @@ class OrderListAPITests(OrderAPITestCase):
         self.assertEqual(self.ids({'sandbox': 'only', 'order_status': 'payment_received'}), [])
         after = (self.paid.created_time - timedelta(seconds=1)).isoformat()
         self.assertEqual(self.ids({'created_time_after': after}), [self.pending.pk, self.sandbox.pk, self.paid.pk])
+        self.assertEqual(self.ids({'payment_reference': self.paid.payment_reference.upper()}), [self.paid.pk])
+        self.assertEqual(self.ids({'payment_reference': self.florist_order.payment_reference}), [])  # another business's
 
     def test_ordering(self):
         self.client.force_authenticate(self.cafe_user)
@@ -207,8 +213,10 @@ class ScheduleAPITests(APITestCase):
         first = body['results'][0]
         self.assertEqual(set(first), {
             'id', 'business', 'chat_session', 'is_sandbox', 'service', 'service_provider', 'service_provider_name',
-            'start_time', 'end_time', 'blocked_until', 'order_status', 'schedule_data', 'total', 'created_time', 'updated_time',
+            'start_time', 'end_time', 'blocked_until', 'order_status', 'payment_reference', 'schedule_data', 'total',
+            'created_time', 'updated_time',
         })
+        self.assertEqual(first['payment_reference'], self.late.payment_reference)
         self.assertEqual((first['service_provider_name'], first['total'], first['order_status']), ('Raj', '250.00', 'payment_received'))
         self.assertEqual(first['schedule_data']['service']['name'], 'Family')
         self.assertEqual(datetime.fromisoformat(first['start_time']), at(self.monday + timedelta(days=2), '14:00'))
@@ -223,6 +231,7 @@ class ScheduleAPITests(APITestCase):
         self.assertEqual(self.ids({'service_provider': self.raj.pk}), [self.late.pk])
         self.assertEqual(self.ids({'start_time_before': at(self.monday, '23:59').isoformat()}), [self.early.pk])
         self.assertEqual(self.ids({'ordering': 'start_time'}), [self.early.pk, self.sandbox.pk, self.late.pk])
+        self.assertEqual(self.ids({'payment_reference': self.sandbox.payment_reference}), [self.sandbox.pk])
         for params in ({'order_status': 'lost'}, {'sandbox': 'yes'}, {'ordering': 'price'}, {'start_time_after': 'soon'}):
             with self.subTest(params=params):
                 self.assertEqual(self.client.get(SCHEDULE_LIST_URL, params).status_code, status.HTTP_400_BAD_REQUEST)

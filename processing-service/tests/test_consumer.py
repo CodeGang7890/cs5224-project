@@ -7,6 +7,9 @@ from fastapi.testclient import TestClient
 
 from app import config, create_app
 from app.consumer import Consumer, InvalidMessageError, handle, parse
+from app.payments import PaymentNotFoundError
+
+REFERENCE = '3f9c1a2b4d5e6f708192a3b4c5d6e7f8'
 
 
 class FakeMessage:
@@ -24,45 +27,54 @@ class FakeMessage:
         self.nacked = True
 
 
-def event(payment_id='pay_1', status='success') -> FakeMessage:
-    return FakeMessage(json.dumps({'payment_id': payment_id, 'status': status}).encode())
+def event(payment_reference=REFERENCE, status='success') -> FakeMessage:
+    return FakeMessage(json.dumps({'payment_reference': payment_reference, 'status': status}).encode())
 
 
 class ParseTests(unittest.TestCase):
     def test_a_payment_event(self):
         for status in ('success', 'fail'):
-            self.assertEqual(parse(event(status=status).data), {'payment_id': 'pay_1', 'status': status})
+            self.assertEqual(parse(event(status=status).data), {'payment_reference': REFERENCE, 'status': status})
+        self.assertEqual(parse(event(REFERENCE.upper()).data)['payment_reference'], REFERENCE)
 
     def test_anything_else_is_invalid(self):
-        for data in (b'not json', b'[1]', b'{"status": "success"}', b'{"payment_id": "pay_1", "status": "paid"}'):
+        bad = (b'not json', b'[1]', b'{"status": "success"}', event(status='paid').data, event('pay_1').data, event(42).data)
+        for data in bad:
             with self.subTest(data=data), self.assertRaises(InvalidMessageError):
                 parse(data)
 
 
-@patch('app.consumer.time.sleep')
+@patch('app.consumer.apply_payment')
 class HandleTests(unittest.TestCase):
-    def test_logs_the_payment_id_and_status_waits_then_acks(self, sleep):
+    def test_runs_the_payment_flow_then_acks(self, apply_payment):
         pulled = event(status='fail')
         with self.assertLogs('app.consumer', level='INFO') as logs:
-            handle(pulled)
-        self.assertIn('Payment pay_1: fail', logs.output[0])
-        sleep.assert_called_once_with(config.PROCESSING_SECONDS)
+            handle(pulled, session_factory=MagicMock())
+        self.assertIn(f'Payment {REFERENCE}: fail', logs.output[0])
+        self.assertEqual(apply_payment.call_args.args[1:], (REFERENCE, 'fail'))
         self.assertTrue(pulled.acked)
 
-    def test_a_failure_nacks_so_it_is_redelivered(self, sleep):
-        sleep.side_effect = RuntimeError('boom')
+    def test_an_unknown_payment_reference_is_logged_and_acked(self, apply_payment):
+        apply_payment.side_effect = PaymentNotFoundError('no such reference')
         pulled = event()
         with self.assertLogs('app.consumer', level='ERROR'):
-            handle(pulled)
+            handle(pulled, session_factory=MagicMock())
+        self.assertTrue(pulled.acked)
+
+    def test_a_failure_nacks_so_it_is_redelivered(self, apply_payment):
+        apply_payment.side_effect = RuntimeError('database down')
+        pulled = event()
+        with self.assertLogs('app.consumer', level='ERROR'):
+            handle(pulled, session_factory=MagicMock())
         self.assertTrue(pulled.nacked)
         self.assertFalse(pulled.acked)
 
-    def test_a_malformed_message_is_acked_without_processing(self, sleep):
+    def test_a_malformed_message_is_acked_without_processing(self, apply_payment):
         pulled = FakeMessage(b'garbage')
         with self.assertLogs('app.consumer', level='WARNING'):
             handle(pulled)
         self.assertTrue(pulled.acked)
-        sleep.assert_not_called()
+        apply_payment.assert_not_called()
 
 
 class ConsumerTests(unittest.TestCase):

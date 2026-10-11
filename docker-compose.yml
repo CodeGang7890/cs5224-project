@@ -3,7 +3,7 @@
 # + messaging-ingester (WhatsApp webhook → Pub/Sub, http://localhost:8002) + a local Pub/Sub emulator
 # (pubsub-init creates its topics: WhatsApp messages and payment events)
 # + messaging-service (Gunicorn; LLM chat, and the pull consumer of the ingester's messages, http://localhost:8004).
-# + processing-service (Gunicorn; pull consumer of the payment events, http://localhost:8003)
+# + processing-service (Gunicorn; pull consumer of the payment events: updates the orders / bookings, http://localhost:8003)
 # + notification-job (reads the database, run every hour by cron).
 # The database is kept in the postgres-data volume between runs; the sample fixtures are loaded the
 # first time. To wipe it and reload them: RESET_DB=true docker compose up
@@ -154,12 +154,20 @@ services:
       GCP_PROJECT_ID: local-project # TODO: a real GCP project ID when deploying to Google Cloud Pub/Sub
       PUBSUB_TOPIC: payment-events
       PUBSUB_SUBSCRIPTION: processing-service-payments
-      PROCESSING_SECONDS: "2" # stand-in for the real work: each event waits this long before its ack
       # TODO: Don't set this in production, so the real Google Cloud Pub/Sub is used instead of the emulator
       PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+      # configuration-service's database: the payment flow updates the orders / bookings (app/payments.py).
+      <<: *postgres-env
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      SCHEDULE_TIME_ZONE: Asia/Singapore # must equal configuration-service's (DJANGO_SCHEDULE_TIME_ZONE)
     depends_on:
       pubsub-init:
         condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      configuration-service: # its migrations create the tables
+        condition: service_started
 
   # The job runs once and exits; this container is its cron, running it every hour (cron.sh).
   notification-job:

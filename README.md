@@ -24,14 +24,14 @@ To see the WhatsApp messages the ingester published: `docker compose exec messag
 (see `messaging-ingester/README.md`). messaging-service pulls them too, on its own subscription, and logs each one:
 `docker compose logs -f messaging-service` (see `messaging-service/README.md`).
 
-To publish random dummy payment events (`payment_id`, `status` success / fail) to the `payment-events` topic, with the stack running:
+To publish dummy payment events (`payment_reference`, `status` success / fail) to the `payment-events` topic, with the stack running (by default for random orders / bookings still pending payment):
 
 ```bash
 cd payment-ingester && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # once
 .venv/bin/python scripts/publish_dummy_payments.py --count 5
 ```
 
-processing-service pulls them and logs each one: `docker compose logs -f processing-service` (see `payment-ingester/README.md`).
+processing-service pulls them and updates those orders / bookings (payment received or failed, and the booking's calendar): `docker compose logs -f processing-service` (see `payment-ingester/README.md`).
 
 notification-job runs every hour (cron, no port): `docker compose logs -f notification-job`. To run it once now:
 `docker compose exec notification-job python run.py` (see `notification-job/README.md`).
