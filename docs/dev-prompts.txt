@@ -949,3 +949,14 @@ AI Model Used: claude-opus-5-5
 Original Prompt:
 [Image #18] please make the "Router" box a bit to the left
 Make the "Welcome & Style" block to be below router, and have arrow too?
+
+Date & Time (GMT+8): 2026-10-11 21:44:46
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Please revise the fixture especially the “FAQs” section and the “Information” for each product or service.
+For example, for this question: “Can I rent rackets and balls?”.
+Change the reply so that no rental of equipment is available and they should bring their own gear.
+It’s because it’s not part of the fixture to have such rents.
+Also prevent (please AVOID) something like: “do you provide customisation” and answering with “yes, we provide customisation A B C for $X cost”. Do not do it because we don’t support such capabilities.
+Please re-check all the fixtures and change it if there’re such cases.

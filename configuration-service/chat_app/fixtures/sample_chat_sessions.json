@@ -509,7 +509,7 @@
           "message_time": "2026-09-10T11:05:00+08:00"
         },
         {
-          "message": "We can help with that! Which items would you like for your event?",
+          "message": "We don't offer catering, but you can order as many of our menu items as you like for pickup. Which items would you like?",
           "sent_by": "business-automated",
           "message_time": "2026-09-10T11:06:00+08:00"
         },
@@ -529,7 +529,7 @@
           "message_time": "2026-09-10T11:14:00+08:00"
         },
         {
-          "message": "Thanks Jasmine! Catering for Saturday 9am, total $91.00. Reply YES to confirm.",
+          "message": "Thanks Jasmine! Pickup on Saturday 9am, total $91.00. Reply YES to confirm.",
           "sent_by": "business-automated",
           "message_time": "2026-09-10T11:14:00+08:00"
         }
@@ -575,7 +575,7 @@
           "message_time": "2026-09-11T15:40:00+08:00"
         },
         {
-          "message": "Our Kaya Toast Set is vegetarian, and the Seasonal Brunch Plate can be made without meat. Which would you like?",
+          "message": "Our Kaya Toast Set is vegetarian, and so is our Pandan Chiffon Cake. Would you like to order either of them?",
           "sent_by": "business-automated",
           "message_time": "2026-09-11T15:41:00+08:00"
         }
@@ -719,7 +719,7 @@
           "message_time": "2026-09-11T09:30:15+08:00"
         },
         {
-          "message": "Regarding your previous question about \"Do you sell balloons to go with the flowers?\": Not at the moment, sorry! We focus on flowers, but you're welcome to bring your own balloon when you collect your order, and we'll happily tie it to the wrapping for you.",
+          "message": "Regarding your previous question about \"Do you sell balloons to go with the flowers?\": Not at the moment, sorry! We only sell flowers: everything we have is in our catalogue.",
           "sent_by": "business-manual",
           "message_time": "2026-09-11T10:05:00+08:00"
         },

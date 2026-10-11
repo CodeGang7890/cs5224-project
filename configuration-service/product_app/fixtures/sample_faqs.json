@@ -32,7 +32,7 @@
     "fields": {
       "business": 2,
       "question": "Can I customise a bouquet?",
-      "answer": "Yes. Tell us the occasion, the colours and flowers you like, and your budget, and our florists will suggest a design with a reference photo. Custom bouquets start from $60 for fresh flowers and $45 for dried or soap flowers. Custom crochet pieces start from $80 and need 2 to 3 weeks, because every flower is made by hand."
+      "answer": "No, sorry: we only make the bouquets and arrangements in our catalogue, as described, and can't customise them or make custom designs. Every order comes with a free greeting card with your message."
     }
   },
   {
@@ -86,7 +86,7 @@
     "fields": {
       "business": 1,
       "question": "Do you have vegetarian or vegan options?",
-      "answer": "Our Kaya Toast Set is vegetarian (it contains eggs and dairy). The Pandan Chiffon Cake is dairy-free but contains eggs. We don't have fully vegan food at the moment, but kopi O or teh O (without milk) can be made without dairy in the drink itself."
+      "answer": "Our Kaya Toast Set is vegetarian (it contains eggs and dairy). The Pandan Chiffon Cake is dairy-free but contains eggs. We don't have any vegan food or drinks at the moment."
     }
   },
   {
@@ -95,7 +95,7 @@
     "fields": {
       "business": 1,
       "question": "Can I change the sugar level of my drink?",
-      "answer": "Yes. Just tell us: siew dai (less sweet), kosong (no sugar) or ga dai (extra sweet). Teh tarik can only be made less sweet, not sugar-free, because it's made with condensed milk."
+      "answer": "No, sorry: drinks ordered in this chat are always made our standard way. Kopi C has one spoon of sugar and is only mildly sweet; teh tarik is on the sweet side, because it's made with condensed milk."
     }
   },
   {
@@ -104,7 +104,7 @@
     "fields": {
       "business": 1,
       "question": "Do you cater for events or large orders?",
-      "answer": "Yes, for orders of 20 items or more, please message us at least 3 days ahead. We can do kopi and teh in airpots (serves about 20 cups each) and kaya toast platters. A $30 deposit is needed to confirm large orders."
+      "answer": "We don't offer catering, but you can order as many of our menu items as you like in this chat, for pickup. For 20 items or more, please order at least a day ahead."
     }
   },
   {
@@ -158,7 +158,7 @@
     "fields": {
       "business": 2,
       "question": "Can I collect my order on the same day?",
-      "answer": "Yes. Orders confirmed and paid before 12pm from Monday to Saturday can be collected the same day, from 4pm. This applies to fresh, dried and soap flowers, and to crochet flowers that are in stock (made-to-order crochet pieces take longer). There's no same-day collection on Sundays, public holidays, or during the Valentine's Day and Mother's Day peak periods, when orders must be placed in advance."
+      "answer": "Yes. Orders confirmed and paid before 12pm from Monday to Saturday can be collected the same day, from 4pm. This applies to fresh, dried and soap flowers, and to crochet flowers that are in stock. There's no same-day collection on Sundays, public holidays, or during the Valentine's Day and Mother's Day peak periods, when orders must be placed in advance."
     }
   },
   {
@@ -176,7 +176,7 @@
     "fields": {
       "business": 2,
       "question": "What payment methods do you accept?",
-      "answer": "We accept PayNow, and Visa, Mastercard and American Express cards through a secure payment link. At the studio we also take cash and NETS. Your order is confirmed once payment is received. Companies can ask for an invoice with 14-day payment terms for orders above $500."
+      "answer": "We accept PayNow, and Visa, Mastercard and American Express cards through a secure payment link. At the studio we also take cash and NETS. Your order is confirmed once payment is received."
     }
   },
   {
@@ -221,7 +221,7 @@
     "fields": {
       "business": 2,
       "question": "What is your cancellation and refund policy?",
-      "answer": "You can cancel for a full refund up to 48 hours before your collection date. Within 48 hours, we can give you store credit for 50% of the order value, since the flowers may already be prepared. Custom and made-to-order crochet pieces can't be cancelled once work has started. Please check your flowers when you collect them: if anything is wrong, tell us before you leave and we'll fix or replace it."
+      "answer": "You can cancel for a full refund up to 48 hours before your collection date. Within 48 hours, we can give you store credit for 50% of the order value, since the flowers may already be prepared. Please check your flowers when you collect them: if anything is wrong, tell us before you leave and we'll fix or replace it."
     }
   },
   {
@@ -257,7 +257,7 @@
     "fields": {
       "business": 2,
       "question": "Do you take corporate and bulk orders?",
-      "answer": "Yes. We regularly make event giveaways, Teachers' Day and Women's Day gifts, client gifts and grand opening stands for companies, schools and organisations. Bulk prices start from 20 pieces, we can add custom tags or logos, and we issue invoices. Please allow at least 2 weeks. Message us with the products, quantity and date, and our team will send a quote within one working day."
+      "answer": "You can order any quantity of the items in our catalogue in this chat, at the listed prices, for collection from the studio. We don't offer bulk prices, custom tags or logos, or invoices. For large orders, please order at least 3 days ahead so we have enough flowers ready."
     }
   },
   {
@@ -266,7 +266,7 @@
     "fields": {
       "business": 2,
       "question": "Do you do wedding and event flowers?",
-      "answer": "Yes. We make bridal bouquets (fresh from $180, crochet from $280 with 4 to 6 weeks' lead time), boutonnieres, corsages, table centrepieces and ROM décor. We'd love to start with a free 30-minute consultation at the studio or over video call. Please contact us at least 2 months before your wedding date."
+      "answer": "No, sorry: we only sell the bouquets and arrangements in our catalogue. We don't make bridal bouquets or event décor."
     }
   },
   {
@@ -275,7 +275,7 @@
     "fields": {
       "business": 2,
       "question": "Do you run crochet flower workshops?",
-      "answer": "Yes. Our beginner crochet tulip workshop runs on Saturdays from 2pm to 5pm at the studio, for up to 8 people. It's $68 per person, including all materials, and you take home the tulips you make. No experience is needed. Private group sessions (for example, team-building or birthdays) are available for 6 or more people, from $60 per person."
+      "answer": "No, we don't run workshops at the moment."
     }
   },
   {
@@ -284,7 +284,7 @@
     "fields": {
       "business": 2,
       "question": "Are your flowers safe for people with allergies, and for pets?",
-      "answer": "For allergy sufferers, our crochet, soap and preserved flowers are the safest choice: they have no pollen. Among fresh flowers, roses and our pollen-free sunflowers are the gentlest. Some flowers, such as lilies, baby's breath, lavender and chamomile, can be harmful to cats and dogs if eaten. Tell us if the recipient has pets, and we'll leave those out."
+      "answer": "For allergy sufferers, our crochet, soap and preserved flowers are the safest choice: they have no pollen. Among fresh flowers, roses and our pollen-free sunflowers are the gentlest. Some flowers, such as lilies, baby's breath, lavender and chamomile, can be harmful to cats and dogs if eaten. If the recipient has pets, check each product's information: it says whether the flowers are safe for cats and dogs."
     }
   },
   {
@@ -302,7 +302,7 @@
     "fields": {
       "business": 2,
       "question": "Do you sell balloons to go with the flowers?",
-      "answer": "Not at the moment, sorry! We focus on flowers, but you're welcome to bring your own balloon when you collect your order, and we'll happily tie it to the wrapping for you."
+      "answer": "Not at the moment, sorry! We only sell flowers: everything we have is in our catalogue."
     }
   },
   {
@@ -365,7 +365,7 @@
     "fields": {
       "business": 4,
       "question": "Do you deliver prints and frames?",
-      "answer": "Yes, anywhere in Singapore. Prints, frames, canvases and albums are made to order in our studio within 3 to 5 working days, then delivered in 1 to 2 working days. Delivery is $8, and free for orders of $150 or more. We send you a photo of the finished piece before it ships."
+      "answer": "Yes, anywhere in Singapore. Prints, frames, canvases and albums are made to order in our studio within 3 to 5 working days, then delivered in 1 to 2 working days. Delivery is free. We send you a photo of the finished piece before it ships."
     }
   },
   {
@@ -392,7 +392,7 @@
     "fields": {
       "business": 4,
       "question": "Can I collect my prints from the studio instead?",
-      "answer": "Yes. Tell us when you order and we will message you when it is ready; there is no delivery fee for collection."
+      "answer": "No, sorry: all print and frame orders are delivered, free of charge, to the address you give when you order."
     }
   },
   {
@@ -419,7 +419,7 @@
     "fields": {
       "business": 5,
       "question": "Can I rent rackets and balls?",
-      "answer": "Yes, at the counter: badminton rackets $3 each and a tube of shuttlecocks $8; tennis rackets $5 each and a can of 3 balls $6."
+      "answer": "No, sorry: we don't rent or sell any equipment. Please bring your own rackets, shuttlecocks or tennis balls."
     }
   },
   {
