@@ -1,5 +1,5 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { Info, Pencil } from 'lucide-react'
+import { CircleSlash, Info, Pencil } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
@@ -25,7 +25,9 @@ export function StepNodeView({ data, selected }: NodeProps<StepNode>) {
         'bg-card text-card-foreground relative w-56 cursor-pointer rounded-xl border border-t-4 p-3 shadow-sm transition-shadow hover:shadow-md',
         meta.accentClassName,
         selected && 'ring-ring ring-2 ring-offset-2 ring-offset-background',
+        data.unavailable && 'border-dashed opacity-55 grayscale',
       )}
+      title={data.unavailable}
     >
       {!['settings', 'router'].includes(data.nodeId) && <Handle type="target" position={Position.Left} className={handleClassName} />}
       {/* Welcome & style sits below the router: its arrow goes up into the router's bottom. */}
@@ -76,6 +78,11 @@ export function StepNodeView({ data, selected }: NodeProps<StepNode>) {
       ) : (
         <p className="text-muted-foreground mt-2 flex items-center gap-1 text-[11px]">
           <Info className="size-3" /> Click for more
+        </p>
+      )}
+      {data.unavailable && (
+        <p className="text-muted-foreground mt-1.5 flex items-start gap-1 text-[11px] leading-snug font-medium">
+          <CircleSlash className="mt-px size-3 shrink-0" /> {data.unavailable}
         </p>
       )}
       {hasNext && (

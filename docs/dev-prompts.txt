@@ -970,3 +970,11 @@ Please have a confirmation modal.
 Currently there’s no way to change status from “Pending payment” to “Payment received” yet, it will be figured out later in another service.
 Also add this order status please (how it changes to these 2 will be worked on later): “payment_failed”.
 Please modify the fixture so there’s a few orders that has this status. Just a very few.
+
+Date & Time (GMT+8): 2026-10-11 22:11:16
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Please grey out product or service selection block if there’s nothing.
+Say if there’s no product, grey out the product selection route from the frontend-app.
+Same with service. No need to update the backend, just the UI.

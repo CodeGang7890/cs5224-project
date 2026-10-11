@@ -12,6 +12,20 @@ export type StepNodeData = {
   fields?: DetailField[]
   /** The Welcome & style block only: a summary of the (maybe unsaved) settings. */
   settings?: { welcome: boolean; style: string }
+  /** Set when customers can't reach the block: why (e.g. no products yet). Greys it out. */
+  unavailable?: string
+}
+
+/** The routes the router sends customers down, and their blocks. */
+export type FlowRoute = 'orders' | 'bookings'
+export const ROUTE_NODES: Record<FlowRoute, FlowNodeId[]> = {
+  orders: ['product_selection', 'details_collection', 'confirmation'],
+  bookings: ['service_selection', 'slot_selection', 'booking_details', 'booking_confirmation'],
+}
+/** Why a route is greyed out, on its blocks. */
+export const UNAVAILABLE_REASONS: Record<FlowRoute, string> = {
+  orders: 'No active products yet, so customers can’t order.',
+  bookings: 'No bookable services yet, so customers can’t book.',
 }
 export type StepNode = Node<StepNodeData, 'step'>
 
@@ -85,3 +99,12 @@ export const FLOW_EDGES: Edge[] = [
   edge('router', 'faqs', 'Questions'),
   edge('router', 'order_status', 'Past orders'),
 ]
+
+/** FLOW_EDGES, with the arrows into or within an unavailable route dimmed and dashed. */
+export function flowEdges(unavailable: ReadonlySet<FlowNodeId>): Edge[] {
+  return FLOW_EDGES.map((item) =>
+    unavailable.has(item.target as FlowNodeId)
+      ? { ...item, style: { opacity: 0.35, strokeDasharray: '6 4' }, labelStyle: { opacity: 0.5 } }
+      : item,
+  )
+}

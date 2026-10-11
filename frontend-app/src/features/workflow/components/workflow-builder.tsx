@@ -4,11 +4,17 @@ import { CircleAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 
+import type { FlowRoute } from '../diagram'
 import { useChatConfiguration } from '../hooks/use-chat-configuration'
 import { WorkflowEditor } from './workflow-editor'
 
+interface WorkflowBuilderProps {
+  /** Routes customers can't take right now (e.g. no products), greyed out in the diagram. */
+  unavailableRoutes?: FlowRoute[]
+}
+
 /** Loads the business's chat configuration, then shows the editor (or a loading / error state). */
-export function WorkflowBuilder() {
+export function WorkflowBuilder({ unavailableRoutes = [] }: WorkflowBuilderProps) {
   const { data, isPending, error, refetch, isFetching } = useChatConfiguration()
 
   if (isPending) {
@@ -42,7 +48,7 @@ export function WorkflowBuilder() {
 
   return (
     <ReactFlowProvider>
-      <WorkflowEditor configuration={data} refetch={refetch} />
+      <WorkflowEditor configuration={data} refetch={refetch} unavailableRoutes={unavailableRoutes} />
     </ReactFlowProvider>
   )
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Background, BackgroundVariant, Controls, ReactFlow, useNodesState } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { CircleCheck, Info, Save, Undo2 } from 'lucide-react'
@@ -11,7 +11,7 @@ import { useThemeStore } from '@/stores/theme-store'
 import type { ApiError } from '@/types/api'
 
 import { normalizeDetailField } from '../details'
-import { FLOW_EDGES, flowNodes, type StepNode, type StepNodeData } from '../diagram'
+import { ROUTE_NODES, UNAVAILABLE_REASONS, type FlowRoute, flowEdges, flowNodes, type StepNode, type StepNodeData } from '../diagram'
 import { useReplyStyles, useSaveChatConfiguration } from '../hooks/use-chat-configuration'
 import { type ChatSettings, normalizeSettings, sameSettings, settingsOf } from '../settings'
 import { DETAILS_NODES, type FlowNodeId } from '../steps'
@@ -42,6 +42,8 @@ interface WorkflowEditorProps {
   configuration: ChatConfiguration
   /** Re-fetches the configuration from the API; used by Discard. */
   refetch: () => Promise<{ data?: ChatConfiguration; error: ApiError | null }>
+  /** Routes customers can't take right now (no products / no bookable services): greyed out. */
+  unavailableRoutes: FlowRoute[]
 }
 
 /**
@@ -49,7 +51,7 @@ interface WorkflowEditorProps {
  * clicking a block shows what it does, and the Details collection block's details can be edited
  * (then saved). Must be rendered inside a `ReactFlowProvider`.
  */
-export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) {
+export function WorkflowEditor({ configuration, refetch, unavailableRoutes }: WorkflowEditorProps) {
   const theme = useThemeStore((state) => state.theme)
 
   // Each details step has its own list: product orders and service bookings.
@@ -82,6 +84,25 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
       ),
     )
   }, [fields, bookingFields, settings, styles.data, setNodes])
+
+  // Blocks of a route customers can't take (e.g. no products) are greyed out, with the reason.
+  const routesKey = [...unavailableRoutes].sort().join(',')
+  const unavailableReason = useMemo(() => {
+    const reasons = new Map<FlowNodeId, string>()
+    for (const route of routesKey ? (routesKey.split(',') as FlowRoute[]) : []) {
+      for (const nodeId of ROUTE_NODES[route]) reasons.set(nodeId, UNAVAILABLE_REASONS[route])
+    }
+    return reasons
+  }, [routesKey])
+  const edges = useMemo(() => flowEdges(new Set(unavailableReason.keys())), [unavailableReason])
+  useEffect(() => {
+    setNodes((current) =>
+      current.map((node) => {
+        const unavailable = unavailableReason.get(node.data.nodeId)
+        return node.data.unavailable === unavailable ? node : { ...node, data: { ...node.data, unavailable } }
+      }),
+    )
+  }, [unavailableReason, setNodes])
 
   const [openNode, setOpenNode] = useState<FlowNodeId | null>(null)
   const detailsOpen = openNode !== null && DETAILS_NODES.includes(openNode)
@@ -197,7 +218,7 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
       <div className="bg-card h-[calc(100svh-16rem)] min-h-[520px] overflow-hidden rounded-xl border">
         <ReactFlow
           nodes={nodes}
-          edges={FLOW_EDGES}
+          edges={edges}
           onNodesChange={onNodesChange}
           onNodeClick={(_event, node) => setOpenNode(node.data.nodeId)}
           nodeTypes={nodeTypes}
@@ -229,7 +250,11 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
         onApply={setSettings}
       />
 
-      <StepInfoDialog nodeId={detailsOpen || settingsOpen ? null : openNode} onClose={() => setOpenNode(null)} />
+      <StepInfoDialog
+        nodeId={detailsOpen || settingsOpen ? null : openNode}
+        unavailable={openNode ? unavailableReason.get(openNode) : undefined}
+        onClose={() => setOpenNode(null)}
+      />
 
       <ConfirmDialog
         open={saveOpen}
