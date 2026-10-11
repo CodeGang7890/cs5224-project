@@ -1,5 +1,9 @@
-import { PagePlaceholder } from '@/components/common/page-placeholder'
+import { TabPage } from '@/components/common/tab-page'
 
 export function PaymentPage() {
-  return <PagePlaceholder title="Payment" />
+  return (
+    <TabPage title="Payment" section="Orders">
+      <p className="text-muted-foreground">Payment content coming soon.</p>
+    </TabPage>
+  )
 }

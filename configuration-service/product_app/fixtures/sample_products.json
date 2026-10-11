@@ -5,11 +5,10 @@
     "fields": {
       "business": 1,
       "name": "Kopi C",
-      "description": "Our everyday kopi C, brewed the traditional Nanyang way. We roast a blend of Robusta and a little Liberica beans with butter and sugar, then brew it in a cloth sock filter (the \"kopi sock\") and pull it between two pots to cool it slightly and give it body. It's finished with evaporated milk and a spoon of sugar, so it's creamy, smooth and only mildly sweet.\n\nSize: one 8 oz (240 ml) cup, served hot. Iced kopi C (kopi C peng) is available at the same price, served in a 16 oz cup with ice.\n\nSweetness: regular sugar by default. Ask for siew dai (less sweet), kosong (no sugar) or ga dai (extra sweet) at no extra cost.\n\nAllergens and dietary notes: contains dairy (evaporated milk). The beans are roasted with butter, so even kopi O (without milk) isn't dairy-free. No nuts are used in the drink itself, but our kitchen handles peanuts. One cup has roughly the caffeine of a double espresso.\n\nBest enjoyed straight away; we don't recommend keeping it for later.",
+      "description": "Our everyday kopi C, brewed the traditional Nanyang way in a cloth sock filter and finished with evaporated milk and a spoon of sugar: creamy, smooth and only mildly sweet. One 8 oz cup, served hot, or iced (kopi C peng) at the same price.",
+      "information": "Our everyday kopi C, brewed the traditional Nanyang way. We roast a blend of Robusta and a little Liberica beans with butter and sugar, then brew it in a cloth sock filter (the \"kopi sock\") and pull it between two pots to cool it slightly and give it body. It's finished with evaporated milk and a spoon of sugar, so it's creamy, smooth and only mildly sweet.\n\nSize: one 8 oz (240 ml) cup, served hot. Iced kopi C (kopi C peng) is available at the same price, served in a 16 oz cup with ice.\n\nSweetness: regular sugar by default. Ask for siew dai (less sweet), kosong (no sugar) or ga dai (extra sweet) at no extra cost.\n\nAllergens and dietary notes: contains dairy (evaporated milk). The beans are roasted with butter, so even kopi O (without milk) isn't dairy-free. No nuts are used in the drink itself, but our kitchen handles peanuts. One cup has roughly the caffeine of a double espresso.\n\nBest enjoyed straight away; we don't recommend keeping it for later.\n\nFAQs about this drink:\n- Can I have it with oat or soy milk? Not at the moment: we only stock evaporated and condensed milk.\n- Can I order a flask for the office? Yes, a 1-litre flask (about 4 cups) is $7.00. Please order at least 2 hours ahead.\n- Is it strong? Yes, it's stronger than a café latte, because of the Robusta beans.",
       "price": "1.80",
-      "quantity_available": 200,
-      "quantity_on_hold": 0,
-      "quantity_sold": 1250,
+      "total_quantity": 225,
       "is_active": true
     }
   },
@@ -19,11 +18,10 @@
     "fields": {
       "business": 1,
       "name": "Kaya Toast Set",
-      "description": "Our classic breakfast set, the way Singaporeans have started the day for generations.\n\nWhat's in the set:\n- Two slices of charcoal-grilled white bread, crisp on the outside, with a thick slab of cold salted butter and our house-made kaya.\n- Two soft-boiled eggs (cooked for about 6 minutes, still runny), served with light soy sauce and white pepper on the side.\n- One hot drink: kopi C or teh C (tea with evaporated milk). You can swap it for an iced drink for $0.50 more.\n\nAbout our kaya: we cook it in small batches every morning from fresh coconut milk, eggs, sugar and pandan leaves, stirring it for about two hours until it's thick and caramel-brown. It has no preservatives, so it's best on the day.\n\nOptions: ask for wholemeal bread at no extra cost, or extra kaya for $0.80.\n\nAllergens: contains wheat (gluten), eggs, dairy (butter, evaporated milk) and soy (soy sauce). The kaya contains coconut. Our kitchen also handles peanuts and sesame.\n\nTakeaway: the eggs are packed separately so they don't overcook. Available all day.",
+      "description": "Our classic breakfast set: two slices of charcoal-grilled toast with cold butter and house-made kaya, two soft-boiled eggs with light soy sauce and white pepper, and a hot kopi C or teh C. Available all day.",
+      "information": "Our classic breakfast set, the way Singaporeans have started the day for generations.\n\nWhat's in the set:\n- Two slices of charcoal-grilled white bread, crisp on the outside, with a thick slab of cold salted butter and our house-made kaya.\n- Two soft-boiled eggs (cooked for about 6 minutes, still runny), served with light soy sauce and white pepper on the side.\n- One hot drink: kopi C or teh C (tea with evaporated milk). You can swap it for an iced drink for $0.50 more.\n\nAbout our kaya: we cook it in small batches every morning from fresh coconut milk, eggs, sugar and pandan leaves, stirring it for about two hours until it's thick and caramel-brown. It has no preservatives, so it's best on the day.\n\nOptions: ask for wholemeal bread at no extra cost, or extra kaya for $0.80.\n\nAllergens: contains wheat (gluten), eggs, dairy (butter, evaporated milk) and soy (soy sauce). The kaya contains coconut. Our kitchen also handles peanuts and sesame.\n\nTakeaway: the eggs are packed separately so they don't overcook. Available all day.\n\nFAQs about this set:\n- Can I order the toast without the eggs? Yes, the toast and drink alone are $3.80; just tell us when ordering.\n- Can the eggs be cooked harder? Yes, ask for well-done eggs (about 9 minutes).",
       "price": "5.50",
-      "quantity_available": 80,
-      "quantity_on_hold": 5,
-      "quantity_sold": 640,
+      "total_quantity": 93,
       "is_active": true
     }
   },
@@ -33,11 +31,10 @@
     "fields": {
       "business": 1,
       "name": "Seasonal Brunch Plate",
-      "description": "A rotating weekend special from our chef, served on Saturdays and Sundays from 9am to 2pm while stocks last. It's currently not on sale while we plan the next menu.\n\nThe last version was nasi lemak-inspired: coconut rice cooked with pandan, a crispy chicken thigh marinated in turmeric and lemongrass, a sunny-side-up egg, cucumber, roasted peanuts, ikan bilis (fried anchovies) and our house sambal, which is fairly spicy.\n\nAllergens of the last version: peanuts, fish (anchovies, and shrimp paste in the sambal), egg and coconut.",
+      "description": "A rotating weekend special from our chef, served on Saturdays and Sundays from 9am to 2pm while stocks last. It's currently not on sale while we plan the next menu.",
+      "information": "A rotating weekend special from our chef, served on Saturdays and Sundays from 9am to 2pm while stocks last. It's currently not on sale while we plan the next menu.\n\nThe last version was nasi lemak-inspired: coconut rice cooked with pandan, a crispy chicken thigh marinated in turmeric and lemongrass, a sunny-side-up egg, cucumber, roasted peanuts, ikan bilis (fried anchovies) and our house sambal, which is fairly spicy.\n\nAllergens of the last version: peanuts, fish (anchovies, and shrimp paste in the sambal), egg and coconut.",
       "price": "16.00",
-      "quantity_available": 0,
-      "quantity_on_hold": 0,
-      "quantity_sold": 90,
+      "total_quantity": 0,
       "is_active": false
     }
   },
@@ -46,12 +43,11 @@
     "pk": 4,
     "fields": {
       "business": 2,
-      "name": "Classic Rose Bouquet (12 stems)",
-      "description": "A dozen red roses, hand-tied with seasonal greenery.",
-      "price": "68.00",
-      "quantity_available": 25,
-      "quantity_on_hold": 3,
-      "quantity_sold": 310,
+      "name": "Classic Red Rose Bouquet (12 Stems)",
+      "description": "Twelve long-stemmed red roses, hand-tied with eucalyptus and baby's breath in our signature blush wrapping: the timeless way to say \"I love you\".",
+      "information": "Type: fresh flowers.\n\nWhat's in it: 12 premium red roses (the Ecuadorian 'Explorer' variety, with 50 to 60 cm stems and heads about 6 cm across when fully open), silver dollar eucalyptus and baby's breath, hand-tied in a spiral and finished with a satin ribbon. The bouquet is about 55 cm tall and 35 cm wide, wrapped in water-resistant blush pink paper, with a greeting card.\n\nHow long it lasts: 5 to 7 days with proper care. The heads usually open fully on day 2 or 3. An aqua pack (a sealed water pouch) at the base keeps the flowers hydrated for up to 24 hours, so they can stay in their wrapping for the day.\n\nCare:\n- Remove the wrapping and the aqua pack, and trim 2 cm off each stem at an angle with a sharp knife or secateurs.\n- Place the roses in a clean vase with cool water and the flower food sachet provided, and remove any leaves that would sit below the water line.\n- Change the water and re-trim the stems every 2 days.\n- Keep the vase away from direct sunlight, aircon vents and ripening fruit, which gives off a gas that makes roses age faster.\n- A drooping head can often be revived by re-cutting the stem and leaving the rose in deep, lukewarm water for an hour.\n\nThorns: we remove the thorns from the lower part of every stem, but a few small ones may remain near the head, so handle the roses with care.\n\nAllergies and pets: roses have very little pollen and a light, sweet scent. Baby's breath can bother very sensitive people. Baby's breath and eucalyptus are toxic to cats and dogs if eaten, so keep the bouquet out of their reach.\n\nGood to know: roses are a natural product, so each head varies slightly in shade and size.",
+      "price": "98.00",
+      "total_quantity": 19,
       "is_active": true
     }
   },
@@ -60,12 +56,11 @@
     "pk": 5,
     "fields": {
       "business": 2,
-      "name": "Sunflower Posy",
-      "description": "Three sunflowers with eucalyptus in kraft wrapping.",
-      "price": "35.00",
-      "quantity_available": 40,
-      "quantity_on_hold": 0,
-      "quantity_sold": 185,
+      "name": "Everlasting Dried Flower Bouquet (Neutral Tones)",
+      "description": "A soft, rustic bouquet of pampas grass, bunny tails and golden billy buttons that keeps its beauty for a year or more, with no water needed.",
+      "information": "Type: dried flowers.\n\nWhat's in it: naturally dried pampas grass, lagurus (bunny tails), golden craspedia (billy buttons), preserved eucalyptus, dried statice, phalaris and ruscus, in cream, beige, wheat and soft caramel tones. Some stems are bleached or tinted with plant-based dyes to achieve the neutral palette. The bouquet is about 50 cm tall and 30 cm wide, wrapped in cream paper with a linen ribbon.\n\nHow long it lasts: 1 to 2 years indoors. Dried flowers don't wilt, but their colours fade gradually, faster in direct sunlight. In Singapore's humidity, they last longest in an air-conditioned room.\n\nCare:\n- No water, ever: water makes dried flowers go mouldy.\n- Keep it away from direct sun, humid spots (bathrooms, kitchens, windowsills) and fans blowing directly at it.\n- To dust, use a hairdryer on the cool, low setting from about 30 cm away, or a soft makeup brush.\n- If stems get bent, gently reshape them by hand; pampas fluffs up again after a day out of the wrapping.\n\nShedding: pampas grass and bunny tails naturally shed a few fibres, especially in the first week. We lightly spray every bouquet with a clear fixative to reduce this, but a little shedding is normal.\n\nAllergies, children and pets: dried flowers have far less pollen than fresh ones, but the fine pampas fibres can irritate people with sensitive airways or asthma. They're not edible and contain small parts, so keep them out of reach of young children and pets.",
+      "price": "78.00",
+      "total_quantity": 12,
       "is_active": true
     }
   },
@@ -74,12 +69,11 @@
     "pk": 6,
     "fields": {
       "business": 2,
-      "name": "Event Floral Consultation",
-      "description": "One-hour consultation for weddings and corporate events.",
-      "price": "0.00",
-      "quantity_available": 10,
-      "quantity_on_hold": 2,
-      "quantity_sold": 22,
+      "name": "Soap Rose Gift Box (9 Roses)",
+      "description": "Nine velvety soap roses nestled in a round keepsake box: they look just like the real thing, smell softly of rose and never wilt.",
+      "information": "Type: soap flowers.\n\nWhat it's made of: each petal is a thin, pressed layer of plant-based glycerin soap, dyed and shaped by hand, then assembled into rose heads about 5 cm across and lightly scented with rose fragrance. Nine red roses sit in a round hat box (15 cm across and 12 cm tall) with a lid and a satin ribbon.\n\nHow long it lasts: as a decoration, for years: soap doesn't wilt or rot. The rose scent fades gradually over about 6 months, and the colour stays bright if kept out of the sun.\n\nCan you use them as soap? Yes, the petals are real soap: pull off a petal or two to wash your hands, or float a few in a bath, where they dissolve within a minute. They're thin, so most people keep them as a decoration.\n\nCare:\n- Keep the box dry, away from bathrooms, kitchen sinks and humid windowsills: moisture makes the petals soft and sticky.\n- Avoid direct sunlight, which fades the colour.\n- Dust gently with a soft brush, or a hairdryer on the cool setting.\n- Keep the lid on when you're not displaying it, to keep the dust off and the scent in.\n\nSkin and allergies: the soap contains fragrance, so if you have sensitive skin, try a petal on a small patch of skin first. There's no pollen.\n\nSafety: the roses are not edible and the petals are small, so keep them away from young children and pets.",
+      "price": "36.00",
+      "total_quantity": 29,
       "is_active": true
     }
   },
@@ -90,10 +84,9 @@
       "business": 3,
       "name": "Single PT Session (60 min)",
       "description": "One-on-one session with a certified coach.",
+      "information": "60 minutes with a certified coach at our gym: a short warm-up, the main workout planned for your goals, and a cool-down. Bring a towel and water; shoes are required. Reschedule at least 24 hours ahead or the session is forfeited.",
       "price": "95.00",
-      "quantity_available": 30,
-      "quantity_on_hold": 4,
-      "quantity_sold": 410,
+      "total_quantity": 30,
       "is_active": true
     }
   },
@@ -104,10 +97,9 @@
       "business": 3,
       "name": "10-Session PT Package",
       "description": "Ten one-on-one sessions, valid for 3 months.",
+      "information": "Ten 60-minute one-on-one sessions with the same coach, to be used within 3 months of the first session. Includes a fitness assessment in the first session and a written plan. The package is non-refundable but can be transferred to a friend once.",
       "price": "850.00",
-      "quantity_available": 15,
-      "quantity_on_hold": 1,
-      "quantity_sold": 58,
+      "total_quantity": 15,
       "is_active": true
     }
   },
@@ -117,11 +109,10 @@
     "fields": {
       "business": 1,
       "name": "Iced Teh Tarik",
-      "description": "Our pulled milk tea, served over ice. We brew strong black tea from a blend of Ceylon and Assam leaves, sweeten it with condensed milk and evaporated milk, then \"pull\" it: pour it from a height between two jugs until it's frothy and smooth.\n\nSize: 16 oz (470 ml) cup with ice. The hot version (8 oz) is the same price.\n\nSweetness: it's on the sweet side by default; ask for siew dai (less sweet). We can't make it with no sugar, because the condensed milk is part of the recipe.\n\nAllergens: contains dairy (condensed and evaporated milk). It has caffeine from the tea, about half a cup of coffee's worth.",
+      "description": "Our pulled milk tea, served over ice: strong Ceylon and Assam tea with condensed and evaporated milk, pulled until frothy and smooth. One 16 oz cup; the hot version (8 oz) is the same price.",
+      "information": "Our pulled milk tea, served over ice. We brew strong black tea from a blend of Ceylon and Assam leaves, sweeten it with condensed milk and evaporated milk, then \"pull\" it: pour it from a height between two jugs until it's frothy and smooth.\n\nSize: 16 oz (470 ml) cup with ice. The hot version (8 oz) is the same price.\n\nSweetness: it's on the sweet side by default; ask for siew dai (less sweet). We can't make it with no sugar, because the condensed milk is part of the recipe.\n\nAllergens: contains dairy (condensed and evaporated milk). It has caffeine from the tea, about half a cup of coffee's worth.",
       "price": "2.80",
-      "quantity_available": 150,
-      "quantity_on_hold": 0,
-      "quantity_sold": 980,
+      "total_quantity": 150,
       "is_active": true
     }
   },
@@ -131,11 +122,127 @@
     "fields": {
       "business": 1,
       "name": "Pandan Chiffon Cake (Whole)",
-      "description": "A whole pandan chiffon cake, light and springy, baked fresh every morning in a 20 cm tube pan (about 8 to 10 slices).\n\nWe blend fresh pandan leaves into juice for the flavour and natural green colour, with no artificial colouring or flavouring. The batter is made with eggs, sugar, cake flour, coconut milk and vegetable oil, and lifted with whipped egg whites instead of butter, so it's dairy-free.\n\nAllergens: contains eggs, wheat (gluten) and coconut. Made in a kitchen that also handles dairy, peanuts and sesame.\n\nOrdering: we bake a limited number each day, so please order at least one day ahead for a specific pickup time. It comes in a cake box.\n\nStorage: keep it covered at room temperature and eat it within 2 days, or refrigerate for up to 4 days. Don't freeze it, as the texture suffers.",
+      "description": "A whole pandan chiffon cake (20 cm, about 8 to 10 slices), light and springy, baked fresh every morning with real pandan juice and no artificial colouring. Please order at least one day ahead.",
+      "information": "A whole pandan chiffon cake, light and springy, baked fresh every morning in a 20 cm tube pan (about 8 to 10 slices).\n\nWe blend fresh pandan leaves into juice for the flavour and natural green colour, with no artificial colouring or flavouring. The batter is made with eggs, sugar, cake flour, coconut milk and vegetable oil, and lifted with whipped egg whites instead of butter, so it's dairy-free.\n\nAllergens: contains eggs, wheat (gluten) and coconut. Made in a kitchen that also handles dairy, peanuts and sesame.\n\nOrdering: we bake a limited number each day, so please order at least one day ahead for a specific pickup time. It comes in a cake box.\n\nStorage: keep it covered at room temperature and eat it within 2 days, or refrigerate for up to 4 days. Don't freeze it, as the texture suffers.",
       "price": "28.00",
-      "quantity_available": 6,
-      "quantity_on_hold": 0,
-      "quantity_sold": 75,
+      "total_quantity": 6,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 11,
+    "fields": {
+      "business": 2,
+      "name": "Sunflower Hand-Tied Bouquet",
+      "description": "Three sunny sunflowers with chamomile daisies and soft greens: a bright, cheerful pick-me-up for graduations, birthdays and get-well wishes.",
+      "information": "Type: fresh flowers.\n\nWhat's in it: 3 sunflower stems (heads 10 to 12 cm across), white chamomile daisies, yellow solidago and ruscus leaves, hand-tied and wrapped in kraft paper with jute twine. The bouquet is about 45 cm tall and 30 cm wide.\n\nPollen: we use a pollen-free sunflower variety ('Sunrich'), so the flowers won't drop yellow dust on clothes or tablecloths, and they're kinder to people with hay fever. The chamomile does carry a little pollen.\n\nHow long it lasts: 5 to 7 days with proper care; the daisies often last a day or two longer than the sunflowers.\n\nCare:\n- Trim 2 to 3 cm off the stems at an angle, and remove any leaves that would sit below the water line.\n- Sunflowers are thirsty: top up the water every day and change it every 2 days.\n- Use a tall, heavy vase, because sunflower heads are top-heavy.\n- Sunflowers naturally turn towards light, so rotate the vase every day or two to keep the heads straight.\n- Keep the bouquet away from direct afternoon sun and aircon vents.\n\nPets: sunflowers are non-toxic to cats and dogs, but chamomile can upset their stomachs if eaten, so keep the bouquet out of their reach.\n\nHospitals: some hospital wards in Singapore don't allow fresh flowers (especially ICU and oncology wards), so it's worth checking with the ward before bringing them.",
+      "price": "58.00",
+      "total_quantity": 15,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 12,
+    "fields": {
+      "business": 2,
+      "name": "Grand Opening Flower Stand (2-Tier)",
+      "description": "A show-stopping 1.6 m congratulatory stand bursting with orchids, gerberas and sunflowers, made to make a new shop, clinic or office opening impossible to miss.",
+      "information": "Type: fresh flowers (congratulatory stands).\n\nWhat's in it: two large floral arrangements set in floral foam on a foldable black metal stand, about 1.6 m tall and 70 cm wide. The flowers are Mokara orchids, gerberas, sunflowers, spray roses and chrysanthemums, with palm and monstera leaves, in red and gold: colours traditionally associated with prosperity and good fortune. It's finished with a red and gold congratulatory ribbon sash.\n\nHow long it lasts: 5 to 7 days indoors in an air-conditioned space, or 3 to 4 days outdoors in Singapore's heat. The orchids and chrysanthemums usually last the longest.\n\nCare:\n- Mist the flowers lightly with water once a day, especially if the stand is outdoors.\n- Top up the floral foam with a little water from the top every 2 days: the foam should feel damp, not dripping.\n- Place the stand out of direct afternoon sun and away from strong wind.\n- Remove any gerberas or roses as they fade, to keep the arrangement looking fresh.\n\nSetting it up: the stand unfolds in a few seconds, and the two arrangements hook onto it. It takes about 5 minutes, and a printed guide is included.\n\nAllergies and pets: the gerberas and chrysanthemums carry some pollen, and chrysanthemums are toxic to cats and dogs if eaten.\n\nGood to know: this stand is designed for celebrations, such as shop, clinic and office openings, not for condolences.",
+      "price": "288.00",
+      "total_quantity": 6,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 13,
+    "fields": {
+      "business": 2,
+      "name": "Mini Dried Flower Posy",
+      "description": "A palm-sized posy of dried lavender, baby's breath and bunny tails: a sweet little thank-you, a desk pick-me-up or a charming wedding favour.",
+      "information": "Type: dried flowers.\n\nWhat's in it: dried French lavender, baby's breath and lagurus (bunny tails), with a sprig of preserved eucalyptus. The posy is about 20 cm tall and 10 cm across, wrapped in translucent glassine paper and tied with cotton twine and a small kraft tag you can write on.\n\nScent: the lavender keeps a light, relaxing scent for about 3 months. To refresh it, gently squeeze the lavender buds between your fingers.\n\nHow long it lasts: a year or more indoors. The colours soften gradually over time, faster in direct sunlight.\n\nCare:\n- Never put it in water.\n- Keep it dry and out of direct sun; in Singapore's humidity, an air-conditioned room is best.\n- Dust it gently with a soft brush, or a hairdryer on the cool setting.\n- Lavender buds may drop a little over time, which is normal for dried lavender.\n\nDisplay: it fits nicely in a small bud vase, a jar or a glass, or can simply be laid on a desk or shelf.\n\nAllergies, children and pets: the lavender scent can bother people who are sensitive to fragrance, and the baby's breath can shed fine particles. Lavender and baby's breath are mildly toxic to cats and dogs, so place the posy out of their reach. Not suitable for young children (small parts).",
+      "price": "26.00",
+      "total_quantity": 34,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 14,
+    "fields": {
+      "business": 2,
+      "name": "Preserved Rose Bell Jar",
+      "description": "A single preserved red rose under a glass dome, glowing with warm fairy lights: a fairy-tale keepsake that stays perfect for years.",
+      "information": "Type: preserved flowers.\n\nWhat it is: a real red rose, grown in Ecuador and preserved at its peak bloom: the natural sap is replaced with a plant-based glycerin solution and dye, so the petals stay soft and look freshly cut, without water. The rose head is about 6 to 7 cm across.\n\nThe display: a glass dome 22 cm tall and 12 cm wide, on a natural wooden base, with a string of warm-white LED fairy lights inside. The lights run on 2 AA batteries (included), with a switch hidden under the base; a fresh pair lasts about 30 hours of lighting. It comes in a black gift box with a ribbon.\n\nHow long it lasts: 3 to 5 years, if kept indoors away from direct sunlight and humidity. The colour can soften slightly over the years.\n\nCare:\n- Keep the dome closed as much as possible: it protects the rose from dust and humidity.\n- Don't touch or press the petals, and never water the rose or put it in the fridge.\n- Keep it out of direct sunlight and away from windows, which fade the colour.\n- Clean the outside of the glass with a soft, dry cloth.\n- Take the batteries out if you won't use the lights for a long time.\n\nAllergies: preserved roses have no pollen and no scent, so they're a good choice for allergy sufferers.\n\nSafety: the dome is real glass, so place it on a stable surface, out of reach of young children and pets.",
+      "price": "88.00",
+      "total_quantity": 4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 15,
+    "fields": {
+      "business": 2,
+      "name": "Soap Carnation Bouquet",
+      "description": "A sweet bouquet of seven pink soap carnations with baby's breath: the classic way to say thank you to Mum or a favourite teacher, made to last.",
+      "information": "Type: soap flowers.\n\nWhat's in it: 7 pink soap carnations (heads about 6 cm across) with ruffled, hand-dyed soap petals, natural dried baby's breath and faux eucalyptus leaves, wrapped Korean-style in two layers of paper with a ribbon. The bouquet is about 35 cm tall. The carnation stems and leaves are artificial (fabric over wire), so they stay upright and green.\n\nHow long it lasts: as a decoration, indefinitely. The light carnation scent lasts about 4 to 6 months. The dried baby's breath is natural, so it may shed a little.\n\nCare:\n- Keep it dry and out of direct sun. It can be displayed in a dry vase (no water) or left in its wrapping.\n- Keep it away from humid spots such as bathrooms and kitchens, where the soap petals can soften.\n- Dust gently with a soft brush.\n- Like all our soap flowers, the petals can be used as soap: one or two petals for a hand-wash.\n\nMeaning: carnations are the traditional Mother's Day flower, and pink carnations stand for gratitude, which also makes this bouquet a popular Teachers' Day gift.\n\nSkin, allergies and pets: the soap contains fragrance, so do a patch test if you have sensitive skin. The carnations have no pollen, but the baby's breath can shed fine particles, and it's mildly toxic to cats and dogs. Not edible: keep away from young children and pets.",
+      "price": "42.00",
+      "total_quantity": 24,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 16,
+    "fields": {
+      "business": 2,
+      "name": "Single Soap Rose Stem",
+      "description": "One long-stemmed soap rose in a clear sleeve with a ribbon: an affordable little gesture for classmates, colleagues or event giveaways.",
+      "information": "Type: soap flowers.\n\nWhat it is: a single red soap rose (head about 6 cm across) on a 40 cm artificial stem with leaves, individually wrapped in a clear cellophane sleeve with a satin ribbon and a small blank tag for a message.\n\nWhat it's made of: the petals are thin, pressed layers of plant-based glycerin soap, hand-dyed and lightly scented with rose fragrance. The stem is fabric-wrapped wire, so it stays straight and can be bent slightly to angle the rose.\n\nHow long it lasts: years as a decoration. The scent fades over about 6 months, and the colour stays bright out of direct sunlight.\n\nCare:\n- Keep it dry and away from humid spots such as bathrooms, where the soap petals can soften and stick together.\n- Keep it out of direct sunlight, which fades the colour.\n- It can stand in a dry bud vase, or stay in its sleeve to keep the dust off.\n- The petals can be used as soap: one or two petals for a hand-wash.\n\nGreat for: Teachers' Day, Valentine's Day at school or the office, graduations and small thank-yous.\n\nSkin and safety: the soap contains fragrance, so do a patch test if you have sensitive skin. There's no pollen. Not edible, and the stem has a wire inside, so it isn't a toy for young children.",
+      "price": "5.90",
+      "total_quantity": 195,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 17,
+    "fields": {
+      "business": 2,
+      "name": "Hand-Crocheted Single Tulip",
+      "description": "A plump, hand-crocheted tulip on a bendable stem, made stitch by stitch in our studio from soft milk-cotton yarn: a flower that never fades.",
+      "information": "Type: crochet flowers.\n\nWho makes it: every crochet flower is made by hand by our in-house crochet artist, Priya, and a small team of home-based crocheters in Singapore. A tulip takes about 1.5 hours to make, so no two are exactly alike.\n\nWhat it's made of: 5-ply milk cotton yarn (a soft cotton and acrylic blend, with no wool), stuffed with polyester fibrefill, on a 2 mm wire stem wrapped in green yarn, with two crochet leaves. The stem bends, so you can shape it in a vase. The tulip is soft pink, about 30 cm tall, with a flower head about 5 cm tall, and comes in a clear sleeve with a ribbon.\n\nHow long it lasts: forever, really. The colour stays bright indoors for years; long direct sunlight can fade it slowly.\n\nCare:\n- Dust it gently with a lint roller or a soft brush.\n- To clean, spot-clean with a damp cloth and a drop of mild soap, then let it air-dry. Don't machine-wash or soak it: the wire stem can rust.\n- Keep it out of long direct sunlight.\n\nAllergies: no pollen, no scent and no wool, which makes crochet flowers a good choice for allergy sufferers and hospital visits.\n\nSafety: because of the wire stem, it's not suitable for children under 3, and it should be kept away from pets that like to chew.",
+      "price": "14.90",
+      "total_quantity": 51,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 18,
+    "fields": {
+      "business": 2,
+      "name": "Crochet Sunflower Bouquet (3 Stems)",
+      "description": "Three hand-crocheted sunflowers with crochet leaves and baby's breath: all the sunshine of a real bouquet, without ever needing water.",
+      "information": "Type: crochet flowers.\n\nWhat's in it: 3 hand-crocheted sunflowers, each about 9 cm across, with 16 golden petals and a textured brown centre made of bobble stitches, on wire stems with crochet leaves. They're arranged with natural dried baby's breath and wrapped in kraft paper with a linen ribbon. The bouquet is about 40 cm tall. Each sunflower takes our crocheters about 4 hours.\n\nWhat it's made of: milk cotton yarn (cotton and acrylic, no wool) with polyester fibrefill and wire stems. The baby's breath is real dried flowers, so it can shed a little.\n\nHow long it lasts: for years. It needs no water and doesn't wilt, and the colours stay bright indoors out of direct sunlight.\n\nCare:\n- Dust gently with a soft brush or lint roller.\n- Spot-clean with a damp cloth and let it air-dry. Don't wash or soak it: the stems have wire inside.\n- Keep the dried baby's breath dry and away from humidity.\n\nAllergies: the sunflowers have no pollen, no scent and no wool. The dried baby's breath can shed fine particles, which may bother very sensitive people.\n\nHospitals: because it needs no water and has no pollen, it's allowed in most hospital wards, unlike fresh flowers.\n\nSafety: keep it away from young children and pets: the stems have wire inside, and baby's breath is mildly toxic to cats and dogs.",
+      "price": "59.00",
+      "total_quantity": 10,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 19,
+    "fields": {
+      "business": 2,
+      "name": "Crochet Forever Rose Bouquet (12 Stems)",
+      "description": "Twelve hand-crocheted red roses with layered, gently curled petals, wrapped in luxe black paper: our most-loved anniversary gift, made to stay beautiful.",
+      "information": "Type: crochet flowers.\n\nWhat's in it: 12 hand-crocheted red roses (heads about 6 cm across), each with layered, curled petals and a green calyx, on wire stems with crochet leaves, arranged with crochet baby's breath, so nothing sheds. The bouquet is about 50 cm tall and 30 cm wide, wrapped in black Korean paper with a satin ribbon.\n\nThe work behind it: each rose takes about 3 hours, so a bouquet is roughly 36 hours of handwork by our crocheters, and every one is slightly different.\n\nWhat it's made of: milk cotton yarn (cotton and acrylic, no wool) in deep red, with polyester fibrefill and wire stems.\n\nHow long it lasts: forever. It needs no water, won't wilt and holds its shape for years. Keep it out of long direct sunlight so the red stays rich.\n\nCare:\n- Dust gently with a soft brush or lint roller.\n- Spot-clean with a damp cloth if needed, and let it air-dry; never wash or soak it (the stems have wire inside).\n- If a petal gets squashed, gently reshape it with your fingers.\n\nAllergies: no pollen, no scent and no wool, so it suits allergy sufferers, and it can go where fresh flowers aren't allowed, such as most hospital wards.\n\nSafety: keep it away from young children and pets (wire stems).",
+      "price": "168.00",
+      "total_quantity": 3,
       "is_active": true
     }
   }

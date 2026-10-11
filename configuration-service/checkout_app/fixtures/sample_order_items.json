@@ -131,18 +131,736 @@
         "items": [
           {
             "product_id": 4,
-            "name": "Classic Rose Bouquet (12 stems)",
-            "unit_price": "68.00",
+            "name": "Classic Red Rose Bouquet (12 Stems)",
+            "unit_price": "98.00",
             "quantity": 1
           }
         ],
         "details": {
           "name": "Ryan Koh",
-          "email": "ryan@example.com"
+          "card_message": "Happy 5th anniversary, my love. Here’s to many more years together. Love, Ryan",
+          "collection_date": "12 September"
         }
       },
       "created_time": "2026-09-10T17:30:00+08:00",
       "updated_time": "2026-09-10T17:30:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 6,
+    "fields": {
+      "business": 2,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 4,
+            "name": "Classic Red Rose Bouquet (12 Stems)",
+            "unit_price": "98.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Daniel Tan",
+          "card_message": "Happy birthday, Mei! Love you always. Dan",
+          "collection_date": "Sunday 9 August"
+        }
+      },
+      "created_time": "2026-08-08T10:12:00+08:00",
+      "updated_time": "2026-08-09T15:30:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 7,
+    "fields": {
+      "business": 2,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 5,
+            "name": "Everlasting Dried Flower Bouquet (Neutral Tones)",
+            "unit_price": "78.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Sarah Lim",
+          "card_message": "Congratulations on your new home! Wishing you many happy years there. Sarah & Jon",
+          "collection_date": "Tuesday 11 August"
+        }
+      },
+      "created_time": "2026-08-09T14:40:00+08:00",
+      "updated_time": "2026-08-11T15:30:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 8,
+    "fields": {
+      "business": 2,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 17,
+            "name": "Hand-Crocheted Single Tulip",
+            "unit_price": "14.90",
+            "quantity": 6
+          }
+        ],
+        "details": {
+          "name": "Nur Aisyah",
+          "card_message": "Thank you for being the best mentor this year! From the Design Team",
+          "collection_date": "Thursday 13 August"
+        }
+      },
+      "created_time": "2026-08-12T09:05:00+08:00",
+      "updated_time": "2026-08-13T15:30:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 9,
+    "fields": {
+      "business": 2,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 12,
+            "name": "Grand Opening Flower Stand (2-Tier)",
+            "unit_price": "288.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Kelvin Ong",
+          "card_message": "Congratulations on the grand opening of Ong Family Dental! From Uncle Kelvin and family",
+          "collection_date": "Monday 17 August"
+        }
+      },
+      "created_time": "2026-08-14T16:22:00+08:00",
+      "updated_time": "2026-08-17T15:30:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 10,
+    "fields": {
+      "business": 2,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 14,
+            "name": "Preserved Rose Bell Jar",
+            "unit_price": "88.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Jasmine Teo",
+          "card_message": "Happy 3rd anniversary, my love. Forever yours, Jas",
+          "collection_date": "Saturday 15 August"
+        }
+      },
+      "created_time": "2026-08-15T11:30:00+08:00",
+      "updated_time": "2026-08-15T15:30:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 11,
+    "fields": {
+      "business": 2,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 11,
+            "name": "Sunflower Hand-Tied Bouquet",
+            "unit_price": "58.00",
+            "quantity": 1
+          },
+          {
+            "product_id": 13,
+            "name": "Mini Dried Flower Posy",
+            "unit_price": "26.00",
+            "quantity": 2
+          }
+        ],
+        "details": {
+          "name": "Hannah Goh",
+          "card_message": "Get well soon, Grandma! We miss you lots. Hannah & Ethan",
+          "collection_date": "Wednesday 19 August"
+        }
+      },
+      "created_time": "2026-08-18T19:48:00+08:00",
+      "updated_time": "2026-08-19T15:30:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 12,
+    "fields": {
+      "business": 2,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 19,
+            "name": "Crochet Forever Rose Bouquet (12 Stems)",
+            "unit_price": "168.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Ryan Chua",
+          "card_message": "Will you marry me? R",
+          "collection_date": "Wednesday 26 August"
+        }
+      },
+      "created_time": "2026-08-20T08:55:00+08:00",
+      "updated_time": "2026-08-26T15:30:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 13,
+    "fields": {
+      "business": 2,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 6,
+            "name": "Soap Rose Gift Box (9 Roses)",
+            "unit_price": "36.00",
+            "quantity": 2
+          }
+        ],
+        "details": {
+          "name": "Michelle Wong",
+          "card_message": "Happy birthday to the best sister ever! Michelle",
+          "collection_date": "Sunday 23 August"
+        }
+      },
+      "created_time": "2026-08-22T13:15:00+08:00",
+      "updated_time": "2026-08-23T15:30:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 14,
+    "fields": {
+      "business": 2,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 16,
+            "name": "Single Soap Rose Stem",
+            "unit_price": "5.90",
+            "quantity": 40
+          }
+        ],
+        "details": {
+          "name": "Lee Hui Min",
+          "card_message": "Happy Teachers' Day! Thank you for all you do. The P4 Parents' Group",
+          "collection_date": "Thursday 3 September"
+        }
+      },
+      "created_time": "2026-08-24T10:02:00+08:00",
+      "updated_time": "2026-09-03T15:30:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 15,
+    "fields": {
+      "business": 2,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 15,
+            "name": "Soap Carnation Bouquet",
+            "unit_price": "42.00",
+            "quantity": 3
+          }
+        ],
+        "details": {
+          "name": "Amanda Koh",
+          "card_message": "Happy Teachers' Day, Mrs Tan! Thank you for believing in me. Amanda",
+          "collection_date": "Friday 4 September"
+        }
+      },
+      "created_time": "2026-08-26T15:37:00+08:00",
+      "updated_time": "2026-09-04T15:30:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 16,
+    "fields": {
+      "business": 2,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 15,
+            "name": "Soap Carnation Bouquet",
+            "unit_price": "42.00",
+            "quantity": 1
+          },
+          {
+            "product_id": 17,
+            "name": "Hand-Crocheted Single Tulip",
+            "unit_price": "14.90",
+            "quantity": 2
+          }
+        ],
+        "details": {
+          "name": "Vanessa Ng",
+          "card_message": "Thank you for a wonderful year, Mr Rahman! Love, Class 2B",
+          "collection_date": "Thursday 3 September"
+        }
+      },
+      "created_time": "2026-08-28T12:20:00+08:00",
+      "updated_time": "2026-09-03T15:30:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 17,
+    "fields": {
+      "business": 2,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 16,
+            "name": "Single Soap Rose Stem",
+            "unit_price": "5.90",
+            "quantity": 25
+          },
+          {
+            "product_id": 6,
+            "name": "Soap Rose Gift Box (9 Roses)",
+            "unit_price": "36.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Gabriel Sim",
+          "card_message": "Happy Teachers' Day! With love and thanks, from the Year 1 team",
+          "collection_date": "Friday 4 September"
+        }
+      },
+      "created_time": "2026-08-30T17:05:00+08:00",
+      "updated_time": "2026-09-04T15:30:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 18,
+    "fields": {
+      "business": 2,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 14,
+            "name": "Preserved Rose Bell Jar",
+            "unit_price": "88.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Olivia Chen",
+          "card_message": "To my favourite person: happy anniversary! Liv",
+          "collection_date": "Thursday 3 September"
+        }
+      },
+      "created_time": "2026-09-01T09:44:00+08:00",
+      "updated_time": "2026-09-03T15:30:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 19,
+    "fields": {
+      "business": 2,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 18,
+            "name": "Crochet Sunflower Bouquet (3 Stems)",
+            "unit_price": "59.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Farhan Ismail",
+          "card_message": "Congratulations on your graduation, adik! So proud of you. Abang",
+          "collection_date": "Saturday 5 September"
+        }
+      },
+      "created_time": "2026-09-02T20:10:00+08:00",
+      "updated_time": "2026-09-05T15:30:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 20,
+    "fields": {
+      "business": 2,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 4,
+            "name": "Classic Red Rose Bouquet (12 Stems)",
+            "unit_price": "98.00",
+            "quantity": 1
+          },
+          {
+            "product_id": 13,
+            "name": "Mini Dried Flower Posy",
+            "unit_price": "26.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Benjamin Yeo",
+          "card_message": "Sorry I was late again. I love you. Ben",
+          "collection_date": "Thursday 3 September"
+        }
+      },
+      "created_time": "2026-09-03T11:00:00+08:00",
+      "updated_time": "2026-09-03T15:30:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 21,
+    "fields": {
+      "business": 2,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 19,
+            "name": "Crochet Forever Rose Bouquet (12 Stems)",
+            "unit_price": "168.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Priscilla Ho",
+          "card_message": "Happy 10th anniversary! Here's to forever. P",
+          "collection_date": "Monday 7 September"
+        }
+      },
+      "created_time": "2026-09-05T14:25:00+08:00",
+      "updated_time": "2026-09-07T15:30:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 22,
+    "fields": {
+      "business": 2,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 5,
+            "name": "Everlasting Dried Flower Bouquet (Neutral Tones)",
+            "unit_price": "78.00",
+            "quantity": 1
+          },
+          {
+            "product_id": 6,
+            "name": "Soap Rose Gift Box (9 Roses)",
+            "unit_price": "36.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Rachel Tay",
+          "card_message": "Welcome to the team, Wei Ling! From all of us in Marketing",
+          "collection_date": "Monday 7 September"
+        }
+      },
+      "created_time": "2026-09-06T10:50:00+08:00",
+      "updated_time": "2026-09-07T15:30:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 23,
+    "fields": {
+      "business": 2,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "payment_received",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 12,
+            "name": "Grand Opening Flower Stand (2-Tier)",
+            "unit_price": "288.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Jonathan Pereira",
+          "card_message": "Congratulations on the opening of Pereira's Bakehouse! Your friends from Joo Chiat",
+          "collection_date": "Saturday 12 September"
+        }
+      },
+      "created_time": "2026-09-07T16:18:00+08:00",
+      "updated_time": "2026-09-07T18:18:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 24,
+    "fields": {
+      "business": 2,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "payment_received",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 14,
+            "name": "Preserved Rose Bell Jar",
+            "unit_price": "88.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Clara Low",
+          "card_message": "Happy birthday, Mum! All my love, Clara",
+          "collection_date": "Sunday 13 September"
+        }
+      },
+      "created_time": "2026-09-08T12:40:00+08:00",
+      "updated_time": "2026-09-08T14:40:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 25,
+    "fields": {
+      "business": 2,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "payment_received",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 11,
+            "name": "Sunflower Hand-Tied Bouquet",
+            "unit_price": "58.00",
+            "quantity": 2
+          }
+        ],
+        "details": {
+          "name": "Ethan Lau",
+          "card_message": "Congratulations, graduates! We are so proud of you both. The Lau family",
+          "collection_date": "Sunday 13 September"
+        }
+      },
+      "created_time": "2026-09-09T09:15:00+08:00",
+      "updated_time": "2026-09-09T11:15:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 26,
+    "fields": {
+      "business": 2,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "pending_payment",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 19,
+            "name": "Crochet Forever Rose Bouquet (12 Stems)",
+            "unit_price": "168.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Aaron Tan",
+          "card_message": "Happy anniversary, darling. Thank you for every single day. A",
+          "collection_date": "Wednesday 16 September"
+        }
+      },
+      "created_time": "2026-09-09T21:30:00+08:00",
+      "updated_time": "2026-09-09T21:50:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 27,
+    "fields": {
+      "business": 2,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "pending_payment",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 17,
+            "name": "Hand-Crocheted Single Tulip",
+            "unit_price": "14.90",
+            "quantity": 3
+          },
+          {
+            "product_id": 13,
+            "name": "Mini Dried Flower Posy",
+            "unit_price": "26.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Siti Rahimah",
+          "card_message": "Thank you for everything, Cikgu! Siti",
+          "collection_date": "Sunday 13 September"
+        }
+      },
+      "created_time": "2026-09-10T13:05:00+08:00",
+      "updated_time": "2026-09-10T13:25:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 28,
+    "fields": {
+      "business": 2,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "pending_payment",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 15,
+            "name": "Soap Carnation Bouquet",
+            "unit_price": "42.00",
+            "quantity": 2
+          }
+        ],
+        "details": {
+          "name": "Grace Lim",
+          "card_message": "For the best mum in the world. Love, Grace",
+          "collection_date": "Sunday 13 September"
+        }
+      },
+      "created_time": "2026-09-11T10:20:00+08:00",
+      "updated_time": "2026-09-11T10:40:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 29,
+    "fields": {
+      "business": 2,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "pending_payment",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 4,
+            "name": "Classic Red Rose Bouquet (12 Stems)",
+            "unit_price": "98.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Marcus Ong",
+          "card_message": "Happy birthday, babe! M",
+          "collection_date": "Saturday 12 September"
+        }
+      },
+      "created_time": "2026-09-11T18:45:00+08:00",
+      "updated_time": "2026-09-11T19:05:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 30,
+    "fields": {
+      "business": 2,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "payment_received",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 18,
+            "name": "Crochet Sunflower Bouquet (3 Stems)",
+            "unit_price": "59.00",
+            "quantity": 1
+          },
+          {
+            "product_id": 16,
+            "name": "Single Soap Rose Stem",
+            "unit_price": "5.90",
+            "quantity": 10
+          }
+        ],
+        "details": {
+          "name": "Tan Wei Jie",
+          "card_message": "Congrats on the new job! From the gang",
+          "collection_date": "Sunday 13 September"
+        }
+      },
+      "created_time": "2026-09-12T09:30:00+08:00",
+      "updated_time": "2026-09-12T11:30:00+08:00"
     }
   }
 ]

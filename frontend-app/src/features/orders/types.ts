@@ -48,3 +48,51 @@ export interface OrderListParams {
   sandbox: OrderSandboxFilter
   order_status?: OrderStatus
 }
+
+/** `ScheduleItem.schedule_data`: the service booked (a snapshot) and the customer details collected in the chat. */
+export interface ScheduleData {
+  service: {
+    service_id: number
+    name: string
+    /** Decimal string, e.g. "180.00". */
+    price: string
+    duration_minutes: number
+    buffer_minutes: number
+  }
+  details: Record<string, string | number>
+}
+
+/** A booked time slot (`/api/schedules/`), created when a customer confirms a booking in a chat. Read only. */
+export interface ScheduleItem {
+  id: number
+  business: number
+  chat_session: number | null
+  is_sandbox: boolean
+  /** Null if the service was deleted since (the snapshot is in `schedule_data`). */
+  service: number | null
+  /** The service provider it's booked with (e.g. a photographer); null if deleted. */
+  service_provider: number | null
+  service_provider_name: string | null
+  start_time: string
+  /** start_time + the service duration. */
+  end_time: string
+  /** end_time + the service buffer: when the calendar is free again. */
+  blocked_until: string
+  order_status: OrderStatus
+  schedule_data: ScheduleData
+  /** The service's price, e.g. "180.00". */
+  total: string
+  created_time: string
+  updated_time: string
+}
+
+export type ScheduleOrdering = '-start_time' | 'start_time' | '-created_time' | 'order_status'
+
+/** Query parameters of GET /api/schedules/. */
+export interface ScheduleListParams {
+  page: number
+  page_size: number
+  ordering: ScheduleOrdering
+  sandbox: OrderSandboxFilter
+  order_status?: OrderStatus
+}

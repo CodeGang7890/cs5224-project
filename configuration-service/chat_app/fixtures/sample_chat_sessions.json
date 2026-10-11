@@ -40,7 +40,7 @@
           "message_time": "2026-09-01T09:02:00+08:00"
         }
       ],
-      "chat_state_id": 4,
+      "chat_state_id": "confirmation",
       "chat_state_data": {
         "items": [
           {
@@ -86,7 +86,7 @@
           "message_time": "2026-09-02T11:30:00+08:00"
         }
       ],
-      "chat_state_id": 2,
+      "chat_state_id": "product_selection",
       "chat_state_data": {},
       "is_sandbox": false
     }
@@ -107,7 +107,7 @@
           "message_time": "2026-09-03T08:15:00+08:00"
         }
       ],
-      "chat_state_id": 1,
+      "chat_state_id": "start",
       "chat_state_data": {},
       "is_sandbox": false
     }
@@ -123,23 +123,43 @@
       "last_chat_time": "2026-09-02T14:07:00+08:00",
       "chat_message_json": [
         {
-          "message": "Hi, do you deliver rose bouquets on Saturday?",
+          "message": "Hi! Do you have sunflower bouquets? It's for my sister's graduation on Saturday.",
           "sent_by": "customer",
           "message_time": "2026-09-02T14:00:00+08:00"
         },
         {
-          "message": "Hi Alice, yes we do! Our Classic Rose Bouquet (12 stems) is $68.00. Where should we deliver it?",
-          "sent_by": "business-manual",
+          "message": "Hi Alice, congratulations to your sister! Our Sunflower Hand-Tied Bouquet ($58.00) has three pollen-free sunflowers with chamomile daisies, wrapped in kraft paper. Would you like to order one?",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-02T14:01:00+08:00"
+        },
+        {
+          "message": "Yes please, 1 sunflower bouquet. Can I add a crochet tulip too?",
+          "sent_by": "customer",
           "message_time": "2026-09-02T14:05:00+08:00"
         },
         {
-          "message": "Great, to Tiong Bahru please. I will send the address later.",
-          "sent_by": "customer",
+          "message": "Of course! Here's your order so far: 1 × Sunflower Hand-Tied Bouquet ($58.00) and 1 × Hand-Crocheted Single Tulip ($14.90). Total: $72.90. Would you like anything else, or is that everything?",
+          "sent_by": "business-automated",
           "message_time": "2026-09-02T14:07:00+08:00"
         }
       ],
-      "chat_state_id": null,
-      "chat_state_data": {},
+      "chat_state_id": "product_selection",
+      "chat_state_data": {
+        "items": [
+          {
+            "product_id": 11,
+            "name": "Sunflower Hand-Tied Bouquet",
+            "unit_price": "58.00",
+            "quantity": 1
+          },
+          {
+            "product_id": 17,
+            "name": "Hand-Crocheted Single Tulip",
+            "unit_price": "14.90",
+            "quantity": 1
+          }
+        ]
+      },
       "is_sandbox": false
     }
   },
@@ -154,18 +174,62 @@
       "last_chat_time": "2026-09-04T10:45:00+08:00",
       "chat_message_json": [
         {
-          "message": "I would like a consultation for wedding flowers.",
+          "message": "Hello, I'm looking for flowers that won't wilt, for our anniversary. Any ideas?",
           "sent_by": "customer",
           "message_time": "2026-09-04T10:20:00+08:00"
         },
         {
-          "message": "Congratulations, Chloe! Our event consultations are free. When are you free for a call?",
-          "sent_by": "business-manual",
+          "message": "Happy anniversary! Flowers that last are our speciality: the Everlasting Dried Flower Bouquet ($78.00) keeps its look for 1 to 2 years, and the Crochet Forever Rose Bouquet lasts forever, though it's sold out right now. We also have the Soap Rose Gift Box ($36.00). Which would you like?",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-04T10:21:00+08:00"
+        },
+        {
+          "message": "The dried flower bouquet please, just one.",
+          "sent_by": "customer",
+          "message_time": "2026-09-04T10:28:00+08:00"
+        },
+        {
+          "message": "Lovely choice! 1 × Everlasting Dried Flower Bouquet (Neutral Tones) at $78.00. Total: $78.00. Would you like anything else, or is that everything?",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-04T10:29:00+08:00"
+        },
+        {
+          "message": "That's all, thanks.",
+          "sent_by": "customer",
+          "message_time": "2026-09-04T10:35:00+08:00"
+        },
+        {
+          "message": "Great! To prepare your order, could I have your name, the message you'd like on the card, and the date you'll collect it from our studio?",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-04T10:36:00+08:00"
+        },
+        {
+          "message": "I'm Chloe Ng, and I'll collect it on 20 September.",
+          "sent_by": "customer",
+          "message_time": "2026-09-04T10:44:00+08:00"
+        },
+        {
+          "message": "Thank you, Chloe! And what would you like us to write on the card that comes with the bouquet?",
+          "sent_by": "business-automated",
           "message_time": "2026-09-04T10:45:00+08:00"
         }
       ],
-      "chat_state_id": null,
-      "chat_state_data": {},
+      "chat_state_id": "details_collection",
+      "chat_state_data": {
+        "items": [
+          {
+            "product_id": 5,
+            "name": "Everlasting Dried Flower Bouquet (Neutral Tones)",
+            "unit_price": "78.00",
+            "quantity": 1
+          }
+        ],
+        "items_confirmed": true,
+        "details": {
+          "name": "Chloe Ng",
+          "collection_date": "20 September"
+        }
+      },
       "is_sandbox": false
     }
   },
@@ -190,7 +254,7 @@
           "message_time": "2026-09-03T19:10:00+08:00"
         }
       ],
-      "chat_state_id": null,
+      "chat_state_id": "start",
       "chat_state_data": {},
       "is_sandbox": false
     }
@@ -226,7 +290,7 @@
           "message_time": "2026-09-05T10:01:00+08:00"
         }
       ],
-      "chat_state_id": 3,
+      "chat_state_id": "details_collection",
       "chat_state_data": {
         "items": [
           {
@@ -262,7 +326,7 @@
           "message_time": "2026-09-06T15:30:00+08:00"
         }
       ],
-      "chat_state_id": 1,
+      "chat_state_id": "start",
       "chat_state_data": {},
       "is_sandbox": true
     }
@@ -298,7 +362,7 @@
           "message_time": "2026-09-05T08:31:00+08:00"
         }
       ],
-      "chat_state_id": 4,
+      "chat_state_id": "confirmation",
       "chat_state_data": {
         "items": [
           {
@@ -338,7 +402,7 @@
           "message_time": "2026-09-06T12:11:00+08:00"
         }
       ],
-      "chat_state_id": 2,
+      "chat_state_id": "product_selection",
       "chat_state_data": {},
       "is_sandbox": false
     }
@@ -369,7 +433,7 @@
           "message_time": "2026-09-07T09:50:00+08:00"
         }
       ],
-      "chat_state_id": 3,
+      "chat_state_id": "details_collection",
       "chat_state_data": {
         "items": [
           {
@@ -409,7 +473,7 @@
           "message_time": "2026-09-08T18:32:00+08:00"
         }
       ],
-      "chat_state_id": 1,
+      "chat_state_id": "start",
       "chat_state_data": {},
       "is_sandbox": false
     }
@@ -424,7 +488,7 @@
       "created_time": "2026-09-09T07:55:00+08:00",
       "last_chat_time": "2026-09-09T07:55:00+08:00",
       "chat_message_json": [],
-      "chat_state_id": 1,
+      "chat_state_id": "start",
       "chat_state_data": {},
       "is_sandbox": false
     }
@@ -470,7 +534,7 @@
           "message_time": "2026-09-10T11:14:00+08:00"
         }
       ],
-      "chat_state_id": 4,
+      "chat_state_id": "confirmation",
       "chat_state_data": {
         "items": [
           {
@@ -516,7 +580,7 @@
           "message_time": "2026-09-11T15:41:00+08:00"
         }
       ],
-      "chat_state_id": 2,
+      "chat_state_id": "product_selection",
       "chat_state_data": {},
       "is_sandbox": false
     }
@@ -542,7 +606,7 @@
           "message_time": "2026-09-12T10:25:00+08:00"
         }
       ],
-      "chat_state_id": 3,
+      "chat_state_id": "details_collection",
       "chat_state_data": {
         "items": [
           {
@@ -553,6 +617,192 @@
           }
         ],
         "items_confirmed": true
+      },
+      "is_sandbox": false
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 17,
+    "fields": {
+      "business": 2,
+      "phone_number": "+6598765432",
+      "display_name": "Wei Ling Ong",
+      "created_time": "2026-09-08T11:02:00+08:00",
+      "last_chat_time": "2026-09-08T15:52:20+08:00",
+      "chat_message_json": [
+        {
+          "message": "Hi! Can the card message be written in Chinese? It's for my grandma's 80th birthday.",
+          "sent_by": "customer",
+          "message_time": "2026-09-08T11:02:00+08:00"
+        },
+        {
+          "message": "Hi Wei Ling! What a lovely way to celebrate your grandma's 80th. I'm not sure whether we can print the card in Chinese, so I've asked our team, and they'll reply to you right here in this chat. In the meantime, would you like to have a look at our flowers?",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-08T11:02:30+08:00"
+        },
+        {
+          "message": "Regarding your previous question about \"Can the card message be written in Chinese?\": Yes! We can print card messages in Chinese, Malay or Tamil as well as English. Just type your message in the language you'd like when you order, and we'll print it in a matching font.",
+          "sent_by": "business-manual",
+          "message_time": "2026-09-08T15:40:00+08:00"
+        },
+        {
+          "message": "Wonderful, thank you! I'll order tomorrow.",
+          "sent_by": "customer",
+          "message_time": "2026-09-08T15:52:00+08:00"
+        },
+        {
+          "message": "You're welcome, Wei Ling! Just message us here whenever you're ready to order.",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-08T15:52:20+08:00"
+        }
+      ],
+      "chat_state_id": "start",
+      "chat_state_data": {},
+      "is_sandbox": false
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 18,
+    "fields": {
+      "business": 2,
+      "phone_number": "+6581239876",
+      "display_name": "Daniel Koh",
+      "created_time": "2026-09-10T19:15:00+08:00",
+      "last_chat_time": "2026-09-10T19:18:20+08:00",
+      "chat_message_json": [
+        {
+          "message": "Hello, can I bring my own vase for you to arrange the flowers in?",
+          "sent_by": "customer",
+          "message_time": "2026-09-10T19:15:00+08:00"
+        },
+        {
+          "message": "Hi Daniel! Good question. I don't know whether we can arrange flowers in a vase you bring, so I've asked our team, and they'll reply to you here in this chat. Is there anything else I can help you with?",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-10T19:15:20+08:00"
+        },
+        {
+          "message": "Also, are you hiring part-time florists?",
+          "sent_by": "customer",
+          "message_time": "2026-09-10T19:18:00+08:00"
+        },
+        {
+          "message": "I don't have that information either, so I've passed your question on to the team too. They'll get back to you here.",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-10T19:18:20+08:00"
+        }
+      ],
+      "chat_state_id": "start",
+      "chat_state_data": {},
+      "is_sandbox": false
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 19,
+    "fields": {
+      "business": 2,
+      "phone_number": "+6590011223",
+      "display_name": "Mei Chen",
+      "created_time": "2026-09-11T09:30:00+08:00",
+      "last_chat_time": "2026-09-12T16:20:10+08:00",
+      "chat_message_json": [
+        {
+          "message": "Hi, do you sell balloons to go with the flowers? It's for my daughter's birthday.",
+          "sent_by": "customer",
+          "message_time": "2026-09-11T09:30:00+08:00"
+        },
+        {
+          "message": "Hi Mei! I'm not sure whether we sell balloons, so I've asked our team, and they'll reply to you here in this chat. Would you like to look at our bouquets in the meantime?",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-11T09:30:15+08:00"
+        },
+        {
+          "message": "Regarding your previous question about \"Do you sell balloons to go with the flowers?\": Not at the moment, sorry! We focus on flowers, but you're welcome to bring your own balloon when you collect your order, and we'll happily tie it to the wrapping for you.",
+          "sent_by": "business-manual",
+          "message_time": "2026-09-11T10:05:00+08:00"
+        },
+        {
+          "message": "Ok noted! One more thing, do you sell plant pots or succulents?",
+          "sent_by": "customer",
+          "message_time": "2026-09-12T16:20:00+08:00"
+        },
+        {
+          "message": "Good question! I don't know whether we sell plant pots or succulents, so I've asked our team, and they'll reply to you here in this chat.",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-12T16:20:10+08:00"
+        }
+      ],
+      "chat_state_id": "start",
+      "chat_state_data": {},
+      "is_sandbox": false
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 20,
+    "fields": {
+      "business": 4,
+      "phone_number": "+6591230001",
+      "display_name": "Priya Raman",
+      "created_time": "2026-09-14T10:00:00+08:00",
+      "last_chat_time": "2026-09-14T10:05:10+08:00",
+      "chat_message_json": [
+        {
+          "message": "Hi! I'd like to book a family photoshoot for 4 of us",
+          "sent_by": "customer",
+          "message_time": "2026-09-14T10:00:00+08:00"
+        },
+        {
+          "message": "Here are some available times for Family Portrait Session ($350.00, 1 h 30 min):\n1. Tue 15 Sep, 9am\n2. Tue 15 Sep, 10:30am\n3. Tue 15 Sep, 2pm\n4. Wed 16 Sep, 9am\n5. Wed 16 Sep, 10:30am\n6. Wed 16 Sep, 2pm\n\nPlease reply with the number of the time you would like, or tell me another day or time that suits you.",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-14T10:00:20+08:00"
+        },
+        {
+          "message": "Do you have anything on Saturday morning?",
+          "sent_by": "customer",
+          "message_time": "2026-09-14T10:01:10+08:00"
+        },
+        {
+          "message": "Here are some available times for Family Portrait Session ($350.00, 1 h 30 min):\n1. Sat 19 Sep, 9am\n2. Sat 19 Sep, 10:30am\n\nPlease reply with the number of the time you would like, or tell me another day or time that suits you.",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-14T10:01:30+08:00"
+        },
+        {
+          "message": "2 please. Can we bring our dog?",
+          "sent_by": "customer",
+          "message_time": "2026-09-14T10:02:00+08:00"
+        },
+        {
+          "message": "Yes, pets are welcome at family sessions! Saturday 19 Sep at 10:30am it is. Could you tell me your Name, Phone and Number of people? And is there anything we should know (outfits, pets, accessibility)?",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-14T10:02:25+08:00"
+        },
+        {
+          "message": "Priya Raman, +65 9123 0001, 4 people. We're bringing our dog Mochi",
+          "sent_by": "customer",
+          "message_time": "2026-09-14T10:03:30+08:00"
+        },
+        {
+          "message": "Here is your booking summary:\n- Family Portrait Session (1 h 30 min)\n- Sat 19 Sep, 10:30am – 12pm\nPrice: $350.00\n\nYour details:\n- Name: Priya Raman\n- Phone: +65 9123 0001\n- Number of people: 4\n- Anything we should know: Bringing our dog Mochi\n\nPlease reply CONFIRM to book it, or tell me what you would like to change.",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-14T10:03:50+08:00"
+        },
+        {
+          "message": "CONFIRM",
+          "sent_by": "customer",
+          "message_time": "2026-09-14T10:05:00+08:00"
+        },
+        {
+          "message": "Thank you! Your booking #1 with Lumen & Lens Photography Studio is confirmed.\n- Family Portrait Session (1 h 30 min)\n- Sat 19 Sep, 10:30am – 12pm\nPrice: $350.00\n\nYour details:\n- Name: Priya Raman\n- Phone: +65 9123 0001\n- Number of people: 4\n- Anything we should know: Bringing our dog Mochi",
+          "sent_by": "business-automated",
+          "message_time": "2026-09-14T10:05:10+08:00"
+        }
+      ],
+      "chat_state_id": "start",
+      "chat_state_data": {
+        "last_booking_id": 1
       },
       "is_sandbox": false
     }

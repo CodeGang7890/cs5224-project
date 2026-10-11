@@ -8,7 +8,7 @@ export function WorkflowPage() {
       <div className="grid gap-1">
         <h1 className="text-2xl font-bold tracking-tight">Workflow</h1>
         <p className="text-muted-foreground text-sm">
-          Design the steps your chat assistant walks customers through, from Start to Confirmation.
+          How your chat assistant handles each customer message. Click a step to see what it does or to change its settings.
         </p>
       </div>
       <WorkflowBuilder />

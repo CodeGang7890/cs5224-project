@@ -1,7 +1,8 @@
 import django_filters
 from django.db.models import Q
 
-from .models import ChatSession
+from .constants import CHAT_STEPS, STEP_LABELS
+from .models import ChatSession, QuestionStatus, UnansweredQuestion
 
 
 class StableOrderingFilter(django_filters.OrderingFilter):
@@ -41,9 +42,9 @@ class ChatSessionFilter(django_filters.FilterSet):
         help_text='Case-insensitive text in the display name or phone number.',
     )
     display_name = django_filters.CharFilter(lookup_expr='icontains', help_text='Case-insensitive text in the display name.')
-    chat_state_id = django_filters.CharFilter(
-        method='filter_chat_state_id',
-        help_text='ID of the chat flow block the customer is at, e.g. `2` (a number is matched as a number).',
+    chat_state_id = django_filters.ChoiceFilter(
+        choices=[(step, STEP_LABELS[step]) for step in CHAT_STEPS],
+        help_text='The chat flow step the customer is at, e.g. `details_collection`.',
     )
     # A choice filter rather than BooleanFilter, which silently ignores values like "maybe".
     has_messages = django_filters.ChoiceFilter(
@@ -86,11 +87,38 @@ class ChatSessionFilter(django_filters.FilterSet):
     def filter_search(self, queryset, name, value):
         return queryset.filter(Q(display_name__icontains=value) | Q(phone_number__icontains=value))
 
-    def filter_chat_state_id(self, queryset, name, value):
-        # Block ids are ints or strings, and "2" must match block 2 (an int in the JSON).
-        state_id = int(value) if value.lstrip('-').isdigit() else value
-        return queryset.filter(chat_state_id=state_id)
-
     def filter_has_messages(self, queryset, name, value):
         empty = Q(chat_message_json=[])
         return queryset.exclude(empty) if value == 'true' else queryset.filter(empty)
+
+
+class UnansweredQuestionFilter(django_filters.FilterSet):
+    """Filters for GET /api/chat/questions/. All parameters are optional and combine (AND).
+
+    Questions from sandbox (test) chats are included by default, so the Chat Sandbox can be used
+    to try the whole loop.
+    """
+
+    status = django_filters.ChoiceFilter(
+        choices=QuestionStatus.choices, help_text='Only questions with this status, e.g. `open` (the alert).'
+    )
+    sandbox = django_filters.ChoiceFilter(
+        choices=[(SANDBOX_INCLUDE, SANDBOX_INCLUDE), (SANDBOX_EXCLUDE, SANDBOX_EXCLUDE), (SANDBOX_ONLY, SANDBOX_ONLY)],
+        method='filter_sandbox',
+        help_text='Questions from sandbox (test) chats: `include` (the default), `exclude` or `only`.',
+    )
+    ordering = StableOrderingFilter(
+        fields=('created_time', 'answered_time', 'id'),
+        help_text='Sort by `created_time`, `answered_time` or `id`; prefix with `-` for descending. Default: `-created_time`.',
+    )
+
+    class Meta:
+        model = UnansweredQuestion
+        fields = ['status']
+
+    def filter_sandbox(self, queryset, name, value):
+        if value == SANDBOX_ONLY:
+            return queryset.filter(chat_session__is_sandbox=True)
+        if value == SANDBOX_EXCLUDE:
+            return queryset.filter(chat_session__is_sandbox=False)
+        return queryset

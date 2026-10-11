@@ -14,6 +14,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { usePageParam } from '@/hooks/use-page-param'
+import { cn } from '@/lib/utils'
 
 import { PRODUCTS_PAGE_SIZE, useProducts } from '../hooks/use-products'
 import type { Product } from '../types'
@@ -84,6 +85,7 @@ export function ProductManager() {
                 <TableRow>
                   <TableHead className="min-w-48">Name</TableHead>
                   <TableHead className="text-right">Price</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
                   <TableHead className="text-right">Available</TableHead>
                   <TableHead className="text-right">On hold</TableHead>
                   <TableHead className="text-right">Sold</TableHead>
@@ -103,7 +105,12 @@ export function ProductManager() {
                       )}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{priceFormat.format(Number(product.price))}</TableCell>
-                    <TableCell className="text-right tabular-nums">{quantityFormat.format(product.quantity_available)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{quantityFormat.format(product.total_quantity)}</TableCell>
+                    <TableCell
+                      className={cn('text-right tabular-nums', product.quantity_available <= 0 && 'text-destructive font-medium')}
+                    >
+                      {product.quantity_available <= 0 ? 'Sold out' : quantityFormat.format(product.quantity_available)}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">{quantityFormat.format(product.quantity_on_hold)}</TableCell>
                     <TableCell className="text-right tabular-nums">{quantityFormat.format(product.quantity_sold)}</TableCell>
                     <TableCell>

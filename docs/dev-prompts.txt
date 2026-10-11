@@ -594,3 +594,306 @@ AI Model Used: claude-opus-5-5
 Original Prompt:
 There is a bug where where in this flow: product selection -> send message -> detail collection
 for some reason after it sends the message it doesn't prompt for detail and automatically goes back to product selection page, presumbaly because of the previous feature that we add to go back between those states
+
+Date & Time (GMT+8): 2026-10-07 21:55:24
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+Work with configuration-service.
+In the product selection prompt, please add something like these to the prompt:
+- Don’t offer a product if quantity is 0. If quantity is 0, clearly state to the user that we run out of that item as of now.
+- Add in the deterministic validation that you can’t proceed if you place an order for an item that ran out or if the quantity is more than what’s available.
+In the details collection, please add something like these to the prompt:
+- You need to ask the users to fill in all the fields. If user miss the field, specifically ask for it, never assume what to fill in there.
+- Never confirm an order in this stage, each state has a general goal that the bot should steer the conversation towards achieving the goal (e.g., getting the user details on the fields that are needed for this one)
+Please add test cases too.
+
+Date & Time (GMT+8): 2026-10-07 22:01:35
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+Can you use ''' ''' for the multiline text isntead of using bracket and ' for every line like you have right now
+It makes it clearer to see in the prompts.py
+
+Date & Time (GMT+8): 2026-10-07 22:16:48
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+Work with configuration_service.product_app and frontend_app.
+For Product model, I want you to add a new field apart from “description” called as “information”.
+I want to make the “description” max length much shorter to only around 300 max, while this information can be very long up to 5000 which is the current description max length.
+The idea is that description is just general information that will be sent to the user when the user ask what the product is, while the information are additional context about a product that can be lengthy and contain many FAQs etc about that product itself, that will be used by the LLM only when required to answer certain types of questions.
+Please also update the frontend application so business owner can modify both the description and information.
+Please add tooltip mentioning what description is and what this information is for.
+Please update the tool call in the LLM chat flow so that it fetches this information field also.
+Please update existing APIs and test cases when required.
+Please update existing fixtures for appropriate sample data.
+
+Date & Time (GMT+8): 2026-10-07 22:28:18
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+I want you to improve the fixtures, particularly for the Bloom Florist Studio.
+Just focus on that business as of now, no need to modify fixtures owned by the other business.
+For Bloom Florist studio, I want you to rework completely 
+I want you to create a professional and detailed 12 products for Bloom Florist Studio.
+You can remove the other currently existing products in the fixtures.
+It should consist of various types of crochet flowers, dried flowers, soap flowers, and fresh flowers.
+The description should be just 1-2 engaging sentence about that product.
+The information should be a lengthy and detailed and contain information on each of those product in greater detail, such as: how long does the flower last, what is it make of, and much more.
+Please make it very realistic like a real business having a product instead of a placeholder product.
+Those products should have varying prices in SGD, from cheap to expensive, make about 2 of the products has 0 quantity left.
+Please make the rest such as the business name etc realistic too. And add a list of realistic FAQs on what typically people use about such business, at least add 15 rows of FAQs for this business (you can remove existing ones).
+For the workflow of this shop, I want it follow the basic pattern: Start -> Product Selection -> Details Collection -> Confirmation.
+For details collection, make it just ask for simply name and customised message on the card given alongside the flower, and a date where the user would get the flower.
+Please also make the business configuration description lengthy and much more realistic.
+
+Date & Time (GMT+8): 2026-10-07 22:39:09
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+please give me the commands to flush and to run all fixtures
+
+Date & Time (GMT+8): 2026-10-07 22:41:04
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+Please change "delivery date" to "collection date"
+Please modify the FAQ so make it there's only self-collection at a location at some hours and not on a place
+
+Date & Time (GMT+8): 2026-10-07 22:44:34
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+Please remove information such as bulk pricing or delivery from the fixtures for the Products
+Other information can be put there, such as Care, Allergies infomration, etc.
+Just don't give complicated variants to choose etc in the description or things like delivery etc
+
+Date & Time (GMT+8): 2026-10-07 22:56:08
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+For Product, I want you to change how the quantity works.
+Now there’re: quantity available, hold, sold.
+Instead, I only want 1 field: total_quantity.
+Then, the quantity available, hold, sold are calculated / derived based on that.
+In checkout_app see there’s OrderItem.
+For every OrderItem.order_data whose status are PENDING_PAYMENT or PAYMENT_RECEIVED, it will be the quantity hold.
+For every OrderItem.order_data whose status is ORDER_COMPLETED, it will be the quantity sold.
+Quantity available will be derived based on that.
+Business owners can only modify the total_quantity as follows: add extra items, or reduce the total quantity such that the available_quantity should not be negative (it should be at least 0).
+Please modify the existing APIs, create comprehensive unit test, and modify the frontend calls and API calls appropriately.
+Please also modify the existing fixtures / sample data to be appropriate.
+Particularly on the Bloom Florist Studio, please make the order data realistic and make it seem there are many orders (20+ orders).
+It doesn’t need to have a corresponding chat, just the OrderItem is enough.
+
+Date & Time (GMT+8): 2026-10-07 23:12:36
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+Change the fixture so Preserved Rose Bell Jar has 4 total quantity and so has 1 available
+
+Date & Time (GMT+8): 2026-10-07 23:49:54
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+I want a new feature where when customer ask something that isn’t in the FAQ, it will call a new tool that create a new UnansweredQuestion instance for the business owner to actually reply on that.
+UnansweredQuestion model should have these: FK to business, FK to chat session, question, status (open, answered, dismissed), answered_time (datetime), created_time (date time).
+In the “Chats” tab, this UnansweredQuestion gets a separate subtab there with alert if there’s any unanswered questions.
+Make the corresponding API too, please add comprehensive test cases and add permissions too, such as only able to retrieve questions that the business owner owns.
+I think 1 API to GET, 1 or 2 API to POST (to change the status and add to FAQ), and a separate tool call for the chat flow.
+After answered, the Q&A will go to the FAQ instance and editable by the business owner.
+It should also reply to the user when it is answered, with the format such as “regarding your previous question about …, <answer>”.
+Please also add the fixtures too, particularly for the Bloom Florist.
+
+Date & Time (GMT+8): 2026-10-08 00:11:16
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+[Image #7] it doesnt call the tool at all to make FAQ for new unanswered questions, can u please fix it, it seems somethign is wrong
+so if what user ask is nonsense detect it and dont entertain
+but if it's legit thing that is not in the FAQ or product info, never assume or make up information, and you have to create this UnansweredQuestion instance to notify the business owner
+
+Date & Time (GMT+8): 2026-10-09 12:12:01
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+I'll have a larger hosted model later, but for now we'll just settle with the local lightweight model
+There'll me another type besides product ordering, which is booking, but it's for later
+I think the ChatFlow would be fixed instead of letting user customise it, but the owners can click on individual blocks to customise or configure it, but probably this model will be deprecated later
+
+/goal
+Now I want you to draft me a change on using this Router + sub-flows model
+Where each flow is a small deterministic state machine like we have right now
+So I imagine eventually we'll have something like this:
+
+user input -> about orders -> product selection -> details collection -> confirmation                                                                                                                  
+           -> about general questions -> FAQ corpus (No RAG yet)                                                                                                                                                   
+           -> about past orders / status -> view payment status / shipping status (has different system prompt or tools provided)
+
+So the main change is:
+- This additional router LLM
+- ChatFlow model may be deprecated or replaced, essentially the flow / blocks are fixed but owners can customise each individual parts (as of now, only details collection can be customised, product selection will just be based on the products available, FAQs is just based on the FAQ instance, and for past orders/status just give a generic reply saying that this feature is coming soon and it's not available yet
+
+Please change the model and API and frontend etc appropriately, please double check, take your time, add test cases / modify existing ones as necessary
+
+Date & Time (GMT+8): 2026-10-09 14:49:57
+AI Model Used: claude-opus-5-5
+Original Prompt:
+[Image #3]
+/goal
+There is a bug.
+- First, do not confirm the order or say nothing about order is confirmed until it's in the database. Problem is it says confirmed and it's in confirmation stage, but then the user still has to reply "no, I dont need anything else" before it's written to the database. That's now how it's suppposed to work. Once the bot said confirmed, it needs to be there already in OrderItem table.
+- Second, In Confirmation stage add a substage inside like not_confirmed, in that case simply reiiterate all the details and ask the user to say confirm. Once it's confirmed already, deterministically create the Order, then only then reply order it's confirmed. Afterwards, the state should go back to start (for the order flow).
+
+Date & Time (GMT+8): 2026-10-09 15:41:50
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Work on configuration-service. The goal is to provide another business a way to also order time slots via the chat, instead of only Product as of now.
+I want to make a model called WeeklyAvailability.
+It has these fields: PK to business configuration, availability (can be something like a string of length 96*7, each can be a letter like X or O or H, X means taken, O means available, H means on hold, so each letter represents 15 minutes block of the day.
+I want to make another model called Service.
+It has these fields: WeeklyAvailability (Many to Many), name, description, information, price, duration_minutes, buffer_minutes, is_active. *duration_minutes is the duration of the service itself, buffer_minutes is the time that will be blocked afterwards for some cleaning etc (so it shouldn’t be bookable, but outside of the time with the client).
+So say there’re 2 WeeklyAvailability and there are 3 Services, so there can be a many to many relationship. Say 2 photographers working together, say the first photographer can do all service A B C, but second photographer can only do B and C.
+These should be configurable via the UI.
+Currently it’s called “Schedule” please change that into “Service” instead and require log in like the other tabs.
+In the “Orders” tab, there should be an ScheduleItem model that’s like OrderItem but it’s for Schedule.
+Alongside with the status like pending payment, etc.
+Please make the change for this, and add an hypothetical business of a photography business in the fixtures, with preconfigured services.
+Please divide this task into several commit, 1st for the backend model and API, 2nd for the frontend change and API integration, 3rd for the LLM flow for this flow and any frontend changes if necessary, 4th for the fixtures addition.
+Please check carefully and add detailed test cases.
+
+Date & Time (GMT+8): 2026-10-09 20:34:09
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+For WeeklyAvailability, this is not how I envisioned it to work.
+Create a new model ServiceProvider.
+Think of ServiceProvider as like a single photographer, a single teacher, or can be a single venue etc.
+Basically the Service and ServiceProvider has many to many relationship.
+And instead, ServiceProvider should have one-to-many relationship to WeeklyAvailability.
+WeeklyAvailability will just capture the availability of a single ServiceProvider in a single week of the year.
+Please revise the letters, I think we need 4: X means taken / booked by the user, O means available to book, H means on hold (e.g., user chop it but haven’t make payment), U is unavailable (slots not open to book).
+WeeklyAvailability then should have unique ServiceProvider and “week” field (week field basically allows you to tell the year and which week of the year it is, it can be say the date of the first Monday of the week).
+The business owner should be able to see a calendar for every ServiceProvider it has.
+Also, add an option to add slots say for the coming weeks etc (say: Add a slot for the next 2 weeks all monday to friday from 9am to 5pm or something similar), there should be API to do this.
+Once booking is confirmed, it should update the status of this WeeklyAvailability automatically (these X, O, H, U), please add sufficient test case into that.
+When booking is confirmed and initial status is pending payment, the letters should change from O (available) to H (hold).
+Update the APIs and the frontend UI appropriately.
+Business owners should be able to see each of the ServiceProvider schedule conveniently, and add more slots etc conveniently too for the upcoming days (maybe option to copy availability of previous week).
+Additionally, there should be a way for them to click on a “Schedule Block” and see who orders that and the status (confirmed / not etc).
+
+Date & Time (GMT+8): 2026-10-09 21:29:44
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Now I want to make a GitHub Action CI/CD pipeline.
+For now please just make for configuration-service and frontend-app.
+Ensure all test cases should pass.
+When someone makes a PR to main branch, it should require all the pipelines to pass.
+When pushed to main branch, it should also run the pipeline and run the status checks.
+
+Date & Time (GMT+8): 2026-10-09 21:41:33
+AI Model Used: claude-opus-5-5
+Original Prompt:
+please commmit it, 2 separate commits, one for the migration issue and the other one for the github action, include dev-prompts.txt
+
+Date & Time (GMT+8): 2026-10-09 22:00:06
+AI Model Used: claude-opus-5-5
+Original Prompt:
+The CI jobs are failing, can u see?
+
+Date & Time (GMT+8): 2026-10-09 22:03:54
+AI Model Used: claude-opus-5-5
+Original Prompt:
+ok can u undo the latest commit first right now (reset the commit, dont make another commit to undo it)
+
+Date & Time (GMT+8): 2026-10-09 22:07:03
+AI Model Used: claude-opus-5-5
+Original Prompt:
+Ok now try and make the CI for just the configuration-service first
+Do not commit anything first
+The last error was this:
+django.db.utils.DataError: Problem installing fixture '/home/runner/work/cs5224-project/cs5224-project/configuration-service/product_app/fixtures/sample_services.json': Could not load product_app.WeeklyAvailability(pk=1): invalid regular expression: invalid repetition count(s)
+Error: Process completed with exit code 1.
+Is that using PostgreSQL or what?
+
+Date & Time (GMT+8): 2026-10-09 22:55:33
+AI Model Used: claude-opus-5-5
+Original Prompt:
+EEE
+======================================================================
+ERROR: test_templates_become_providers_with_weeks (product_app.tests.ServiceProvidersMigrationTests.test_templates_become_providers_with_weeks)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/opt/hostedtoolcache/Python/3.14.8/x64/lib/python3.14/site-packages/django/db/backends/utils.py", line 103, in _execute
+    return self.cursor.execute(sql)
+           ~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/opt/hostedtoolcache/Python/3.14.8/x64/lib/python3.14/site-packages/psycopg/cursor.py", line 117, in execute
+    raise ex.with_traceback(None)
+psycopg.errors.ObjectInUse: cannot CREATE INDEX "product_app_weeklyavailability" because it has pending trigger events
+  File "/opt/hostedtoolcache/Python/3.14.8/x64/lib/python3.14/site-packages/psycopg/cursor.py", line 117, in execute
+    raise ex.with_traceback(None)
+django.db.utils.InternalError: current transaction is aborted, commands ignored until end of transaction block
+
+Please attempt to fix it again, still have some issue with PostgreSQL, don't commit it
+
+Date & Time (GMT+8): 2026-10-09 23:03:17
+AI Model Used: claude-opus-5-5
+Original Prompt:
+Please remove the MySQL pipeline, just leave the PostgreSQL because in the infrastructrure folder we'll be using PostgreSQL in prod, then commit it
+
+Date & Time (GMT+8): 2026-10-09 23:08:14
+AI Model Used: claude-opus-5-5
+Original Prompt:
+Please create another CI/CD for frontend-app
+
+Date & Time (GMT+8): 2026-10-09 23:16:42
+AI Model Used: claude-opus-5-5
+Original Prompt:
+Run npm ci
+npm error code ENOTFOUND
+npm error syscall getaddrinfo
+npm error errno ENOTFOUND
+npm error network request to https://npm.apple.com/zustand/-/zustand-5.0.15.tgz failed, reason: getaddrinfo ENOTFOUND npm.apple.com
+npm error network This is a problem related to network connectivity.
+npm error network In most cases you are behind a proxy or have bad network settings.
+npm error network
+npm error network If you are behind a proxy, please make sure that the 'proxy' config is set properly.  See: 'npm help config'
+npm error A complete log of this run can be found in: /home/runner/.npm/_logs/2026-10-09T15_14_03_239Z-debug-0.log
+Error: Process completed with exit code 1.
+
+Is it related to my VPN? I thought it's run on github's server?
+
+Date & Time (GMT+8): 2026-10-09 23:23:25
+AI Model Used: claude-opus-5-5
+Original Prompt:
+ok please commit this, including dev-prompts.txt regarding this fix
+
+Date & Time (GMT+8): 2026-10-09 23:24:28
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+I want you to revamp the frontend-app tabs, because currently there’re too many tabs.
+Home -> keep as it is, to be revamped later
+Workflow -> keep as it is
+Catalog: Products / Services / FAQs sub tabs
+Orders: Products / Services / Payment sub tabs
+Chats: Conversations / Unanswered Questions / Chat Sandbox sub tabs
+Additionally, when user is not logged in, don’t even show those tabs: Workflow, Catalog, Orders, Chats.
+But if someone manually type in the url, make sure the guard component saying you need to login is still there, though it’s already not shown in the first place.
+
+Date & Time (GMT+8): 2026-10-09 23:43:47
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Now I want you to work on the branch of the LLM to see existing orders status or past orders.
+Give a system prompt for the branch to that.
+Simply provide tool to get the orders made my this current user (same phone number, same business configuration), it should be able to get the list of all orders.
+For services, it should be able to get down all past services too and its status.
+Then there should be a tool to get in detail, say the status of an order (payment pending, payment received, completed).
+Just keep it simple as of now for this branch of the chatbot. Add test cases.
+
+Date & Time (GM
+Date & Time (GMT+8): 2026-10-10 00:21:28
+AI Model Used: claude-opus-5-5
+Original Prompt:
+Right now I can say any booking or order ID and then the tool may just call it.
+It's not secure, I can see the status of other people's orders!
+Perhaps make the flow for this “Order Status” branch where you extract information first from first LLM, then a deterministic check to query db (sort of like tool call but with extra checks), then second LLM that gets the information and rewrite it to return the output properly to the user. Difference is there’s no particular states for this.
+Please draft the system prompt carefully, you should only tell what’s there from the database.
+If no information, say you don’t know instead of hallucinating.

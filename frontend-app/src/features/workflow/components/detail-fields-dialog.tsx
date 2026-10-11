@@ -13,7 +13,7 @@ import {
   DETAIL_LIMITS,
   DETAIL_TYPE_LABELS,
   PRESET_DETAIL_FIELDS,
-  blockDetailFields,
+  detailFieldsOrDefault,
   describeDetailField,
   isPresetKey,
   isRequiredDetail,
@@ -25,13 +25,13 @@ import { DETAIL_FIELD_TYPES, type DetailField, type DetailFieldType } from '../t
 interface DetailFieldsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** The block's current `fields` (undefined: the defaults). */
+  /** The step's current fields (undefined: the defaults). */
   fields: DetailField[] | undefined
   onApply: (fields: DetailField[]) => void
 }
 
 /**
- * Edits which customer details a Details collection block asks for. Applying only changes the
+ * Edits which customer details the Details collection step asks for. Applying only changes the
  * editor; the workflow's Save button saves it to the backend.
  */
 export function DetailFieldsDialog({ open, onOpenChange, fields, onApply }: DetailFieldsDialogProps) {
@@ -45,10 +45,10 @@ export function DetailFieldsDialog({ open, onOpenChange, fields, onApply }: Deta
             given and valid.
           </DialogDescription>
         </DialogHeader>
-        {/* Remounted on each open, so it always starts from the block's current fields. */}
+        {/* Remounted on each open, so it always starts from the step's current fields. */}
         {open && (
           <DetailFieldsForm
-            fields={blockDetailFields(fields)}
+            fields={detailFieldsOrDefault(fields)}
             onCancel={() => onOpenChange(false)}
             onApply={(next) => {
               onApply(next)

@@ -1,18 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
-import {
-  Background,
-  BackgroundVariant,
-  Controls,
-  MiniMap,
-  ReactFlow,
-  useEdgesState,
-  useNodesState,
-  useReactFlow,
-  type Connection,
-  type Edge,
-} from '@xyflow/react'
+import { useEffect, useState } from 'react'
+import { Background, BackgroundVariant, Controls, ReactFlow, useNodesState } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { CircleAlert, CircleCheck, Info, Save, Undo2 } from 'lucide-react'
+import { CircleCheck, Info, Save, Undo2 } from 'lucide-react'
 import { useBlocker } from 'react-router'
 
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
@@ -21,123 +10,52 @@ import { getFormErrors } from '@/lib/form-errors'
 import { useThemeStore } from '@/stores/theme-store'
 import type { ApiError } from '@/types/api'
 
-import { BLOCK_HEIGHT, BLOCK_WIDTH } from '../blocks'
-import {
-  configToFlow,
-  countUnreachableBlocks,
-  createEdge,
-  createNewBlockNode,
-  DEFAULT_CONFIG,
-  flowToConfig,
-  type BlockNode,
-} from '../flow'
+import { normalizeDetailField } from '../details'
+import { FLOW_EDGES, flowNodes, type StepNode } from '../diagram'
 import { useSaveChatConfiguration } from '../hooks/use-chat-configuration'
-import {
-  ADDABLE_BLOCK_TYPES,
-  DETAILS_COLLECTION_BLOCK,
-  SEND_MESSAGE_BLOCK,
-  type BlockType,
-  type ChatBlock,
-  type ChatConfiguration,
-  type DetailField,
-} from '../types'
-import { BLOCK_DRAG_TYPE, BlockPalette } from './block-palette'
-import { BlockNodeView } from './block-node'
-import { DeletableEdge } from './deletable-edge'
+import { DETAILS_NODES, type FlowNodeId } from '../steps'
+import type { ChatConfiguration, DetailField } from '../types'
 import { DetailFieldsDialog } from './detail-fields-dialog'
-import { SendMessageDialog } from './send-message-dialog'
+import { StepInfoDialog } from './step-info-dialog'
+import { StepNodeView } from './step-node'
 
 // Defined outside the component so React Flow doesn't see new types on every render.
-const nodeTypes = { block: BlockNodeView }
-const edgeTypes = { deletable: DeletableEdge }
+const nodeTypes = { step: StepNodeView }
 
-interface WorkflowEditorProps {
-  /** Last saved configuration (from the GET query); `null` if the business hasn't saved one yet. */
-  configuration: ChatConfiguration | null
-  /** Re-fetches the configuration from the API; used by Discard. */
-  refetch: () => Promise<{ data?: ChatConfiguration | null; error: ApiError | null }>
+/** Fixed key order, so comparing JSON tells whether anything changed. */
+function normalized(fields: DetailField[]): DetailField[] {
+  return fields.map(normalizeDetailField)
 }
 
-/** Canvas + palette + save/discard. Must be rendered inside a `ReactFlowProvider`. */
+interface WorkflowEditorProps {
+  /** Last saved configuration (from the GET query); the defaults if the business never saved one. */
+  configuration: ChatConfiguration
+  /** Re-fetches the configuration from the API; used by Discard. */
+  refetch: () => Promise<{ data?: ChatConfiguration; error: ApiError | null }>
+}
+
+/**
+ * The chat flow, as a fixed diagram: the router and its branches. The flow can't change, but
+ * clicking a block shows what it does, and the Details collection block's details can be edited
+ * (then saved). Must be rendered inside a `ReactFlowProvider`.
+ */
 export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) {
   const theme = useThemeStore((state) => state.theme)
-  const { screenToFlowPosition } = useReactFlow()
-  const canvasRef = useRef<HTMLDivElement>(null)
 
-  const savedConfig = configuration?.config_json ?? DEFAULT_CONFIG
-  const initialFlow = useMemo(() => configToFlow(savedConfig), [savedConfig])
-  const [nodes, setNodes, onNodesChange] = useNodesState<BlockNode>(initialFlow.nodes)
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialFlow.edges)
+  const savedFields = configuration.detail_fields
+  const [fields, setFields] = useState<DetailField[]>(savedFields)
+  const isDirty = JSON.stringify(normalized(fields)) !== JSON.stringify(normalized(savedFields))
 
-  const currentConfig = useMemo(() => flowToConfig(nodes, edges), [nodes, edges])
-  const savedJson = useMemo(
-    () => JSON.stringify(flowToConfig(initialFlow.nodes, initialFlow.edges)),
-    [initialFlow],
-  )
-  const isDirty = JSON.stringify(currentConfig) !== savedJson
-  const unreachableCount = countUnreachableBlocks(currentConfig)
-
-  const resetTo = useCallback(
-    (config: ChatBlock[]) => {
-      const flow = configToFlow(config)
-      setNodes(flow.nodes)
-      setEdges(flow.edges)
-    },
-    [setNodes, setEdges],
-  )
-
-  // --- Editing --------------------------------------------------------------------------
-
-  const addBlock = useCallback(
-    (blockType: BlockType, position: { x: number; y: number }) => {
-      setNodes((current) => [...current, createNewBlockNode(blockType, position)])
-    },
-    [setNodes],
-  )
-
-  // Clicking + in the palette: drop the block in the middle of the visible canvas, nudged so
-  // repeated clicks don't stack blocks exactly on top of each other.
-  const addBlockAtCentre = (blockType: BlockType) => {
-    const rect = canvasRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const centre = screenToFlowPosition({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 })
-    const nudge = (nodes.length % 5) * 24
-    addBlock(blockType, { x: centre.x - BLOCK_WIDTH / 2 + nudge, y: centre.y - BLOCK_HEIGHT / 2 + nudge })
-  }
-
-  const onDragOver = (event: DragEvent) => {
-    if (!event.dataTransfer.types.includes(BLOCK_DRAG_TYPE)) return
-    event.preventDefault()
-    event.dataTransfer.dropEffect = 'move'
-  }
-
-  const onDrop = (event: DragEvent) => {
-    const blockType = event.dataTransfer.getData(BLOCK_DRAG_TYPE) as BlockType
-    if (!(ADDABLE_BLOCK_TYPES as readonly string[]).includes(blockType)) return
-    event.preventDefault()
-    const position = screenToFlowPosition({ x: event.clientX, y: event.clientY })
-    addBlock(blockType, { x: position.x - BLOCK_WIDTH / 2, y: position.y - BLOCK_HEIGHT / 2 })
-  }
-
-  // Each block has one next block, so a new arrow replaces the source's existing one.
-  const onConnect = useCallback(
-    ({ source, target }: Connection) => {
-      setEdges((current) => [...current.filter((edge) => edge.source !== source), createEdge(source, target)])
-    },
-    [setEdges],
-  )
-
-  // Clicking a Details collection block edits the customer details it asks for; clicking a Send
-  // message block edits its message.
-  const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
-  const editingNode = nodes.find((node) => node.id === editingNodeId)
-
-  const updateEditingNode = (changes: Partial<BlockNode['data']>) => {
+  const [nodes, setNodes, onNodesChange] = useNodesState<StepNode>(flowNodes(savedFields))
+  // The details blocks list the (maybe unsaved) details.
+  useEffect(() => {
     setNodes((current) =>
-      current.map((node) => (node.id === editingNodeId ? { ...node, data: { ...node.data, ...changes } } : node)),
+      current.map((node) => (DETAILS_NODES.includes(node.data.nodeId) ? { ...node, data: { ...node.data, fields } } : node)),
     )
-  }
-  const applyDetailFields = (fields: DetailField[]) => updateEditingNode({ fields })
+  }, [fields, setNodes])
+
+  const [openNode, setOpenNode] = useState<FlowNodeId | null>(null)
+  const detailsOpen = openNode !== null && DETAILS_NODES.includes(openNode)
 
   // --- Save / discard -------------------------------------------------------------------
 
@@ -147,14 +65,14 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
   const [isDiscarding, setIsDiscarding] = useState(false)
   const [discardError, setDiscardError] = useState<string | null>(null)
   const saveErrors = save.error ? getFormErrors(save.error) : null
-  const saveErrorMessage = saveErrors && (saveErrors.fields.config_json ?? saveErrors.form ?? save.error?.message)
+  const saveErrorMessage = saveErrors && (saveErrors.fields.detail_fields ?? saveErrors.form ?? save.error?.message)
 
   const onConfirmSave = () => {
     save.mutate(
-      { config_json: currentConfig },
+      { detail_fields: normalized(fields) },
       {
         onSuccess: (saved) => {
-          resetTo(saved.config_json)
+          setFields(saved.detail_fields)
           setSaveOpen(false)
         },
       },
@@ -167,11 +85,11 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
     setDiscardError(null)
     const result = await refetch()
     setIsDiscarding(false)
-    if (result.error) {
-      setDiscardError(`Couldn't load the saved workflow: ${result.error.message}`)
+    if (result.error || !result.data) {
+      setDiscardError(`Couldn't load the saved workflow: ${result.error?.message ?? 'Unknown error'}`)
       return
     }
-    resetTo(result.data?.config_json ?? DEFAULT_CONFIG)
+    setFields(result.data.detail_fields)
     setDiscardOpen(false)
   }
 
@@ -188,8 +106,6 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
     return () => window.removeEventListener('beforeunload', onBeforeUnload)
   }, [isDirty])
 
-  const blockCount = currentConfig.length
-
   return (
     <div className="flex flex-col gap-3">
       <div className="flex min-h-9 flex-wrap items-center justify-between gap-3">
@@ -198,20 +114,14 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
             <span className="flex items-center gap-1.5 font-medium text-amber-600 dark:text-amber-400">
               <span className="size-2 rounded-full bg-current" /> Unsaved changes
             </span>
-          ) : configuration ? (
+          ) : configuration.last_updated ? (
             <span className="text-muted-foreground flex items-center gap-1.5">
               <CircleCheck className="size-4 text-emerald-600 dark:text-emerald-400" />
               Saved {new Date(configuration.last_updated).toLocaleString()}
             </span>
           ) : (
             <span className="text-muted-foreground flex items-center gap-1.5">
-              <Info className="size-4" /> No workflow saved yet. Add some blocks and save to create one.
-            </span>
-          )}
-          {unreachableCount > 0 && (
-            <span className="text-muted-foreground flex items-center gap-1.5">
-              <CircleAlert className="size-4 text-amber-500" />
-              {unreachableCount} block{unreachableCount === 1 ? " isn't" : "s aren't"} connected to Start
+              <Info className="size-4" /> Using the default settings. Click Details collection to change them.
             </span>
           )}
         </div>
@@ -238,48 +148,34 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
         )}
       </div>
 
-      <div className="bg-card flex h-[calc(100svh-16rem)] min-h-[520px] overflow-hidden rounded-xl border">
-        <BlockPalette onAdd={addBlockAtCentre} />
-        <div ref={canvasRef} className="relative flex-1" onDragOver={onDragOver} onDrop={onDrop}>
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onNodeClick={(_event, node) => {
-              if (node.data.blockType === DETAILS_COLLECTION_BLOCK || node.data.blockType === SEND_MESSAGE_BLOCK) {
-                setEditingNodeId(node.id)
-              }
-            }}
-            isValidConnection={(connection) => connection.source !== connection.target}
-            nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
-            deleteKeyCode={['Backspace', 'Delete']}
-            colorMode={theme}
-            fitView
-            fitViewOptions={{ padding: 0.3, maxZoom: 1 }}
-          >
-            <Background variant={BackgroundVariant.Dots} gap={18} size={1.5} />
-            <Controls showInteractive={false} />
-            <MiniMap pannable zoomable className="hidden! md:block!" />
-          </ReactFlow>
-        </div>
+      <div className="bg-card h-[calc(100svh-16rem)] min-h-[520px] overflow-hidden rounded-xl border">
+        <ReactFlow
+          nodes={nodes}
+          edges={FLOW_EDGES}
+          onNodesChange={onNodesChange}
+          onNodeClick={(_event, node) => setOpenNode(node.data.nodeId)}
+          nodeTypes={nodeTypes}
+          nodesDraggable={false}
+          nodesConnectable={false}
+          elementsSelectable={false}
+          deleteKeyCode={null}
+          colorMode={theme}
+          fitView
+          fitViewOptions={{ padding: 0.15, maxZoom: 1 }}
+        >
+          <Background variant={BackgroundVariant.Dots} gap={18} size={1.5} />
+          <Controls showInteractive={false} />
+        </ReactFlow>
       </div>
 
-      <SendMessageDialog
-        open={editingNode?.data.blockType === SEND_MESSAGE_BLOCK}
-        onOpenChange={(open) => !open && setEditingNodeId(null)}
-        message={editingNode?.data.message}
-        onApply={(message) => updateEditingNode({ message })}
+      <DetailFieldsDialog
+        open={detailsOpen}
+        onOpenChange={(open) => !open && setOpenNode(null)}
+        fields={fields}
+        onApply={setFields}
       />
 
-      <DetailFieldsDialog
-        open={editingNode?.data.blockType === DETAILS_COLLECTION_BLOCK}
-        onOpenChange={(open) => !open && setEditingNodeId(null)}
-        fields={editingNode?.data.fields}
-        onApply={applyDetailFields}
-      />
+      <StepInfoDialog nodeId={detailsOpen ? null : openNode} onClose={() => setOpenNode(null)} />
 
       <ConfirmDialog
         open={saveOpen}
@@ -288,14 +184,9 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
         description={
           <span className="grid gap-2">
             <span>
-              This replaces your saved chat workflow with the current {blockCount} block{blockCount === 1 ? '' : 's'}.
+              The assistant will ask new customers for these {fields.length} detail{fields.length === 1 ? '' : 's'}{' '}
+              at the Details collection and Booking details steps.
             </span>
-            {unreachableCount > 0 && (
-              <span>
-                {unreachableCount} block{unreachableCount === 1 ? " isn't" : "s aren't"} connected to Start, so the
-                chat won't reach {unreachableCount === 1 ? 'it' : 'them'}.
-              </span>
-            )}
             {saveErrorMessage && (
               <span role="alert" className="text-destructive">
                 Couldn't save: {saveErrorMessage}

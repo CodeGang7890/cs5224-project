@@ -1,0 +1,43 @@
+import { ExternalLink } from 'lucide-react'
+import { Link } from 'react-router'
+
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+
+import { FLOW_NODE_META, type FlowNodeId } from '../steps'
+
+interface StepInfoDialogProps {
+  /** The block to describe; null closes the dialog. */
+  nodeId: FlowNodeId | null
+  onClose: () => void
+}
+
+/** What a block of the flow diagram does, and where its data is managed (for blocks without settings). */
+export function StepInfoDialog({ nodeId, onClose }: StepInfoDialogProps) {
+  const meta = nodeId ? FLOW_NODE_META[nodeId] : null
+  return (
+    <Dialog open={meta !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        {meta && (
+          <>
+            <DialogHeader>
+              <DialogTitle>{meta.label}</DialogTitle>
+              <DialogDescription>{meta.description}</DialogDescription>
+            </DialogHeader>
+            <p className="text-sm leading-relaxed">{meta.about}</p>
+            <DialogFooter>
+              {meta.link && (
+                <Button variant="outline" asChild>
+                  <Link to={meta.link.to}>
+                    <ExternalLink /> {meta.link.label}
+                  </Link>
+                </Button>
+              )}
+              <Button onClick={onClose}>Close</Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}

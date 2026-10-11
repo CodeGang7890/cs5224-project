@@ -14,7 +14,8 @@ from configuration_app.models import BusinessConfiguration
 from .. import llm
 from ..models import ChatConfiguration, ChatSession
 from ..validators import validate_chat_messages
-from .test_models import DETAIL_FIELDS, VALID_CONFIG, VALID_MESSAGES, config, details_config, send_message_config
+from ..constants import DEFAULT_DETAIL_FIELDS
+from .test_models import DETAIL_FIELDS, VALID_MESSAGES
 
 
 class ChatViewTests(APITestCase):
@@ -46,23 +47,23 @@ class ChatConfigurationAPITests(APITestCase):
             username='florist', password='123', business=cls.florist
         )
         cls.no_business_user = BusinessUser.objects.create_user(username='nobiz', password='123')
-        cls.florist_config = ChatConfiguration.objects.create(business=cls.florist, config_json=VALID_CONFIG)
+        cls.florist_config = ChatConfiguration.objects.create(business=cls.florist, detail_fields=DETAIL_FIELDS)
 
-    def put_config(self, config_json):
-        return self.client.put(self.url, {'config_json': config_json}, format='json')
+    def put_config(self, detail_fields):
+        return self.client.put(self.url, {'detail_fields': detail_fields}, format='json')
 
     # --- Authentication / business --------------------------------------------------
 
     def test_requires_authentication(self):
         for method in ('get', 'put'):
             with self.subTest(method=method):
-                response = getattr(self.client, method)(self.url, {'config_json': VALID_CONFIG}, format='json')
+                response = getattr(self.client, method)(self.url, {'detail_fields': DETAIL_FIELDS}, format='json')
                 self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_user_without_business_gets_403(self):
         self.client.force_authenticate(self.no_business_user)
         self.assertEqual(self.client.get(self.url).status_code, status.HTTP_403_FORBIDDEN)
-        self.assertEqual(self.put_config(VALID_CONFIG).status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.put_config(DETAIL_FIELDS).status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(ChatConfiguration.objects.count(), 1)
 
     def test_patch_and_delete_not_allowed(self):
@@ -76,93 +77,79 @@ class ChatConfigurationAPITests(APITestCase):
         self.client.force_authenticate(self.florist_user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(
-            set(response.json()), {'id', 'business', 'config_json', 'last_updated'}
-        )
+        self.assertEqual(set(response.json()), {'id', 'business', 'detail_fields', 'last_updated'})
         self.assertEqual(response.json()['id'], self.florist_config.pk)
         self.assertEqual(response.json()['business'], self.florist.pk)
-        self.assertEqual(response.json()['config_json'], VALID_CONFIG)
+        self.assertEqual(response.json()['detail_fields'], DETAIL_FIELDS)
 
-    def test_get_without_configuration_returns_404(self):
-        # The café has no configuration; it must not see the florist's.
+    def test_get_without_configuration_returns_the_defaults(self):
+        # The café has never saved one: it gets the defaults (not the florist's), and nothing is saved.
         self.client.force_authenticate(self.cafe_user)
         response = self.client.get(self.url)
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.json(),
+            {'id': None, 'business': self.cafe.pk, 'detail_fields': DEFAULT_DETAIL_FIELDS, 'last_updated': None},
+        )
+        self.assertFalse(ChatConfiguration.objects.filter(business=self.cafe).exists())
 
     # --- PUT ------------------------------------------------------------------------
 
-    def test_put_replaces_config_json(self):
+    def test_put_replaces_detail_fields(self):
         self.client.force_authenticate(self.florist_user)
         before = self.florist_config.last_updated
-        new_config = config(b0={'position_x': 150}, b2={'block_type': 'DETAILS_COLLECTION_BLOCK'})
-        response = self.put_config(new_config)
+        new_fields = [*DETAIL_FIELDS[:2], {'key': 'notes', 'label': 'Notes', 'type': 'text', 'required': False}]
+        response = self.put_config(new_fields)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.json()['config_json'], new_config)
+        self.assertEqual(response.json()['detail_fields'], new_fields)
         self.florist_config.refresh_from_db()
-        self.assertEqual(self.florist_config.config_json, new_config)
+        self.assertEqual(self.florist_config.detail_fields, new_fields)
         self.assertGreater(self.florist_config.last_updated, before)
         self.assertEqual(ChatConfiguration.objects.count(), 1)
-
-    def test_put_saves_detail_fields(self):
-        self.client.force_authenticate(self.florist_user)
-        new_config = details_config(DETAIL_FIELDS)
-        response = self.put_config(new_config)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.json()['config_json'][-1]['fields'], DETAIL_FIELDS)
-        self.florist_config.refresh_from_db()
-        self.assertEqual(self.florist_config.config_json, new_config)
 
     def test_put_rejects_invalid_detail_fields(self):
         self.client.force_authenticate(self.florist_user)
         cases = {
-            'fields on a product selection block': config(b1={'fields': DETAIL_FIELDS}),
-            'no fields': details_config([]),
-            'bad key': details_config([{'key': 'Postal Code', 'label': 'Postal code', 'type': 'number'}]),
-            'unknown type': details_config([{'key': 'dob', 'label': 'Birthday', 'type': 'date'}]),
-            'max_length on a number': details_config([{'key': 'n', 'label': 'N', 'type': 'number', 'max_length': 3}]),
+            'not a list': {'key': 'name'},
+            'no fields': [],
+            'bad key': [{'key': 'Postal Code', 'label': 'Postal code', 'type': 'number'}],
+            'unknown type': [{'key': 'dob', 'label': 'Birthday', 'type': 'date'}],
+            'max_length on a number': [{'key': 'n', 'label': 'N', 'type': 'number', 'max_length': 3}],
+            'all optional': [{'key': 'n', 'label': 'N', 'type': 'text', 'required': False}],
         }
-        for label, bad_config in cases.items():
+        for label, bad_fields in cases.items():
             with self.subTest(label):
-                response = self.put_config(bad_config)
+                response = self.put_config(bad_fields)
                 self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-                self.assertIn('config_json', response.json())
+                self.assertIn('detail_fields', response.json())
         self.florist_config.refresh_from_db()
-        self.assertEqual(self.florist_config.config_json, VALID_CONFIG)
+        self.assertEqual(self.florist_config.detail_fields, DETAIL_FIELDS)
 
-    def test_put_saves_send_message_block(self):
+    def test_put_lists_every_error(self):
         self.client.force_authenticate(self.florist_user)
-        new_config = send_message_config()
-        response = self.put_config(new_config)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.json()['config_json'][-1]['message'], 'Great choice! Just a few more questions.')
-        self.florist_config.refresh_from_db()
-        self.assertEqual(self.florist_config.config_json, new_config)
-
-    def test_put_rejects_send_message_block_without_message(self):
-        self.client.force_authenticate(self.florist_user)
-        blocks = send_message_config()
-        del blocks[-1]['message']
-        response = self.put_config(blocks)
+        response = self.put_config([
+            {'key': 'Bad', 'label': '', 'type': 'text'},
+            {'key': 'ok', 'label': 'OK', 'type': 'number', 'min_value': 5, 'max_value': 1},
+        ])
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('Block 3: a SEND_MESSAGE_BLOCK needs a non-blank message.', response.json()['config_json'])
-        self.florist_config.refresh_from_db()
-        self.assertEqual(self.florist_config.config_json, VALID_CONFIG)
+        self.assertEqual(len(response.json()['detail_fields']), 3)  # key, label, min > max
 
     def test_put_creates_configuration_if_missing(self):
         self.client.force_authenticate(self.cafe_user)
-        response = self.put_config(VALID_CONFIG)
+        response = self.put_config(DETAIL_FIELDS)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.json()['business'], self.cafe.pk)
-        self.assertEqual(self.cafe.chat_configuration.config_json, VALID_CONFIG)
+        self.assertIsNotNone(response.json()['id'])
+        self.assertEqual(self.cafe.chat_configuration.detail_fields, DETAIL_FIELDS)
         # A second PUT updates the same row.
-        self.assertEqual(self.put_config(VALID_CONFIG).status_code, status.HTTP_200_OK)
+        self.assertEqual(self.put_config(DEFAULT_DETAIL_FIELDS).status_code, status.HTTP_200_OK)
         self.assertEqual(ChatConfiguration.objects.filter(business=self.cafe).count(), 1)
 
     def test_put_ignores_read_only_fields(self):
         self.client.force_authenticate(self.florist_user)
         response = self.client.put(
             self.url,
-            {'config_json': VALID_CONFIG, 'business': self.cafe.pk, 'id': 999, 'last_updated': '2000-01-01T00:00:00Z'},
+            {'detail_fields': DETAIL_FIELDS, 'business': self.cafe.pk, 'id': 999, 'last_updated': '2000-01-01T00:00:00Z'},
             format='json',
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -170,39 +157,13 @@ class ChatConfigurationAPITests(APITestCase):
         self.assertEqual(response.json()['id'], self.florist_config.pk)
         self.assertFalse(ChatConfiguration.objects.filter(business=self.cafe).exists())
 
-    def test_put_rejects_invalid_config_json(self):
+    def test_put_requires_detail_fields(self):
         self.client.force_authenticate(self.florist_user)
-        cases = {
-            'not a list': {'id': 1},
-            'empty list (no START_BLOCK)': [],
-            'two START_BLOCKs': config(b1={'block_type': 'START_BLOCK'}),
-            'unknown block type': config(b1={'block_type': 'PAYMENT_BLOCK'}),
-            'duplicate id': config(b2={'id': 1}),
-            'dangling next_block_id': config(b2={'next_block_id': 99}),
-            'missing field': [{k: v for k, v in block.items() if k != 'position_x'} for block in VALID_CONFIG],
-            'non-numeric position': config(b0={'position_y': 'top'}),
-        }
-        for label, bad_config in cases.items():
-            with self.subTest(label):
-                response = self.put_config(bad_config)
-                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-                self.assertIn('config_json', response.json())
-        self.florist_config.refresh_from_db()
-        self.assertEqual(self.florist_config.config_json, VALID_CONFIG)
-
-    def test_put_lists_every_error(self):
-        self.client.force_authenticate(self.florist_user)
-        response = self.put_config(config(b1={'block_type': 'X'}, b2={'id': 1}))
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(len(response.json()['config_json']), 3)  # block_type, duplicate id, dangling next id
-
-    def test_put_requires_config_json(self):
-        self.client.force_authenticate(self.florist_user)
-        for body in ({}, {'config_json': None}):
+        for body in ({}, {'detail_fields': None}, {'config_json': []}):
             with self.subTest(body=body):
                 response = self.client.put(self.url, body, format='json')
                 self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-                self.assertIn('config_json', response.json())
+                self.assertIn('detail_fields', response.json())
 
 
 class ChatSessionCreateAPITests(APITestCase):
@@ -217,14 +178,6 @@ class ChatSessionCreateAPITests(APITestCase):
             username='florist', password='123', business=cls.florist
         )
         cls.no_business_user = BusinessUser.objects.create_user(username='nobiz', password='123')
-        # Start block has a string id and isn't first in the list.
-        cls.cafe_config = ChatConfiguration.objects.create(
-            business=cls.cafe,
-            config_json=[
-                {'id': 'end', 'next_block_id': None, 'block_type': 'CONFIRMATION_BLOCK', 'position_x': 400, 'position_y': 0},
-                {'id': 'start', 'next_block_id': 'end', 'block_type': 'START_BLOCK', 'position_x': 0, 'position_y': 0},
-            ],
-        )
 
     def create(self, body):
         return self.client.post(self.url, body, format='json')
@@ -278,7 +231,8 @@ class ChatSessionCreateAPITests(APITestCase):
             'created_time': '2000-01-01T00:00:00Z',
             'last_chat_time': '2000-01-01T00:00:00Z',
             'chat_message_json': [{'message': 'hi', 'sent_by': 'customer', 'message_time': '2000-01-01T00:00:00Z'}],
-            'chat_state_id': 'end',
+            'chat_state_id': 'confirmation',
+            'chat_state_data': {'completed': True},
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         body = response.json()
@@ -287,6 +241,7 @@ class ChatSessionCreateAPITests(APITestCase):
         self.assertEqual(body['last_chat_time'], body['created_time'])
         self.assertEqual(body['chat_message_json'], [])
         self.assertEqual(body['chat_state_id'], 'start')
+        self.assertEqual(body['chat_state_data'], {})
 
     def test_invalid_input_returns_400(self):
         self.client.force_authenticate(self.cafe_user)
@@ -313,19 +268,19 @@ class ChatSessionCreateAPITests(APITestCase):
         self.assertEqual(ChatSession.objects.count(), 1)
 
     def test_same_phone_number_in_another_business_is_allowed(self):
-        ChatConfiguration.objects.create(business=self.florist, config_json=VALID_CONFIG)
-        ChatSession.objects.create(business=self.cafe, phone_number='+6591234567', chat_state_id='start')
+        ChatSession.objects.create(business=self.cafe, phone_number='+6591234567')
         self.client.force_authenticate(self.florist_user)
         response = self.create({'phone_number': '+6591234567'})
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.json()['chat_state_id'], 1)  # VALID_CONFIG's START_BLOCK
+        self.assertEqual(response.json()['business'], self.florist.pk)
 
-    def test_business_without_chat_configuration_returns_400(self):
+    def test_no_saved_chat_configuration_needed(self):
+        # The flow is fixed: a business that never saved its settings uses the defaults.
         self.client.force_authenticate(self.florist_user)
         response = self.create({'phone_number': '+6591234567'})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('no chat configuration', response.json()['non_field_errors'][0])
-        self.assertFalse(ChatSession.objects.exists())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.json()['chat_state_id'], 'start')
+        self.assertFalse(ChatConfiguration.objects.exists())
 
 
 def fake_chat_response(content: str):
@@ -333,18 +288,68 @@ def fake_chat_response(content: str):
     return SimpleNamespace(message=SimpleNamespace(content=content))
 
 
-def fake_ollama_chat(reply: str, extractions=()):
+NO_QUESTION = {'kind': 'none', 'question': None}
+NO_INTENTS = {'intents': []}  # the router found nothing to do (e.g. a greeting)
+ANY_ORDERS = {'kind': 'any', 'numbers': []}  # the order status extraction: "my orders"
+
+
+def is_question_check(call_kwargs: dict) -> bool:
+    """Whether a mocked ollama `chat` call is the flow's question check (flow.check_customer_question)."""
+    properties = (call_kwargs.get('format') or {}).get('properties', {})
+    return 'kind' in properties and 'question' in properties
+
+
+def is_order_status_check(call_kwargs: dict) -> bool:
+    """Whether a mocked ollama `chat` call is the order status extraction (flow.check_order_status)."""
+    return 'numbers' in (call_kwargs.get('format') or {}).get('properties', {})
+
+
+def is_router(call_kwargs: dict) -> bool:
+    """Whether a mocked ollama `chat` call is the router (router.route_message)."""
+    return 'intents' in (call_kwargs.get('format') or {}).get('properties', {})
+
+
+def _route(intents) -> dict:
+    return intents if isinstance(intents, dict) else {'intents': list(intents)}
+
+
+def fake_ollama_chat(reply: str, extractions=(), question_check=NO_QUESTION, intents=NO_INTENTS, order_status=ANY_ORDERS):
     """A `side_effect` for the mocked ollama `chat`, for the chat flow (flow.py).
 
-    Structured calls (with `format`, the extraction step) return the next of `extractions` as JSON
-    (`{}`, i.e. nothing found, once they run out). Other calls (the reply) return `reply`.
+    The router returns `intents` (a list of intents, or the whole JSON; default: none). The
+    question check returns `question_check` (default: no question), the order status extraction
+    `order_status` (default: any orders, no numbers). Other structured calls (with
+    `format`, the order steps' extractions) return the next of `extractions` as JSON (`{}`, i.e.
+    nothing found, once they run out). Other calls (the reply) return `reply`.
     """
     queue = list(extractions)
 
     def chat(**kwargs):
+        if is_router(kwargs):
+            return fake_chat_response(json.dumps(_route(intents)))
+        if is_question_check(kwargs):
+            return fake_chat_response(json.dumps(question_check))
+        if is_order_status_check(kwargs):
+            return fake_chat_response(json.dumps(order_status))
         if kwargs.get('format'):
             return fake_chat_response(json.dumps(queue.pop(0) if queue else {}))
         return fake_chat_response(reply)
+
+    return chat
+
+
+def with_question_check(responses, question_check=NO_QUESTION, intents=NO_INTENTS):
+    """A `side_effect` that answers the router with `intents`, the question check with
+    `question_check`, and every other call with the next of `responses` (for tests that script the
+    calls one by one, e.g. tool calls)."""
+    responses = iter(responses)
+
+    def chat(**kwargs):
+        if is_router(kwargs):
+            return fake_chat_response(json.dumps(_route(intents)))
+        if is_question_check(kwargs):
+            return fake_chat_response(json.dumps(question_check))
+        return next(responses)
 
     return chat
 
@@ -426,7 +431,6 @@ class CustomerMessageAPITests(APITestCase):
             business_name='Kopi Café', description='Local kopi and toast.', location='Tiong Bahru'
         )
         cls.florist = BusinessConfiguration.objects.create(business_name='Florist', location='Singapore')
-        ChatConfiguration.objects.create(business=cls.cafe, config_json=VALID_CONFIG)
 
     def setUp(self):
         self.created = timezone.now() - timedelta(days=1)
@@ -436,7 +440,7 @@ class CustomerMessageAPITests(APITestCase):
             created_time=self.created,
             last_chat_time=self.created,
             chat_message_json=list(VALID_MESSAGES),
-            chat_state_id=2,
+            chat_state_id='product_selection',
         )
         # Replace the Ollama client so tests never need a running model.
         self.ollama = MagicMock()
@@ -468,7 +472,7 @@ class CustomerMessageAPITests(APITestCase):
         self.assertGreater(self.session.last_chat_time, self.created)
         self.assertEqual(self.session.last_chat_time.isoformat(), bot['message_time'])
         self.assertEqual(self.session.created_time, self.created)
-        self.assertEqual(self.session.chat_state_id, 2)  # nothing chosen yet, so still at product selection
+        self.assertEqual(self.session.chat_state_id, 'product_selection')  # nothing chosen yet: still there
 
     def test_llm_gets_business_system_prompt_and_conversation(self):
         self.send(message='  Do you have kaya toast?  ')
@@ -544,7 +548,6 @@ class SandboxChatSessionAPITests(APITestCase):
             username='florist', password='123', business=cls.florist
         )
         cls.no_business_user = BusinessUser.objects.create_user(username='nobiz', password='123')
-        ChatConfiguration.objects.create(business=cls.cafe, config_json=VALID_CONFIG)
 
     def setUp(self):
         now = timezone.now()
@@ -605,7 +608,7 @@ class SandboxChatSessionAPITests(APITestCase):
         self.assertEqual(body['display_name'], 'sandbox_user')
         self.assertEqual(body['phone_number'], '')
         self.assertEqual(body['chat_message_json'], [])
-        self.assertEqual(body['chat_state_id'], 1)  # VALID_CONFIG's START_BLOCK
+        self.assertEqual(body['chat_state_id'], 'start')
         self.assertEqual(body['last_chat_time'], body['created_time'])
         ChatSession.objects.get(pk=body['id']).full_clean()
 
@@ -625,14 +628,17 @@ class SandboxChatSessionAPITests(APITestCase):
         self.login(self.cafe_user)
         response = self.client.post(
             self.list_url,
-            {'is_sandbox': False, 'business': self.florist.pk, 'chat_state_id': 3, 'chat_message_json': VALID_MESSAGES},
+            {
+                'is_sandbox': False, 'business': self.florist.pk, 'chat_state_id': 'confirmation',
+                'chat_message_json': VALID_MESSAGES,
+            },
             format='json',
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         body = response.json()
         self.assertIs(body['is_sandbox'], True)
         self.assertEqual(body['business'], self.cafe.pk)
-        self.assertEqual(body['chat_state_id'], 1)
+        self.assertEqual(body['chat_state_id'], 'start')
         self.assertEqual(body['chat_message_json'], [])
 
     def test_create_invalid_input_returns_400(self):
@@ -643,11 +649,11 @@ class SandboxChatSessionAPITests(APITestCase):
                 self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
                 self.assertIn(field, response.json())
 
-    def test_create_without_chat_configuration_returns_400(self):
+    def test_create_without_saved_chat_configuration(self):
         self.login(self.florist_user)
         response = self.client.post(self.list_url, {}, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('non_field_errors', response.json())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.json()['chat_state_id'], 'start')
 
     # --- DELETE ---------------------------------------------------------------------
 
@@ -703,10 +709,9 @@ class SandboxChatMessageAPITests(APITestCase):
         cls.florist = BusinessConfiguration.objects.create(business_name='Florist', location='Singapore')
         cls.cafe_user = BusinessUser.objects.create_user(username='cafe', password='123', business=cls.cafe)
         cls.no_business_user = BusinessUser.objects.create_user(username='nobiz', password='123')
-        ChatConfiguration.objects.create(business=cls.cafe, config_json=VALID_CONFIG)
 
     def setUp(self):
-        self.sandbox = ChatSession.objects.create(business=self.cafe, is_sandbox=True, chat_state_id=1)
+        self.sandbox = ChatSession.objects.create(business=self.cafe, is_sandbox=True)
         self.other_sandbox = ChatSession.objects.create(business=self.cafe, is_sandbox=True)
         self.ollama = MagicMock()
         self.ollama.chat.side_effect = fake_ollama_chat('Hello from the café!')
@@ -737,7 +742,7 @@ class SandboxChatMessageAPITests(APITestCase):
             [('customer', 'Are you open?'), ('business-automated', 'Hello from the café!')],
         )
         validate_chat_messages(self.sandbox.chat_message_json)
-        self.assertEqual(self.sandbox.chat_state_id, 1)  # only asked a question: still at the start
+        self.assertEqual(self.sandbox.chat_state_id, 'start')  # no wish to order: still at the start
         self.assertIn('Kopi Café', self.ollama.chat.call_args.kwargs['messages'][0]['content'])
 
     def test_sessions_are_independent(self):
@@ -815,12 +820,12 @@ class ChatSessionListFilteringAPITests(APITestCase):
     # --- Scope / default ------------------------------------------------------------
 
     def test_default_lists_own_real_sessions_most_recent_first(self):
-        # No sandbox sessions (7, 8) and no other businesses' sessions (4, 5, 6).
+        # No sandbox sessions (7, 8) and no other businesses' sessions (4–6, 17–19).
         self.assertEqual(self.ids(), self.ALL)
 
     def test_other_business_sees_only_its_own(self):
         self.client.force_authenticate(BusinessUser.objects.get(username='bloom_owner'))
-        self.assertEqual(self.ids(), [5, 4])
+        self.assertEqual(self.ids(), [19, 18, 17, 5, 4])
 
     def test_sandbox_filter(self):
         self.assertEqual(self.ids({'sandbox': 'exclude'}), self.ALL)
@@ -829,7 +834,7 @@ class ChatSessionListFilteringAPITests(APITestCase):
         self.assertEqual(self.ids({'sandbox': 'include'}), [16, 15, 14, 13, 12, 11, 8, 10, 7, 9, 3, 2, 1])
 
     def test_sandbox_filter_combines_with_others(self):
-        self.assertEqual(self.ids({'sandbox': 'include', 'chat_state_id': 1}), [13, 12, 8, 3])
+        self.assertEqual(self.ids({'sandbox': 'include', 'chat_state_id': 'start'}), [13, 12, 8, 3])
         self.assertEqual(self.ids({'sandbox': 'only', 'search': 'sandbox'}), [7])
         body = self.client.get(self.url, {'sandbox': 'include', 'page_size': 5}).json()
         self.assertEqual((body['count'], body['total_pages']), (13, 3))
@@ -888,7 +893,7 @@ class ChatSessionListFilteringAPITests(APITestCase):
                 self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_pagination_applies_after_filters(self):
-        body = self.client.get(self.url, {'chat_state_id': 1, 'page_size': 2}).json()
+        body = self.client.get(self.url, {'chat_state_id': 'start', 'page_size': 2}).json()
         self.assertEqual((body['count'], body['total_pages'], body['has_next']), (3, 2, True))
         self.assertEqual([s['id'] for s in body['results']], [13, 12])
 
@@ -906,9 +911,9 @@ class ChatSessionListFilteringAPITests(APITestCase):
         self.assertEqual(self.ids({'search': '9111000'}), [16, 15, 14, 13, 12, 11, 10, 9])
 
     def test_filter_by_chat_state_id(self):
-        self.assertEqual(self.ids({'chat_state_id': 1}), [13, 12, 3])
-        self.assertEqual(self.ids({'chat_state_id': 4}), [14, 9, 1])
-        self.assertEqual(self.ids({'chat_state_id': 'unknown'}), [])
+        self.assertEqual(self.ids({'chat_state_id': 'start'}), [13, 12, 3])
+        self.assertEqual(self.ids({'chat_state_id': 'confirmation'}), [14, 9, 1])
+        self.assertEqual(self.ids({'chat_state_id': 'details_collection'}), [16, 11])
 
     def test_filter_by_has_messages(self):
         self.assertEqual(self.ids({'has_messages': 'false'}), [13])
@@ -928,13 +933,17 @@ class ChatSessionListFilteringAPITests(APITestCase):
         self.assertEqual(self.ids({'created_time_before': '2026-09-03T23:59:59+08:00'}), [3, 2, 1])
 
     def test_filters_combine(self):
-        self.assertEqual(self.ids({'chat_state_id': 2, 'last_chat_time_after': '2026-09-06T00:00:00+08:00'}), [15, 10])
+        self.assertEqual(
+            self.ids({'chat_state_id': 'product_selection', 'last_chat_time_after': '2026-09-06T00:00:00+08:00'}), [15, 10]
+        )
 
     def test_invalid_filter_values_return_400(self):
         for params, field in (
             ({'last_chat_time_after': 'yesterday'}, 'last_chat_time'),
             ({'created_time_before': '2026-13-01'}, 'created_time'),
             ({'has_messages': 'maybe'}, 'has_messages'),
+            ({'chat_state_id': '2'}, 'chat_state_id'),  # steps, not the old block ids
+            ({'chat_state_id': 'unknown'}, 'chat_state_id'),
         ):
             with self.subTest(params=params):
                 response = self.client.get(self.url, params)

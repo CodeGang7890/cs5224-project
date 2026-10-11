@@ -1,17 +1,25 @@
-import { APP_NAME } from '@/config/app'
-import { ChatSessionBrowser } from '@/features/chat-sessions'
+import { SectionLayout } from '@/components/layout/section-layout'
+import { chatsTabs, paths } from '@/config/navigation'
+import { useOpenQuestionCount } from '@/features/questions'
 
+/** The Chats section: conversations, unanswered questions and the Chat Sandbox. */
 export function ChatsPage() {
+  const { data: openCount = 0 } = useOpenQuestionCount()
   return (
-    <section className="flex flex-col gap-6">
-      <title>{`Chats | ${APP_NAME}`}</title>
-      <div className="grid gap-1">
-        <h1 className="text-2xl font-bold tracking-tight">Chats</h1>
-        <p className="text-muted-foreground text-sm">
-          Browse your business's conversations with customers. This page is read only.
-        </p>
-      </div>
-      <ChatSessionBrowser />
-    </section>
+    <SectionLayout
+      title="Chats"
+      description="Your business's conversations with customers, the questions the assistant couldn't answer, and a sandbox to try the assistant."
+      tabs={chatsTabs}
+      badges={{
+        [paths.questions]: openCount > 0 && (
+          <span
+            className="bg-destructive ml-2 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold text-white tabular-nums"
+            aria-label={`${openCount} need an answer`}
+          >
+            {openCount}
+          </span>
+        ),
+      }}
+    />
   )
 }

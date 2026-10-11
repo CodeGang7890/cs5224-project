@@ -16,10 +16,10 @@ import { LoginDialog } from './login-dialog'
  * Two ways to use it:
  *
  * 1. As a layout route in `src/app/routes.tsx` to protect a group of pages (preferred):
- *      { element: <RequireAuth />, children: [{ path: paths.product, element: <ProductPage /> }] }
+ *      { element: <RequireAuth />, children: [{ path: paths.workflow, element: <WorkflowPage /> }] }
  *
  * 2. Wrapping any element directly:
- *      <RequireAuth><ProductPage /></RequireAuth>
+ *      <RequireAuth><WorkflowPage /></RequireAuth>
  */
 export function RequireAuth({ children }: { children?: ReactNode }) {
   const isAuthenticated = useAuthStore(selectIsAuthenticated)

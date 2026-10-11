@@ -9,8 +9,9 @@ import {
   type QueryClient,
 } from '@tanstack/react-query'
 
-import { orderKeys } from '@/features/orders'
+import { orderKeys, scheduleKeys } from '@/features/orders'
 import { productKeys } from '@/features/products'
+import { providerKeys } from '@/features/services'
 import type { ApiError, DetailedPaginated, Paginated } from '@/types/api'
 
 import {
@@ -128,9 +129,14 @@ export function useSendSandboxMessage(sessionId: number) {
       queryClient.setQueryData(chatSessionKeys.sandboxTurnDebug(sessionId), debug)
       updateCachedSession(queryClient, sessionId, (session) => withMessage(session, reply))
       // Confirming placed an order: it's a new order, and its products' stock changed.
-      if (debug.order_id && debug.order_id !== debug.before.chat_state_data.order_id) {
+      if (debug.order_id !== null) {
         void queryClient.invalidateQueries({ queryKey: orderKeys.all })
         void queryClient.invalidateQueries({ queryKey: productKeys.all })
+      }
+      // Confirming made a booking: a new booking, and the calendars changed.
+      if (debug.booking_id !== null) {
+        void queryClient.invalidateQueries({ queryKey: scheduleKeys.all })
+        void queryClient.invalidateQueries({ queryKey: providerKeys.all })
       }
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: chatSessionKeys.sandboxList() }),
