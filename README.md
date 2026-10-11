@@ -38,3 +38,13 @@ notification-job runs every hour (cron, no port): `docker compose logs -f notifi
 
 After changing `frontend-app/package.json`, rebuild it: `docker compose up --build -V frontend-app`
 (`-V` recreates the `node_modules` volume so the new packages are used).
+
+## CI
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on every pull request to `main` and every push to `main`:
+
+- configuration-service: checks, migrations, fixtures and tests (PostgreSQL)
+- frontend-app: lint, type-check and build
+- messaging-ingester, messaging-service, processing-service and notification-job: `python -m unittest` (messaging-ingester with a Pub/Sub emulator)
+
+The ruleset in `.github/rulesets/main.json` requires the **CI passed** check (green only when every job is) before anything can be merged to `main`. To apply it: repository Settings → Rules → Rulesets → New ruleset → Import a ruleset.

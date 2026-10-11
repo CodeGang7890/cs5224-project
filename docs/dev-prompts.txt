@@ -1046,3 +1046,15 @@ In the processing-service, configure the connection to this topic.
 As of now simply log (print) the payment id and status, then just do time.sleep(2).
 The actual logic will be added later.
 Please add the command to run this script in the root README.
+
+Date & Time (GMT+8): 2026-10-11 23:50:44
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Add CI/CD pipeline to the FastAPI message-ingester, processing-service, messaging-service, notification-job.
+It should run all the test cases and ensure it all pass before any merge can be made to main.
+
+Date & Time (GMT+8): 2026-10-11 23:57:30
+AI Model Used: claude-opus-5-5
+Original Prompt:
+commit it and let it run on GitHub, you don't have to run it on your end
