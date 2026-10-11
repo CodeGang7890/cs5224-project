@@ -98,7 +98,7 @@ class OrderItemModelTests(TestCase):
         self.assertEqual(order.total, Decimal('9.10'))  # 2 × 1.80 + 5.50
 
     def test_statuses(self):
-        self.assertEqual(OrderStatus.values, ['pending_payment', 'payment_received', 'order_completed'])
+        self.assertEqual(OrderStatus.values, ['pending_payment', 'payment_received', 'order_completed', 'payment_failed'])
         for status in OrderStatus.values:
             OrderItem(business=self.business, order_data=VALID_ORDER_DATA, order_status=status).full_clean()
 
@@ -304,7 +304,8 @@ class SampleScheduleItemFixtureTests(TestCase):
         open (a buffer over closed time stays U, like checkout_app.schedule paints it); no other
         block is H or X."""
         expected, buffers = {}, set()
-        for booking in ScheduleItem.objects.all():
+        # A booking whose payment failed takes up no time: its blocks are back to O.
+        for booking in ScheduleItem.objects.exclude(order_status=OrderStatus.PAYMENT_FAILED):
             letter = 'H' if booking.order_status == OrderStatus.PENDING_PAYMENT else 'X'
             moment = booking.start_time
             while moment < booking.blocked_until:
@@ -323,6 +324,18 @@ class SampleScheduleItemFixtureTests(TestCase):
                     if not (letter == 'U' and key in buffers):
                         mismatches.append((str(week), index, letter, expected.get(key)))
         self.assertEqual(mismatches, [])
+
+    def test_a_few_payments_failed_and_their_time_is_free(self):
+        failed = ScheduleItem.objects.filter(order_status=OrderStatus.PAYMENT_FAILED)
+        self.assertEqual(sorted(failed.values_list('business_id', flat=True)), [4, 5, 5, 5])
+        for booking in failed:
+            local = booking.start_time.astimezone(dt_timezone(timedelta(hours=8)))
+            week = WeeklyAvailability.objects.get(
+                service_provider_id=booking.service_provider_id, week=local.date() - timedelta(days=local.weekday())
+            )
+            index = local.weekday() * 96 + (local.hour * 60 + local.minute) // 15
+            with self.subTest(booking=booking.pk):
+                self.assertEqual(week.availability[index], 'O')
 
     def test_lots_of_court_bookings_on_the_hour_until_the_end_of_november(self):
         courts = ScheduleItem.objects.filter(business_id=5)

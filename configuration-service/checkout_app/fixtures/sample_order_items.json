@@ -750,7 +750,7 @@
       "business": 2,
       "chat_session": null,
       "is_sandbox": false,
-      "order_status": "pending_payment",
+      "order_status": "payment_failed",
       "order_data": {
         "items": [
           {
@@ -773,7 +773,7 @@
         }
       },
       "created_time": "2026-09-10T13:05:00+08:00",
-      "updated_time": "2026-09-10T13:25:00+08:00"
+      "updated_time": "2026-09-11T15:05:00+08:00"
     }
   },
   {
@@ -783,7 +783,7 @@
       "business": 2,
       "chat_session": null,
       "is_sandbox": false,
-      "order_status": "pending_payment",
+      "order_status": "payment_failed",
       "order_data": {
         "items": [
           {
@@ -800,7 +800,7 @@
         }
       },
       "created_time": "2026-09-11T10:20:00+08:00",
-      "updated_time": "2026-09-11T10:40:00+08:00"
+      "updated_time": "2026-09-12T12:20:00+08:00"
     }
   },
   {
@@ -1424,7 +1424,7 @@
       "business": 4,
       "chat_session": null,
       "is_sandbox": false,
-      "order_status": "pending_payment",
+      "order_status": "payment_failed",
       "order_data": {
         "items": [
           {
@@ -1442,7 +1442,7 @@
         }
       },
       "created_time": "2026-10-08T05:02:00+08:00",
-      "updated_time": "2026-10-08T05:02:00+08:00"
+      "updated_time": "2026-10-09T07:02:00+08:00"
     }
   },
   {

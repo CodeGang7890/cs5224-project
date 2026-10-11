@@ -1,11 +1,12 @@
 import { CircleAlert } from 'lucide-react'
 
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useDetailLabels } from '@/features/workflow'
 
 import { useSchedule } from '../hooks/use-schedules'
 import type { ScheduleItem } from '../types'
+import { MarkCompletedButton } from './mark-completed-button'
 import { OrderStatusBadge, SandboxBadge } from './order-status-badge'
 import { formatBookingTime } from './schedule-format'
 
@@ -17,7 +18,7 @@ interface ScheduleDialogProps {
   onClose: () => void
 }
 
-/** Read-only view of one booking: the service, when, with whom, the customer's details and status. */
+/** One booking: the service, when, with whom, the customer's details and status; a paid one can be marked as completed. */
 export function ScheduleDialog({ bookingId, booking, onClose }: ScheduleDialogProps) {
   const fetched = useSchedule(bookingId, booking === undefined)
   const shown = booking ?? fetched.data
@@ -32,11 +33,18 @@ export function ScheduleDialog({ bookingId, booking, onClose }: ScheduleDialogPr
             {shown?.is_sandbox && <SandboxBadge />}
           </DialogTitle>
           <DialogDescription>
-            {shown ? `Booked ${new Date(shown.created_time).toLocaleString()} · read only` : 'Read only'}
+            {shown ? `Booked ${new Date(shown.created_time).toLocaleString()}` : ' '}
           </DialogDescription>
         </DialogHeader>
         {shown ? (
-          <BookingDetails booking={shown} />
+          <>
+            <BookingDetails booking={shown} />
+            {shown.order_status === 'payment_received' && (
+              <DialogFooter>
+                <MarkCompletedButton kind="booking" id={shown.id} />
+              </DialogFooter>
+            )}
+          </>
         ) : fetched.isError ? (
           <p role="alert" className="text-destructive flex items-center gap-2 text-sm">
             <CircleAlert className="size-4 shrink-0" />

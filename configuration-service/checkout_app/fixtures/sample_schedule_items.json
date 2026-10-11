@@ -146,9 +146,9 @@
           "people": 2
         }
       },
-      "order_status": "pending_payment",
+      "order_status": "payment_failed",
       "created_time": "2026-10-08T16:03:00+08:00",
-      "updated_time": "2026-10-08T16:03:00+08:00",
+      "updated_time": "2026-10-09T17:03:00+08:00",
       "service_provider": 1
     }
   },
@@ -19649,9 +19649,9 @@
           "players": 2
         }
       },
-      "order_status": "pending_payment",
+      "order_status": "payment_failed",
       "created_time": "2026-10-01T14:49:00+08:00",
-      "updated_time": "2026-10-01T14:49:00+08:00",
+      "updated_time": "2026-10-02T15:49:00+08:00",
       "service_provider": 4
     }
   },
@@ -26390,9 +26390,9 @@
           "players": 2
         }
       },
-      "order_status": "pending_payment",
+      "order_status": "payment_failed",
       "created_time": "2026-10-09T15:38:00+08:00",
-      "updated_time": "2026-10-09T15:38:00+08:00",
+      "updated_time": "2026-10-10T16:38:00+08:00",
       "service_provider": 6
     }
   },
@@ -28854,9 +28854,9 @@
           "players": 3
         }
       },
-      "order_status": "pending_payment",
+      "order_status": "payment_failed",
       "created_time": "2026-10-10T15:26:00+08:00",
-      "updated_time": "2026-10-10T15:26:00+08:00",
+      "updated_time": "2026-10-11T11:00:00+08:00",
       "service_provider": 4
     }
   },

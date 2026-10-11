@@ -52,6 +52,7 @@ WEEKS_CHANGED_MAX = 26
 
 HOLD_STATUSES = (OrderStatus.PENDING_PAYMENT,)  # their blocks are H
 BOOKED_STATUSES = (OrderStatus.PAYMENT_RECEIVED, OrderStatus.ORDER_COMPLETED)  # X
+FREED_STATUSES = (OrderStatus.PAYMENT_FAILED,)  # take up no time: their blocks are back to O
 
 
 def schedule_tz() -> ZoneInfo:
@@ -187,10 +188,11 @@ def overlaps(bookings: Iterable[ScheduleItem], start: datetime, until: datetime)
 
 
 def bookings_between(provider_ids: Iterable[int], start: datetime, end: datetime):
-    """The bookings of these providers that take up any time between `start` and `end`."""
+    """The bookings of these providers that take up any time between `start` and `end` (not the
+    ones whose payment failed: they free their time)."""
     return ScheduleItem.objects.filter(
         service_provider_id__in=list(provider_ids), start_time__lt=end, blocked_until__gt=start
-    )
+    ).exclude(order_status__in=FREED_STATUSES)
 
 
 def service_providers(service: Service, lock: bool = False) -> list[ServiceProvider]:
@@ -307,8 +309,12 @@ def _paint(provider_id: int, start: datetime, end: datetime, blocked_until: date
 
 def sync_booking(booking: ScheduleItem) -> None:
     """Writes `booking` into its provider's weeks: H while pending payment, X once paid or
-    completed, over its duration, and over its buffer where that isn't U."""
+    completed, over its duration, and over its buffer where that isn't U. A booking whose payment
+    failed frees its time instead (H / X back to O)."""
     if booking.service_provider_id is None:
+        return
+    if booking.order_status in FREED_STATUSES:
+        release_booking(booking.service_provider_id, booking.start_time, booking.end_time, booking.blocked_until)
         return
     letter = booking_letter(booking)
     _paint(

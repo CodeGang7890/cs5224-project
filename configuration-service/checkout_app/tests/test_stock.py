@@ -34,7 +34,12 @@ class OrderedQuantitiesTests(TestCase):
     def test_statuses(self):
         self.assertEqual(set(HOLD_STATUSES), {OrderStatus.PENDING_PAYMENT, OrderStatus.PAYMENT_RECEIVED})
         self.assertEqual(set(SOLD_STATUSES), {OrderStatus.ORDER_COMPLETED})
-        self.assertEqual(set(HOLD_STATUSES) | set(SOLD_STATUSES), set(OrderStatus.values))  # every status counts
+        # Every status counts, except a failed payment: that order holds nothing.
+        self.assertEqual(set(HOLD_STATUSES) | set(SOLD_STATUSES), set(OrderStatus.values) - {OrderStatus.PAYMENT_FAILED})
+
+    def test_a_failed_payment_holds_nothing(self):
+        make_order(self.cafe, OrderStatus.PAYMENT_FAILED, (self.kopi, 5))
+        self.assertEqual(ordered_quantities([self.cafe.pk]), {})
 
     def test_sums_on_hold_and_sold_by_status(self):
         make_order(self.cafe, OrderStatus.PENDING_PAYMENT, (self.kopi, 2), (self.toast, 1))

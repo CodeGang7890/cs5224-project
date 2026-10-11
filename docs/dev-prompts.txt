@@ -960,3 +960,13 @@ Change the reply so that no rental of equipment is available and they should bri
 It’s because it’s not part of the fixture to have such rents.
 Also prevent (please AVOID) something like: “do you provide customisation” and answering with “yes, we provide customisation A B C for $X cost”. Do not do it because we don’t support such capabilities.
 Please re-check all the fixtures and change it if there’re such cases.
+
+Date & Time (GMT+8): 2026-10-11 21:53:37
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+For both orders and services, make a button in configuration-service where the business owner can click it to change the status from “Payment received” to “Completed”.
+Please have a confirmation modal.
+Currently there’s no way to change status from “Pending payment” to “Payment received” yet, it will be figured out later in another service.
+Also add this order status please (how it changes to these 2 will be worked on later): “payment_failed”.
+Please modify the fixture so there’s a few orders that has this status. Just a very few.

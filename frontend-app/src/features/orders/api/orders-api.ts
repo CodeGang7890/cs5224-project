@@ -14,3 +14,9 @@ export async function getOrder(id: number): Promise<Order> {
   const { data } = await configurationApiClient.get<Order>(`/orders/${id}/`)
   return data
 }
+
+/** Marks a paid order as completed (payment received → completed; 400 for any other status). */
+export async function completeOrder(id: number): Promise<Order> {
+  const { data } = await configurationApiClient.post<Order>(`/orders/${id}/complete/`)
+  return data
+}

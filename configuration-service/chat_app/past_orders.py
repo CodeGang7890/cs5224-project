@@ -39,16 +39,19 @@ STATUS_LABELS = {
     OrderStatus.PENDING_PAYMENT: 'Payment pending',
     OrderStatus.PAYMENT_RECEIVED: 'Payment received',
     OrderStatus.ORDER_COMPLETED: 'Completed',
+    OrderStatus.PAYMENT_FAILED: 'Payment failed',
 }
 ORDER_STATUS_MEANINGS = {
     OrderStatus.PENDING_PAYMENT: 'the order is placed, but the business has not received the payment yet',
     OrderStatus.PAYMENT_RECEIVED: 'the business has received the payment; the order is not completed yet',
     OrderStatus.ORDER_COMPLETED: 'the order is completed',
+    OrderStatus.PAYMENT_FAILED: 'the payment did not go through, so the order is not going ahead',
 }
 BOOKING_STATUS_MEANINGS = {
     OrderStatus.PENDING_PAYMENT: 'the time is held for the customer, but the business has not received the payment yet',
     OrderStatus.PAYMENT_RECEIVED: 'the business has received the payment; the booking is confirmed',
     OrderStatus.ORDER_COMPLETED: 'the booking is completed (the service has been done)',
+    OrderStatus.PAYMENT_FAILED: 'the payment did not go through, so the time is no longer held for the customer',
 }
 
 

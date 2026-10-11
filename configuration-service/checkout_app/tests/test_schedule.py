@@ -173,8 +173,11 @@ class FreeSlotsTests(StudioCase):
         self.assertEqual(self.slots(self.portrait), [])
         self.assertEqual(len(self.slots(self.family)), 9)  # Raj
 
-    def test_every_status_takes_up_time(self):
-        for status in OrderStatus.values:
+    def test_every_status_takes_up_time_except_a_failed_payment(self):
+        failed = book(self.portrait, self.mei, at(self.monday, '09:00'), status=OrderStatus.PAYMENT_FAILED)
+        self.assertIn('Mon 09:00', self.slots(self.portrait))
+        failed.delete()
+        for status in set(OrderStatus.values) - {OrderStatus.PAYMENT_FAILED}:
             with self.subTest(status):
                 booking = book(self.portrait, self.mei, at(self.monday, '09:00'), status=status)
                 self.assertNotIn('Mon 09:00', self.slots(self.portrait))
@@ -303,6 +306,28 @@ class BookingLettersTests(StudioCase):
 
 
 @override_settings(SCHEDULE_TIME_ZONE='Asia/Singapore')
+class FailedPaymentLettersTests(StudioCase):
+    """A booking whose payment failed frees its time; if it's set back to pending, it's on hold again."""
+
+    def test_failed_frees_its_blocks(self):
+        booking = book(self.family, self.mei, at(self.monday, '10:00'))  # 10:00–11:00, buffer to 11:30: H
+        self.assertEqual(day_letters(self.mei, self.monday, '10:00', '11:30'), 'H' * 6)
+        booking.order_status = OrderStatus.PAYMENT_FAILED
+        booking.save()
+        self.assertEqual(day_letters(self.mei, self.monday, '10:00', '11:30'), 'O' * 6)
+        self.assertIsNone(start_problem(self.family, at(self.monday, '10:00')))  # bookable again
+        booking.order_status = OrderStatus.PENDING_PAYMENT  # e.g. the payment service retries
+        booking.save()
+        self.assertEqual(day_letters(self.mei, self.monday, '10:00', '11:30'), 'H' * 6)
+
+    def test_a_failed_booking_is_not_in_the_calendar(self):
+        failed = book(self.portrait, self.mei, at(self.monday, '09:00'), status=OrderStatus.PAYMENT_FAILED)
+        kept = book(self.portrait, self.mei, at(self.monday, '10:30'))
+        _row, bookings = week_calendar(self.mei, self.monday)
+        self.assertEqual([b.pk for b in bookings], [kept.pk])
+        self.assertNotEqual(failed.pk, kept.pk)
+
+
 class WeekCalendarTests(StudioCase):
     def test_the_week_and_its_bookings(self):
         first = book(self.family, self.mei, at(self.monday, '09:00'))

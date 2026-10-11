@@ -12,7 +12,7 @@ import { ErrorState, FilterSelect, PaginationBar } from './list-controls'
 import { OrderDialog } from './order-dialog'
 import { OrderTable } from './order-table'
 
-/** Orders tab: every order of your business, read only, with filters, sorting and paging. */
+/** Orders tab: every order of your business, with filters, sorting and paging (paid ones can be marked as completed). */
 export function OrdersBrowser() {
   const { values, setFilters, setPage, clearFilters, hasFilters, openOrderId, setOpenOrder } = useOrderParams()
   const { data, isPending, isError, error, refetch, isPlaceholderData } = useOrders(toListParams(values))

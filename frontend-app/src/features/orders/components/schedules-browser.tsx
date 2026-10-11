@@ -12,7 +12,7 @@ import { ErrorState, FilterSelect, PaginationBar } from './list-controls'
 import { ScheduleDialog } from './schedule-dialog'
 import { ScheduleTable } from './schedule-table'
 
-/** The Orders tab's Services sub-tab: every booked time slot of your business, read only. */
+/** The Orders tab's Services sub-tab: every booked time slot of your business (paid ones can be marked as completed). */
 export function SchedulesBrowser() {
   const { values, setFilters, setPage, clearFilters, hasFilters, openBookingId, setOpenBooking } = useScheduleParams()
   const { data, isPending, isError, error, refetch, isPlaceholderData } = useSchedules(toScheduleListParams(values))

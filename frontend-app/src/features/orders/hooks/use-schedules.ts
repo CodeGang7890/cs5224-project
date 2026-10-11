@@ -1,8 +1,8 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import type { ApiError, DetailedPaginated } from '@/types/api'
 
-import { getSchedule, listSchedules } from '../api/schedules-api'
+import { completeSchedule, getSchedule, listSchedules } from '../api/schedules-api'
 import type { ScheduleItem, ScheduleListParams } from '../types'
 
 export const scheduleKeys = {
@@ -26,5 +26,21 @@ export function useSchedule(id: number | null, enabled = true) {
     queryKey: scheduleKeys.detail(id ?? 0),
     queryFn: () => getSchedule(id as number),
     enabled: enabled && id !== null,
+  })
+}
+
+/**
+ * Payment received → completed. The schedules' calendars show each booking's status, so they're
+ * refreshed too (`providerKeys.all` of `@/features/services`, by its key: that feature imports this one).
+ */
+export function useCompleteSchedule() {
+  const queryClient = useQueryClient()
+  return useMutation<ScheduleItem, ApiError, number>({
+    mutationFn: completeSchedule,
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: scheduleKeys.all }),
+        queryClient.invalidateQueries({ queryKey: ['service-providers'] }),
+      ]),
   })
 }
