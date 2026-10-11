@@ -16,8 +16,8 @@ export type StepNodeData = {
 export type StepNode = Node<StepNodeData, 'step'>
 
 const POSITIONS: Record<FlowNodeId, { x: number; y: number }> = {
-  settings: { x: -330, y: 300 },
-  router: { x: 0, y: 300 },
+  router: { x: -90, y: 300 },
+  settings: { x: -90, y: 520 }, // below the router: the welcome message comes before it
   product_selection: { x: 330, y: 20 },
   details_collection: { x: 630, y: 20 },
   confirmation: { x: 930, y: 20 },
@@ -50,12 +50,18 @@ export function flowNodes(
   }))
 }
 
-function edge(source: FlowNodeId, target: FlowNodeId, label?: string): Edge {
+function edge(
+  source: FlowNodeId,
+  target: FlowNodeId,
+  label?: string,
+  handles?: { sourceHandle: string; targetHandle: string },
+): Edge {
   return {
     id: `${source}->${target}`,
     source,
     target,
     label,
+    ...handles,
     type: 'smoothstep',
     deletable: false,
     selectable: false,
@@ -67,7 +73,8 @@ function edge(source: FlowNodeId, target: FlowNodeId, label?: string): Edge {
 
 /** The welcome message before the router, the router's branches, and the order and booking steps in order. */
 export const FLOW_EDGES: Edge[] = [
-  edge('settings', 'router', 'First message'),
+  // Up from Welcome & style (below the router) into the router's bottom.
+  edge('settings', 'router', 'First message', { sourceHandle: 'top', targetHandle: 'bottom' }),
   edge('router', 'product_selection', 'Orders'),
   edge('product_selection', 'details_collection'),
   edge('details_collection', 'confirmation'),

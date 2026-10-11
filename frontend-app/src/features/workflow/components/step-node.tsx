@@ -17,7 +17,7 @@ export function StepNodeView({ data, selected }: NodeProps<StepNode>) {
   const Icon = meta.icon
   const isDetails = DETAILS_NODES.includes(data.nodeId)
   // Blocks with a next step in their branch.
-  const hasNext = ['settings', 'router', 'product_selection', 'details_collection', 'service_selection', 'slot_selection', 'booking_details'].includes(data.nodeId)
+  const hasNext = ['router', 'product_selection', 'details_collection', 'service_selection', 'slot_selection', 'booking_details'].includes(data.nodeId)
 
   return (
     <div
@@ -28,6 +28,9 @@ export function StepNodeView({ data, selected }: NodeProps<StepNode>) {
       )}
     >
       {!['settings', 'router'].includes(data.nodeId) && <Handle type="target" position={Position.Left} className={handleClassName} />}
+      {/* Welcome & style sits below the router: its arrow goes up into the router's bottom. */}
+      {data.nodeId === 'router' && <Handle type="target" id="bottom" position={Position.Bottom} className={handleClassName} />}
+      {data.nodeId === 'settings' && <Handle type="source" id="top" position={Position.Top} className={handleClassName} />}
       <div className="flex items-start gap-3">
         <div className={cn('flex size-9 shrink-0 items-center justify-center rounded-lg', meta.iconClassName)}>
           <Icon className="size-4" />
