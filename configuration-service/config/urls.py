@@ -3,7 +3,8 @@ URL configuration for the configuration service.
 
 - /admin/                 Django admin
 - /api/auth/              auth_app: JWT login/refresh/verify/logout, current user profile
-- /api/configuration/     configuration_app API routes
+- /api/configuration/     configuration_app API routes (incl. the business's WhatsApp connection)
+- /api/internal/          service-to-service routes (X-Internal-Api-Key), e.g. WhatsApp webhook checks for messaging-ingester
 - /api/products/, /api/faqs/, /api/weekly-availabilities/, /api/services/
                           product_app CRUD APIs (login required)
 - /api/chat/              chat_app: one-off chat with the local LLM (Ollama), public
@@ -25,6 +26,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/auth/', include('auth_app.urls')),
     path('api/configuration/', include('configuration_app.urls')),
+    path('api/internal/', include('configuration_app.internal_urls')),
     path('api/', include('product_app.urls')),
     path('api/chat/', include('chat_app.urls')),
     path('api/', include('checkout_app.urls')),

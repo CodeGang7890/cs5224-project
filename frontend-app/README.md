@@ -33,6 +33,14 @@ npm run dev                 # start the dev server
 
 Then open the URL Vite prints, usually <http://localhost:5173>.
 
+### Or with Docker
+
+From the repository root, `docker compose up --build` starts the frontend together with PostgreSQL and
+configuration-service, at <http://localhost:5173>. It runs the same dev server (`Dockerfile.dev`) with
+the source mounted, so hot reload works; file watching uses polling (`CHOKIDAR_USEPOLLING`, see
+`vite.config.ts`) because file events don't reach the container on WSL/Windows. After changing
+`package.json`, run `docker compose up --build -V frontend-app` to reinstall the dependencies.
+
 ## Scripts
 
 | Command | What it does |
@@ -52,12 +60,25 @@ Then open the URL Vite prints, usually <http://localhost:5173>.
 | Orders | Products `/orders/products`, Services `/orders/services`, Payment `/orders/payment` |
 | Chats | Conversations `/chats/conversations`, Unanswered questions `/chats/questions`, Chat Sandbox `/chats/sandbox` |
 
-Home shows a random number fetched from `configuration-service` (see [Connecting to configuration-service](#connecting-to-configuration-service)). **Workflow** shows your chat assistant's flow and lets you choose the customer details it collects (see [Editing the chat workflow](#editing-the-chat-workflow)). **Catalog** is what you sell and answer questions about: products and FAQs to add, edit and delete (see [Managing products and FAQs](#managing-products-and-faqs)), and the services customers can book a time for, with your service providers and their schedules (see [Services and availability](#services-and-availability)). **Orders** lists the orders and bookings customers confirmed in chats, and marks paid ones as completed (see [Orders](#orders)); Payment is a placeholder for now. **Chats** has your business's conversations, read only (see [Chats](#chats)), the questions the assistant couldn't answer, and the Chat Sandbox, to chat with your assistant as a pretend customer (see [Chat Sandbox](#chat-sandbox)). Opening `/catalog`, `/orders` or `/chats` shows its first sub-tab.
+Home shows the **WhatsApp** card (connect your business's WhatsApp number, see [Connecting WhatsApp](#connecting-whatsapp)) and a random number fetched from `configuration-service` (see [Connecting to configuration-service](#connecting-to-configuration-service)). **Workflow** shows your chat assistant's flow and lets you choose the customer details it collects (see [Editing the chat workflow](#editing-the-chat-workflow)). **Catalog** is what you sell and answer questions about: products and FAQs to add, edit and delete (see [Managing products and FAQs](#managing-products-and-faqs)), and the services customers can book a time for, with your service providers and their schedules (see [Services and availability](#services-and-availability)). **Orders** lists the orders and bookings customers confirmed in chats, read only (see [Orders](#orders)); Payment is a placeholder for now. **Chats** has your business's conversations, read only (see [Chats](#chats)), the questions the assistant couldn't answer, and the Chat Sandbox, to chat with your assistant as a pretend customer (see [Chat Sandbox](#chat-sandbox)). Opening `/catalog`, `/orders` or `/chats` shows its first sub-tab.
 
 Everything except Home requires login. While you're logged out, only the Home tab is shown; if you open another page's URL, it shows "You need to be logged in to access this page" with a Log In button (see [Login-protected pages](#login-protected-pages)). Old URLs (`/product`, `/service`, `/faq`, `/payment`, `/chat-sandbox`, `/orders?tab=services`, `/chats?tab=questions`) redirect to their new place.
 
 The top right shows **Log In** when you're logged out. When you're logged in, it shows your username, a profile icon and **Log Out** (see [Authentication](#authentication)). The profile modal's open state is kept in the URL as `?profile`, so you can link to it directly and the browser's back button closes it.
 
+## Connecting WhatsApp
+
+The **WhatsApp** card on Home (login required; your account must belong to a business) connects your business's WhatsApp Business number, so customers' messages reach your assistant (through `messaging-ingester`). It uses `GET`/`PUT`/`DELETE /api/configuration/whatsapp/` on configuration-service.
+
+1. From your Meta app, enter:
+   - **Phone Number ID**: WhatsApp → API Setup, the digits under your phone number (not the number itself).
+   - **Access token**: a permanent System User token (Business Settings → System users). The one on API Setup expires after 24 hours.
+   - **App Secret**: App settings → Basic.
+2. Click **Connect WhatsApp** and confirm.
+   The details are **checked with Meta** first ("Checking with Meta…"): a wrong Phone Number ID, an invalid or expired token, or an App Secret from another app is shown under that field, and nothing is saved.
+3. The card then shows the number Meta verified (e.g. "+65 9123 4567 · Kopi & Co. Café"), a **Callback URL** and a **Verify token**, with copy buttons. In Meta, open WhatsApp → Configuration → Webhook, paste both, click *Verify and save*, and subscribe to the **messages** field.
+
+The access token and App Secret are stored encrypted and never shown again. Once connected, the details are shown locked. To change them, click **Edit**: the Phone Number ID becomes editable, and each saved secret (shown as dots) gets a **Replace** button, which opens an empty field for the new value (**Keep current** undoes it). Then **Save changes**; **Cancel** discards everything you typed. **Disconnect** deletes the saved settings; connecting again gives a new verify token. Every save and disconnect asks for confirmation.
 ## Connecting to configuration-service
 
 The Home tab calls `GET /api/configuration/random-number/` on the Django backend in `../configuration-service`. To see it working:
