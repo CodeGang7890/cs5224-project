@@ -7,9 +7,9 @@
       "chat_session": 20,
       "is_sandbox": false,
       "service": 3,
-      "start_time": "2026-09-19T10:30:00+08:00",
-      "end_time": "2026-09-19T12:00:00+08:00",
-      "blocked_until": "2026-09-19T12:30:00+08:00",
+      "start_time": "2026-10-10T10:30:00+08:00",
+      "end_time": "2026-10-10T12:00:00+08:00",
+      "blocked_until": "2026-10-10T12:30:00+08:00",
       "schedule_data": {
         "service": {
           "service_id": 3,
@@ -20,14 +20,13 @@
         },
         "details": {
           "name": "Priya Raman",
-          "phone": "+65 9123 0001",
           "people": 4,
           "notes": "Bringing our dog Mochi"
         }
       },
       "order_status": "order_completed",
-      "created_time": "2026-09-14T10:05:00+08:00",
-      "updated_time": "2026-09-14T10:05:00+08:00",
+      "created_time": "2026-10-05T10:05:00+08:00",
+      "updated_time": "2026-10-05T10:05:00+08:00",
       "service_provider": 1
     }
   },
@@ -35,63 +34,60 @@
     "model": "checkout_app.scheduleitem",
     "pk": 2,
     "fields": {
-      "business": 4,
+      "business": 5,
       "chat_session": null,
       "is_sandbox": false,
-      "service": 1,
-      "start_time": "2026-09-16T15:00:00+08:00",
-      "end_time": "2026-09-16T16:00:00+08:00",
-      "blocked_until": "2026-09-16T16:15:00+08:00",
+      "service": 9,
+      "start_time": "2026-10-02T13:00:00+08:00",
+      "end_time": "2026-10-02T14:00:00+08:00",
+      "blocked_until": "2026-10-02T14:00:00+08:00",
       "schedule_data": {
         "service": {
-          "service_id": 1,
-          "name": "Individual Portrait Session",
-          "price": "180.00",
+          "service_id": 9,
+          "name": "Badminton Court (1 hour)",
+          "price": "20.00",
           "duration_minutes": 60,
-          "buffer_minutes": 15
+          "buffer_minutes": 0
         },
         "details": {
-          "name": "Daniel Koh",
-          "phone": "+65 8234 5566",
-          "people": 1
+          "name": "Shu Fen Lau",
+          "email": "shu.lau75@gmail.com"
         }
       },
       "order_status": "order_completed",
-      "created_time": "2026-09-10T20:12:00+08:00",
-      "updated_time": "2026-09-10T20:12:00+08:00",
-      "service_provider": 2
+      "created_time": "2026-09-25T11:00:00+08:00",
+      "updated_time": "2026-10-02T15:01:00+08:00",
+      "service_provider": 3
     }
   },
   {
     "model": "checkout_app.scheduleitem",
     "pk": 3,
     "fields": {
-      "business": 4,
+      "business": 5,
       "chat_session": null,
       "is_sandbox": false,
-      "service": 7,
-      "start_time": "2026-10-15T11:00:00+08:00",
-      "end_time": "2026-10-15T11:30:00+08:00",
-      "blocked_until": "2026-10-15T11:45:00+08:00",
+      "service": 9,
+      "start_time": "2026-10-03T13:00:00+08:00",
+      "end_time": "2026-10-03T14:00:00+08:00",
+      "blocked_until": "2026-10-03T14:00:00+08:00",
       "schedule_data": {
         "service": {
-          "service_id": 7,
-          "name": "Corporate Headshots",
-          "price": "150.00",
-          "duration_minutes": 30,
-          "buffer_minutes": 15
+          "service_id": 9,
+          "name": "Badminton Court (1 hour)",
+          "price": "20.00",
+          "duration_minutes": 60,
+          "buffer_minutes": 0
         },
         "details": {
-          "name": "Sarah Lim",
-          "phone": "+65 9001 2233",
-          "people": 1,
-          "notes": "Need it for LinkedIn"
+          "name": "Li Ting Quek",
+          "email": "li.quek89@outlook.com"
         }
       },
-      "order_status": "pending_payment",
-      "created_time": "2026-10-06T09:41:00+08:00",
-      "updated_time": "2026-10-06T09:41:00+08:00",
-      "service_provider": 2
+      "order_status": "order_completed",
+      "created_time": "2026-09-24T08:53:00+08:00",
+      "updated_time": "2026-10-03T15:24:00+08:00",
+      "service_provider": 4
     }
   },
   {
@@ -101,28 +97,27 @@
       "business": 4,
       "chat_session": null,
       "is_sandbox": false,
-      "service": 4,
-      "start_time": "2026-10-20T09:00:00+08:00",
-      "end_time": "2026-10-20T12:00:00+08:00",
-      "blocked_until": "2026-10-20T12:30:00+08:00",
+      "service": 5,
+      "start_time": "2026-10-04T10:00:00+08:00",
+      "end_time": "2026-10-04T11:30:00+08:00",
+      "blocked_until": "2026-10-04T11:45:00+08:00",
       "schedule_data": {
         "service": {
-          "service_id": 4,
-          "name": "Newborn Session",
-          "price": "480.00",
-          "duration_minutes": 180,
-          "buffer_minutes": 30
+          "service_id": 5,
+          "name": "Maternity Shoot",
+          "price": "320.00",
+          "duration_minutes": 90,
+          "buffer_minutes": 15
         },
         "details": {
-          "name": "Hannah Teo",
-          "phone": "+65 9876 1122",
-          "people": 3,
-          "notes": "Baby due 8 Oct"
+          "name": "Jun Hao Ong",
+          "people": 2,
+          "notes": "34 weeks"
         }
       },
-      "order_status": "payment_received",
-      "created_time": "2026-10-02T14:20:00+08:00",
-      "updated_time": "2026-10-02T14:20:00+08:00",
+      "order_status": "order_completed",
+      "created_time": "2026-10-01T08:42:00+08:00",
+      "updated_time": "2026-10-04T12:04:00+08:00",
       "service_provider": 1
     }
   },
@@ -147,13 +142,12 @@
         },
         "details": {
           "name": "Test Couple",
-          "phone": "+65 8000 0000",
           "people": 2
         }
       },
-      "order_status": "pending_payment",
+      "order_status": "payment_failed",
       "created_time": "2026-10-08T16:03:00+08:00",
-      "updated_time": "2026-10-08T16:03:00+08:00",
+      "updated_time": "2026-10-09T17:03:00+08:00",
       "service_provider": 1
     }
   },
@@ -165,9 +159,9 @@
       "chat_session": null,
       "is_sandbox": false,
       "service": 6,
-      "start_time": "2026-10-25T10:00:00+08:00",
-      "end_time": "2026-10-25T11:00:00+08:00",
-      "blocked_until": "2026-10-25T11:15:00+08:00",
+      "start_time": "2026-10-04T15:00:00+08:00",
+      "end_time": "2026-10-04T16:00:00+08:00",
+      "blocked_until": "2026-10-04T16:15:00+08:00",
       "schedule_data": {
         "service": {
           "service_id": 6,
@@ -177,16 +171,751 @@
           "buffer_minutes": 15
         },
         "details": {
-          "name": "Wei Jie Ng",
-          "phone": "+65 9333 4455",
-          "people": 4,
-          "notes": "Graduating from NUS, family of 4"
+          "name": "Hannah Fernandez",
+          "people": 2,
+          "notes": "NTU, gown and mortarboard"
+        }
+      },
+      "order_status": "order_completed",
+      "created_time": "2026-10-04T01:34:00+08:00",
+      "updated_time": "2026-10-04T17:03:00+08:00",
+      "service_provider": 1
+    }
+  },
+  {
+    "model": "checkout_app.scheduleitem",
+    "pk": 7,
+    "fields": {
+      "business": 5,
+      "chat_session": null,
+      "is_sandbox": false,
+      "service": 9,
+      "start_time": "2026-10-05T12:00:00+08:00",
+      "end_time": "2026-10-05T13:00:00+08:00",
+      "blocked_until": "2026-10-05T13:00:00+08:00",
+      "schedule_data": {
+        "service": {
+          "service_id": 9,
+          "name": "Badminton Court (1 hour)",
+          "price": "20.00",
+          "duration_minutes": 60,
+          "buffer_minutes": 0
+        },
+        "details": {
+          "name": "Mei Xuan Tan",
+          "email": "mei.tan13@gmail.com",
+          "players": 4
+        }
+      },
+      "order_status": "order_completed",
+      "created_time": "2026-09-28T22:19:00+08:00",
+      "updated_time": "2026-10-05T13:50:00+08:00",
+      "service_provider": 4
+    }
+  },
+  {
+    "model": "checkout_app.scheduleitem",
+    "pk": 8,
+    "fields": {
+      "business": 4,
+      "chat_session": null,
+      "is_sandbox": false,
+      "service": 1,
+      "start_time": "2026-10-08T14:00:00+08:00",
+      "end_time": "2026-10-08T15:00:00+08:00",
+      "blocked_until": "2026-10-08T15:15:00+08:00",
+      "schedule_data": {
+        "service": {
+          "service_id": 1,
+          "name": "Individual Portrait Session",
+          "price": "180.00",
+          "duration_minutes": 60,
+          "buffer_minutes": 15
+        },
+        "details": {
+          "name": "Shu Fen Toh",
+          "people": 1
+        }
+      },
+      "order_status": "order_completed",
+      "created_time": "2026-09-29T04:42:00+08:00",
+      "updated_time": "2026-10-08T15:54:00+08:00",
+      "service_provider": 2
+    }
+  },
+  {
+    "model": "checkout_app.scheduleitem",
+    "pk": 9,
+    "fields": {
+      "business": 5,
+      "chat_session": null,
+      "is_sandbox": false,
+      "service": 10,
+      "start_time": "2026-10-09T09:00:00+08:00",
+      "end_time": "2026-10-09T10:00:00+08:00",
+      "blocked_until": "2026-10-09T10:00:00+08:00",
+      "schedule_data": {
+        "service": {
+          "service_id": 10,
+          "name": "Tennis Court (1 hour)",
+          "price": "32.00",
+          "duration_minutes": 60,
+          "buffer_minutes": 0
+        },
+        "details": {
+          "name": "Isaac Teo",
+          "email": "isaac.teo57@yahoo.com.sg"
+        }
+      },
+      "order_status": "order_completed",
+      "created_time": "2026-10-08T15:34:00+08:00",
+      "updated_time": "2026-10-09T11:08:00+08:00",
+      "service_provider": 5
+    }
+  },
+  {
+    "model": "checkout_app.scheduleitem",
+    "pk": 10,
+    "fields": {
+      "business": 5,
+      "chat_session": null,
+      "is_sandbox": false,
+      "service": 10,
+      "start_time": "2026-10-09T10:00:00+08:00",
+      "end_time": "2026-10-09T11:00:00+08:00",
+      "blocked_until": "2026-10-09T11:00:00+08:00",
+      "schedule_data": {
+        "service": {
+          "service_id": 10,
+          "name": "Tennis Court (1 hour)",
+          "price": "32.00",
+          "duration_minutes": 60,
+          "buffer_minutes": 0
+        },
+        "details": {
+          "name": "Isaac Teo",
+          "email": "isaac.teo57@yahoo.com.sg"
+        }
+      },
+      "order_status": "order_completed",
+      "created_time": "2026-10-08T15:34:00+08:00",
+      "updated_time": "2026-10-09T11:08:00+08:00",
+      "service_provider": 5
+    }
+  },
+  {
+    "model": "checkout_app.scheduleitem",
+    "pk": 11,
+    "fields": {
+      "business": 5,
+      "chat_session": null,
+      "is_sandbox": false,
+      "service": 9,
+      "start_time": "2026-10-14T15:00:00+08:00",
+      "end_time": "2026-10-14T16:00:00+08:00",
+      "blocked_until": "2026-10-14T16:00:00+08:00",
+      "schedule_data": {
+        "service": {
+          "service_id": 9,
+          "name": "Badminton Court (1 hour)",
+          "price": "20.00",
+          "duration_minutes": 60,
+          "buffer_minutes": 0
+        },
+        "details": {
+          "name": "Siti Ong",
+          "email": "siti.ong72@outlook.com",
+          "players": 2
+        }
+      },
+      "order_status": "payment_received",
+      "created_time": "2026-10-04T00:08:00+08:00",
+      "updated_time": "2026-10-04T07:11:00+08:00",
+      "service_provider": 4
+    }
+  },
+  {
+    "model": "checkout_app.scheduleitem",
+    "pk": 12,
+    "fields": {
+      "business": 5,
+      "chat_session": null,
+      "is_sandbox": false,
+      "service": 10,
+      "start_time": "2026-10-17T13:00:00+08:00",
+      "end_time": "2026-10-17T14:00:00+08:00",
+      "blocked_until": "2026-10-17T14:00:00+08:00",
+      "schedule_data": {
+        "service": {
+          "service_id": 10,
+          "name": "Tennis Court (1 hour)",
+          "price": "32.00",
+          "duration_minutes": 60,
+          "buffer_minutes": 0
+        },
+        "details": {
+          "name": "Gabriel Seah",
+          "email": "gabriel.seah31@hotmail.com",
+          "players": 4
+        }
+      },
+      "order_status": "payment_received",
+      "created_time": "2026-09-29T11:49:00+08:00",
+      "updated_time": "2026-09-29T19:58:00+08:00",
+      "service_provider": 5
+    }
+  },
+  {
+    "model": "checkout_app.scheduleitem",
+    "pk": 13,
+    "fields": {
+      "business": 5,
+      "chat_session": null,
+      "is_sandbox": false,
+      "service": 9,
+      "start_time": "2026-10-17T20:00:00+08:00",
+      "end_time": "2026-10-17T21:00:00+08:00",
+      "blocked_until": "2026-10-17T21:00:00+08:00",
+      "schedule_data": {
+        "service": {
+          "service_id": 9,
+          "name": "Badminton Court (1 hour)",
+          "price": "20.00",
+          "duration_minutes": 60,
+          "buffer_minutes": 0
+        },
+        "details": {
+          "name": "Jun Hao Ismail",
+          "email": "jun.ismail61@yahoo.com.sg",
+          "players": 2
+        }
+      },
+      "order_status": "payment_failed",
+      "created_time": "2026-10-01T14:49:00+08:00",
+      "updated_time": "2026-10-02T15:49:00+08:00",
+      "service_provider": 4
+    }
+  },
+  {
+    "model": "checkout_app.scheduleitem",
+    "pk": 14,
+    "fields": {
+      "business": 4,
+      "chat_session": null,
+      "is_sandbox": false,
+      "service": 8,
+      "start_time": "2026-10-18T11:30:00+08:00",
+      "end_time": "2026-10-18T12:30:00+08:00",
+      "blocked_until": "2026-10-18T13:00:00+08:00",
+      "schedule_data": {
+        "service": {
+          "service_id": 8,
+          "name": "Pet Photoshoot",
+          "price": "200.00",
+          "duration_minutes": 60,
+          "buffer_minutes": 30
+        },
+        "details": {
+          "name": "Marcus Pillai",
+          "people": 3,
+          "notes": "Two cats"
         }
       },
       "order_status": "pending_payment",
-      "created_time": "2026-10-07T11:30:00+08:00",
-      "updated_time": "2026-10-07T11:30:00+08:00",
+      "created_time": "2026-10-07T02:47:00+08:00",
+      "updated_time": "2026-10-07T02:47:00+08:00",
       "service_provider": 2
+    }
+  },
+  {
+    "model": "checkout_app.scheduleitem",
+    "pk": 15,
+    "fields": {
+      "business": 4,
+      "chat_session": null,
+      "is_sandbox": false,
+      "service": 6,
+      "start_time": "2026-10-24T09:00:00+08:00",
+      "end_time": "2026-10-24T10:00:00+08:00",
+      "blocked_until": "2026-10-24T10:15:00+08:00",
+      "schedule_data": {
+        "service": {
+          "service_id": 6,
+          "name": "Graduation Portraits",
+          "price": "220.00",
+          "duration_minutes": 60,
+          "buffer_minutes": 15
+        },
+        "details": {
+          "name": "Jun Hao Seah",
+          "people": 1,
+          "notes": "NTU, gown and mortarboard"
+        }
+      },
+      "order_status": "payment_received",
+      "created_time": "2026-10-10T14:58:00+08:00",
+      "updated_time": "2026-10-10T20:23:00+08:00",
+      "service_provider": 1
+    }
+  },
+  {
+    "model": "checkout_app.scheduleitem",
+    "pk": 16,
+    "fields": {
+      "business": 4,
+      "chat_session": null,
+      "is_sandbox": false,
+      "service": 8,
+      "start_time": "2026-10-25T15:30:00+08:00",
+      "end_time": "2026-10-25T16:30:00+08:00",
+      "blocked_until": "2026-10-25T17:00:00+08:00",
+      "schedule_data": {
+        "service": {
+          "service_id": 8,
+          "name": "Pet Photoshoot",
+          "price": "200.00",
+          "duration_minutes": 60,
+          "buffer_minutes": 30
+        },
+        "details": {
+          "name": "Jun Hao Tan",
+          "people": 1,
+          "notes": "Two cats"
+        }
+      },
+      "order_status": "payment_received",
+      "created_time": "2026-10-10T15:57:00+08:00",
+      "updated_time": "2026-10-10T17:57:00+08:00",
+      "service_provider": 2
+    }
+  },
+  {
+    "model": "checkout_app.scheduleitem",
+    "pk": 17,
+    "fields": {
+      "business": 5,
+      "chat_session": null,
+      "is_sandbox": false,
+      "service": 9,
+      "start_time": "2026-10-30T09:00:00+08:00",
+      "end_time": "2026-10-30T10:00:00+08:00",
+      "blocked_until": "2026-10-30T10:00:00+08:00",
+      "schedule_data": {
+        "service": {
+          "service_id": 9,
+          "name": "Badminton Court (1 hour)",
+          "price": "20.00",
+          "duration_minutes": 60,
+          "buffer_minutes": 0
+        },
+        "details": {
+          "name": "Gabriel Rahman",
+          "email": "gabriel.rahman32@yahoo.com.sg",
+          "players": 3
+        }
+      },
+      "order_status": "pending_payment",
+      "created_time": "2026-10-06T21:26:00+08:00",
+      "updated_time": "2026-10-06T21:26:00+08:00",
+      "service_provider": 3
+    }
+  },
+  {
+    "model": "checkout_app.scheduleitem",
+    "pk": 18,
+    "fields": {
+      "business": 5,
+      "chat_session": null,
+      "is_sandbox": false,
+      "service": 10,
+      "start_time": "2026-10-30T20:00:00+08:00",
+      "end_time": "2026-10-30T21:00:00+08:00",
+      "blocked_until": "2026-10-30T21:00:00+08:00",
+      "schedule_data": {
+        "service": {
+          "service_id": 10,
+          "name": "Tennis Court (1 hour)",
+          "price": "32.00",
+          "duration_minutes": 60,
+          "buffer_minutes": 0
+        },
+        "details": {
+          "name": "Wei Ling Koh",
+          "email": "wei.koh24@hotmail.com",
+          "players": 2
+        }
+      },
+      "order_status": "pending_payment",
+      "created_time": "2026-10-10T22:12:00+08:00",
+      "updated_time": "2026-10-10T22:12:00+08:00",
+      "service_provider": 6
+    }
+  },
+  {
+    "model": "checkout_app.scheduleitem",
+    "pk": 19,
+    "fields": {
+      "business": 5,
+      "chat_session": null,
+      "is_sandbox": false,
+      "service": 10,
+      "start_time": "2026-11-03T11:00:00+08:00",
+      "end_time": "2026-11-03T12:00:00+08:00",
+      "blocked_until": "2026-11-03T12:00:00+08:00",
+      "schedule_data": {
+        "service": {
+          "service_id": 10,
+          "name": "Tennis Court (1 hour)",
+          "price": "32.00",
+          "duration_minutes": 60,
+          "buffer_minutes": 0
+        },
+        "details": {
+          "name": "Yan Ting Fernandez",
+          "email": "yan.fernandez99@yahoo.com.sg",
+          "players": 2
+        }
+      },
+      "order_status": "payment_received",
+      "created_time": "2026-10-11T06:41:00+08:00",
+      "updated_time": "2026-10-11T11:55:00+08:00",
+      "service_provider": 6
+    }
+  },
+  {
+    "model": "checkout_app.scheduleitem",
+    "pk": 20,
+    "fields": {
+      "business": 5,
+      "chat_session": null,
+      "is_sandbox": false,
+      "service": 9,
+      "start_time": "2026-11-04T20:00:00+08:00",
+      "end_time": "2026-11-04T21:00:00+08:00",
+      "blocked_until": "2026-11-04T21:00:00+08:00",
+      "schedule_data": {
+        "service": {
+          "service_id": 9,
+          "name": "Badminton Court (1 hour)",
+          "price": "20.00",
+          "duration_minutes": 60,
+          "buffer_minutes": 0
+        },
+        "details": {
+          "name": "Natalie Lee",
+          "email": "natalie.lee47@gmail.com",
+          "players": 4
+        }
+      },
+      "order_status": "pending_payment",
+      "created_time": "2026-10-09T09:52:00+08:00",
+      "updated_time": "2026-10-09T09:52:00+08:00",
+      "service_provider": 3
+    }
+  },
+  {
+    "model": "checkout_app.scheduleitem",
+    "pk": 21,
+    "fields": {
+      "business": 5,
+      "chat_session": null,
+      "is_sandbox": false,
+      "service": 9,
+      "start_time": "2026-11-07T12:00:00+08:00",
+      "end_time": "2026-11-07T13:00:00+08:00",
+      "blocked_until": "2026-11-07T13:00:00+08:00",
+      "schedule_data": {
+        "service": {
+          "service_id": 9,
+          "name": "Badminton Court (1 hour)",
+          "price": "20.00",
+          "duration_minutes": 60,
+          "buffer_minutes": 0
+        },
+        "details": {
+          "name": "Isaac Fernandez",
+          "email": "isaac.fernandez88@hotmail.com"
+        }
+      },
+      "order_status": "pending_payment",
+      "created_time": "2026-10-10T18:20:00+08:00",
+      "updated_time": "2026-10-10T18:20:00+08:00",
+      "service_provider": 3
+    }
+  },
+  {
+    "model": "checkout_app.scheduleitem",
+    "pk": 22,
+    "fields": {
+      "business": 4,
+      "chat_session": null,
+      "is_sandbox": false,
+      "service": 8,
+      "start_time": "2026-11-08T10:00:00+08:00",
+      "end_time": "2026-11-08T11:00:00+08:00",
+      "blocked_until": "2026-11-08T11:30:00+08:00",
+      "schedule_data": {
+        "service": {
+          "service_id": 8,
+          "name": "Pet Photoshoot",
+          "price": "200.00",
+          "duration_minutes": 60,
+          "buffer_minutes": 30
+        },
+        "details": {
+          "name": "Kavya Fernandez",
+          "people": 2
+        }
+      },
+      "order_status": "pending_payment",
+      "created_time": "2026-10-10T04:56:00+08:00",
+      "updated_time": "2026-10-10T04:56:00+08:00",
+      "service_provider": 2
+    }
+  },
+  {
+    "model": "checkout_app.scheduleitem",
+    "pk": 23,
+    "fields": {
+      "business": 4,
+      "chat_session": null,
+      "is_sandbox": false,
+      "service": 6,
+      "start_time": "2026-11-12T10:30:00+08:00",
+      "end_time": "2026-11-12T11:30:00+08:00",
+      "blocked_until": "2026-11-12T11:45:00+08:00",
+      "schedule_data": {
+        "service": {
+          "service_id": 6,
+          "name": "Graduation Portraits",
+          "price": "220.00",
+          "duration_minutes": 60,
+          "buffer_minutes": 15
+        },
+        "details": {
+          "name": "Grace Teo",
+          "people": 4,
+          "notes": "NUS graduation, bringing gown"
+        }
+      },
+      "order_status": "pending_payment",
+      "created_time": "2026-10-10T05:03:00+08:00",
+      "updated_time": "2026-10-10T05:03:00+08:00",
+      "service_provider": 2
+    }
+  },
+  {
+    "model": "checkout_app.scheduleitem",
+    "pk": 24,
+    "fields": {
+      "business": 4,
+      "chat_session": null,
+      "is_sandbox": false,
+      "service": 6,
+      "start_time": "2026-11-14T15:30:00+08:00",
+      "end_time": "2026-11-14T16:30:00+08:00",
+      "blocked_until": "2026-11-14T16:45:00+08:00",
+      "schedule_data": {
+        "service": {
+          "service_id": 6,
+          "name": "Graduation Portraits",
+          "price": "220.00",
+          "duration_minutes": 60,
+          "buffer_minutes": 15
+        },
+        "details": {
+          "name": "Jun Hao Low",
+          "people": 2
+        }
+      },
+      "order_status": "pending_payment",
+      "created_time": "2026-10-10T22:54:00+08:00",
+      "updated_time": "2026-10-10T22:54:00+08:00",
+      "service_provider": 1
+    }
+  },
+  {
+    "model": "checkout_app.scheduleitem",
+    "pk": 25,
+    "fields": {
+      "business": 5,
+      "chat_session": null,
+      "is_sandbox": false,
+      "service": 9,
+      "start_time": "2026-11-15T15:00:00+08:00",
+      "end_time": "2026-11-15T16:00:00+08:00",
+      "blocked_until": "2026-11-15T16:00:00+08:00",
+      "schedule_data": {
+        "service": {
+          "service_id": 9,
+          "name": "Badminton Court (1 hour)",
+          "price": "20.00",
+          "duration_minutes": 60,
+          "buffer_minutes": 0
+        },
+        "details": {
+          "name": "Amanda Goh",
+          "email": "amanda.goh22@gmail.com",
+          "players": 3
+        }
+      },
+      "order_status": "payment_failed",
+      "created_time": "2026-10-10T15:26:00+08:00",
+      "updated_time": "2026-10-11T11:00:00+08:00",
+      "service_provider": 4
+    }
+  },
+  {
+    "model": "checkout_app.scheduleitem",
+    "pk": 26,
+    "fields": {
+      "business": 5,
+      "chat_session": null,
+      "is_sandbox": false,
+      "service": 9,
+      "start_time": "2026-11-15T18:00:00+08:00",
+      "end_time": "2026-11-15T19:00:00+08:00",
+      "blocked_until": "2026-11-15T19:00:00+08:00",
+      "schedule_data": {
+        "service": {
+          "service_id": 9,
+          "name": "Badminton Court (1 hour)",
+          "price": "20.00",
+          "duration_minutes": 60,
+          "buffer_minutes": 0
+        },
+        "details": {
+          "name": "Jun Hao Ho",
+          "email": "jun.ho56@yahoo.com.sg",
+          "players": 4
+        }
+      },
+      "order_status": "pending_payment",
+      "created_time": "2026-10-09T17:16:00+08:00",
+      "updated_time": "2026-10-09T17:16:00+08:00",
+      "service_provider": 4
+    }
+  },
+  {
+    "model": "checkout_app.scheduleitem",
+    "pk": 27,
+    "fields": {
+      "business": 4,
+      "chat_session": null,
+      "is_sandbox": false,
+      "service": 6,
+      "start_time": "2026-11-17T10:30:00+08:00",
+      "end_time": "2026-11-17T11:30:00+08:00",
+      "blocked_until": "2026-11-17T11:45:00+08:00",
+      "schedule_data": {
+        "service": {
+          "service_id": 6,
+          "name": "Graduation Portraits",
+          "price": "220.00",
+          "duration_minutes": 60,
+          "buffer_minutes": 15
+        },
+        "details": {
+          "name": "Joanne Ong",
+          "people": 3,
+          "notes": "SMU, with parents"
+        }
+      },
+      "order_status": "payment_received",
+      "created_time": "2026-10-11T07:14:00+08:00",
+      "updated_time": "2026-10-11T11:55:00+08:00",
+      "service_provider": 1
+    }
+  },
+  {
+    "model": "checkout_app.scheduleitem",
+    "pk": 28,
+    "fields": {
+      "business": 5,
+      "chat_session": null,
+      "is_sandbox": false,
+      "service": 9,
+      "start_time": "2026-11-18T20:00:00+08:00",
+      "end_time": "2026-11-18T21:00:00+08:00",
+      "blocked_until": "2026-11-18T21:00:00+08:00",
+      "schedule_data": {
+        "service": {
+          "service_id": 9,
+          "name": "Badminton Court (1 hour)",
+          "price": "20.00",
+          "duration_minutes": 60,
+          "buffer_minutes": 0
+        },
+        "details": {
+          "name": "Dinesh Ho",
+          "email": "dinesh.ho11@yahoo.com.sg",
+          "players": 2
+        }
+      },
+      "order_status": "pending_payment",
+      "created_time": "2026-10-10T00:06:00+08:00",
+      "updated_time": "2026-10-10T00:06:00+08:00",
+      "service_provider": 3
+    }
+  },
+  {
+    "model": "checkout_app.scheduleitem",
+    "pk": 29,
+    "fields": {
+      "business": 5,
+      "chat_session": null,
+      "is_sandbox": false,
+      "service": 9,
+      "start_time": "2026-11-23T13:00:00+08:00",
+      "end_time": "2026-11-23T14:00:00+08:00",
+      "blocked_until": "2026-11-23T14:00:00+08:00",
+      "schedule_data": {
+        "service": {
+          "service_id": 9,
+          "name": "Badminton Court (1 hour)",
+          "price": "20.00",
+          "duration_minutes": 60,
+          "buffer_minutes": 0
+        },
+        "details": {
+          "name": "Farhan Yeo",
+          "email": "farhan.yeo46@gmail.com"
+        }
+      },
+      "order_status": "pending_payment",
+      "created_time": "2026-10-11T01:30:00+08:00",
+      "updated_time": "2026-10-11T01:30:00+08:00",
+      "service_provider": 4
+    }
+  },
+  {
+    "model": "checkout_app.scheduleitem",
+    "pk": 30,
+    "fields": {
+      "business": 5,
+      "chat_session": null,
+      "is_sandbox": false,
+      "service": 9,
+      "start_time": "2026-11-25T13:00:00+08:00",
+      "end_time": "2026-11-25T14:00:00+08:00",
+      "blocked_until": "2026-11-25T14:00:00+08:00",
+      "schedule_data": {
+        "service": {
+          "service_id": 9,
+          "name": "Badminton Court (1 hour)",
+          "price": "20.00",
+          "duration_minutes": 60,
+          "buffer_minutes": 0
+        },
+        "details": {
+          "name": "Jun Hao Chua",
+          "email": "jun.chua42@hotmail.com"
+        }
+      },
+      "order_status": "pending_payment",
+      "created_time": "2026-10-10T00:42:00+08:00",
+      "updated_time": "2026-10-10T00:42:00+08:00",
+      "service_provider": 3
     }
   }
 ]

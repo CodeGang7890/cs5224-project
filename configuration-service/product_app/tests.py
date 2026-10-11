@@ -135,8 +135,8 @@ class SampleProductAndFAQFixtureTests(TestCase):
     fixtures = ['sample_business_configurations', 'sample_products', 'sample_faqs', 'sample_order_items']
 
     def test_fixtures_are_valid(self):
-        self.assertEqual(Product.objects.count(), 19)
-        self.assertEqual(FAQ.objects.count(), 40)  # 35–40: Lumen & Lens
+        self.assertEqual(Product.objects.count(), 29)  # 20–29: Lumen & Lens's prints and frames
+        self.assertEqual(FAQ.objects.count(), 52)  # 35–44: Lumen & Lens, 45–52: Rally Point Courts
         for record in [*Product.objects.all(), *FAQ.objects.all()]:
             with self.subTest(record=str(record)):
                 record.full_clean()  # loaddata skips validation
@@ -159,6 +159,17 @@ class SampleProductAndFAQFixtureTests(TestCase):
                 self.assertTrue(product.description)  # a short summary
                 self.assertGreater(len(product.information), 500)  # long enough to need get_product_details
         self.assertEqual(FAQ.objects.filter(business_id=1).count(), 12)
+
+    def test_photography_studio_sells_prints_and_frames_for_delivery(self):
+        # Lumen & Lens (business 4): sessions are services; prints, frames and albums are products, delivered.
+        products = Product.objects.filter(business_id=4)
+        self.assertEqual(products.count(), 10)
+        for product in products:
+            with self.subTest(product=product.name):
+                self.assertTrue(product.is_active and product.description)
+                self.assertIn('delivered anywhere in Singapore', product.information)
+        self.assertTrue(FAQ.objects.filter(business_id=4, question='Do you deliver prints and frames?').exists())
+        self.assertEqual(FAQ.objects.filter(business_id=5).count(), 8)
 
     def test_florist_has_a_realistic_catalogue_and_faqs(self):
         # Bloom & Twine Florist Studio (business 2): fresh, dried / preserved, soap and crochet flowers.
@@ -495,18 +506,23 @@ class ServiceModelTests(TestCase):
 
 
 class SampleServiceFixtureTests(TestCase):
-    """product_app/fixtures/sample_services.json: Lumen & Lens Photography Studio (business 4)."""
+    """product_app/fixtures/sample_services.json: Lumen & Lens Photography Studio (business 4) and
+    Rally Point Courts (business 5)."""
 
     fixtures = ['sample_business_configurations', 'sample_services']
 
     def test_fixture_is_valid(self):
-        self.assertEqual(ServiceProvider.objects.count(), 2)
-        self.assertEqual(Service.objects.count(), 8)
-        self.assertEqual(WeeklyAvailability.objects.count(), 24)  # 12 weeks each, 7 Sep to 23 Nov 2026
+        self.assertEqual(ServiceProvider.objects.count(), 6)
+        self.assertEqual(Service.objects.count(), 10)
+        # 13 weeks per provider, 7 Sep to the week of 30 Nov 2026 (bookings run to the end of November).
+        self.assertEqual(WeeklyAvailability.objects.count(), 6 * 13)
+        for provider in ServiceProvider.objects.all():
+            weeks = list(provider.weekly_availabilities.values_list('week', flat=True))
+            self.assertEqual((weeks[0], weeks[-1], len(weeks)), (date(2026, 9, 7), date(2026, 11, 30), 13))
         for item in [*ServiceProvider.objects.all(), *Service.objects.all(), *WeeklyAvailability.objects.all()]:
             with self.subTest(item=str(item)):
                 item.full_clean()  # loaddata skips validation
-                self.assertEqual(item.business_id, 4)
+                self.assertIn(item.business_id, (4, 5))
         for service in Service.objects.all():
             with self.subTest(service=service.name):
                 self.assertTrue(service.is_active)
@@ -523,13 +539,34 @@ class SampleServiceFixtureTests(TestCase):
         # A week with no bookings: Mei Tue–Sat 09:00–13:00 and 14:00–18:00 (Saturday until 17:00),
         # Sunday 10:00–16:00, Mondays off.
         week = mei.weekly_availabilities.get(week=date(2026, 11, 2))
+        week.availability = week.availability.replace('H', 'O').replace('X', 'O')  # booked blocks were open
         self.assertEqual(week.block(0, 10 * 60), 'U')
         self.assertEqual((week.block(1, 9 * 60), week.block(1, 13 * 60), week.block(1, 14 * 60)), ('O', 'U', 'O'))
         self.assertEqual((week.block(5, 16 * 60 + 45), week.block(5, 17 * 60), week.block(6, 10 * 60)), ('O', 'U', 'O'))
         self.assertEqual(set(week.availability), {'O', 'U'})
         # Arjun: Wed–Sun 10:00–19:00, with lunch.
         week = arjun.weekly_availabilities.get(week=date(2026, 11, 2))
+        week.availability = week.availability.replace('H', 'O').replace('X', 'O')
         self.assertEqual((week.block(1, 11 * 60), week.block(2, 10 * 60), week.block(6, 18 * 60 + 45)), ('U', 'O', 'O'))
+
+    def test_court_rental(self):
+        # Rally Point Courts: 2 badminton and 2 tennis courts, rented by the hour, 9am to 9pm daily.
+        courts = ServiceProvider.objects.filter(business_id=5)
+        self.assertEqual(
+            sorted(courts.values_list('name', flat=True)),
+            ['Badminton Court 1', 'Badminton Court 2', 'Tennis Court 1', 'Tennis Court 2'],
+        )
+        badminton = Service.objects.get(name='Badminton Court (1 hour)')
+        tennis = Service.objects.get(name='Tennis Court (1 hour)')
+        for service, kind in ((badminton, 'Badminton'), (tennis, 'Tennis')):
+            with self.subTest(service=service.name):
+                self.assertEqual((service.duration_minutes, service.buffer_minutes, service.start_interval_minutes), (60, 0, 60))
+                self.assertEqual({p.name.split()[0] for p in service.service_providers.all()}, {kind})
+                self.assertEqual(service.service_providers.count(), 2)
+        open_day = 'U' * 36 + 'O' * 48 + 'U' * 12  # 09:00–21:00
+        for week in WeeklyAvailability.objects.filter(service_provider__business_id=5):
+            with self.subTest(week=str(week)):
+                self.assertEqual(week.availability.replace('H', 'O').replace('X', 'O'), open_day * 7)
 
 
 class ServiceProvidersMigrationTests(TransactionTestCase):

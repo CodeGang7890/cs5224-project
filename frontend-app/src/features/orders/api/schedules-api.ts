@@ -14,3 +14,9 @@ export async function getSchedule(id: number): Promise<ScheduleItem> {
   const { data } = await configurationApiClient.get<ScheduleItem>(`/schedules/${id}/`)
   return data
 }
+
+/** Marks a paid booking as completed (payment received → completed; 400 for any other status). */
+export async function completeSchedule(id: number): Promise<ScheduleItem> {
+  const { data } = await configurationApiClient.post<ScheduleItem>(`/schedules/${id}/complete/`)
+  return data
+}

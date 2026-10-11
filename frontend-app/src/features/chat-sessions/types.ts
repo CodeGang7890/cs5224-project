@@ -97,6 +97,7 @@ export interface SandboxTurnDebug {
     | 'order_status'
     | 'order_status_fallback'
     | 'order_status_not_found'
+    | 'welcome'
     | 'confirmation_request'
     | 'order_confirmed'
     | 'slot_options'
@@ -109,6 +110,8 @@ export interface SandboxTurnDebug {
   question_check: QuestionCheckDebug | null
   /** The order status branch: what was asked, and what the records say. Null unless the router found an order status request. */
   order_status: OrderStatusDebug | null
+  /** The welcome message sent first this turn (a chat's first message), or null. */
+  welcome_message: string | null
 }
 
 /** Mirrored from configuration-service `chat_app/flow.py` `check_order_status` / `past_orders.Lookup`. */
@@ -148,6 +151,8 @@ export interface QuestionCheckDebug {
 
 /** Response of POST /api/chat/sandbox-sessions/{id}/messages/: the reply, plus debug info. */
 export interface SandboxMessageReply extends ChatMessage {
+  /** Every message the assistant sent this turn, oldest first: the welcome message (on a chat's first message, if the business has one), then the reply. */
+  messages: ChatMessage[]
   debug: SandboxTurnDebug
 }
 

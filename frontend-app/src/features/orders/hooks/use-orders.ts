@@ -1,8 +1,9 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
+import { productKeys } from '@/features/products'
 import type { ApiError, DetailedPaginated } from '@/types/api'
 
-import { getOrder, listOrders } from '../api/orders-api'
+import { completeOrder, getOrder, listOrders } from '../api/orders-api'
 import type { Order, OrderListParams } from '../types'
 
 export const orderKeys = {
@@ -26,5 +27,18 @@ export function useOrder(id: number | null, enabled = true) {
     queryKey: orderKeys.detail(id ?? 0),
     queryFn: () => getOrder(id as number),
     enabled: enabled && id !== null,
+  })
+}
+
+/** Payment received → completed. Its products move from on hold to sold, so they're refreshed too. */
+export function useCompleteOrder() {
+  const queryClient = useQueryClient()
+  return useMutation<Order, ApiError, number>({
+    mutationFn: completeOrder,
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: orderKeys.all }),
+        queryClient.invalidateQueries({ queryKey: productKeys.all }),
+      ]),
   })
 }

@@ -10,11 +10,28 @@ export type StepNodeData = {
   nodeId: FlowNodeId
   /** The details steps only: the details they ask for (the editor's current, maybe unsaved, ones). */
   fields?: DetailField[]
+  /** The Welcome & style block only: a summary of the (maybe unsaved) settings. */
+  settings?: { welcome: boolean; style: string }
+  /** Set when customers can't reach the block: why (e.g. no products yet). Greys it out. */
+  unavailable?: string
+}
+
+/** The routes the router sends customers down, and their blocks. */
+export type FlowRoute = 'orders' | 'bookings'
+export const ROUTE_NODES: Record<FlowRoute, FlowNodeId[]> = {
+  orders: ['product_selection', 'details_collection', 'confirmation'],
+  bookings: ['service_selection', 'slot_selection', 'booking_details', 'booking_confirmation'],
+}
+/** Why a route is greyed out, on its blocks. */
+export const UNAVAILABLE_REASONS: Record<FlowRoute, string> = {
+  orders: 'No active products yet, so customers can’t order.',
+  bookings: 'No bookable services yet, so customers can’t book.',
 }
 export type StepNode = Node<StepNodeData, 'step'>
 
 const POSITIONS: Record<FlowNodeId, { x: number; y: number }> = {
-  router: { x: 0, y: 300 },
+  router: { x: -90, y: 300 },
+  settings: { x: -90, y: 520 }, // below the router: the welcome message comes before it
   product_selection: { x: 330, y: 20 },
   details_collection: { x: 630, y: 20 },
   confirmation: { x: 930, y: 20 },
@@ -26,25 +43,39 @@ const POSITIONS: Record<FlowNodeId, { x: number; y: number }> = {
   order_status: { x: 330, y: 620 },
 }
 
-/** The diagram's blocks; `fields` go on the details blocks. */
-export function flowNodes(fields: DetailField[]): StepNode[] {
+/** The diagram's blocks; each details block gets its own fields, the Welcome & style block `settings`. */
+export function flowNodes(
+  orderFields: DetailField[],
+  bookingFields: DetailField[],
+  settings?: StepNodeData['settings'],
+): StepNode[] {
   return (Object.keys(POSITIONS) as FlowNodeId[]).map((nodeId) => ({
     id: nodeId,
     type: 'step',
     position: POSITIONS[nodeId],
-    data: DETAILS_NODES.includes(nodeId) ? { nodeId, fields } : { nodeId },
+    data: DETAILS_NODES.includes(nodeId)
+      ? { nodeId, fields: nodeId === 'booking_details' ? bookingFields : orderFields }
+      : nodeId === 'settings'
+        ? { nodeId, settings }
+        : { nodeId },
     draggable: false,
     connectable: false,
     deletable: false,
   }))
 }
 
-function edge(source: FlowNodeId, target: FlowNodeId, label?: string): Edge {
+function edge(
+  source: FlowNodeId,
+  target: FlowNodeId,
+  label?: string,
+  handles?: { sourceHandle: string; targetHandle: string },
+): Edge {
   return {
     id: `${source}->${target}`,
     source,
     target,
     label,
+    ...handles,
     type: 'smoothstep',
     deletable: false,
     selectable: false,
@@ -54,8 +85,10 @@ function edge(source: FlowNodeId, target: FlowNodeId, label?: string): Edge {
   }
 }
 
-/** The router's branches, and the order and booking steps in order. */
+/** The welcome message before the router, the router's branches, and the order and booking steps in order. */
 export const FLOW_EDGES: Edge[] = [
+  // Up from Welcome & style (below the router) into the router's bottom.
+  edge('settings', 'router', 'First message', { sourceHandle: 'top', targetHandle: 'bottom' }),
   edge('router', 'product_selection', 'Orders'),
   edge('product_selection', 'details_collection'),
   edge('details_collection', 'confirmation'),
@@ -66,3 +99,12 @@ export const FLOW_EDGES: Edge[] = [
   edge('router', 'faqs', 'Questions'),
   edge('router', 'order_status', 'Past orders'),
 ]
+
+/** FLOW_EDGES, with the arrows into or within an unavailable route dimmed and dashed. */
+export function flowEdges(unavailable: ReadonlySet<FlowNodeId>): Edge[] {
+  return FLOW_EDGES.map((item) =>
+    unavailable.has(item.target as FlowNodeId)
+      ? { ...item, style: { opacity: 0.35, strokeDasharray: '6 4' }, labelStyle: { opacity: 0.5 } }
+      : item,
+  )
+}

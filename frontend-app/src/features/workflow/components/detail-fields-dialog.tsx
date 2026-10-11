@@ -27,22 +27,28 @@ interface DetailFieldsDialogProps {
   onOpenChange: (open: boolean) => void
   /** The step's current fields (undefined: the defaults). */
   fields: DetailField[] | undefined
+  /** Which step: Details collection (product orders) or Booking details (service bookings). */
+  kind: 'order' | 'booking'
   onApply: (fields: DetailField[]) => void
 }
 
 /**
- * Edits which customer details the Details collection step asks for. Applying only changes the
- * editor; the workflow's Save button saves it to the backend.
+ * Edits which customer details a details step asks for: Details collection (product orders) or
+ * Booking details (service bookings), each its own list. Applying only changes the editor; the
+ * workflow's Save button saves it to the backend.
  */
-export function DetailFieldsDialog({ open, onOpenChange, fields, onApply }: DetailFieldsDialogProps) {
+export function DetailFieldsDialog({ open, onOpenChange, fields, kind, onApply }: DetailFieldsDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[85svh] flex-col gap-4 sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Details to collect</DialogTitle>
+          <DialogTitle>{kind === 'booking' ? 'Details to collect for bookings' : 'Details to collect for orders'}</DialogTitle>
           <DialogDescription>
-            The assistant asks the customer for every detail here, and the chat only moves on once all of them are
-            given and valid.
+            {kind === 'booking'
+              ? 'Asked at the Booking details step, when a customer books a service.'
+              : 'Asked at the Details collection step, when a customer orders products.'}{' '}
+            The chat only moves on once every required detail is given and valid. There's no need to ask for a phone
+            number: customers chat on WhatsApp, so you already have it.
           </DialogDescription>
         </DialogHeader>
         {/* Remounted on each open, so it always starts from the step's current fields. */}

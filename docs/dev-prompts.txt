@@ -897,3 +897,93 @@ It's not secure, I can see the status of other people's orders!
 Perhaps make the flow for this “Order Status” branch where you extract information first from first LLM, then a deterministic check to query db (sort of like tool call but with extra checks), then second LLM that gets the information and rewrite it to return the output properly to the user. Difference is there’s no particular states for this.
 Please draft the system prompt carefully, you should only tell what’s there from the database.
 If no information, say you don’t know instead of hallucinating.
+
+Date & Time (GMT+8): 2026-10-11 20:29:13
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+I want to make the business owner able to customise a welcome message for the user.
+And also choose the style of the message (maybe a few template for a customised system prompt that tells the style, and option to configure it manually).
+Extend ChatConfiguration model to have this. Make sure there is a length limit.
+Allow the user to customise this from the Workflow tab somehow, perhaps by clicking another block on the screen called as config or something similar.
+Add test cases and APIs for this.
+
+Date & Time (GMT+8): 2026-10-11 20:49:49
+AI Model Used: claude-opus-5-5
+Original Prompt:
+Right now the detail fields are the same for both “Product” and “Schedule” items.
+I want these 2 to be independent of each other.
+In ChatConfiguration separate these into 2 detail fields, one for product and another for schedule.
+Please remove phone number as a details to get, because the idea is people chat through WhatsApp and they already have the phone number.
+Make it that by default they just need a name and email (both are required).
+But of course they can make it optional or to remove it or add new custom fields entirely to collect from customer.
+Please update the fixtures and test cases accordingly. /goal
+
+Date & Time (GMT+8): 2026-10-11 21:06:04
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+For schedule booking, I want to add new feature that basically only allow users to book every some multiples of the interval.
+By default the current functionality is 15 mins, but make it configurable to say 30 mins or 1 hour or custom value.
+Say a service needs 1 hour and is available from 9am to 11am.
+If this value is 15 min, I can say book from 9.15am to 10.15am.
+If this is 30 mins, then my start time can only be 9am or 9.30am or 10am.
+If this is 1 hour, my start time can only be 9 am or 10am.
+Make this configurable.
+Add test cases, relevant APIs as usual.
+
+Date & Time (GMT+8): 2026-10-11 21:16:30
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Now I want you to work on the fixtures once again.
+Keep the kopi_owner as like a small business only for testing.
+So I want the florist business (bloom_owner) who sell those flowers (only product).
+Then also I want the photography business (lumen_owner) who sell that photography session (only service), but now I want you to add with products such as photo frames and photo prints, which can be delivered to an address.
+Add more products there and just make it realistic!
+Then I want another business which is a simple court renting business where there’re simply 2 badminton courts and 2 tennis courts that can be rented per 1-hour block, starting from 9am to 9pm.
+Please make the fixtures realistic with lots of bookings, up to bookings in end of November 2026 (because I need data to be available until that time).
+
+Date & Time (GMT+8): 2026-10-11 21:36:11
+AI Model Used: claude-opus-5-5
+Original Prompt:
+[Image #18] please make the "Router" box a bit to the left
+Make the "Welcome & Style" block to be below router, and have arrow too?
+
+Date & Time (GMT+8): 2026-10-11 21:44:46
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Please revise the fixture especially the “FAQs” section and the “Information” for each product or service.
+For example, for this question: “Can I rent rackets and balls?”.
+Change the reply so that no rental of equipment is available and they should bring their own gear.
+It’s because it’s not part of the fixture to have such rents.
+Also prevent (please AVOID) something like: “do you provide customisation” and answering with “yes, we provide customisation A B C for $X cost”. Do not do it because we don’t support such capabilities.
+Please re-check all the fixtures and change it if there’re such cases.
+
+Date & Time (GMT+8): 2026-10-11 21:53:37
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+For both orders and services, make a button in configuration-service where the business owner can click it to change the status from “Payment received” to “Completed”.
+Please have a confirmation modal.
+Currently there’s no way to change status from “Pending payment” to “Payment received” yet, it will be figured out later in another service.
+Also add this order status please (how it changes to these 2 will be worked on later): “payment_failed”.
+Please modify the fixture so there’s a few orders that has this status. Just a very few.
+
+Date & Time (GMT+8): 2026-10-11 22:11:16
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Please grey out product or service selection block if there’s nothing.
+Say if there’s no product, grey out the product selection route from the frontend-app.
+Same with service. No need to update the backend, just the UI.
+
+Date & Time (GMT+8): 2026-10-11 22:30:54
+AI Model Used: claude-opus-5-5
+Original Prompt:
+The fixture for schedule is too much, can you please reduce it significantly. Just make the booking for September 2026 empty.
+Just a few sparse bookings here and there for October, and a few future ones in November.
+Around 30 bookings should be good enough. Now there're like 1k bookings.
+Please modify it.
+Update the test cases too when necesssary.

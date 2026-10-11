@@ -591,7 +591,7 @@ class CustomDetailFieldsFlowTests(FlowTestMixin, APITestCase):
     def setUpTestData(cls):
         cls.cafe = BusinessConfiguration.objects.create(business_name='Kopi Café', location='Tiong Bahru')
         cls.user = BusinessUser.objects.create_user(username='cafe', password='123', business=cls.cafe)
-        cls.chat_config = ChatConfiguration.objects.create(business=cls.cafe, detail_fields=cls.FIELDS)
+        cls.chat_config = ChatConfiguration.objects.create(business=cls.cafe, product_detail_fields=cls.FIELDS)
         cls.chat_config.full_clean()
         cls.kopi = Product.objects.create(business=cls.cafe, name='Kopi C', price='1.80', total_quantity=200)
 
@@ -873,14 +873,14 @@ class RequiredAndOptionalDetailsFlowTests(FlowTestMixin, APITestCase):
         {'key': 'name', 'label': 'Name', 'type': 'text'},
         {'key': 'boo', 'label': 'BOO', 'type': 'text'},  # an unusual label: asked for exactly as it is
         {'key': 'notes', 'label': 'Notes', 'type': 'text', 'required': False},
-        {'key': 'phone', 'label': 'Phone', 'type': 'phone', 'required': False},
+        {'key': 'receipt_email', 'label': 'Receipt email', 'type': 'email', 'required': False},
     ]
 
     @classmethod
     def setUpTestData(cls):
         cls.cafe = BusinessConfiguration.objects.create(business_name='Kopi Café', location='Tiong Bahru')
         cls.user = BusinessUser.objects.create_user(username='cafe', password='123', business=cls.cafe)
-        ChatConfiguration.objects.create(business=cls.cafe, detail_fields=cls.FIELDS).full_clean()
+        ChatConfiguration.objects.create(business=cls.cafe, product_detail_fields=cls.FIELDS).full_clean()
         cls.kopi = Product.objects.create(business=cls.cafe, name='Kopi C', price='1.80', total_quantity=200)
 
     def setUp(self):
@@ -897,11 +897,11 @@ class RequiredAndOptionalDetailsFlowTests(FlowTestMixin, APITestCase):
         self.client.force_authenticate(self.user)
 
     def test_ignoring_a_required_detail_keeps_the_chat_there_and_asking(self):
-        self.send('Alice', {'name': 'Alice', 'boo': None, 'notes': None, 'phone': None})
+        self.send('Alice', {'name': 'Alice', 'boo': None, 'notes': None, 'receipt_email': None})
         # The customer ignores the BOO question, twice: still at Details collection, no order.
         for message in ('Is my order confirmed?', 'Just confirm it please'):
             with self.subTest(message):
-                self.send(message, {'name': None, 'boo': None, 'notes': None, 'phone': None})
+                self.send(message, {'name': None, 'boo': None, 'notes': None, 'receipt_email': None})
                 self.assertEqual(self.session.chat_state_id, 'details_collection')
                 self.assertNotIn('completed', self.session.chat_state_data)
                 self.assertFalse(OrderItem.objects.exists())
@@ -915,28 +915,28 @@ class RequiredAndOptionalDetailsFlowTests(FlowTestMixin, APITestCase):
                 self.assertIn('- "Notes" (optional; text, at most 500 characters)', prompt)
 
     def test_optional_details_can_be_skipped(self):
-        self.send('Alice, and BOO is 42', {'name': 'Alice', 'boo': '42', 'notes': None, 'phone': None})
-        self.assertEqual(self.session.chat_state_id, 'confirmation')  # without notes or phone
+        self.send('Alice, and BOO is 42', {'name': 'Alice', 'boo': '42', 'notes': None, 'receipt_email': None})
+        self.assertEqual(self.session.chat_state_id, 'confirmation')  # without notes or the receipt email
         self.assertEqual(self.session.chat_state_data['details'], {'name': 'Alice', 'boo': '42'})
 
     def test_optional_details_are_kept_when_given(self):
-        self.send('x', {'name': 'Alice', 'boo': 'yes', 'notes': 'Less ice', 'phone': '+65 9123 4567'})
+        self.send('x', {'name': 'Alice', 'boo': 'yes', 'notes': 'Less ice', 'receipt_email': 'alice@example.com'})
         self.assertEqual(self.session.chat_state_id, 'confirmation')
         self.assertEqual(
             self.session.chat_state_data['details'],
-            {'name': 'Alice', 'boo': 'yes', 'notes': 'Less ice', 'phone': '+65 9123 4567'},
+            {'name': 'Alice', 'boo': 'yes', 'notes': 'Less ice', 'receipt_email': 'alice@example.com'},
         )
 
     def test_invalid_optional_detail_is_explained_but_does_not_block(self):
-        response = self.send('x', {'name': 'Alice', 'boo': 'yes', 'notes': None, 'phone': 'call me'})
+        response = self.send('x', {'name': 'Alice', 'boo': 'yes', 'notes': None, 'receipt_email': 'call me'})
         self.assertEqual(self.session.chat_state_id, 'confirmation')
-        self.assertNotIn('phone', self.session.chat_state_data['details'])
-        self.assertIn('"call me" is not a valid phone number.', response.json()['debug']['steps'][0]['issues'])
+        self.assertNotIn('receipt_email', self.session.chat_state_data['details'])
+        self.assertIn('"call me" is not a valid email address.', response.json()['debug']['steps'][0]['issues'])
 
     def test_optional_fields_are_still_extracted(self):
-        self.send('x', {'name': None, 'boo': None, 'notes': None, 'phone': None})
+        self.send('x', {'name': None, 'boo': None, 'notes': None, 'receipt_email': None})
         extraction = self.calls(structured=True)[0]
-        self.assertEqual(extraction['format']['required'], ['name', 'boo', 'notes', 'phone', 'go_back_to'])
+        self.assertEqual(extraction['format']['required'], ['name', 'boo', 'notes', 'receipt_email', 'go_back_to'])
         self.assertIn('Take each label literally', extraction['messages'][0]['content'])
 
 
@@ -1154,15 +1154,6 @@ class CleanDetailValueTests(SimpleTestCase):
         email = {'key': 'email', 'label': 'Email', 'type': 'email'}
         self.assertEqual(self.check(email, ' a@b.co '), ('a@b.co', None))
         self.assertEqual(self.check(email, 'nope'), (None, '"nope" is not a valid email address.'))
-
-    def test_phone(self):
-        phone = {'key': 'phone', 'label': 'Phone', 'type': 'phone'}
-        for valid in ('+65 9123 4567', '91234567', '(65) 9123-4567'):
-            with self.subTest(valid):
-                self.assertEqual(self.check(phone, valid), (valid, None))
-        for invalid in ('12345', 'call me', '+65 9123 4567 8901 2345'):
-            with self.subTest(invalid):
-                self.assertIn('is not a valid phone number', self.check(phone, invalid)[1])
 
 
 class ProductDetailsToolFlowTests(APITestCase):

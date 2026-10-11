@@ -5,8 +5,8 @@
     "fields": {
       "business": 1,
       "name": "Kopi C",
-      "description": "Our everyday kopi C, brewed the traditional Nanyang way in a cloth sock filter and finished with evaporated milk and a spoon of sugar: creamy, smooth and only mildly sweet. One 8 oz cup, served hot, or iced (kopi C peng) at the same price.",
-      "information": "Our everyday kopi C, brewed the traditional Nanyang way. We roast a blend of Robusta and a little Liberica beans with butter and sugar, then brew it in a cloth sock filter (the \"kopi sock\") and pull it between two pots to cool it slightly and give it body. It's finished with evaporated milk and a spoon of sugar, so it's creamy, smooth and only mildly sweet.\n\nSize: one 8 oz (240 ml) cup, served hot. Iced kopi C (kopi C peng) is available at the same price, served in a 16 oz cup with ice.\n\nSweetness: regular sugar by default. Ask for siew dai (less sweet), kosong (no sugar) or ga dai (extra sweet) at no extra cost.\n\nAllergens and dietary notes: contains dairy (evaporated milk). The beans are roasted with butter, so even kopi O (without milk) isn't dairy-free. No nuts are used in the drink itself, but our kitchen handles peanuts. One cup has roughly the caffeine of a double espresso.\n\nBest enjoyed straight away; we don't recommend keeping it for later.\n\nFAQs about this drink:\n- Can I have it with oat or soy milk? Not at the moment: we only stock evaporated and condensed milk.\n- Can I order a flask for the office? Yes, a 1-litre flask (about 4 cups) is $7.00. Please order at least 2 hours ahead.\n- Is it strong? Yes, it's stronger than a café latte, because of the Robusta beans.",
+      "description": "Our everyday kopi C, brewed the traditional Nanyang way in a cloth sock filter and finished with evaporated milk and a spoon of sugar: creamy, smooth and only mildly sweet. One 8 oz cup, served hot.",
+      "information": "Our everyday kopi C, brewed the traditional Nanyang way. We roast a blend of Robusta and a little Liberica beans with butter and sugar, then brew it in a cloth sock filter (the \"kopi sock\") and pull it between two pots to cool it slightly and give it body. It's finished with evaporated milk and a spoon of sugar, so it's creamy, smooth and only mildly sweet.\n\nSize: one 8 oz (240 ml) cup, served hot.\n\nSweetness: one spoon of sugar, made the same way every time.\n\nAllergens and dietary notes: contains dairy (evaporated milk). The beans are roasted with butter, so even kopi O (without milk) isn't dairy-free. No nuts are used in the drink itself, but our kitchen handles peanuts. One cup has roughly the caffeine of a double espresso.\n\nBest enjoyed straight away; we don't recommend keeping it for later.\n\nFAQs about this drink:\n- Can I have it with oat or soy milk? Not at the moment: we only stock evaporated and condensed milk.\n- Is it strong? Yes, it's stronger than a café latte, because of the Robusta beans.",
       "price": "1.80",
       "total_quantity": 225,
       "is_active": true
@@ -18,8 +18,8 @@
     "fields": {
       "business": 1,
       "name": "Kaya Toast Set",
-      "description": "Our classic breakfast set: two slices of charcoal-grilled toast with cold butter and house-made kaya, two soft-boiled eggs with light soy sauce and white pepper, and a hot kopi C or teh C. Available all day.",
-      "information": "Our classic breakfast set, the way Singaporeans have started the day for generations.\n\nWhat's in the set:\n- Two slices of charcoal-grilled white bread, crisp on the outside, with a thick slab of cold salted butter and our house-made kaya.\n- Two soft-boiled eggs (cooked for about 6 minutes, still runny), served with light soy sauce and white pepper on the side.\n- One hot drink: kopi C or teh C (tea with evaporated milk). You can swap it for an iced drink for $0.50 more.\n\nAbout our kaya: we cook it in small batches every morning from fresh coconut milk, eggs, sugar and pandan leaves, stirring it for about two hours until it's thick and caramel-brown. It has no preservatives, so it's best on the day.\n\nOptions: ask for wholemeal bread at no extra cost, or extra kaya for $0.80.\n\nAllergens: contains wheat (gluten), eggs, dairy (butter, evaporated milk) and soy (soy sauce). The kaya contains coconut. Our kitchen also handles peanuts and sesame.\n\nTakeaway: the eggs are packed separately so they don't overcook. Available all day.\n\nFAQs about this set:\n- Can I order the toast without the eggs? Yes, the toast and drink alone are $3.80; just tell us when ordering.\n- Can the eggs be cooked harder? Yes, ask for well-done eggs (about 9 minutes).",
+      "description": "Our classic breakfast set: two slices of charcoal-grilled toast with cold butter and house-made kaya, two soft-boiled eggs with light soy sauce and white pepper, and a hot kopi C. Available all day.",
+      "information": "Our classic breakfast set, the way Singaporeans have started the day for generations.\n\nWhat's in the set:\n- Two slices of charcoal-grilled white bread, crisp on the outside, with a thick slab of cold salted butter and our house-made kaya.\n- Two soft-boiled eggs (cooked for about 6 minutes, still runny), served with light soy sauce and white pepper on the side.\n- One hot kopi C.\n\nAbout our kaya: we cook it in small batches every morning from fresh coconut milk, eggs, sugar and pandan leaves, stirring it for about two hours until it's thick and caramel-brown. It has no preservatives, so it's best on the day.\n\n\nAllergens: contains wheat (gluten), eggs, dairy (butter, evaporated milk) and soy (soy sauce). The kaya contains coconut. Our kitchen also handles peanuts and sesame.\n\nTakeaway: the eggs are packed separately so they don't overcook. Available all day.\n\nFAQs about this set:",
       "price": "5.50",
       "total_quantity": 93,
       "is_active": true
@@ -109,8 +109,8 @@
     "fields": {
       "business": 1,
       "name": "Iced Teh Tarik",
-      "description": "Our pulled milk tea, served over ice: strong Ceylon and Assam tea with condensed and evaporated milk, pulled until frothy and smooth. One 16 oz cup; the hot version (8 oz) is the same price.",
-      "information": "Our pulled milk tea, served over ice. We brew strong black tea from a blend of Ceylon and Assam leaves, sweeten it with condensed milk and evaporated milk, then \"pull\" it: pour it from a height between two jugs until it's frothy and smooth.\n\nSize: 16 oz (470 ml) cup with ice. The hot version (8 oz) is the same price.\n\nSweetness: it's on the sweet side by default; ask for siew dai (less sweet). We can't make it with no sugar, because the condensed milk is part of the recipe.\n\nAllergens: contains dairy (condensed and evaporated milk). It has caffeine from the tea, about half a cup of coffee's worth.",
+      "description": "Our pulled milk tea, served over ice: strong Ceylon and Assam tea with condensed and evaporated milk, pulled until frothy and smooth. One 16 oz cup.",
+      "information": "Our pulled milk tea, served over ice. We brew strong black tea from a blend of Ceylon and Assam leaves, sweeten it with condensed milk and evaporated milk, then \"pull\" it: pour it from a height between two jugs until it's frothy and smooth.\n\nSize: 16 oz (470 ml) cup with ice.\n\nSweetness: it's on the sweet side, because the condensed milk is part of the recipe.\nBest enjoyed within 30 minutes, before the ice melts and waters it down.\n\nAllergens: contains dairy (condensed and evaporated milk). It has caffeine from the tea, about half a cup of coffee's worth.",
       "price": "2.80",
       "total_quantity": 150,
       "is_active": true
@@ -164,7 +164,7 @@
       "description": "A palm-sized posy of dried lavender, baby's breath and bunny tails: a sweet little thank-you, a desk pick-me-up or a charming wedding favour.",
       "information": "Type: dried flowers.\n\nWhat's in it: dried French lavender, baby's breath and lagurus (bunny tails), with a sprig of preserved eucalyptus. The posy is about 20 cm tall and 10 cm across, wrapped in translucent glassine paper and tied with cotton twine and a small kraft tag you can write on.\n\nScent: the lavender keeps a light, relaxing scent for about 3 months. To refresh it, gently squeeze the lavender buds between your fingers.\n\nHow long it lasts: a year or more indoors. The colours soften gradually over time, faster in direct sunlight.\n\nCare:\n- Never put it in water.\n- Keep it dry and out of direct sun; in Singapore's humidity, an air-conditioned room is best.\n- Dust it gently with a soft brush, or a hairdryer on the cool setting.\n- Lavender buds may drop a little over time, which is normal for dried lavender.\n\nDisplay: it fits nicely in a small bud vase, a jar or a glass, or can simply be laid on a desk or shelf.\n\nAllergies, children and pets: the lavender scent can bother people who are sensitive to fragrance, and the baby's breath can shed fine particles. Lavender and baby's breath are mildly toxic to cats and dogs, so place the posy out of their reach. Not suitable for young children (small parts).",
       "price": "26.00",
-      "total_quantity": 34,
+      "total_quantity": 33,
       "is_active": true
     }
   },
@@ -190,7 +190,7 @@
       "description": "A sweet bouquet of seven pink soap carnations with baby's breath: the classic way to say thank you to Mum or a favourite teacher, made to last.",
       "information": "Type: soap flowers.\n\nWhat's in it: 7 pink soap carnations (heads about 6 cm across) with ruffled, hand-dyed soap petals, natural dried baby's breath and faux eucalyptus leaves, wrapped Korean-style in two layers of paper with a ribbon. The bouquet is about 35 cm tall. The carnation stems and leaves are artificial (fabric over wire), so they stay upright and green.\n\nHow long it lasts: as a decoration, indefinitely. The light carnation scent lasts about 4 to 6 months. The dried baby's breath is natural, so it may shed a little.\n\nCare:\n- Keep it dry and out of direct sun. It can be displayed in a dry vase (no water) or left in its wrapping.\n- Keep it away from humid spots such as bathrooms and kitchens, where the soap petals can soften.\n- Dust gently with a soft brush.\n- Like all our soap flowers, the petals can be used as soap: one or two petals for a hand-wash.\n\nMeaning: carnations are the traditional Mother's Day flower, and pink carnations stand for gratitude, which also makes this bouquet a popular Teachers' Day gift.\n\nSkin, allergies and pets: the soap contains fragrance, so do a patch test if you have sensitive skin. The carnations have no pollen, but the baby's breath can shed fine particles, and it's mildly toxic to cats and dogs. Not edible: keep away from young children and pets.",
       "price": "42.00",
-      "total_quantity": 24,
+      "total_quantity": 22,
       "is_active": true
     }
   },
@@ -216,7 +216,7 @@
       "description": "A plump, hand-crocheted tulip on a bendable stem, made stitch by stitch in our studio from soft milk-cotton yarn: a flower that never fades.",
       "information": "Type: crochet flowers.\n\nWho makes it: every crochet flower is made by hand by our in-house crochet artist, Priya, and a small team of home-based crocheters in Singapore. A tulip takes about 1.5 hours to make, so no two are exactly alike.\n\nWhat it's made of: 5-ply milk cotton yarn (a soft cotton and acrylic blend, with no wool), stuffed with polyester fibrefill, on a 2 mm wire stem wrapped in green yarn, with two crochet leaves. The stem bends, so you can shape it in a vase. The tulip is soft pink, about 30 cm tall, with a flower head about 5 cm tall, and comes in a clear sleeve with a ribbon.\n\nHow long it lasts: forever, really. The colour stays bright indoors for years; long direct sunlight can fade it slowly.\n\nCare:\n- Dust it gently with a lint roller or a soft brush.\n- To clean, spot-clean with a damp cloth and a drop of mild soap, then let it air-dry. Don't machine-wash or soak it: the wire stem can rust.\n- Keep it out of long direct sunlight.\n\nAllergies: no pollen, no scent and no wool, which makes crochet flowers a good choice for allergy sufferers and hospital visits.\n\nSafety: because of the wire stem, it's not suitable for children under 3, and it should be kept away from pets that like to chew.",
       "price": "14.90",
-      "total_quantity": 51,
+      "total_quantity": 48,
       "is_active": true
     }
   },
@@ -243,6 +243,136 @@
       "information": "Type: crochet flowers.\n\nWhat's in it: 12 hand-crocheted red roses (heads about 6 cm across), each with layered, curled petals and a green calyx, on wire stems with crochet leaves, arranged with crochet baby's breath, so nothing sheds. The bouquet is about 50 cm tall and 30 cm wide, wrapped in black Korean paper with a satin ribbon.\n\nThe work behind it: each rose takes about 3 hours, so a bouquet is roughly 36 hours of handwork by our crocheters, and every one is slightly different.\n\nWhat it's made of: milk cotton yarn (cotton and acrylic, no wool) in deep red, with polyester fibrefill and wire stems.\n\nHow long it lasts: forever. It needs no water, won't wilt and holds its shape for years. Keep it out of long direct sunlight so the red stays rich.\n\nCare:\n- Dust gently with a soft brush or lint roller.\n- Spot-clean with a damp cloth if needed, and let it air-dry; never wash or soak it (the stems have wire inside).\n- If a petal gets squashed, gently reshape it with your fingers.\n\nAllergies: no pollen, no scent and no wool, so it suits allergy sufferers, and it can go where fresh flowers aren't allowed, such as most hospital wards.\n\nSafety: keep it away from young children and pets (wire stems).",
       "price": "168.00",
       "total_quantity": 3,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 20,
+    "fields": {
+      "business": 4,
+      "name": "4R Photo Prints (Pack of 10)",
+      "description": "Ten classic 4R (4×6 in) prints of your favourite shots from your session, on lustre photo paper.",
+      "information": "Printed from the photos in your Lumen & Lens online gallery: tell us the gallery name and the photo numbers when you order. We print only photos from your own session with us.\n\nSize: 4R, 4 × 6 inches (10.2 × 15.2 cm), borderless. Paper: 260 gsm lustre (semi-gloss) photo paper, which resists fingerprints and glare. Colours are colour-corrected by our editors before printing. You can mix any 10 photos in one pack.\n\nDelivery: made to order in our studio within 3 to 5 working days, then delivered anywhere in Singapore (1 to 2 working days, free of charge). We send you a photo of the finished piece before it ships.",
+      "price": "18.00",
+      "total_quantity": 314,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 21,
+    "fields": {
+      "business": 4,
+      "name": "A4 Fine Art Print",
+      "description": "One A4 print on archival cotton rag paper, with a soft matte finish: our most popular print for framing.",
+      "information": "Printed from the photos in your Lumen & Lens online gallery: tell us the gallery name and the photo numbers when you order. We print only photos from your own session with us.\n\nSize: A4 (21 × 29.7 cm), with a 1 cm white border. Paper: 310 gsm Hahnemühle Photo Rag, 100% cotton, acid-free; pigment inks rated to last over 100 years indoors. Matte, so it looks best behind glass or in our frames.\n\nDelivery: made to order in our studio within 3 to 5 working days, then delivered anywhere in Singapore (1 to 2 working days, free of charge). We send you a photo of the finished piece before it ships.",
+      "price": "35.00",
+      "total_quantity": 205,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 22,
+    "fields": {
+      "business": 4,
+      "name": "A3 Fine Art Print",
+      "description": "One A3 print on archival cotton rag paper, matte: big enough to be the centrepiece of a wall.",
+      "information": "Printed from the photos in your Lumen & Lens online gallery: tell us the gallery name and the photo numbers when you order. We print only photos from your own session with us.\n\nSize: A3 (29.7 × 42 cm), with a 1.5 cm white border. Paper: 310 gsm Hahnemühle Photo Rag, 100% cotton, acid-free, pigment inks. Rolled in a tube for delivery unless ordered with a frame.\n\nDelivery: made to order in our studio within 3 to 5 working days, then delivered anywhere in Singapore (1 to 2 working days, free of charge). We send you a photo of the finished piece before it ships.",
+      "price": "55.00",
+      "total_quantity": 151,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 23,
+    "fields": {
+      "business": 4,
+      "name": "Stretched Canvas Print (40×60 cm)",
+      "description": "Your photo printed on cotton canvas and stretched over a 3 cm wooden frame, ready to hang.",
+      "information": "Printed from the photos in your Lumen & Lens online gallery: tell us the gallery name and the photo numbers when you order. We print only photos from your own session with us.\n\nSize: 40 × 60 cm (portrait or landscape, to suit your photo), 3 cm deep. Canvas: 380 gsm matte cotton-poly canvas over a kiln-dried pine frame, with the image wrapped around the edges. Comes with a hanging wire fitted. Not for bathrooms or direct sunlight.\n\nDelivery: made to order in our studio within 3 to 5 working days, then delivered anywhere in Singapore (1 to 2 working days, free of charge). We send you a photo of the finished piece before it ships.",
+      "price": "139.00",
+      "total_quantity": 42,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 24,
+    "fields": {
+      "business": 4,
+      "name": "Classic Oak Frame (8×10 in)",
+      "description": "A solid oak frame with a white mount and an 8×10 in print of your choice, ready for a shelf or wall.",
+      "information": "Printed from the photos in your Lumen & Lens online gallery: tell us the gallery name and the photo numbers when you order. We print only photos from your own session with us.\n\nFrame: solid oak, 2 cm moulding, natural finish, with a stand for shelves and a hook for walls. Outer size about 30 × 25 cm. Includes an 8 × 10 inch lustre print in a white mount, behind clear acrylic glazing (light and shatterproof).\n\nDelivery: made to order in our studio within 3 to 5 working days, then delivered anywhere in Singapore (1 to 2 working days, free of charge). We send you a photo of the finished piece before it ships.",
+      "price": "68.00",
+      "total_quantity": 31,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 25,
+    "fields": {
+      "business": 4,
+      "name": "Gallery Black Frame with A3 Print",
+      "description": "A slim matte-black frame with a wide white mount and an A3 fine art print inside: our signature wall piece.",
+      "information": "Printed from the photos in your Lumen & Lens online gallery: tell us the gallery name and the photo numbers when you order. We print only photos from your own session with us.\n\nFrame: 2.5 cm aluminium, matte black, outer size about 50 × 40 cm. Includes an A3 fine art print (Hahnemühle Photo Rag) in a 6 cm acid-free white mount, behind anti-reflective acrylic. Delivered with wall hooks and a level.\n\nDelivery: made to order in our studio within 3 to 5 working days, then delivered anywhere in Singapore (1 to 2 working days, free of charge). We send you a photo of the finished piece before it ships.",
+      "price": "149.00",
+      "total_quantity": 24,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 26,
+    "fields": {
+      "business": 4,
+      "name": "Set of 3 Framed A4 Prints",
+      "description": "Three A4 fine art prints in matching matte black frames: a ready-made gallery wall for a family or couple.",
+      "information": "Printed from the photos in your Lumen & Lens online gallery: tell us the gallery name and the photo numbers when you order. We print only photos from your own session with us.\n\nThree A4 prints on Hahnemühle Photo Rag, each in a 2 cm matte black frame with a white mount, outer size about 35 × 28 cm each. We suggest a layout and send a paper template so hanging is easy.\n\nDelivery: made to order in our studio within 3 to 5 working days, then delivered anywhere in Singapore (1 to 2 working days, free of charge). We send you a photo of the finished piece before it ships.",
+      "price": "189.00",
+      "total_quantity": 17,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 27,
+    "fields": {
+      "business": 4,
+      "name": "Linen Photo Album (30 Pages)",
+      "description": "A lay-flat album bound in linen, with 30 pages of your photos laid out by our designers.",
+      "information": "Printed from the photos in your Lumen & Lens online gallery: tell us the gallery name and the photo numbers when you order. We print only photos from your own session with us.\n\nSize: 25 × 25 cm, lay-flat pages on 300 gsm photo paper, 30 pages (15 spreads), up to about 60 photos. Cover: charcoal linen. We send you the layout to approve before printing.\n\nDelivery: made to order in our studio within 3 to 5 working days, then delivered anywhere in Singapore (1 to 2 working days, free of charge). We send you a photo of the finished piece before it ships.",
+      "price": "240.00",
+      "total_quantity": 14,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 28,
+    "fields": {
+      "business": 4,
+      "name": "Acrylic Photo Block (5×7 in)",
+      "description": "Your photo printed behind a 2 cm thick crystal-clear acrylic block that stands on its own.",
+      "information": "Printed from the photos in your Lumen & Lens online gallery: tell us the gallery name and the photo numbers when you order. We print only photos from your own session with us.\n\nSize: 5 × 7 inches (12.7 × 17.8 cm), 2 cm thick, polished edges; stands upright or on its side on a desk or shelf. The photo is printed on lustre paper and bonded to the back.\n\nDelivery: made to order in our studio within 3 to 5 working days, then delivered anywhere in Singapore (1 to 2 working days, free of charge). We send you a photo of the finished piece before it ships.",
+      "price": "75.00",
+      "total_quantity": 36,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 29,
+    "fields": {
+      "business": 4,
+      "name": "Mini Instant-Style Prints (Pack of 20)",
+      "description": "Twenty small instant-camera-style prints with a white border, for walls, journals and gifts.",
+      "information": "Printed from the photos in your Lumen & Lens online gallery: tell us the gallery name and the photo numbers when you order. We print only photos from your own session with us.\n\nSize: 5.4 × 8.6 cm each, with a classic white border (wider at the bottom, for writing on). Paper: 260 gsm lustre. Comes with 20 mini wooden pegs and a 1.5 m string to hang them.\n\nDelivery: made to order in our studio within 3 to 5 working days, then delivered anywhere in Singapore (1 to 2 working days, free of charge). We send you a photo of the finished piece before it ships.",
+      "price": "24.00",
+      "total_quantity": 200,
       "is_active": true
     }
   }

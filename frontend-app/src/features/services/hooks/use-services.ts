@@ -33,6 +33,7 @@ export const SERVICES_PAGE_SIZE = 20 // matches the backend's PAGE_SIZE
 export const serviceKeys = {
   all: ['services'] as const,
   list: (page: number) => [...serviceKeys.all, 'list', page] as const,
+  hasBookable: () => [...serviceKeys.all, 'has-bookable'] as const,
 }
 
 // Providers list which services they do, and services list their providers, so changing either
@@ -139,5 +140,27 @@ export function useCopyWeek(providerId: number) {
   return useMutation<WeeksChange, ApiError, CopyWeekInput>({
     mutationFn: (input) => copyWeek(providerId, input),
     onSuccess: invalidate,
+  })
+}
+
+/**
+ * Whether the business has a service customers can book in the chat: active, with at least one
+ * active service provider (like the backend's `active_services`). Reads every page of services.
+ * Under `serviceKeys`, so saving a service or a provider refreshes it.
+ */
+export function useHasBookableServices() {
+  return useQuery<boolean, ApiError>({
+    queryKey: serviceKeys.hasBookable(),
+    queryFn: async () => {
+      const providers = await listProviders()
+      const active = new Set(providers.results.filter((provider) => provider.is_active).map((provider) => provider.id))
+      for (let page = 1; ; page++) {
+        const data = await listServices(page)
+        if (data.results.some((service) => service.is_active && service.service_providers.some((id) => active.has(id)))) {
+          return true
+        }
+        if (!data.next) return false
+      }
+    },
   })
 }

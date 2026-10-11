@@ -248,3 +248,107 @@ class ScheduleAPITests(APITestCase):
         self.client.force_authenticate(self.user)
         first = self.client.get(SCHEDULE_LIST_URL).json()['results'][0]
         self.assertEqual((first['service_provider'], first['service_provider_name']), (None, None))
+
+
+class OrderCompleteAPITests(OrderAPITestCase):
+    """POST /api/orders/{id}/complete/: payment received → completed, and nothing else."""
+
+    @staticmethod
+    def url(order):
+        return reverse('checkout_app:order-complete', args=[order.pk])
+
+    def test_requires_login_and_a_business(self):
+        self.assertEqual(self.client.post(self.url(self.paid)).status_code, status.HTTP_401_UNAUTHORIZED)
+        self.client.force_authenticate(self.no_business_user)
+        self.assertEqual(self.client.post(self.url(self.paid)).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_completes_a_paid_order(self):
+        self.client.force_authenticate(self.cafe_user)
+        before = self.paid.updated_time
+        response = self.client.post(self.url(self.paid))
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        self.assertEqual((response.json()['id'], response.json()['order_status']), (self.paid.pk, 'order_completed'))
+        self.paid.refresh_from_db()
+        self.assertEqual(self.paid.order_status, OrderStatus.ORDER_COMPLETED)
+        self.assertGreater(self.paid.updated_time, before)
+
+    def test_only_from_payment_received(self):
+        self.client.force_authenticate(self.cafe_user)
+        failed = OrderItem.objects.create(business=self.cafe, order_data=VALID_ORDER_DATA, order_status=OrderStatus.PAYMENT_FAILED)
+        for order, label in ((self.pending, 'pending payment'), (self.done, 'order completed'), (failed, 'payment failed')):
+            with self.subTest(status=order.order_status):
+                response = self.client.post(self.url(order))
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertEqual(
+                    response.json()['order_status'],
+                    [f'Only orders with payment received can be marked as completed (this one is {label}).'],
+                )
+                status_before = order.order_status
+                order.refresh_from_db()
+                self.assertEqual(order.order_status, status_before)
+
+    def test_another_business_or_unknown(self):
+        self.client.force_authenticate(self.cafe_user)
+        self.assertEqual(self.client.post(self.url(self.florist_order)).status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.client.post(reverse('checkout_app:order-complete', args=[99999])).status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(self.client.get(self.url(self.paid)).status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_the_products_move_from_on_hold_to_sold(self):
+        from product_app.models import Product
+
+        shop = BusinessConfiguration.objects.create(business_name='Shop', location='Singapore')  # no other orders
+        self.cafe_user.business = shop
+        self.cafe_user.save()
+        kopi = Product.objects.create(business=shop, name='Kopi C', price='1.80', total_quantity=10)
+        data = {'items': [{'product_id': kopi.pk, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 3}], 'details': {}}
+        paid = OrderItem.objects.create(business=shop, order_data=data, order_status=OrderStatus.PAYMENT_RECEIVED)
+        kopi = Product.load_stock([Product.objects.get(pk=kopi.pk)])[0]
+        self.assertEqual((kopi.quantity_on_hold, kopi.quantity_sold, kopi.quantity_available), (3, 0, 7))
+        self.client.force_authenticate(self.cafe_user)
+        self.client.post(self.url(paid))
+        kopi = Product.load_stock([Product.objects.get(pk=kopi.pk)])[0]
+        self.assertEqual((kopi.quantity_on_hold, kopi.quantity_sold, kopi.quantity_available), (0, 3, 7))
+
+
+@override_settings(SCHEDULE_TIME_ZONE='Asia/Singapore')
+class ScheduleCompleteAPITests(ScheduleAPITests):
+    """POST /api/schedules/{id}/complete/: payment received → completed, and nothing else."""
+
+    @staticmethod
+    def url(booking):
+        return reverse('checkout_app:schedule-complete', args=[booking.pk])
+
+    def test_completes_a_paid_booking_and_its_time_stays_booked(self):
+        from .test_schedule import day_letters
+
+        self.client.force_authenticate(self.user)
+        wednesday = self.monday + timedelta(days=2)
+        self.assertEqual(day_letters(self.raj, wednesday, '14:00', '15:30'), 'X' * 6)  # its 90 minutes
+        response = self.client.post(self.url(self.late))
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        self.assertEqual((response.json()['order_status'], response.json()['service_provider_name']), ('order_completed', 'Raj'))
+        self.late.refresh_from_db()
+        self.assertEqual(self.late.order_status, OrderStatus.ORDER_COMPLETED)
+        self.assertEqual(day_letters(self.raj, wednesday, '14:00', '15:30'), 'X' * 6)
+
+    def test_only_from_payment_received(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.post(self.url(self.early))  # pending payment
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.json()['order_status'],
+            ['Only bookings with payment received can be marked as completed (this one is pending payment).'],
+        )
+        self.early.refresh_from_db()
+        self.assertEqual(self.early.order_status, OrderStatus.PENDING_PAYMENT)
+
+    def test_another_business_unknown_or_logged_out(self):
+        self.assertEqual(self.client.post(self.url(self.late)).status_code, status.HTTP_401_UNAUTHORIZED)
+        self.client.force_authenticate(self.user)
+        self.assertEqual(self.client.post(self.url(self.theirs)).status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.client.post(reverse('checkout_app:schedule-complete', args=[99999])).status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_filter_by_payment_failed(self):
+        self.client.force_authenticate(self.user)
+        failed = book(self.portrait, self.raj, at(self.monday, '15:00'), status=OrderStatus.PAYMENT_FAILED)
+        self.assertEqual(self.ids({'order_status': 'payment_failed'}), [failed.pk])

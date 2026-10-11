@@ -14,6 +14,8 @@ class OrderStatus(models.TextChoices):
     PENDING_PAYMENT = 'pending_payment', 'Pending payment'
     PAYMENT_RECEIVED = 'payment_received', 'Payment received'
     ORDER_COMPLETED = 'order_completed', 'Order completed'
+    # The payment didn't go through (set by the payment service, later). Holds no stock and no time.
+    PAYMENT_FAILED = 'payment_failed', 'Payment failed'
 
 
 ORDER_STATUS_MAX_LENGTH = 32

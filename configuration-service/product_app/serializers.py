@@ -210,6 +210,7 @@ class ServiceSerializer(BusinessOwnedSerializerMixin, serializers.ModelSerialize
             'price',
             'duration_minutes',
             'buffer_minutes',
+            'start_interval_minutes',
             'service_providers',
             'is_active',
         )
@@ -270,7 +271,9 @@ class CalendarBookingSerializer(serializers.Serializer):
     start_time = serializers.DateTimeField()
     end_time = serializers.DateTimeField()
     blocked_until = serializers.DateTimeField(help_text='end_time + the buffer.')
-    order_status = serializers.CharField(help_text='`pending_payment` (H), `payment_received` / `order_completed` (X).')
+    order_status = serializers.CharField(
+        help_text='`pending_payment` (H), `payment_received` / `order_completed` (X); bookings whose payment failed take up no time and are not listed.'
+    )
     total = serializers.DecimalField(max_digits=12, decimal_places=2)
     is_sandbox = serializers.BooleanField()
     chat_session = serializers.IntegerField(allow_null=True)

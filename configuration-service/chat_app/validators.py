@@ -11,6 +11,8 @@ from .constants import (
     DETAIL_TYPE_NUMBER,
     DETAIL_TYPE_TEXT,
     MESSAGE_SENDERS,
+    WELCOME_MESSAGE_MAX_LENGTH,
+    WELCOME_PLACEHOLDERS,
 )
 
 # --- ChatConfiguration.detail_fields: the customer details the Details collection step asks for
@@ -311,3 +313,23 @@ def validate_chat_state_data(value) -> None:
 
     if errors:
         raise ValidationError(errors)
+
+
+# --- Welcome message (ChatConfiguration.welcome_message) ----------------------------------
+
+_BRACES = re.compile(r'\{[^{}]*\}|[{}]')
+
+
+def validate_welcome_message(value: str) -> None:
+    """At most WELCOME_MESSAGE_MAX_LENGTH characters (the model field checks too), and no braces
+    except the placeholders in WELCOME_PLACEHOLDERS (e.g. {business_name})."""
+    if not isinstance(value, str):
+        raise ValidationError('The welcome message must be text.')
+    if len(value) > WELCOME_MESSAGE_MAX_LENGTH:
+        raise ValidationError(f'The welcome message must be at most {WELCOME_MESSAGE_MAX_LENGTH} characters.')
+    unknown = sorted({match for match in _BRACES.findall(value) if match not in WELCOME_PLACEHOLDERS})
+    if unknown:
+        raise ValidationError(
+            f'Unknown placeholder {", ".join(unknown)}: the only one you can use is '
+            f'{" or ".join(WELCOME_PLACEHOLDERS)} (no other curly braces).'
+        )

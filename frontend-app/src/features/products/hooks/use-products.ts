@@ -10,6 +10,7 @@ export const PRODUCTS_PAGE_SIZE = 20 // matches the backend's PAGE_SIZE
 export const productKeys = {
   all: ['products'] as const,
   list: (page: number) => [...productKeys.all, 'list', page] as const,
+  hasActive: () => [...productKeys.all, 'has-active'] as const,
 }
 
 export function useProducts(page: number) {
@@ -39,5 +40,22 @@ export function useDeleteProduct() {
   return useMutation<void, ApiError, number>({
     mutationFn: deleteProduct,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: productKeys.all }),
+  })
+}
+
+/**
+ * Whether the business has at least one active product, i.e. whether customers can order in the
+ * chat (the backend only offers active products). Reads the pages until it finds one.
+ */
+export function useHasActiveProducts() {
+  return useQuery<boolean, ApiError>({
+    queryKey: productKeys.hasActive(),
+    queryFn: async () => {
+      for (let page = 1; ; page++) {
+        const data = await listProducts(page)
+        if (data.results.some((product) => product.is_active)) return true
+        if (!data.next) return false
+      }
+    },
   })
 }

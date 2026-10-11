@@ -6,12 +6,24 @@ from django.utils import timezone
 
 from product_app.models import FAQ_QUESTION_MAX_LENGTH
 
-from .constants import CHAT_STEPS, STEP_LABELS, STEP_START
+from .constants import (
+    BOOKING_STEPS,
+    CHAT_STEPS,
+    CUSTOM_STYLE_MAX_LENGTH,
+    DEFAULT_REPLY_STYLE,
+    REPLY_STYLE_CUSTOM,
+    REPLY_STYLE_PRESETS,
+    REPLY_STYLES,
+    STEP_LABELS,
+    STEP_START,
+    WELCOME_MESSAGE_MAX_LENGTH,
+)
 from .validators import (
     default_detail_fields,
     validate_chat_messages,
     validate_chat_state_data,
     validate_detail_fields,
+    validate_welcome_message,
 )
 
 PHONE_NUMBER_MAX_LENGTH = 16  # E.164: "+" and up to 15 digits
@@ -30,8 +42,10 @@ class ChatConfiguration(models.Model):
 
     The flow itself is fixed in code (flow.py): the router, then the order steps (Product
     selection → Details collection → Confirmation), the FAQs and order status. The business only
-    configures the steps' settings; so far, which details the Details collection step asks for.
-    A business that hasn't saved any uses the defaults (for_business).
+    configures the steps' settings: which details the Details collection step asks for (for
+    product orders) and the Booking details step (for service bookings), separately; the
+    welcome message sent as the reply to a chat's first message, and the style the assistant
+    writes in. A business that hasn't saved any uses the defaults (for_business).
     """
 
     business = models.OneToOneField(
@@ -39,18 +53,61 @@ class ChatConfiguration(models.Model):
         on_delete=models.CASCADE,
         related_name='chat_configuration',
     )
-    detail_fields = models.JSONField(
+    product_detail_fields = models.JSONField(
         default=default_detail_fields,
         validators=[validate_detail_fields],
-        help_text='The customer details the Details collection step asks for (see validators.detail_field_errors).',
+        help_text='The customer details the Details collection step asks for, for product orders (see validators.detail_field_errors).',
+    )
+    schedule_detail_fields = models.JSONField(
+        default=default_detail_fields,
+        validators=[validate_detail_fields],
+        help_text='The customer details the Booking details step asks for, for service bookings (see validators.detail_field_errors).',
+    )
+    welcome_message = models.CharField(
+        max_length=WELCOME_MESSAGE_MAX_LENGTH,
+        blank=True,
+        default='',
+        validators=[validate_welcome_message],
+        help_text=(
+            "Sent word for word as the reply to a chat's first message (blank: none). May use {business_name}."
+        ),
+    )
+    reply_style = models.CharField(
+        max_length=20,
+        choices=[(key, meta['label']) for key, meta in REPLY_STYLE_PRESETS.items()] + [(REPLY_STYLE_CUSTOM, 'Custom')],
+        default=DEFAULT_REPLY_STYLE,
+        help_text='How the assistant writes its replies: a preset, or custom (custom_style).',
+    )
+    custom_style = models.CharField(
+        max_length=CUSTOM_STYLE_MAX_LENGTH,
+        blank=True,
+        default='',
+        help_text='With reply_style "custom": how the assistant should write, in the business\'s own words.',
     )
     last_updated = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ['business']
+        constraints = [
+            models.CheckConstraint(condition=Q(reply_style__in=REPLY_STYLES), name='chat_configuration_reply_style_valid'),
+            models.CheckConstraint(
+                condition=~Q(reply_style=REPLY_STYLE_CUSTOM) | ~Q(custom_style=''),
+                name='chat_configuration_custom_style_given',
+            ),
+        ]
 
     def __str__(self) -> str:
         return f'Chat configuration for {self.business}'
+
+    def clean(self) -> None:
+        super().clean()
+        if self.reply_style == REPLY_STYLE_CUSTOM and not self.custom_style.strip():
+            raise ValidationError({'custom_style': 'Describe the style you want (or choose one of the presets).'})
+
+    def detail_fields_for(self, step: str) -> list[dict]:
+        """The details a step's branch asks for: schedule_detail_fields for the booking steps,
+        product_detail_fields otherwise (the order steps, and Start)."""
+        return self.schedule_detail_fields if step in BOOKING_STEPS else self.product_detail_fields
 
     @classmethod
     def for_business(cls, business) -> 'ChatConfiguration':

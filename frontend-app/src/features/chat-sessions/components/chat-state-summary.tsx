@@ -27,7 +27,8 @@ function formatSlot(iso: string): string {
 
 /** What the order / booking steps have collected (order or booking, customer details), and the last ones placed in the chat. */
 export function ChatStateSummary({ data, className }: ChatStateSummaryProps) {
-  const labels = useDetailLabels()
+  // A booking's details use the booking details' labels, an order's the order details'.
+  const labels = useDetailLabels(data.service ? 'booking' : 'order')
   const items = data.items ?? []
   const details = Object.entries(data.details ?? {})
   return (

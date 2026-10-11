@@ -6,7 +6,7 @@ export function OrdersPage() {
   return (
     <SectionLayout
       title="Orders"
-      description="Product orders and service bookings your customers confirmed in a chat (read only), and payment."
+      description="Product orders and service bookings your customers confirmed in a chat (mark paid ones as completed), and payment."
       tabs={ordersTabs}
     />
   )

@@ -98,7 +98,7 @@ class OrderItemModelTests(TestCase):
         self.assertEqual(order.total, Decimal('9.10'))  # 2 × 1.80 + 5.50
 
     def test_statuses(self):
-        self.assertEqual(OrderStatus.values, ['pending_payment', 'payment_received', 'order_completed'])
+        self.assertEqual(OrderStatus.values, ['pending_payment', 'payment_received', 'order_completed', 'payment_failed'])
         for status in OrderStatus.values:
             OrderItem(business=self.business, order_data=VALID_ORDER_DATA, order_status=status).full_clean()
 
@@ -125,7 +125,7 @@ class SampleOrderItemFixtureTests(TestCase):
 
     def test_fixture_is_valid(self):
         orders = OrderItem.objects.all()
-        self.assertEqual(orders.count(), 30)
+        self.assertEqual(orders.count(), 49)  # 31–49: Lumen & Lens print orders
         self.assertEqual(set(orders.values_list('order_status', flat=True)), set(OrderStatus.values))
         for order in orders:
             with self.subTest(order=order.pk):
@@ -140,6 +140,23 @@ class SampleOrderItemFixtureTests(TestCase):
             with self.subTest(order=order.pk):
                 self.assertEqual(set(order.order_data['details']), {'name', 'card_message', 'collection_date'})
                 self.assertGreaterEqual(order.updated_time, order.created_time)
+
+
+class SampleLumenOrderFixtureTests(TestCase):
+    """Lumen & Lens's print and frame orders: delivered, with the photos to print."""
+
+    fixtures = ['sample_business_configurations', 'sample_order_items']
+
+    def test_orders_are_delivered(self):
+        orders = OrderItem.objects.filter(business_id=4)
+        self.assertEqual(orders.count(), 19)
+        self.assertEqual(set(orders.values_list('order_status', flat=True)), set(OrderStatus.values))
+        for order in orders:
+            with self.subTest(order=order.pk):
+                self.assertEqual(set(order.order_data['details']), {'name', 'email', 'photos', 'delivery_address'})
+                self.assertRegex(order.order_data['details']['delivery_address'], r'Singapore \d{6}$')
+                self.assertTrue(all(20 <= line['product_id'] <= 29 for line in order.order_data['items']))
+                self.assertLess(order.created_time, datetime(2026, 10, 11, 12, tzinfo=dt_timezone(timedelta(hours=8))))
 
 
 class SampleStockFixtureTests(TestCase):
@@ -253,7 +270,8 @@ class ScheduleItemModelTests(TestCase):
 
 
 class SampleScheduleItemFixtureTests(TestCase):
-    """checkout_app/fixtures/sample_schedule_items.json: Lumen & Lens's bookings."""
+    """checkout_app/fixtures/sample_schedule_items.json: 30 Lumen & Lens and Rally Point Courts
+    bookings: none in September, a few in October, a few upcoming in November 2026."""
 
     fixtures = [
         'sample_business_configurations', 'sample_services', 'sample_chat_configurations', 'sample_chat_sessions',
@@ -262,38 +280,88 @@ class SampleScheduleItemFixtureTests(TestCase):
 
     def test_fixture_is_valid(self):
         bookings = list(ScheduleItem.objects.select_related('service', 'service_provider'))
-        self.assertEqual(len(bookings), 6)
+        self.assertEqual(len(bookings), 30)
+        providers_of = {s.pk: set(s.service_providers.values_list('pk', flat=True)) for s in Service.objects.all()}
         for booking in bookings:
             with self.subTest(booking=booking.pk):
                 booking.full_clean()  # loaddata skips validation; this also checks the times match the snapshot
-                self.assertEqual(booking.business_id, 4)
-                self.assertTrue(booking.service.service_providers.filter(pk=booking.service_provider_id).exists())
-        # No two bookings of one photographer overlap (with their buffers).
-        for a in bookings:
-            for b in bookings:
-                if a.pk < b.pk and a.service_provider_id == b.service_provider_id:
-                    self.assertFalse(a.start_time < b.blocked_until and b.start_time < a.blocked_until, (a.pk, b.pk))
+                self.assertIn(booking.business_id, (4, 5))
+                self.assertIn(booking.service_provider_id, providers_of[booking.service_id])
+                self.assertLessEqual(booking.created_time, booking.start_time)
+                self.assertGreaterEqual(booking.updated_time, booking.created_time)
+        # No two bookings of one provider overlap (with their buffers).
+        by_provider = {}
+        for booking in sorted(bookings, key=lambda b: b.start_time):
+            by_provider.setdefault(booking.service_provider_id, []).append(booking)
+        for provider_bookings in by_provider.values():
+            for a, b in zip(provider_bookings, provider_bookings[1:]):
+                self.assertLessEqual(a.blocked_until, b.start_time, (a.pk, b.pk))
         self.assertEqual({b.order_status for b in bookings}, set(OrderStatus.values))
         self.assertEqual([b.pk for b in bookings if b.is_sandbox], [5])
 
     def test_the_letters_match_the_bookings(self):
-        """Each booking's blocks (duration and open buffer) are H while pending, X once paid; no
-        other block is H or X."""
-        expected = {}
-        for booking in ScheduleItem.objects.all():
+        """Each booking's blocks are H while pending, X once paid, and its buffer too where it was
+        open (a buffer over closed time stays U, like checkout_app.schedule paints it); no other
+        block is H or X."""
+        expected, buffers = {}, set()
+        # A booking whose payment failed takes up no time: its blocks are back to O.
+        for booking in ScheduleItem.objects.exclude(order_status=OrderStatus.PAYMENT_FAILED):
             letter = 'H' if booking.order_status == OrderStatus.PENDING_PAYMENT else 'X'
             moment = booking.start_time
             while moment < booking.blocked_until:
                 local = moment.astimezone(dt_timezone(timedelta(hours=8)))
                 monday = local.date() - timedelta(days=local.weekday())
-                expected[(booking.service_provider_id, monday, local.weekday() * 96 + (local.hour * 60 + local.minute) // 15)] = letter
+                key = (booking.service_provider_id, monday, local.weekday() * 96 + (local.hour * 60 + local.minute) // 15)
+                expected[key] = letter
+                if moment >= booking.end_time:
+                    buffers.add(key)
                 moment += timedelta(minutes=15)
+        mismatches = []
         for week in WeeklyAvailability.objects.all():
             for index, letter in enumerate(week.availability):
                 key = (week.service_provider_id, week.week, index)
-                if letter in 'HX' or key in expected:
-                    with self.subTest(week=str(week), index=index):
-                        self.assertEqual(letter, expected.get(key))
+                if (letter in 'HX' or key in expected) and letter != expected.get(key):
+                    if not (letter == 'U' and key in buffers):
+                        mismatches.append((str(week), index, letter, expected.get(key)))
+        self.assertEqual(mismatches, [])
+
+    def test_a_few_payments_failed_and_their_time_is_free(self):
+        failed = ScheduleItem.objects.filter(order_status=OrderStatus.PAYMENT_FAILED)
+        self.assertEqual(sorted(failed.values_list('business_id', flat=True)), [4, 5, 5])
+        for booking in failed:
+            local = booking.start_time.astimezone(dt_timezone(timedelta(hours=8)))
+            week = WeeklyAvailability.objects.get(
+                service_provider_id=booking.service_provider_id, week=local.date() - timedelta(days=local.weekday())
+            )
+            index = local.weekday() * 96 + (local.hour * 60 + local.minute) // 15
+            with self.subTest(booking=booking.pk):
+                self.assertEqual(week.availability[index], 'O')
+
+    def test_sparse_bookings_from_october_to_november(self):
+        sgt = dt_timezone(timedelta(hours=8))
+        months = sorted({b.start_time.astimezone(sgt).month for b in ScheduleItem.objects.all()})
+        self.assertEqual(months, [10, 11])  # September is empty
+        self.assertEqual(ScheduleItem.objects.filter(business_id=4).count(), 12)
+
+    def test_court_bookings_on_the_hour(self):
+        courts = ScheduleItem.objects.filter(business_id=5)
+        self.assertEqual(courts.count(), 18)
+        self.assertEqual(set(courts.values_list('order_status', flat=True)), set(OrderStatus.values))
+        sgt = dt_timezone(timedelta(hours=8))
+        days = set()
+        for booking in courts:
+            start = booking.start_time.astimezone(sgt)
+            with self.subTest(booking=booking.pk):
+                self.assertEqual((start.minute, booking.end_time - booking.start_time), (0, timedelta(hours=1)))
+                self.assertTrue(9 <= start.hour <= 20)  # the last one ends at 9pm
+                self.assertEqual(set(booking.schedule_data['details']) - {'players'}, {'name', 'email'})
+            days.add(start.date())
+        self.assertEqual((min(days).month, max(days).month), (10, 11))
+        # Booked in advance, never after "now" (11 Oct 2026); only past ones are completed.
+        now = datetime(2026, 10, 11, 12, tzinfo=sgt)
+        self.assertFalse(courts.filter(created_time__gt=now).exists())
+        self.assertFalse(courts.filter(order_status=OrderStatus.ORDER_COMPLETED, start_time__gt=now).exists())
+
 
     def test_the_booking_made_in_a_chat(self):
         booking = ScheduleItem.objects.get(pk=1)
@@ -301,7 +369,7 @@ class SampleScheduleItemFixtureTests(TestCase):
         self.assertEqual(session.pk, 20)
         self.assertEqual(session.chat_state_data, {'last_booking_id': 1})
         self.assertEqual(booking.schedule_data['details'], {
-            'name': 'Priya Raman', 'phone': '+65 9123 0001', 'people': 4, 'notes': 'Bringing our dog Mochi',
+            'name': 'Priya Raman', 'people': 4, 'notes': 'Bringing our dog Mochi',
         })
         confirm, reply = session.chat_message_json[-2:]
         self.assertEqual(confirm['message'], 'CONFIRM')

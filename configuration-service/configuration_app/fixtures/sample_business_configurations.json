@@ -13,7 +13,7 @@
     "pk": 2,
     "fields": {
       "business_name": "Bloom & Twine Florist Studio",
-      "description": "Bloom & Twine Florist Studio is a small, independent flower studio in a restored shophouse on Joo Chiat Place, in the heart of Singapore's Katong and Joo Chiat neighbourhood. It was founded in 2019 by florist Marcus Lim and crochet artist Priya Nair, with a simple idea: flowers for every kind of moment, and for every kind of lifespan. We work in four collections. Fresh flowers, flown in twice a week from Ecuador, the Netherlands and Malaysia and hand-tied in our studio, for birthdays, anniversaries, graduations and grand openings. Dried and preserved flowers that keep their beauty for a year or more without water. Soap flowers: lightly scented keepsakes that look real and never wilt. And hand-crocheted flowers, made stitch by stitch from soft milk-cotton yarn by Priya and a small team of local crocheters, that last forever and suit allergy sufferers and hospital visits. Every arrangement is made to order, and we send you a photo when it's ready. We don't deliver: all orders are collected from our studio, during our collection hours (Monday to Saturday from 11am to 7pm, and Sunday from 11am to 4pm), and orders confirmed before 12pm from Monday to Saturday can be collected the same day. Every order comes with a free greeting card carrying your personal message. Beyond everyday gifting, we take on corporate and bulk orders (event giveaways, Teachers' Day, Women's Day and grand opening stands), wedding and ROM florals, and run small crochet flower workshops at the studio on Saturday afternoons. We're open Monday to Saturday from 9am to 7pm, and Sunday from 10am to 4pm.",
+      "description": "Bloom & Twine Florist Studio is a small, independent flower studio in a restored shophouse on Joo Chiat Place, in the heart of Singapore's Katong and Joo Chiat neighbourhood. It was founded in 2019 by florist Marcus Lim and crochet artist Priya Nair, with a simple idea: flowers for every kind of moment, and for every kind of lifespan. We work in four collections. Fresh flowers, flown in twice a week from Ecuador, the Netherlands and Malaysia and hand-tied in our studio, for birthdays, anniversaries, graduations and grand openings. Dried and preserved flowers that keep their beauty for a year or more without water. Soap flowers: lightly scented keepsakes that look real and never wilt. And hand-crocheted flowers, made stitch by stitch from soft milk-cotton yarn by Priya and a small team of local crocheters, that last forever and suit allergy sufferers and hospital visits. Every arrangement is made to order, and we send you a photo when it's ready. We don't deliver: all orders are collected from our studio, during our collection hours (Monday to Saturday from 11am to 7pm, and Sunday from 11am to 4pm), and orders confirmed before 12pm from Monday to Saturday can be collected the same day. Every order comes with a free greeting card carrying your personal message. We're open Monday to Saturday from 9am to 7pm, and Sunday from 10am to 4pm.",
       "location": "35 Joo Chiat Place, Singapore 427757"
     }
   },
@@ -31,8 +31,17 @@
     "pk": 4,
     "fields": {
       "business_name": "Lumen & Lens Photography Studio",
-      "description": "Lumen & Lens is a natural-light photography studio in a Tanjong Pagar shophouse, run by photographers Mei Lin Tan and Arjun Pillai. We photograph portraits, couples, families, newborns, maternity, graduations, pets and corporate headshots, in the studio or at a location nearby, and cover small events. Every session includes professional editing and an online gallery of your photos within 7 days. Book a time slot in this chat: we confirm your booking straight away, and you pay a deposit afterwards.",
+      "description": "Lumen & Lens is a natural-light photography studio in a Tanjong Pagar shophouse, run by photographers Mei Lin Tan and Arjun Pillai. We photograph portraits, couples, families, newborns, maternity, graduations, pets and corporate headshots, in the studio or at a location nearby, and cover small events. Every session includes professional editing and an online gallery of your photos within 7 days. We also print your photos: fine-art prints, canvases, frames, albums and acrylic blocks, made in our studio and delivered to your door anywhere in Singapore. Book a time slot or order prints in this chat: we confirm straight away, and you pay afterwards.",
       "location": "88 Tanjong Pagar Road, #03-01, Singapore 088509"
+    }
+  },
+  {
+    "model": "configuration_app.businessconfiguration",
+    "pk": 5,
+    "fields": {
+      "business_name": "Rally Point Courts",
+      "description": "Rally Point Courts is a sports centre in Kallang with 2 indoor, air-conditioned badminton courts and 2 outdoor, floodlit hard tennis courts. Courts are rented by the hour, every day from 9am to 9pm, and can be booked in this chat: choose the court type and a time, and we confirm your booking straight away. We don't rent or sell equipment: please bring your own rackets, shuttlecocks or tennis balls.",
+      "location": "9 Kallang Place, #01-08, Singapore 339155"
     }
   }
 ]

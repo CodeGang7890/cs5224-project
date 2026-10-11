@@ -29,7 +29,7 @@ export function BookingBlockDialog({ booking, timeZone, providerName, onOpenChan
 }
 
 function BookingSummary({ booking, timeZone, providerName }: { booking: CalendarBooking; timeZone: string; providerName: string }) {
-  const labels = useDetailLabels()
+  const labels = useDetailLabels('booking')
   const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone })
   const day = new Date(booking.start_time).toLocaleDateString([], {
     weekday: 'long',

@@ -1,12 +1,13 @@
 import { CircleAlert } from 'lucide-react'
 
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useDetailLabels } from '@/features/workflow'
 
 import { useOrder } from '../hooks/use-orders'
 import type { Order } from '../types'
+import { MarkCompletedButton } from './mark-completed-button'
 import { OrderStatusBadge, SandboxBadge } from './order-status-badge'
 
 interface OrderDialogProps {
@@ -17,7 +18,7 @@ interface OrderDialogProps {
   onClose: () => void
 }
 
-/** Read-only view of one order: items, total, customer details and status. */
+/** One order: items, total, customer details and status; a paid one can be marked as completed. */
 export function OrderDialog({ orderId, order, onClose }: OrderDialogProps) {
   const fetched = useOrder(orderId, order === undefined)
   const shown = order ?? fetched.data
@@ -32,11 +33,18 @@ export function OrderDialog({ orderId, order, onClose }: OrderDialogProps) {
             {shown?.is_sandbox && <SandboxBadge />}
           </DialogTitle>
           <DialogDescription>
-            {shown ? `Placed ${new Date(shown.created_time).toLocaleString()} · read only` : 'Read only'}
+            {shown ? `Placed ${new Date(shown.created_time).toLocaleString()}` : ' '}
           </DialogDescription>
         </DialogHeader>
         {shown ? (
-          <OrderDetails order={shown} />
+          <>
+            <OrderDetails order={shown} />
+            {shown.order_status === 'payment_received' && (
+              <DialogFooter>
+                <MarkCompletedButton kind="order" id={shown.id} />
+              </DialogFooter>
+            )}
+          </>
         ) : fetched.isError ? (
           <p role="alert" className="text-destructive flex items-center gap-2 text-sm">
             <CircleAlert className="size-4 shrink-0" />
@@ -58,7 +66,7 @@ export function OrderDialog({ orderId, order, onClose }: OrderDialogProps) {
 }
 
 function OrderDetails({ order }: { order: Order }) {
-  const labels = useDetailLabels()
+  const labels = useDetailLabels('order')
   const details = Object.entries(order.order_data.details)
   return (
     <div className="grid min-h-0 gap-4 overflow-y-auto">

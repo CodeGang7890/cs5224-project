@@ -7,6 +7,6 @@ export {
   useChatConfiguration,
   useSaveChatConfiguration,
 } from './hooks/use-chat-configuration'
-export { useDetailLabels } from './hooks/use-detail-labels'
+export { useDetailLabels, type DetailsKind } from './hooks/use-detail-labels'
 export { CHAT_STEPS } from './types'
 export type { ChatConfiguration, ChatConfigurationInput, ChatStep, DetailField, DetailFieldType } from './types'

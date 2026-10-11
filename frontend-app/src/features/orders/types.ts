@@ -1,5 +1,5 @@
 /** Order statuses, mirrored from configuration-service `checkout_app/models.py` (`OrderStatus`). */
-export const ORDER_STATUSES = ['pending_payment', 'payment_received', 'order_completed'] as const
+export const ORDER_STATUSES = ['pending_payment', 'payment_received', 'order_completed', 'payment_failed'] as const
 
 export type OrderStatus = (typeof ORDER_STATUSES)[number]
 

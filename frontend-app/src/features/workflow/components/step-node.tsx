@@ -1,5 +1,5 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { Info, Pencil } from 'lucide-react'
+import { CircleSlash, Info, Pencil } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
@@ -25,9 +25,14 @@ export function StepNodeView({ data, selected }: NodeProps<StepNode>) {
         'bg-card text-card-foreground relative w-56 cursor-pointer rounded-xl border border-t-4 p-3 shadow-sm transition-shadow hover:shadow-md',
         meta.accentClassName,
         selected && 'ring-ring ring-2 ring-offset-2 ring-offset-background',
+        data.unavailable && 'border-dashed opacity-55 grayscale',
       )}
+      title={data.unavailable}
     >
-      {data.nodeId !== 'router' && <Handle type="target" position={Position.Left} className={handleClassName} />}
+      {!['settings', 'router'].includes(data.nodeId) && <Handle type="target" position={Position.Left} className={handleClassName} />}
+      {/* Welcome & style sits below the router: its arrow goes up into the router's bottom. */}
+      {data.nodeId === 'router' && <Handle type="target" id="bottom" position={Position.Bottom} className={handleClassName} />}
+      {data.nodeId === 'settings' && <Handle type="source" id="top" position={Position.Top} className={handleClassName} />}
       <div className="flex items-start gap-3">
         <div className={cn('flex size-9 shrink-0 items-center justify-center rounded-lg', meta.iconClassName)}>
           <Icon className="size-4" />
@@ -44,7 +49,19 @@ export function StepNodeView({ data, selected }: NodeProps<StepNode>) {
           <p className="text-muted-foreground mt-0.5 text-xs leading-snug">{meta.description}</p>
         </div>
       </div>
-      {isDetails ? (
+      {data.nodeId === 'settings' ? (
+        <div className="mt-2.5 grid gap-1.5 border-t pt-2">
+          <ul className="flex flex-wrap gap-1" aria-label="Settings">
+            <li className="bg-muted rounded px-1.5 py-0.5 text-[11px]">
+              Welcome: {data.settings?.welcome ? 'on' : <span className="text-muted-foreground">off</span>}
+            </li>
+            <li className="bg-muted max-w-full truncate rounded px-1.5 py-0.5 text-[11px]">Style: {data.settings?.style ?? '…'}</li>
+          </ul>
+          <p className="text-muted-foreground flex items-center gap-1 text-[11px]">
+            <Pencil className="size-3" /> Click to edit
+          </p>
+        </div>
+      ) : isDetails ? (
         <div className="mt-2.5 grid gap-1.5 border-t pt-2">
           <ul className="flex flex-wrap gap-1" aria-label="Details collected">
             {detailFieldsOrDefault(data.fields).map((field) => (
@@ -61,6 +78,11 @@ export function StepNodeView({ data, selected }: NodeProps<StepNode>) {
       ) : (
         <p className="text-muted-foreground mt-2 flex items-center gap-1 text-[11px]">
           <Info className="size-3" /> Click for more
+        </p>
+      )}
+      {data.unavailable && (
+        <p className="text-muted-foreground mt-1.5 flex items-start gap-1 text-[11px] leading-snug font-medium">
+          <CircleSlash className="mt-px size-3 shrink-0" /> {data.unavailable}
         </p>
       )}
       {hasNext && (

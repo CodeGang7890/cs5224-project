@@ -47,17 +47,17 @@ class ChatConfigurationAPITests(APITestCase):
             username='florist', password='123', business=cls.florist
         )
         cls.no_business_user = BusinessUser.objects.create_user(username='nobiz', password='123')
-        cls.florist_config = ChatConfiguration.objects.create(business=cls.florist, detail_fields=DETAIL_FIELDS)
+        cls.florist_config = ChatConfiguration.objects.create(business=cls.florist, product_detail_fields=DETAIL_FIELDS)
 
-    def put_config(self, detail_fields):
-        return self.client.put(self.url, {'detail_fields': detail_fields}, format='json')
+    def put_config(self, detail_fields, kind='product'):
+        return self.client.put(self.url, {f'{kind}_detail_fields': detail_fields}, format='json')
 
     # --- Authentication / business --------------------------------------------------
 
     def test_requires_authentication(self):
         for method in ('get', 'put'):
             with self.subTest(method=method):
-                response = getattr(self.client, method)(self.url, {'detail_fields': DETAIL_FIELDS}, format='json')
+                response = getattr(self.client, method)(self.url, {'product_detail_fields': DETAIL_FIELDS}, format='json')
                 self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_user_without_business_gets_403(self):
@@ -77,10 +77,17 @@ class ChatConfigurationAPITests(APITestCase):
         self.client.force_authenticate(self.florist_user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(set(response.json()), {'id', 'business', 'detail_fields', 'last_updated'})
+        self.assertEqual(
+            set(response.json()),
+            {
+                'id', 'business', 'product_detail_fields', 'schedule_detail_fields', 'welcome_message', 'reply_style',
+                'custom_style', 'last_updated',
+            },
+        )
         self.assertEqual(response.json()['id'], self.florist_config.pk)
         self.assertEqual(response.json()['business'], self.florist.pk)
-        self.assertEqual(response.json()['detail_fields'], DETAIL_FIELDS)
+        self.assertEqual(response.json()['product_detail_fields'], DETAIL_FIELDS)
+        self.assertEqual(response.json()['schedule_detail_fields'], DEFAULT_DETAIL_FIELDS)
 
     def test_get_without_configuration_returns_the_defaults(self):
         # The café has never saved one: it gets the defaults (not the florist's), and nothing is saved.
@@ -89,7 +96,11 @@ class ChatConfigurationAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(
             response.json(),
-            {'id': None, 'business': self.cafe.pk, 'detail_fields': DEFAULT_DETAIL_FIELDS, 'last_updated': None},
+            {
+                'id': None, 'business': self.cafe.pk, 'product_detail_fields': DEFAULT_DETAIL_FIELDS,
+                'schedule_detail_fields': DEFAULT_DETAIL_FIELDS,
+                'welcome_message': '', 'reply_style': 'friendly', 'custom_style': '', 'last_updated': None,
+            },
         )
         self.assertFalse(ChatConfiguration.objects.filter(business=self.cafe).exists())
 
@@ -101,11 +112,21 @@ class ChatConfigurationAPITests(APITestCase):
         new_fields = [*DETAIL_FIELDS[:2], {'key': 'notes', 'label': 'Notes', 'type': 'text', 'required': False}]
         response = self.put_config(new_fields)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.json()['detail_fields'], new_fields)
+        self.assertEqual(response.json()['product_detail_fields'], new_fields)
         self.florist_config.refresh_from_db()
-        self.assertEqual(self.florist_config.detail_fields, new_fields)
+        self.assertEqual(self.florist_config.product_detail_fields, new_fields)
+        self.assertEqual(self.florist_config.schedule_detail_fields, DEFAULT_DETAIL_FIELDS)  # untouched
         self.assertGreater(self.florist_config.last_updated, before)
         self.assertEqual(ChatConfiguration.objects.count(), 1)
+
+    def test_the_booking_details_are_saved_independently(self):
+        self.client.force_authenticate(self.florist_user)
+        booking_fields = [{'key': 'name', 'label': 'Name', 'type': 'text'}, {'key': 'people', 'label': 'People', 'type': 'number', 'min_value': 1}]
+        response = self.put_config(booking_fields, kind='schedule')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual((response.json()['schedule_detail_fields'], response.json()['product_detail_fields']), (booking_fields, DETAIL_FIELDS))
+        both = self.client.put(self.url, {'product_detail_fields': DEFAULT_DETAIL_FIELDS, 'schedule_detail_fields': DETAIL_FIELDS}, format='json')
+        self.assertEqual((both.json()['product_detail_fields'], both.json()['schedule_detail_fields']), (DEFAULT_DETAIL_FIELDS, DETAIL_FIELDS))
 
     def test_put_rejects_invalid_detail_fields(self):
         self.client.force_authenticate(self.florist_user)
@@ -117,13 +138,16 @@ class ChatConfigurationAPITests(APITestCase):
             'max_length on a number': [{'key': 'n', 'label': 'N', 'type': 'number', 'max_length': 3}],
             'all optional': [{'key': 'n', 'label': 'N', 'type': 'text', 'required': False}],
         }
+        cases['a phone number'] = [*DEFAULT_DETAIL_FIELDS, {'key': 'phone', 'label': 'Phone', 'type': 'phone'}]
         for label, bad_fields in cases.items():
-            with self.subTest(label):
-                response = self.put_config(bad_fields)
-                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-                self.assertIn('detail_fields', response.json())
+            for kind in ('product', 'schedule'):
+                with self.subTest(label, kind=kind):
+                    response = self.put_config(bad_fields, kind=kind)
+                    self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                    self.assertIn(f'{kind}_detail_fields', response.json())
         self.florist_config.refresh_from_db()
-        self.assertEqual(self.florist_config.detail_fields, DETAIL_FIELDS)
+        self.assertEqual(self.florist_config.product_detail_fields, DETAIL_FIELDS)
+        self.assertEqual(self.florist_config.schedule_detail_fields, DEFAULT_DETAIL_FIELDS)
 
     def test_put_lists_every_error(self):
         self.client.force_authenticate(self.florist_user)
@@ -132,7 +156,7 @@ class ChatConfigurationAPITests(APITestCase):
             {'key': 'ok', 'label': 'OK', 'type': 'number', 'min_value': 5, 'max_value': 1},
         ])
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(len(response.json()['detail_fields']), 3)  # key, label, min > max
+        self.assertEqual(len(response.json()['product_detail_fields']), 3)  # key, label, min > max
 
     def test_put_creates_configuration_if_missing(self):
         self.client.force_authenticate(self.cafe_user)
@@ -140,7 +164,8 @@ class ChatConfigurationAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.json()['business'], self.cafe.pk)
         self.assertIsNotNone(response.json()['id'])
-        self.assertEqual(self.cafe.chat_configuration.detail_fields, DETAIL_FIELDS)
+        self.assertEqual(self.cafe.chat_configuration.product_detail_fields, DETAIL_FIELDS)
+        self.assertEqual(self.cafe.chat_configuration.schedule_detail_fields, DEFAULT_DETAIL_FIELDS)  # the default
         # A second PUT updates the same row.
         self.assertEqual(self.put_config(DEFAULT_DETAIL_FIELDS).status_code, status.HTTP_200_OK)
         self.assertEqual(ChatConfiguration.objects.filter(business=self.cafe).count(), 1)
@@ -149,7 +174,7 @@ class ChatConfigurationAPITests(APITestCase):
         self.client.force_authenticate(self.florist_user)
         response = self.client.put(
             self.url,
-            {'detail_fields': DETAIL_FIELDS, 'business': self.cafe.pk, 'id': 999, 'last_updated': '2000-01-01T00:00:00Z'},
+            {'product_detail_fields': DETAIL_FIELDS, 'business': self.cafe.pk, 'id': 999, 'last_updated': '2000-01-01T00:00:00Z'},
             format='json',
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -157,13 +182,18 @@ class ChatConfigurationAPITests(APITestCase):
         self.assertEqual(response.json()['id'], self.florist_config.pk)
         self.assertFalse(ChatConfiguration.objects.filter(business=self.cafe).exists())
 
-    def test_put_requires_detail_fields(self):
+    def test_detail_fields_left_out_are_kept_but_never_null(self):
         self.client.force_authenticate(self.florist_user)
-        for body in ({}, {'detail_fields': None}, {'config_json': []}):
+        for body in ({}, {'config_json': []}, {'detail_fields': []}):  # the old single list is just ignored
             with self.subTest(body=body):
                 response = self.client.put(self.url, body, format='json')
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertEqual(response.json()['product_detail_fields'], DETAIL_FIELDS)
+        for kind in ('product', 'schedule'):
+            with self.subTest(kind=kind):
+                response = self.put_config(None, kind=kind)
                 self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-                self.assertIn('detail_fields', response.json())
+                self.assertIn(f'{kind}_detail_fields', response.json())
 
 
 class ChatSessionCreateAPITests(APITestCase):
@@ -457,7 +487,8 @@ class CustomerMessageAPITests(APITestCase):
         response = self.send()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         reply = response.json()
-        self.assertEqual(set(reply), {'message', 'sent_by', 'message_time'})
+        self.assertEqual(set(reply), {'message', 'sent_by', 'message_time', 'messages'})
+        self.assertEqual(reply.pop('messages'), [reply])  # no welcome message: just the reply
         self.assertEqual(reply['message'], 'Yes, we are open until 6pm!')
         self.assertEqual(reply['sent_by'], 'business-automated')
 

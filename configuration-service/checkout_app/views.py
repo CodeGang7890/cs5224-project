@@ -1,8 +1,10 @@
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import generics
-from rest_framework.exceptions import NotFound, PermissionDenied
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from auth_app.business_scope import NO_BUSINESS_MESSAGE, OTHER_BUSINESS_MESSAGE
 from config.pagination import DetailedPageNumberPagination
@@ -10,6 +12,7 @@ from config.pagination import DetailedPageNumberPagination
 from .filters import OrderItemFilter, ScheduleItemFilter
 from .models import OrderItem, ScheduleItem
 from .serializers import OrderItemSerializer, ScheduleItemSerializer
+from .services import StatusChangeError, complete_booking, complete_order
 
 NO_ORDER_MESSAGE = 'No order with this ID.'
 NO_SCHEDULE_MESSAGE = 'No booking with this ID.'
@@ -147,3 +150,73 @@ class ScheduleItemDetailView(generics.RetrieveAPIView):
     )
     def get(self, request, *args, **kwargs):
         return super().get(request, *args, **kwargs)
+
+
+def _own(model, pk: int, business_id: int, not_found: str):
+    item = model.objects.filter(pk=pk).first()
+    if item is None:
+        raise NotFound(not_found)
+    if item.business_id != business_id:  # 403, not 404, like the rest of the API
+        raise PermissionDenied(OTHER_BUSINESS_MESSAGE)
+    return item
+
+
+class OrderItemCompleteView(APIView):
+    """Marks one of the business's paid orders as completed."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=['Orders'],
+        summary='Mark a paid order as completed',
+        description=(
+            'Moves the order from `payment_received` to `order_completed` (its products move from on hold '
+            'to sold). Any other status returns 400: pending payment → payment received (or failed) is set '
+            'by the payment service, not here.'
+        ),
+        request=None,
+        responses={
+            200: OrderItemSerializer,
+            400: OpenApiResponse(description='The order is not at payment received (`order_status`).'),
+            403: OpenApiResponse(description="Another business's order, or your account has no business."),
+            404: OpenApiResponse(description='No order with this ID.'),
+        },
+    )
+    def post(self, request, pk: int):
+        order = _own(OrderItem, pk, get_user_business_id(request), NO_ORDER_MESSAGE)
+        try:
+            order = complete_order(order.pk)
+        except StatusChangeError as exc:
+            raise ValidationError({'order_status': [str(exc)]}) from exc
+        return Response(OrderItemSerializer(order).data)
+
+
+class ScheduleItemCompleteView(APIView):
+    """Marks one of the business's paid bookings as completed."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=['Orders'],
+        summary='Mark a paid booking as completed',
+        description=(
+            'Moves the booking from `payment_received` to `order_completed` (its time stays booked). Any '
+            'other status returns 400: pending payment → payment received (or failed) is set by the '
+            'payment service, not here.'
+        ),
+        request=None,
+        responses={
+            200: ScheduleItemSerializer,
+            400: OpenApiResponse(description='The booking is not at payment received (`order_status`).'),
+            403: OpenApiResponse(description="Another business's booking, or your account has no business."),
+            404: OpenApiResponse(description='No booking with this ID.'),
+        },
+    )
+    def post(self, request, pk: int):
+        booking = _own(ScheduleItem, pk, get_user_business_id(request), NO_SCHEDULE_MESSAGE)
+        try:
+            booking = complete_booking(booking.pk)
+        except StatusChangeError as exc:
+            raise ValidationError({'order_status': [str(exc)]}) from exc
+        booking = ScheduleItem.objects.select_related('service_provider').get(pk=booking.pk)
+        return Response(ScheduleItemSerializer(booking).data)

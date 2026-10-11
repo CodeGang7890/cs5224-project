@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { type FormErrors, getFormErrors } from '@/lib/form-errors'
+import { cn } from '@/lib/utils'
 
 import { useProviders, useSaveService } from '../hooks/use-services'
 import type { Service, ServiceInput } from '../types'
@@ -18,7 +19,10 @@ import {
   changedServiceFields,
   emptyServiceValues,
   formValuesToServiceInput,
+  START_INTERVAL_PRESETS,
+  exampleStartTimes,
   formatMinutes,
+  formatStartInterval,
   serviceToFormValues,
   validateService,
 } from '../validation'
@@ -84,6 +88,11 @@ function ServiceForm({ service, onDone }: { service?: Service; onDone: () => voi
   const invalid = (key: keyof ServiceFormValues) => (fieldError(key) ? true : undefined)
   const duration = Number(values.duration_minutes)
   const buffer = Number(values.buffer_minutes)
+  const interval = Number(values.start_interval_minutes)
+  // A value other than the presets is edited in the custom box.
+  const [customInterval, setCustomInterval] = useState(
+    () => !START_INTERVAL_PRESETS.some((preset) => String(preset) === values.start_interval_minutes),
+  )
 
   return (
     <>
@@ -181,6 +190,72 @@ function ServiceForm({ service, onDone }: { service?: Service; onDone: () => voi
             />
           </FormField>
         </div>
+
+        <fieldset className="grid gap-2">
+          <legend className="text-sm font-medium">Bookings start every</legend>
+          <p className="text-muted-foreground text-xs">
+            Which start times customers can book, counted from midnight. For a 1-hour service open 9am to 11am: every
+            15 min allows 9:15–10:15, every 30 min only 9:00, 9:30 or 10:00, every hour only 9:00 or 10:00.
+          </p>
+          <div className="flex flex-wrap items-center gap-1" role="radiogroup" aria-label="Bookings start every">
+            {START_INTERVAL_PRESETS.map((preset) => {
+              const selected = !customInterval && interval === preset
+              return (
+                <button
+                  key={preset}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  onClick={() => {
+                    setCustomInterval(false)
+                    set('start_interval_minutes', String(preset))
+                  }}
+                  className={cn(
+                    'rounded-md border px-3 py-1.5 text-sm',
+                    selected ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-muted',
+                  )}
+                >
+                  {preset === 60 ? '1 hour' : `${preset} min`}
+                </button>
+              )
+            })}
+            <button
+              type="button"
+              role="radio"
+              aria-checked={customInterval}
+              onClick={() => setCustomInterval(true)}
+              className={cn(
+                'rounded-md border px-3 py-1.5 text-sm',
+                customInterval ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-muted',
+              )}
+            >
+              Custom
+            </button>
+          </div>
+          {customInterval && (
+            <FormField id="service-start-interval" label="Minutes between start times" required error={fieldError('start_interval_minutes')}>
+              <Input
+                id="service-start-interval"
+                type="number"
+                className="w-40"
+                min={SERVICE_LIMITS.startIntervalMinMinutes}
+                max={SERVICE_LIMITS.startIntervalMaxMinutes}
+                step={SERVICE_LIMITS.stepMinutes}
+                value={values.start_interval_minutes}
+                onChange={(e) => set('start_interval_minutes', e.target.value)}
+                aria-invalid={invalid('start_interval_minutes')}
+              />
+            </FormField>
+          )}
+          {!customInterval && fieldError('start_interval_minutes') && (
+            <p className="text-destructive text-xs">{fieldError('start_interval_minutes')}</p>
+          )}
+          {!fieldError('start_interval_minutes') && exampleStartTimes(interval) && (
+            <p className="text-muted-foreground text-xs">
+              Starts {formatStartInterval(interval)}: {exampleStartTimes(interval)}
+            </p>
+          )}
+        </fieldset>
 
         <fieldset className="grid gap-2">
           <legend className="text-sm font-medium">Who can do it</legend>

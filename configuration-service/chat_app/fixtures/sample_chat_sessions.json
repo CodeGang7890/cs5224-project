@@ -509,7 +509,7 @@
           "message_time": "2026-09-10T11:05:00+08:00"
         },
         {
-          "message": "We can help with that! Which items would you like for your event?",
+          "message": "We don't offer catering, but you can order as many of our menu items as you like for pickup. Which items would you like?",
           "sent_by": "business-automated",
           "message_time": "2026-09-10T11:06:00+08:00"
         },
@@ -529,7 +529,7 @@
           "message_time": "2026-09-10T11:14:00+08:00"
         },
         {
-          "message": "Thanks Jasmine! Catering for Saturday 9am, total $91.00. Reply YES to confirm.",
+          "message": "Thanks Jasmine! Pickup on Saturday 9am, total $91.00. Reply YES to confirm.",
           "sent_by": "business-automated",
           "message_time": "2026-09-10T11:14:00+08:00"
         }
@@ -575,7 +575,7 @@
           "message_time": "2026-09-11T15:40:00+08:00"
         },
         {
-          "message": "Our Kaya Toast Set is vegetarian, and the Seasonal Brunch Plate can be made without meat. Which would you like?",
+          "message": "Our Kaya Toast Set is vegetarian, and so is our Pandan Chiffon Cake. Would you like to order either of them?",
           "sent_by": "business-automated",
           "message_time": "2026-09-11T15:41:00+08:00"
         }
@@ -719,7 +719,7 @@
           "message_time": "2026-09-11T09:30:15+08:00"
         },
         {
-          "message": "Regarding your previous question about \"Do you sell balloons to go with the flowers?\": Not at the moment, sorry! We focus on flowers, but you're welcome to bring your own balloon when you collect your order, and we'll happily tie it to the wrapping for you.",
+          "message": "Regarding your previous question about \"Do you sell balloons to go with the flowers?\": Not at the moment, sorry! We only sell flowers: everything we have is in our catalogue.",
           "sent_by": "business-manual",
           "message_time": "2026-09-11T10:05:00+08:00"
         },
@@ -746,58 +746,58 @@
       "business": 4,
       "phone_number": "+6591230001",
       "display_name": "Priya Raman",
-      "created_time": "2026-09-14T10:00:00+08:00",
-      "last_chat_time": "2026-09-14T10:05:10+08:00",
+      "created_time": "2026-10-05T10:00:00+08:00",
+      "last_chat_time": "2026-10-05T10:05:10+08:00",
       "chat_message_json": [
         {
           "message": "Hi! I'd like to book a family photoshoot for 4 of us",
           "sent_by": "customer",
-          "message_time": "2026-09-14T10:00:00+08:00"
+          "message_time": "2026-10-05T10:00:00+08:00"
         },
         {
-          "message": "Here are some available times for Family Portrait Session ($350.00, 1 h 30 min):\n1. Tue 15 Sep, 9am\n2. Tue 15 Sep, 10:30am\n3. Tue 15 Sep, 2pm\n4. Wed 16 Sep, 9am\n5. Wed 16 Sep, 10:30am\n6. Wed 16 Sep, 2pm\n\nPlease reply with the number of the time you would like, or tell me another day or time that suits you.",
+          "message": "Here are some available times for Family Portrait Session ($350.00, 1 h 30 min):\n1. Tue 6 Oct, 9am\n2. Tue 6 Oct, 10:30am\n3. Tue 6 Oct, 2pm\n4. Wed 7 Oct, 9am\n5. Wed 7 Oct, 10:30am\n6. Wed 7 Oct, 2pm\n\nPlease reply with the number of the time you would like, or tell me another day or time that suits you.",
           "sent_by": "business-automated",
-          "message_time": "2026-09-14T10:00:20+08:00"
+          "message_time": "2026-10-05T10:00:20+08:00"
         },
         {
           "message": "Do you have anything on Saturday morning?",
           "sent_by": "customer",
-          "message_time": "2026-09-14T10:01:10+08:00"
+          "message_time": "2026-10-05T10:01:10+08:00"
         },
         {
-          "message": "Here are some available times for Family Portrait Session ($350.00, 1 h 30 min):\n1. Sat 19 Sep, 9am\n2. Sat 19 Sep, 10:30am\n\nPlease reply with the number of the time you would like, or tell me another day or time that suits you.",
+          "message": "Here are some available times for Family Portrait Session ($350.00, 1 h 30 min):\n1. Sat 10 Oct, 9am\n2. Sat 10 Oct, 10:30am\n\nPlease reply with the number of the time you would like, or tell me another day or time that suits you.",
           "sent_by": "business-automated",
-          "message_time": "2026-09-14T10:01:30+08:00"
+          "message_time": "2026-10-05T10:01:30+08:00"
         },
         {
           "message": "2 please. Can we bring our dog?",
           "sent_by": "customer",
-          "message_time": "2026-09-14T10:02:00+08:00"
+          "message_time": "2026-10-05T10:02:00+08:00"
         },
         {
-          "message": "Yes, pets are welcome at family sessions! Saturday 19 Sep at 10:30am it is. Could you tell me your Name, Phone and Number of people? And is there anything we should know (outfits, pets, accessibility)?",
+          "message": "Yes, pets are welcome at family sessions! Saturday 10 Oct at 10:30am it is. Could you tell me your Name and Number of people? And is there anything we should know (outfits, pets, accessibility)?",
           "sent_by": "business-automated",
-          "message_time": "2026-09-14T10:02:25+08:00"
+          "message_time": "2026-10-05T10:02:25+08:00"
         },
         {
-          "message": "Priya Raman, +65 9123 0001, 4 people. We're bringing our dog Mochi",
+          "message": "Priya Raman, 4 people. We're bringing our dog Mochi",
           "sent_by": "customer",
-          "message_time": "2026-09-14T10:03:30+08:00"
+          "message_time": "2026-10-05T10:03:30+08:00"
         },
         {
-          "message": "Here is your booking summary:\n- Family Portrait Session (1 h 30 min)\n- Sat 19 Sep, 10:30am – 12pm\nPrice: $350.00\n\nYour details:\n- Name: Priya Raman\n- Phone: +65 9123 0001\n- Number of people: 4\n- Anything we should know: Bringing our dog Mochi\n\nPlease reply CONFIRM to book it, or tell me what you would like to change.",
+          "message": "Here is your booking summary:\n- Family Portrait Session (1 h 30 min)\n- Sat 10 Oct, 10:30am – 12pm\nPrice: $350.00\n\nYour details:\n- Name: Priya Raman\n- Number of people: 4\n- Anything we should know: Bringing our dog Mochi\n\nPlease reply CONFIRM to book it, or tell me what you would like to change.",
           "sent_by": "business-automated",
-          "message_time": "2026-09-14T10:03:50+08:00"
+          "message_time": "2026-10-05T10:03:50+08:00"
         },
         {
           "message": "CONFIRM",
           "sent_by": "customer",
-          "message_time": "2026-09-14T10:05:00+08:00"
+          "message_time": "2026-10-05T10:05:00+08:00"
         },
         {
-          "message": "Thank you! Your booking #1 with Lumen & Lens Photography Studio is confirmed.\n- Family Portrait Session (1 h 30 min)\n- Sat 19 Sep, 10:30am – 12pm\nPrice: $350.00\n\nYour details:\n- Name: Priya Raman\n- Phone: +65 9123 0001\n- Number of people: 4\n- Anything we should know: Bringing our dog Mochi",
+          "message": "Thank you! Your booking #1 with Lumen & Lens Photography Studio is confirmed.\n- Family Portrait Session (1 h 30 min)\n- Sat 10 Oct, 10:30am – 12pm\nPrice: $350.00\n\nYour details:\n- Name: Priya Raman\n- Number of people: 4\n- Anything we should know: Bringing our dog Mochi",
           "sent_by": "business-automated",
-          "message_time": "2026-09-14T10:05:10+08:00"
+          "message_time": "2026-10-05T10:05:10+08:00"
         }
       ],
       "chat_state_id": "start",
