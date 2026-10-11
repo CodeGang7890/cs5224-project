@@ -25,7 +25,6 @@ from .constants import (
     DEFAULT_REPLY_STYLE,
     DETAIL_TYPE_EMAIL,
     DETAIL_TYPE_NUMBER,
-    DETAIL_TYPE_PHONE,
     DETAILS_STEPS,
     INTENT_OFF_TOPIC,
     INTENT_ORDER_STATUS,
@@ -913,7 +912,7 @@ def format_items(items: list[dict]) -> str:
 
 
 def detail_labels(fields: list[dict]) -> dict[str, str]:
-    """Detail field key → label (ChatConfiguration.detail_fields), to show collected details."""
+    """Detail field key → label (a ChatConfiguration detail fields list), to show collected details."""
     return {detail_field['key']: detail_field['label'] for detail_field in fields}
 
 
@@ -933,8 +932,6 @@ def describe_detail_fields(fields: list[dict], with_keys: bool = False) -> str:
                 kind += f' of at most {high}'
         elif field_type == DETAIL_TYPE_EMAIL:
             kind = 'an email address'
-        elif field_type == DETAIL_TYPE_PHONE:
-            kind = 'a phone number'
         else:
             kind = f'text, at most {detail_field.get("max_length", DETAIL_TEXT_DEFAULT_MAX_LENGTH)} characters'
         label = f'"{detail_field["label"]}"'

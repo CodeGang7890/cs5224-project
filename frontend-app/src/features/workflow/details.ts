@@ -17,10 +17,12 @@ export const DETAIL_TYPE_LABELS: Record<DetailFieldType, string> = {
   text: 'Text',
   number: 'Number',
   email: 'Email address',
-  phone: 'Phone number',
 }
 
-/** What the step asks for until the business changes it (configuration-service `DEFAULT_DETAIL_FIELDS`). */
+/**
+ * What both details steps ask for until the business changes them (configuration-service
+ * `DEFAULT_DETAIL_FIELDS`): a name and an email, both required.
+ */
 export const DEFAULT_DETAIL_FIELDS: DetailField[] = [
   { key: 'name', label: 'Name', type: 'text', max_length: 150 },
   { key: 'email', label: 'Email', type: 'email' },
@@ -29,7 +31,6 @@ export const DEFAULT_DETAIL_FIELDS: DetailField[] = [
 /** Common details the business can switch on or off. The first two are on by default. */
 export const PRESET_DETAIL_FIELDS: DetailField[] = [
   ...DEFAULT_DETAIL_FIELDS,
-  { key: 'phone', label: 'Phone number', type: 'phone' },
   { key: 'address', label: 'Delivery address', type: 'text', max_length: 300 },
 ]
 

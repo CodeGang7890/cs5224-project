@@ -29,13 +29,21 @@ const POSITIONS: Record<FlowNodeId, { x: number; y: number }> = {
   order_status: { x: 330, y: 620 },
 }
 
-/** The diagram's blocks; `fields` go on the details blocks, `settings` on the Welcome & style block. */
-export function flowNodes(fields: DetailField[], settings?: StepNodeData['settings']): StepNode[] {
+/** The diagram's blocks; each details block gets its own fields, the Welcome & style block `settings`. */
+export function flowNodes(
+  orderFields: DetailField[],
+  bookingFields: DetailField[],
+  settings?: StepNodeData['settings'],
+): StepNode[] {
   return (Object.keys(POSITIONS) as FlowNodeId[]).map((nodeId) => ({
     id: nodeId,
     type: 'step',
     position: POSITIONS[nodeId],
-    data: DETAILS_NODES.includes(nodeId) ? { nodeId, fields } : nodeId === 'settings' ? { nodeId, settings } : { nodeId },
+    data: DETAILS_NODES.includes(nodeId)
+      ? { nodeId, fields: nodeId === 'booking_details' ? bookingFields : orderFields }
+      : nodeId === 'settings'
+        ? { nodeId, settings }
+        : { nodeId },
     draggable: false,
     connectable: false,
     deletable: false,

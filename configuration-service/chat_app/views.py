@@ -147,8 +147,10 @@ class ChatConfigurationView(APIView):
         tags=['Chat configuration'],
         summary="Replace your business's chat configuration",
         description=(
-            'Replaces `detail_fields` (the customer details the Details collection step asks for), after '
-            'checking it with `validate_detail_fields`, and, if given, `welcome_message` (the reply to a '
+            'Replaces, if given (each one left out is kept as saved), `product_detail_fields` (the customer '
+            'details the Details collection step asks for, for product orders) and `schedule_detail_fields` '
+            '(the Booking details step, for service bookings), checked with `validate_detail_fields`, '
+            '`welcome_message` (the reply to a '
             "chat's first message), `reply_style` and `custom_style` (how the assistant writes; see "
             "`reply-styles/`). Creates the configuration (201) if your business hasn't saved one yet. `id`, "
             '`business` and `last_updated` are read-only.'
@@ -157,13 +159,13 @@ class ChatConfigurationView(APIView):
         responses={
             200: ChatConfigurationSerializer,
             201: ChatConfigurationSerializer,
-            400: OpenApiResponse(description='Invalid fields (e.g. `detail_fields`, or a welcome message that is too long); every problem is listed.'),
+            400: OpenApiResponse(description='Invalid fields (e.g. `product_detail_fields`, or a welcome message that is too long); every problem is listed.'),
             403: OpenApiResponse(description='Your account is not linked to a business.'),
         },
         examples=[
             OpenApiExample(
                 'Name, email, postal code and optional notes',
-                value={'detail_fields': SAMPLE_DETAIL_FIELDS},
+                value={'product_detail_fields': SAMPLE_DETAIL_FIELDS, 'schedule_detail_fields': SAMPLE_DETAIL_FIELDS[:2]},
                 request_only=True,
             ),
         ],

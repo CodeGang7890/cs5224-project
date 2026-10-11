@@ -52,29 +52,36 @@ interface WorkflowEditorProps {
 export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) {
   const theme = useThemeStore((state) => state.theme)
 
-  const savedFields = configuration.detail_fields
+  // Each details step has its own list: product orders and service bookings.
+  const savedFields = configuration.product_detail_fields
   const [fields, setFields] = useState<DetailField[]>(savedFields)
+  const savedBookingFields = configuration.schedule_detail_fields
+  const [bookingFields, setBookingFields] = useState<DetailField[]>(savedBookingFields)
   // The welcome message and reply style (the Welcome & style block).
   const savedSettings = settingsOf(configuration)
   const [settings, setSettings] = useState<ChatSettings>(savedSettings)
   const styles = useReplyStyles()
   const isDirty =
-    JSON.stringify(normalized(fields)) !== JSON.stringify(normalized(savedFields)) || !sameSettings(settings, savedSettings)
+    JSON.stringify(normalized(fields)) !== JSON.stringify(normalized(savedFields)) ||
+    JSON.stringify(normalized(bookingFields)) !== JSON.stringify(normalized(savedBookingFields)) ||
+    !sameSettings(settings, savedSettings)
 
-  const [nodes, setNodes, onNodesChange] = useNodesState<StepNode>(flowNodes(savedFields, settingsSummary(savedSettings, undefined)))
+  const [nodes, setNodes, onNodesChange] = useNodesState<StepNode>(
+    flowNodes(savedFields, savedBookingFields, settingsSummary(savedSettings, undefined)),
+  )
   // The details blocks list the (maybe unsaved) details, and the Welcome & style block its settings.
   useEffect(() => {
     const summary = settingsSummary(settings, styles.data)
     setNodes((current) =>
       current.map((node) =>
         DETAILS_NODES.includes(node.data.nodeId)
-          ? { ...node, data: { ...node.data, fields } }
+          ? { ...node, data: { ...node.data, fields: node.data.nodeId === 'booking_details' ? bookingFields : fields } }
           : node.data.nodeId === 'settings'
             ? { ...node, data: { ...node.data, settings: summary } }
             : node,
       ),
     )
-  }, [fields, settings, styles.data, setNodes])
+  }, [fields, bookingFields, settings, styles.data, setNodes])
 
   const [openNode, setOpenNode] = useState<FlowNodeId | null>(null)
   const detailsOpen = openNode !== null && DETAILS_NODES.includes(openNode)
@@ -90,7 +97,8 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
   const saveErrors = save.error ? getFormErrors(save.error) : null
   const saveErrorMessage =
     saveErrors &&
-    (saveErrors.fields.detail_fields ??
+    (saveErrors.fields.product_detail_fields ??
+      saveErrors.fields.schedule_detail_fields ??
       saveErrors.fields.welcome_message ??
       saveErrors.fields.reply_style ??
       saveErrors.fields.custom_style ??
@@ -99,10 +107,15 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
 
   const onConfirmSave = () => {
     save.mutate(
-      { detail_fields: normalized(fields), ...normalizeSettings(settings) },
+      {
+        product_detail_fields: normalized(fields),
+        schedule_detail_fields: normalized(bookingFields),
+        ...normalizeSettings(settings),
+      },
       {
         onSuccess: (saved) => {
-          setFields(saved.detail_fields)
+          setFields(saved.product_detail_fields)
+          setBookingFields(saved.schedule_detail_fields)
           setSettings(settingsOf(saved))
           setSaveOpen(false)
         },
@@ -120,7 +133,8 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
       setDiscardError(`Couldn't load the saved workflow: ${result.error?.message ?? 'Unknown error'}`)
       return
     }
-    setFields(result.data.detail_fields)
+    setFields(result.data.product_detail_fields)
+    setBookingFields(result.data.schedule_detail_fields)
     setSettings(settingsOf(result.data))
     setDiscardOpen(false)
   }
@@ -203,8 +217,9 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
       <DetailFieldsDialog
         open={detailsOpen}
         onOpenChange={(open) => !open && setOpenNode(null)}
-        fields={fields}
-        onApply={setFields}
+        kind={openNode === 'booking_details' ? 'booking' : 'order'}
+        fields={openNode === 'booking_details' ? bookingFields : fields}
+        onApply={openNode === 'booking_details' ? setBookingFields : setFields}
       />
 
       <ChatSettingsDialog
@@ -223,8 +238,8 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
         description={
           <span className="grid gap-2">
             <span>
-              The assistant will ask new customers for these {fields.length} detail{fields.length === 1 ? '' : 's'}{' '}
-              at the Details collection and Booking details steps,{' '}
+              The assistant will ask for {fields.length} detail{fields.length === 1 ? '' : 's'} when customers order
+              products and {bookingFields.length} when they book a service,{' '}
               {settings.welcome_message.trim() ? 'send your welcome message to new chats' : 'send no welcome message'}, and
               write in the {settingsSummary(settings, styles.data)?.style.toLowerCase()} style.
             </span>

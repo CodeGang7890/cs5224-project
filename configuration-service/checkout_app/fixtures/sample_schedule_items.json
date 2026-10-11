@@ -20,7 +20,6 @@
         },
         "details": {
           "name": "Priya Raman",
-          "phone": "+65 9123 0001",
           "people": 4,
           "notes": "Bringing our dog Mochi"
         }
@@ -52,7 +51,6 @@
         },
         "details": {
           "name": "Daniel Koh",
-          "phone": "+65 8234 5566",
           "people": 1
         }
       },
@@ -83,7 +81,6 @@
         },
         "details": {
           "name": "Sarah Lim",
-          "phone": "+65 9001 2233",
           "people": 1,
           "notes": "Need it for LinkedIn"
         }
@@ -115,7 +112,6 @@
         },
         "details": {
           "name": "Hannah Teo",
-          "phone": "+65 9876 1122",
           "people": 3,
           "notes": "Baby due 8 Oct"
         }
@@ -147,7 +143,6 @@
         },
         "details": {
           "name": "Test Couple",
-          "phone": "+65 8000 0000",
           "people": 2
         }
       },
@@ -178,7 +173,6 @@
         },
         "details": {
           "name": "Wei Jie Ng",
-          "phone": "+65 9333 4455",
           "people": 4,
           "notes": "Graduating from NUS, family of 4"
         }

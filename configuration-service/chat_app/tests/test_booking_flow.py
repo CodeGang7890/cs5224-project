@@ -15,7 +15,7 @@ from checkout_app.tests.test_schedule import at, book, day_letters, future_monda
 from configuration_app.models import BusinessConfiguration
 from product_app.models import Product, Service, ServiceProvider
 
-from ..models import ChatSession
+from ..models import ChatConfiguration, ChatSession
 from ..order_flow import (
     DEFAULT_SLOT_DAYS,
     SLOT_OPTIONS_OFFERED,
@@ -396,6 +396,48 @@ class BookingFlowAPITests(StudioTestData, FlowTestMixin, APITestCase):
 
 
 @override_settings(SCHEDULE_TIME_ZONE='Asia/Singapore')
+class SeparateDetailFieldsFlowTests(StudioTestData, FlowTestMixin, APITestCase):
+    """Bookings ask for the schedule details, orders for the product details: set independently."""
+
+    BOOKING_FIELDS = [
+        {'key': 'name', 'label': 'Name', 'type': 'text'},
+        {'key': 'people', 'label': 'Number of people', 'type': 'number', 'min_value': 1, 'max_value': 12},
+    ]
+    ORDER_FIELDS = [
+        {'key': 'name', 'label': 'Name', 'type': 'text'},
+        {'key': 'pickup_time', 'label': 'Pickup time', 'type': 'text'},
+    ]
+
+    at_step = BookingFlowAPITests.at_step
+    family_data = BookingFlowAPITests.family_data
+
+    def setUp(self):
+        BookingFlowAPITests.setUp(self)
+        ChatConfiguration.objects.create(
+            business=self.studio, product_detail_fields=self.ORDER_FIELDS, schedule_detail_fields=self.BOOKING_FIELDS
+        )
+
+    def test_booking_details_ask_for_the_schedule_details(self):
+        tuesday = self.monday + timedelta(days=1)
+        self.at_step('booking_details', **self.family_data(slot=iso(at(tuesday, '09:00'))))
+        response = self.send('Priya, 4 of us', {'name': 'Priya', 'people': 4})
+        extraction = self.calls(structured=True)[0]
+        self.assertEqual(extraction['format']['required'], ['name', 'people', 'go_back_to'])
+        self.assertNotIn('Pickup time', extraction['messages'][0]['content'])
+        self.assertEqual(self.session.chat_state_id, 'booking_confirmation')
+        self.assertEqual(self.session.chat_state_data['details'], {'name': 'Priya', 'people': 4})
+        self.assertIn('- Number of people: 4', response.json()['message'])  # the summary uses their labels
+
+    def test_orders_still_ask_for_the_product_details(self):
+        kopi = Product.objects.create(business=self.studio, name='Prints', price='15.00', total_quantity=10)
+        self.at_step('details_collection', items=[{'product_id': kopi.pk, 'name': 'Prints', 'unit_price': '15.00', 'quantity': 1}], items_confirmed=True)
+        self.send('Priya, at 5pm', {'name': 'Priya', 'pickup_time': '5pm'})
+        extraction = self.calls(structured=True)[0]
+        self.assertEqual(extraction['format']['required'], ['name', 'pickup_time', 'go_back_to'])
+        self.assertEqual(self.session.chat_state_data['details'], {'name': 'Priya', 'pickup_time': '5pm'})
+        self.assertEqual(self.session.chat_state_id, 'confirmation')
+
+
 class StartingABookingTests(StudioTestData, FlowTestMixin, APITestCase):
     def setUp(self):
         self.session = ChatSession.objects.create(business=self.studio, is_sandbox=True)

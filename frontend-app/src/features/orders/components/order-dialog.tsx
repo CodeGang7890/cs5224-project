@@ -58,7 +58,7 @@ export function OrderDialog({ orderId, order, onClose }: OrderDialogProps) {
 }
 
 function OrderDetails({ order }: { order: Order }) {
-  const labels = useDetailLabels()
+  const labels = useDetailLabels('order')
   const details = Object.entries(order.order_data.details)
   return (
     <div className="grid min-h-0 gap-4 overflow-y-auto">

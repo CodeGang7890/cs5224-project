@@ -132,7 +132,11 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
         history = [*history, {'role': 'assistant', 'content': welcome}]
 
     toolbox = Toolbox(business)
-    template = None if welcome_only else template_reply(business, turn, prompts.detail_labels(chat_config.detail_fields))
+    labels = {
+        'order': prompts.detail_labels(chat_config.product_detail_fields),
+        'booking': prompts.detail_labels(chat_config.schedule_detail_fields),
+    }
+    template = None if welcome_only else template_reply(business, turn, labels)
     if welcome_only:
         reply_kind, system_prompt, reply = REPLY_WELCOME, '', None
     elif template is not None:
@@ -173,7 +177,7 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
             turn.step,
             turn.data,
             products=products,
-            fields=chat_config.detail_fields,
+            fields=chat_config.detail_fields_for(turn.step),
             services=services,
             missing=turn.missing,
             issues=turn.issues,
@@ -215,20 +219,20 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
     return TurnResult(reply=sent[-1], debug=debug, messages=sent)
 
 
-def template_reply(business, turn: order_flow.Turn, labels: dict) -> tuple[str, str, str, bool] | None:
+def template_reply(business, turn: order_flow.Turn, labels: dict[str, dict]) -> tuple[str, str, str, bool] | None:
     """The fixed reply for where the turn ended, if it has one: (reply_kind, the message, the aside
     prompt's context, whether an aside goes before it). None: the LLM writes the reply."""
     if turn.placed_order_id is not None:
-        text = prompts.order_confirmed_message(business, turn.placed_order_id, turn.confirmation, labels)
+        text = prompts.order_confirmed_message(business, turn.placed_order_id, turn.confirmation, labels['order'])
         return REPLY_ORDER_CONFIRMED, text, prompts.aside_after_order(turn.placed_order_id), False
     if turn.placed_booking_id is not None:
-        text = prompts.booking_confirmed_message(business, turn.placed_booking_id, turn.confirmation, labels)
+        text = prompts.booking_confirmed_message(business, turn.placed_booking_id, turn.confirmation, labels['booking'])
         return REPLY_BOOKING_CONFIRMED, text, prompts.aside_after_booking(turn.placed_booking_id), False
     if turn.step == STEP_CONFIRMATION:
-        text = prompts.confirmation_request_message(turn.data, labels)
+        text = prompts.confirmation_request_message(turn.data, labels['order'])
         return REPLY_CONFIRMATION_REQUEST, text, prompts.ASIDE_BEFORE_ORDER_SUMMARY, True
     if turn.step == STEP_BOOKING_CONFIRMATION:
-        text = prompts.booking_request_message(turn.data, labels)
+        text = prompts.booking_request_message(turn.data, labels['booking'])
         return REPLY_BOOKING_REQUEST, text, prompts.ASIDE_BEFORE_BOOKING_SUMMARY, True
     if turn.step == STEP_SLOT_SELECTION and turn.data.get('service'):
         text = prompts.slot_options_message(turn.data, turn.issues)

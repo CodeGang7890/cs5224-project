@@ -84,17 +84,29 @@ class ChatConfigurationSerializer(serializers.ModelSerializer):
     # Null while the business hasn't saved its configuration (GET returns the defaults).
     id = serializers.IntegerField(read_only=True, allow_null=True)
     last_updated = serializers.DateTimeField(read_only=True, allow_null=True)
-    detail_fields = DetailFieldsJSONField(
+    product_detail_fields = DetailFieldsJSONField(
+        required=False,
         validators=[validate_detail_fields],
         help_text=(
-            f'The customer details the Details collection step asks for (1 to {DETAIL_FIELDS_MAX}). '
-            'See the detail field schema for the rules.'
+            f'The customer details the Details collection step asks for, for product orders (1 to {DETAIL_FIELDS_MAX}). '
+            'See the detail field schema for the rules. Optional on PUT (kept as saved).'
+        ),
+    )
+    schedule_detail_fields = DetailFieldsJSONField(
+        required=False,
+        validators=[validate_detail_fields],
+        help_text=(
+            f'The customer details the Booking details step asks for, for service bookings (1 to {DETAIL_FIELDS_MAX}), '
+            'independent of product_detail_fields. Optional on PUT (kept as saved).'
         ),
     )
 
     class Meta:
         model = ChatConfiguration
-        fields = ['id', 'business', 'detail_fields', 'welcome_message', 'reply_style', 'custom_style', 'last_updated']
+        fields = [
+            'id', 'business', 'product_detail_fields', 'schedule_detail_fields', 'welcome_message', 'reply_style',
+            'custom_style', 'last_updated',
+        ]
         read_only_fields = ['id', 'business', 'last_updated']
         extra_kwargs = {
             'welcome_message': {

@@ -58,7 +58,7 @@ export function ScheduleDialog({ bookingId, booking, onClose }: ScheduleDialogPr
 }
 
 function BookingDetails({ booking }: { booking: ScheduleItem }) {
-  const labels = useDetailLabels()
+  const labels = useDetailLabels('booking')
   const details = Object.entries(booking.schedule_data.details)
   const service = booking.schedule_data.service
   const rows = [

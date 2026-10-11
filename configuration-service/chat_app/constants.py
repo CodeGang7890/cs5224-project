@@ -16,7 +16,8 @@ STEP_BOOKING_CONFIRMATION = 'booking_confirmation'
 ORDER_STEPS = [STEP_PRODUCT_SELECTION, STEP_DETAILS_COLLECTION, STEP_CONFIRMATION]  # in order
 BOOKING_STEPS = [STEP_SERVICE_SELECTION, STEP_SLOT_SELECTION, STEP_BOOKING_DETAILS, STEP_BOOKING_CONFIRMATION]
 CHAT_STEPS = [STEP_START, *ORDER_STEPS, *BOOKING_STEPS]
-DETAILS_STEPS = (STEP_DETAILS_COLLECTION, STEP_BOOKING_DETAILS)  # both ask for ChatConfiguration.detail_fields
+# Details collection asks for ChatConfiguration.product_detail_fields, Booking details for schedule_detail_fields.
+DETAILS_STEPS = (STEP_DETAILS_COLLECTION, STEP_BOOKING_DETAILS)
 CONFIRMATION_STEPS = (STEP_CONFIRMATION, STEP_BOOKING_CONFIRMATION)
 
 # Confirmation's substages (both Confirmation and Booking confirmation). `not_confirmed`: the summary was sent (a fixed template, so the LLM
@@ -57,21 +58,22 @@ MESSAGE_SENDERS = [
     SENT_BY_BUSINESS_AUTOMATED,
 ]
 
-# Types of customer detail the Details collection step can ask for (detail_fields[].type).
+# Types of customer detail the details steps can ask for (product_detail_fields[].type /
+# schedule_detail_fields[].type). No phone type: customers chat on WhatsApp, so the chat already
+# has their number (ChatSession.phone_number).
 DETAIL_TYPE_TEXT = 'text'
 DETAIL_TYPE_NUMBER = 'number'
 DETAIL_TYPE_EMAIL = 'email'
-DETAIL_TYPE_PHONE = 'phone'
 
 DETAIL_FIELD_TYPES = [
     DETAIL_TYPE_TEXT,
     DETAIL_TYPE_NUMBER,
     DETAIL_TYPE_EMAIL,
-    DETAIL_TYPE_PHONE,
 ]
 
 # The details the Details collection step asks for until the business changes them
-# (ChatConfiguration.detail_fields' default).
+# (the default of both ChatConfiguration.product_detail_fields and schedule_detail_fields): a
+# name and an email, both required.
 DEFAULT_DETAIL_FIELDS = [
     {'key': 'name', 'label': 'Name', 'type': DETAIL_TYPE_TEXT, 'max_length': 150},
     {'key': 'email', 'label': 'Email', 'type': DETAIL_TYPE_EMAIL},

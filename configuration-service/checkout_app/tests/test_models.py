@@ -301,7 +301,7 @@ class SampleScheduleItemFixtureTests(TestCase):
         self.assertEqual(session.pk, 20)
         self.assertEqual(session.chat_state_data, {'last_booking_id': 1})
         self.assertEqual(booking.schedule_data['details'], {
-            'name': 'Priya Raman', 'phone': '+65 9123 0001', 'people': 4, 'notes': 'Bringing our dog Mochi',
+            'name': 'Priya Raman', 'people': 4, 'notes': 'Bringing our dog Mochi',
         })
         confirm, reply = session.chat_message_json[-2:]
         self.assertEqual(confirm['message'], 'CONFIRM')

@@ -4,8 +4,7 @@
     "pk": 1,
     "fields": {
       "business": 1,
-      "last_updated": "2026-01-01T00:00:00Z",
-      "detail_fields": [
+      "product_detail_fields": [
         {
           "key": "name",
           "label": "Name",
@@ -24,7 +23,21 @@
           "max_length": 50,
           "description": "When they will collect the order, e.g. 9:30am today"
         }
-      ]
+      ],
+      "schedule_detail_fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "max_length": 150
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "email"
+        }
+      ],
+      "last_updated": "2026-01-01T00:00:00Z"
     }
   },
   {
@@ -32,8 +45,7 @@
     "pk": 2,
     "fields": {
       "business": 2,
-      "last_updated": "2026-09-01T00:00:00Z",
-      "detail_fields": [
+      "product_detail_fields": [
         {
           "key": "name",
           "label": "Name",
@@ -54,16 +66,8 @@
           "max_length": 50,
           "description": "The date the customer will collect the flowers from our studio, e.g. Saturday 20 September"
         }
-      ]
-    }
-  },
-  {
-    "model": "chat_app.chatconfiguration",
-    "pk": 3,
-    "fields": {
-      "business": 4,
-      "last_updated": "2026-09-01T00:00:00Z",
-      "detail_fields": [
+      ],
+      "schedule_detail_fields": [
         {
           "key": "name",
           "label": "Name",
@@ -71,9 +75,38 @@
           "max_length": 150
         },
         {
-          "key": "phone",
-          "label": "Phone",
-          "type": "phone"
+          "key": "email",
+          "label": "Email",
+          "type": "email"
+        }
+      ],
+      "last_updated": "2026-09-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "chat_app.chatconfiguration",
+    "pk": 3,
+    "fields": {
+      "business": 4,
+      "product_detail_fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "max_length": 150
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "email"
+        }
+      ],
+      "schedule_detail_fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "max_length": 150
         },
         {
           "key": "people",
@@ -90,7 +123,8 @@
           "required": false,
           "description": "e.g. outfits, pets, accessibility needs"
         }
-      ]
+      ],
+      "last_updated": "2026-09-01T00:00:00Z"
     }
   }
 ]

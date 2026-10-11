@@ -44,7 +44,7 @@ export const FLOW_NODES = [
   'order_status',
 ] as const
 
-/** The blocks whose settings are the Details collection fields (both ask for the same details). */
+/** The details blocks: Details collection (product orders) and Booking details (bookings), each with its own list. */
 export const DETAILS_NODES: readonly FlowNodeId[] = ['details_collection', 'booking_details']
 
 export type FlowNodeId = (typeof FLOW_NODES)[number]

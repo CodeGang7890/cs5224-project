@@ -7,6 +7,7 @@ from django.utils import timezone
 from product_app.models import FAQ_QUESTION_MAX_LENGTH
 
 from .constants import (
+    BOOKING_STEPS,
     CHAT_STEPS,
     CUSTOM_STYLE_MAX_LENGTH,
     DEFAULT_REPLY_STYLE,
@@ -41,7 +42,8 @@ class ChatConfiguration(models.Model):
 
     The flow itself is fixed in code (flow.py): the router, then the order steps (Product
     selection → Details collection → Confirmation), the FAQs and order status. The business only
-    configures the steps' settings: which details the Details collection step asks for, the
+    configures the steps' settings: which details the Details collection step asks for (for
+    product orders) and the Booking details step (for service bookings), separately; the
     welcome message sent as the reply to a chat's first message, and the style the assistant
     writes in. A business that hasn't saved any uses the defaults (for_business).
     """
@@ -51,10 +53,15 @@ class ChatConfiguration(models.Model):
         on_delete=models.CASCADE,
         related_name='chat_configuration',
     )
-    detail_fields = models.JSONField(
+    product_detail_fields = models.JSONField(
         default=default_detail_fields,
         validators=[validate_detail_fields],
-        help_text='The customer details the Details collection step asks for (see validators.detail_field_errors).',
+        help_text='The customer details the Details collection step asks for, for product orders (see validators.detail_field_errors).',
+    )
+    schedule_detail_fields = models.JSONField(
+        default=default_detail_fields,
+        validators=[validate_detail_fields],
+        help_text='The customer details the Booking details step asks for, for service bookings (see validators.detail_field_errors).',
     )
     welcome_message = models.CharField(
         max_length=WELCOME_MESSAGE_MAX_LENGTH,
@@ -96,6 +103,11 @@ class ChatConfiguration(models.Model):
         super().clean()
         if self.reply_style == REPLY_STYLE_CUSTOM and not self.custom_style.strip():
             raise ValidationError({'custom_style': 'Describe the style you want (or choose one of the presets).'})
+
+    def detail_fields_for(self, step: str) -> list[dict]:
+        """The details a step's branch asks for: schedule_detail_fields for the booking steps,
+        product_detail_fields otherwise (the order steps, and Start)."""
+        return self.schedule_detail_fields if step in BOOKING_STEPS else self.product_detail_fields
 
     @classmethod
     def for_business(cls, business) -> 'ChatConfiguration':

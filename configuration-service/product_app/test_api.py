@@ -693,7 +693,7 @@ class ServiceProviderAPITests(ScheduleAPITestCase):
     def test_calendar_shows_the_week_and_who_booked(self):
         session = ChatSession.objects.create(business=self.cafe, is_sandbox=True)
         pending = book(self.portrait, self.mei, at(self.monday, '09:00'), chat_session=session, is_sandbox=True)
-        pending.schedule_data['details'] = {'name': 'Alice', 'phone': '+65 9123 4567'}
+        pending.schedule_data['details'] = {'name': 'Alice', 'email': 'alice@example.com'}
         pending.save()
         paid = book(self.portrait, self.mei, at(self.monday, '10:30'), status=OrderStatus.PAYMENT_RECEIVED)
         self.login(self.cafe_user)
@@ -706,7 +706,7 @@ class ServiceProviderAPITests(ScheduleAPITestCase):
         self.assertEqual(len(body['bookings']), 2)
         first = body['bookings'][0]
         self.assertEqual(first, {
-            'id': pending.pk, 'service': 'Portrait', 'customer': 'Alice', 'details': {'name': 'Alice', 'phone': '+65 9123 4567'},
+            'id': pending.pk, 'service': 'Portrait', 'customer': 'Alice', 'details': {'name': 'Alice', 'email': 'alice@example.com'},
             'start_time': first['start_time'], 'end_time': first['end_time'], 'blocked_until': first['blocked_until'],
             'order_status': 'pending_payment', 'total': '180.00', 'is_sandbox': True, 'chat_session': session.pk,
             'start_block': 36, 'end_block': 40, 'until_block': 41,

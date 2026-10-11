@@ -100,7 +100,7 @@ class ChatSettingsAPITests(APITestCase):
         self.client.force_authenticate(self.user)
 
     def put(self, **fields):
-        return self.client.put(self.url, {'detail_fields': DEFAULT_DETAIL_FIELDS, **fields}, format='json')
+        return self.client.put(self.url, {'product_detail_fields': DEFAULT_DETAIL_FIELDS, **fields}, format='json')
 
     def test_save_the_welcome_message_and_style(self):
         response = self.put(welcome_message=f'  {WELCOME}  ', reply_style='professional')
@@ -121,7 +121,7 @@ class ChatSettingsAPITests(APITestCase):
 
     def test_the_settings_are_kept_when_a_put_leaves_them_out(self):
         self.put(welcome_message=WELCOME, reply_style='casual')
-        response = self.put()  # e.g. an older client that only sends detail_fields
+        response = self.put()  # e.g. an older client that only sends the detail fields
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual((response.json()['welcome_message'], response.json()['reply_style']), (WELCOME, 'casual'))
         self.assertEqual(self.put(welcome_message='').json()['welcome_message'], '')  # blank: switched off

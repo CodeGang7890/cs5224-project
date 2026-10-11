@@ -907,3 +907,14 @@ And also choose the style of the message (maybe a few template for a customised 
 Extend ChatConfiguration model to have this. Make sure there is a length limit.
 Allow the user to customise this from the Workflow tab somehow, perhaps by clicking another block on the screen called as config or something similar.
 Add test cases and APIs for this.
+
+Date & Time (GMT+8): 2026-10-11 20:49:49
+AI Model Used: claude-opus-5-5
+Original Prompt:
+Right now the detail fields are the same for both “Product” and “Schedule” items.
+I want these 2 to be independent of each other.
+In ChatConfiguration separate these into 2 detail fields, one for product and another for schedule.
+Please remove phone number as a details to get, because the idea is people chat through WhatsApp and they already have the phone number.
+Make it that by default they just need a name and email (both are required).
+But of course they can make it optional or to remove it or add new custom fields entirely to collect from customer.
+Please update the fixtures and test cases accordingly. /goal

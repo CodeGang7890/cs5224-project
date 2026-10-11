@@ -1,8 +1,9 @@
 import copy
 
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError, transaction
-from django.test import SimpleTestCase, TestCase
+from django.db import IntegrityError, connection, transaction
+from django.db.migrations.executor import MigrationExecutor
+from django.test import SimpleTestCase, TestCase, TransactionTestCase
 
 from configuration_app.models import BusinessConfiguration
 
@@ -20,8 +21,11 @@ DETAIL_FIELDS = [
     {'key': 'name', 'label': 'Receiver name', 'type': 'text', 'max_length': 150},
     {'key': 'postal_code', 'label': 'Postal code', 'type': 'number', 'min_value': 100000, 'max_value': 999999},
     {'key': 'notes', 'label': 'Customisation notes', 'type': 'text', 'max_length': 200, 'description': 'e.g. less sugar'},
-    {'key': 'email', 'label': 'Email', 'type': 'email'},
-    {'key': 'phone', 'label': 'Phone', 'type': 'phone', 'description': 'For delivery updates'},
+    {'key': 'email', 'label': 'Email', 'type': 'email', 'description': 'For the receipt'},
+]
+BOOKING_FIELDS = [
+    {'key': 'name', 'label': 'Name', 'type': 'text', 'max_length': 150},
+    {'key': 'people', 'label': 'Number of people', 'type': 'number', 'min_value': 1, 'max_value': 12},
 ]
 
 
@@ -56,7 +60,6 @@ class ValidateDetailFieldsTests(SimpleTestCase):
             {'key': 'notes', 'label': 'Notes', 'type': 'text', 'required': False},
             {'key': 'n', 'label': 'N', 'type': 'number', 'required': False},
             {'key': 'e', 'label': 'E', 'type': 'email', 'required': False},
-            {'key': 'p', 'label': 'P', 'type': 'phone', 'required': False},
         ])
         validate_detail_fields([{'key': 'x', 'label': 'X', 'type': 'number', 'min_value': 1.5, 'max_value': 1.5}])
 
@@ -76,7 +79,7 @@ class ValidateDetailFieldsTests(SimpleTestCase):
             'duplicate key': ([field, {**field, 'label': 'Other'}], "Detail 1: duplicate key 'notes'"),
             'blank label': ([{**field, 'label': '  '}], 'label must be a non-blank string'),
             'label too long': ([{**field, 'label': 'x' * 101}], 'at most 100 characters'),
-            'unknown type': ([{**field, 'type': 'date'}], 'type must be one of text, number, email, phone'),
+            'unknown type': ([{**field, 'type': 'date'}], 'type must be one of text, number, email'),
             'max_length on number': ([{**field, 'type': 'number', 'max_length': 5}], 'max_length not allowed for type number'),
             'min_value on text': ([{**field, 'min_value': 1}], 'min_value not allowed for type text'),
             'max_length on email': ([{**field, 'type': 'email', 'max_length': 5}], 'max_length not allowed for type email'),
@@ -108,28 +111,52 @@ class ChatConfigurationModelTests(TestCase):
     def setUpTestData(cls):
         cls.business = BusinessConfiguration.objects.create(business_name='Test Café', location='Singapore')
 
+    def test_no_phone_type(self):
+        # Customers chat on WhatsApp: the chat already has their number.
+        with self.assertRaises(ValidationError) as ctx:
+            validate_detail_fields([{'key': 'name', 'label': 'Name', 'type': 'text'}, {'key': 'phone', 'label': 'Phone', 'type': 'phone'}])
+        self.assertIn('type must be one of text, number, email', ctx.exception.messages[0])
+
     def test_valid_configuration(self):
-        chat_config = ChatConfiguration(business=self.business, detail_fields=DETAIL_FIELDS)
+        chat_config = ChatConfiguration(business=self.business, product_detail_fields=DETAIL_FIELDS, schedule_detail_fields=BOOKING_FIELDS)
         chat_config.full_clean()
         chat_config.save()
         self.assertEqual(self.business.chat_configuration, chat_config)
         self.assertIsNotNone(chat_config.last_updated)
 
     def test_default_detail_fields(self):
+        # Both lists default to a required name and email, each its own copy.
         chat_config = ChatConfiguration.objects.create(business=self.business)
-        self.assertEqual(chat_config.detail_fields, DEFAULT_DETAIL_FIELDS)
-        chat_config.detail_fields[0]['label'] = 'Changed'  # each configuration gets its own copy
-        self.assertEqual(ChatConfiguration(business=self.business).detail_fields[0]['label'], 'Name')
+        self.assertEqual(chat_config.product_detail_fields, DEFAULT_DETAIL_FIELDS)
+        self.assertEqual(chat_config.schedule_detail_fields, DEFAULT_DETAIL_FIELDS)
+        self.assertEqual([f['key'] for f in DEFAULT_DETAIL_FIELDS], ['name', 'email'])
+        self.assertTrue(all(is_required_detail(f) for f in DEFAULT_DETAIL_FIELDS))
+        chat_config.product_detail_fields[0]['label'] = 'Changed'
+        self.assertEqual(chat_config.schedule_detail_fields[0]['label'], 'Name')
+        self.assertEqual(ChatConfiguration(business=self.business).product_detail_fields[0]['label'], 'Name')
+
+    def test_the_two_lists_are_independent(self):
+        chat_config = ChatConfiguration.objects.create(
+            business=self.business, product_detail_fields=DETAIL_FIELDS, schedule_detail_fields=BOOKING_FIELDS
+        )
+        chat_config.refresh_from_db()
+        self.assertEqual((chat_config.product_detail_fields, chat_config.schedule_detail_fields), (DETAIL_FIELDS, BOOKING_FIELDS))
+        # The order steps (and Start) ask for the product details, the booking steps for the schedule ones.
+        for step in ('start', 'product_selection', 'details_collection', 'confirmation'):
+            self.assertEqual(chat_config.detail_fields_for(step), DETAIL_FIELDS, step)
+        for step in ('service_selection', 'slot_selection', 'booking_details', 'booking_confirmation'):
+            self.assertEqual(chat_config.detail_fields_for(step), BOOKING_FIELDS, step)
 
     def test_invalid_detail_fields_rejected_by_full_clean(self):
-        with self.assertRaises(ValidationError) as ctx:
-            ChatConfiguration(business=self.business, detail_fields=[]).full_clean()
-        self.assertIn('detail_fields', ctx.exception.message_dict)
+        for field in ('product_detail_fields', 'schedule_detail_fields'):
+            with self.subTest(field=field), self.assertRaises(ValidationError) as ctx:
+                ChatConfiguration(business=self.business, **{field: []}).full_clean()
+            self.assertIn(field, ctx.exception.message_dict)
 
     def test_last_updated_changes_on_save(self):
         chat_config = ChatConfiguration.objects.create(business=self.business)
         first = chat_config.last_updated
-        chat_config.detail_fields = DETAIL_FIELDS
+        chat_config.product_detail_fields = DETAIL_FIELDS
         chat_config.save()
         self.assertGreater(chat_config.last_updated, first)
 
@@ -146,11 +173,12 @@ class ChatConfigurationModelTests(TestCase):
     def test_for_business_returns_the_saved_one_or_the_defaults(self):
         unsaved = ChatConfiguration.for_business(self.business)
         self.assertIsNone(unsaved.pk)
-        self.assertEqual((unsaved.business, unsaved.detail_fields), (self.business, DEFAULT_DETAIL_FIELDS))
+        self.assertEqual((unsaved.business, unsaved.product_detail_fields), (self.business, DEFAULT_DETAIL_FIELDS))
+        self.assertEqual(unsaved.schedule_detail_fields, DEFAULT_DETAIL_FIELDS)
         self.assertFalse(ChatConfiguration.objects.exists())  # nothing saved
-        saved = ChatConfiguration.objects.create(business=self.business, detail_fields=DETAIL_FIELDS)
+        saved = ChatConfiguration.objects.create(business=self.business, product_detail_fields=DETAIL_FIELDS)
         self.assertEqual(ChatConfiguration.for_business(self.business), saved)
-        self.assertEqual(ChatConfiguration.for_business(self.business).detail_fields, DETAIL_FIELDS)
+        self.assertEqual(ChatConfiguration.for_business(self.business).product_detail_fields, DETAIL_FIELDS)
 
 
 class SampleChatConfigurationFixtureTests(TestCase):
@@ -159,16 +187,29 @@ class SampleChatConfigurationFixtureTests(TestCase):
     def test_fixture_is_valid(self):
         chat_config = ChatConfiguration.objects.get(business_id=1)
         chat_config.full_clean()  # loaddata skips validation
-        self.assertEqual([f['key'] for f in chat_config.detail_fields], ['name', 'email', 'pickup_time'])
+        self.assertEqual([f['key'] for f in chat_config.product_detail_fields], ['name', 'email', 'pickup_time'])
+        self.assertEqual(chat_config.schedule_detail_fields, DEFAULT_DETAIL_FIELDS)
 
     def test_florist_fixture_is_valid(self):
         chat_config = ChatConfiguration.objects.get(business_id=2)
         chat_config.full_clean()
-        self.assertEqual([f['key'] for f in chat_config.detail_fields], ['name', 'card_message', 'collection_date'])
-        self.assertTrue(all(is_required_detail(f) for f in chat_config.detail_fields))
+        self.assertEqual([f['key'] for f in chat_config.product_detail_fields], ['name', 'card_message', 'collection_date'])
+        self.assertTrue(all(is_required_detail(f) for f in chat_config.product_detail_fields))
+
+    def test_photography_fixture_collects_its_own_booking_details(self):
+        chat_config = ChatConfiguration.objects.get(business_id=4)
+        chat_config.full_clean()
+        self.assertEqual(chat_config.product_detail_fields, DEFAULT_DETAIL_FIELDS)
+        self.assertEqual([f['key'] for f in chat_config.schedule_detail_fields], ['name', 'people', 'notes'])
+
+    def test_no_fixture_asks_for_a_phone_number(self):
+        for chat_config in ChatConfiguration.objects.all():
+            for field in chat_config.product_detail_fields + chat_config.schedule_detail_fields:
+                self.assertNotEqual(field['type'], 'phone')
+                self.assertNotIn('phone', field['key'])
 
     def test_fitlab_has_none_and_uses_the_defaults(self):
-        self.assertEqual(ChatConfiguration.for_business(BusinessConfiguration.objects.get(pk=3)).detail_fields, DEFAULT_DETAIL_FIELDS)
+        self.assertEqual(ChatConfiguration.for_business(BusinessConfiguration.objects.get(pk=3)).product_detail_fields, DEFAULT_DETAIL_FIELDS)
 
 
 # --- ChatSession ----------------------------------------------------------------------------
@@ -471,3 +512,47 @@ class LastOrderIdMigrationTests(TestCase):
         migration.to_completed(apps, None)  # backwards
         done.refresh_from_db()
         self.assertEqual((done.chat_state_id, done.chat_state_data), ('confirmation', {'completed': True, 'order_id': 7}))
+
+
+class DetailFieldsSplitMigrationTests(TransactionTestCase):
+    """chat_app 0011: the one detail fields list becomes the product and the schedule lists, both
+    without phone fields (customers chat on WhatsApp)."""
+
+    before = [('chat_app', '0010_chat_configuration_welcome_and_style')]
+    after = [('chat_app', '0011_product_and_schedule_detail_fields')]
+
+    def migrate(self, targets):
+        executor = MigrationExecutor(connection)
+        executor.loader.build_graph()
+        executor.migrate(targets)
+        return executor.loader.project_state(targets).apps
+
+    def tearDown(self):
+        self.migrate(MigrationExecutor(connection).loader.graph.leaf_nodes())
+
+    def test_split_without_phone_fields(self):
+        apps = self.migrate(self.before)
+        Business = apps.get_model('configuration_app', 'BusinessConfiguration')
+        OldConfig = apps.get_model('chat_app', 'ChatConfiguration')
+        studio = Business.objects.create(business_name='Snap', location='SG')
+        cafe = Business.objects.create(business_name='Cafe', location='SG')
+        fields = [
+            {'key': 'name', 'label': 'Name', 'type': 'text'},
+            {'key': 'phone', 'label': 'Phone', 'type': 'phone'},
+            {'key': 'people', 'label': 'People', 'type': 'number'},
+        ]
+        OldConfig.objects.create(business=studio, detail_fields=fields)
+        # Only a phone left required: back to the defaults.
+        OldConfig.objects.create(business=cafe, detail_fields=[
+            {'key': 'mobile', 'label': 'Mobile', 'type': 'phone'},
+            {'key': 'notes', 'label': 'Notes', 'type': 'text', 'required': False},
+        ])
+
+        apps = self.migrate(self.after)
+        Config = apps.get_model('chat_app', 'ChatConfiguration')
+        studio_config = Config.objects.get(business_id=studio.pk)
+        expected = [fields[0], fields[2]]
+        self.assertEqual((studio_config.product_detail_fields, studio_config.schedule_detail_fields), (expected, expected))
+        cafe_config = Config.objects.get(business_id=cafe.pk)
+        self.assertEqual(cafe_config.product_detail_fields, DEFAULT_DETAIL_FIELDS)
+        self.assertEqual(cafe_config.schedule_detail_fields, DEFAULT_DETAIL_FIELDS)

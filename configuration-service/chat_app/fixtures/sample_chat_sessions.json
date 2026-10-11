@@ -775,17 +775,17 @@
           "message_time": "2026-09-14T10:02:00+08:00"
         },
         {
-          "message": "Yes, pets are welcome at family sessions! Saturday 19 Sep at 10:30am it is. Could you tell me your Name, Phone and Number of people? And is there anything we should know (outfits, pets, accessibility)?",
+          "message": "Yes, pets are welcome at family sessions! Saturday 19 Sep at 10:30am it is. Could you tell me your Name and Number of people? And is there anything we should know (outfits, pets, accessibility)?",
           "sent_by": "business-automated",
           "message_time": "2026-09-14T10:02:25+08:00"
         },
         {
-          "message": "Priya Raman, +65 9123 0001, 4 people. We're bringing our dog Mochi",
+          "message": "Priya Raman, 4 people. We're bringing our dog Mochi",
           "sent_by": "customer",
           "message_time": "2026-09-14T10:03:30+08:00"
         },
         {
-          "message": "Here is your booking summary:\n- Family Portrait Session (1 h 30 min)\n- Sat 19 Sep, 10:30am – 12pm\nPrice: $350.00\n\nYour details:\n- Name: Priya Raman\n- Phone: +65 9123 0001\n- Number of people: 4\n- Anything we should know: Bringing our dog Mochi\n\nPlease reply CONFIRM to book it, or tell me what you would like to change.",
+          "message": "Here is your booking summary:\n- Family Portrait Session (1 h 30 min)\n- Sat 19 Sep, 10:30am – 12pm\nPrice: $350.00\n\nYour details:\n- Name: Priya Raman\n- Number of people: 4\n- Anything we should know: Bringing our dog Mochi\n\nPlease reply CONFIRM to book it, or tell me what you would like to change.",
           "sent_by": "business-automated",
           "message_time": "2026-09-14T10:03:50+08:00"
         },
@@ -795,7 +795,7 @@
           "message_time": "2026-09-14T10:05:00+08:00"
         },
         {
-          "message": "Thank you! Your booking #1 with Lumen & Lens Photography Studio is confirmed.\n- Family Portrait Session (1 h 30 min)\n- Sat 19 Sep, 10:30am – 12pm\nPrice: $350.00\n\nYour details:\n- Name: Priya Raman\n- Phone: +65 9123 0001\n- Number of people: 4\n- Anything we should know: Bringing our dog Mochi",
+          "message": "Thank you! Your booking #1 with Lumen & Lens Photography Studio is confirmed.\n- Family Portrait Session (1 h 30 min)\n- Sat 19 Sep, 10:30am – 12pm\nPrice: $350.00\n\nYour details:\n- Name: Priya Raman\n- Number of people: 4\n- Anything we should know: Bringing our dog Mochi",
           "sent_by": "business-automated",
           "message_time": "2026-09-14T10:05:10+08:00"
         }

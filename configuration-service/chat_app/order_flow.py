@@ -49,7 +49,6 @@ from .constants import (
     CONFIRMATION_STEPS,
     DETAIL_TYPE_EMAIL,
     DETAIL_TYPE_NUMBER,
-    DETAIL_TYPE_PHONE,
     ORDER_STEPS,
     STEP_BOOKING_CONFIRMATION,
     STEP_BOOKING_DETAILS,
@@ -111,7 +110,7 @@ class StepContext:
 
     products: list[dict]  # tools.active_products
     services: list[Service]  # tools.active_services
-    fields: list[dict]  # ChatConfiguration.detail_fields
+    fields: list[dict]  # the branch's detail fields (ChatConfiguration.detail_fields_for)
     now: datetime
 
 
@@ -186,7 +185,9 @@ def advance(
             turn.stop_reason = 'Nothing in progress, and the router found no wish to order or book: reply only.'
             return turn
 
-    business, fields = chat_config.business, chat_config.detail_fields
+    # The order steps ask for the product details, the booking steps for the schedule details (a
+    # turn never moves from one branch to the other).
+    business, fields = chat_config.business, chat_config.detail_fields_for(step)
     context = StepContext(products=products, services=list(services), fields=fields, now=now or timezone.now())
     # Going back is only offered at the step the chat was at when this message arrived. A step
     # reached during this message (e.g. Details collection, right after "That's all" finished
@@ -573,8 +574,6 @@ def _as_int(value) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
-PHONE_PATTERN = re.compile(r'^\+?[\d\s()\-]+$')
-
 
 def clean_detail_value(detail_field: dict, raw) -> tuple[str | int | float | None, str | None]:
     """The LLM's value for one detail field, checked against its type: (value, None) if valid,
@@ -601,10 +600,6 @@ def clean_detail_value(detail_field: dict, raw) -> tuple[str | int | float | Non
             return None, f'"{value}" is not a valid email address.'
         if len(value) > EMAIL_MAX_LENGTH:
             return None, f'{label} is too long.'
-    elif field_type == DETAIL_TYPE_PHONE:
-        digits = sum(char.isdigit() for char in value)
-        if not PHONE_PATTERN.match(value) or not 6 <= digits <= 15:
-            return None, f'"{value}" is not a valid phone number.'
     else:  # text
         max_length = detail_field.get('max_length', DETAIL_TEXT_DEFAULT_MAX_LENGTH)
         if len(value) > max_length:
