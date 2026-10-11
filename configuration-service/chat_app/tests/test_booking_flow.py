@@ -205,6 +205,24 @@ class BookingFlowAPITests(StudioTestData, FlowTestMixin, APITestCase):
         message = response.json()['message']
         self.assertTrue(message.startswith(f'Wed {wednesday.day} {wednesday:%b}, 2pm is not available for Family Shoot.\n\nHere are some'))
 
+    def test_a_time_off_the_start_interval_is_explained_and_only_allowed_starts_are_offered(self):
+        self.portrait.start_interval_minutes = 60
+        self.portrait.save()
+        tuesday = self.monday + timedelta(days=1)
+        portrait = {'service_id': self.portrait.pk, 'name': 'Portrait Session', 'price': '180.00', 'duration_minutes': 60, 'buffer_minutes': 15}
+        self.at_step('slot_selection', service=portrait)
+        response = self.send('Tuesday at 9:30?', {'choice': None, 'date': tuesday.isoformat(), 'date_to': None, 'time': '09:30', 'part_of_day': None})
+        self.assertEqual(self.session.chat_state_id, 'slot_selection')
+        self.assertNotIn('slot', self.session.chat_state_data)
+        message = response.json()['message']
+        self.assertTrue(message.startswith('Portrait Session can only start every hour (for example 9am or 10am).'), message)
+        offered = times(self.session.chat_state_data['slot_options'])
+        self.assertTrue(offered)
+        self.assertTrue(all(time.endswith(':00') for time in offered), offered)
+        # An allowed start is taken.
+        self.send('10am then', {'choice': None, 'date': tuesday.isoformat(), 'date_to': None, 'time': '10:00', 'part_of_day': None}, {'name': None, 'email': None})
+        self.assertEqual(self.session.chat_state_data['slot'], iso(at(tuesday, '10:00')))
+
     def test_a_time_without_a_day_keeps_the_day_already_chosen(self):
         tuesday = self.monday + timedelta(days=1)
         self.at_step('booking_details', **self.family_data(slot=iso(at(tuesday, '09:00'))))

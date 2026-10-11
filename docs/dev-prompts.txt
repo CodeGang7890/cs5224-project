@@ -918,3 +918,16 @@ Please remove phone number as a details to get, because the idea is people chat 
 Make it that by default they just need a name and email (both are required).
 But of course they can make it optional or to remove it or add new custom fields entirely to collect from customer.
 Please update the fixtures and test cases accordingly. /goal
+
+Date & Time (GMT+8): 2026-10-11 21:06:04
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+For schedule booking, I want to add new feature that basically only allow users to book every some multiples of the interval.
+By default the current functionality is 15 mins, but make it configurable to say 30 mins or 1 hour or custom value.
+Say a service needs 1 hour and is available from 9am to 11am.
+If this value is 15 min, I can say book from 9.15am to 10.15am.
+If this is 30 mins, then my start time can only be 9am or 9.30am or 10am.
+If this is 1 hour, my start time can only be 9 am or 10am.
+Make this configurable.
+Add test cases, relevant APIs as usual.

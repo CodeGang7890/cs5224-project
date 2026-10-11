@@ -1,6 +1,8 @@
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 
@@ -9,6 +11,7 @@ from product_app.models import Service, ServiceProvider, WeeklyAvailability
 from product_app.tests import open_hours
 
 from ..models import OrderStatus, ScheduleItem
+from ..services import BookingError, place_booking
 from ..schedule import (
     MIN_NOTICE,
     SLOT_SEARCH_DAYS_MAX,
@@ -391,3 +394,72 @@ class CopyWeekTests(StudioCase):
 
     def test_the_source_itself_is_skipped(self):
         self.assertEqual(copy_week(self.mei, self.monday, [self.monday]).weeks, [])
+
+
+@override_settings(SCHEDULE_TIME_ZONE='Asia/Singapore')
+class StartIntervalTests(StudioCase):
+    """Service.start_interval_minutes: bookings only start every N minutes from local midnight.
+    The user's example: a 1-hour service, available 09:00 to 11:00."""
+
+    def setUp(self):
+        for provider in (self.mei, self.raj):
+            open_week(provider, self.monday, (0, '09:00', '11:00'))
+
+    def slots(self, interval):
+        self.portrait.start_interval_minutes = interval
+        return [s.astimezone(TZ).strftime('%H:%M') for s in free_slots(self.portrait, self.monday, self.monday)]
+
+    def test_every_15_minutes_by_default(self):
+        self.assertEqual(Service(business=self.studio, name='X', price=1, duration_minutes=60).start_interval_minutes, 15)
+        self.assertEqual(self.slots(15), ['09:00', '09:15', '09:30', '09:45', '10:00'])
+        self.assertIsNone(start_problem(self.portrait, at(self.monday, '09:15')))  # 9:15 to 10:15
+
+    def test_every_30_minutes(self):
+        self.assertEqual(self.slots(30), ['09:00', '09:30', '10:00'])
+
+    def test_every_hour(self):
+        self.assertEqual(self.slots(60), ['09:00', '10:00'])
+
+    def test_a_custom_interval_counts_from_midnight(self):
+        self.assertEqual(self.slots(45), ['09:00', '09:45'])  # 9:00 is 12 × 45 min after midnight; 10:30 ends too late
+        open_week(self.mei, self.monday, (0, '08:00', '12:00'))
+        self.assertEqual(self.slots(120), ['08:00', '10:00'])
+
+    def test_a_start_off_the_interval_is_explained(self):
+        self.portrait.start_interval_minutes = 30
+        self.assertEqual(
+            start_problem(self.portrait, at(self.monday, '09:15')),
+            'Portrait can only start every 30 minutes (for example 9am or 9:30am).',
+        )
+        self.assertIsNone(start_problem(self.portrait, at(self.monday, '09:30')))
+        self.portrait.start_interval_minutes = 60
+        self.assertEqual(
+            start_problem(self.portrait, at(self.monday, '09:45')),
+            'Portrait can only start every hour (for example 9am or 10am).',
+        )
+        self.portrait.start_interval_minutes = 120
+        self.assertIn('every 2 hours (for example 8am or 10am)', start_problem(self.portrait, at(self.monday, '09:00')))
+
+    def test_placing_a_booking_off_the_interval_is_refused(self):
+        self.portrait.start_interval_minutes = 60
+        self.portrait.save()
+        with self.assertRaises(BookingError) as ctx:
+            place_booking(self.studio, self.portrait.pk, at(self.monday, '09:30'), {'name': 'Alice'})
+        self.assertEqual(ctx.exception.problems, ['Portrait can only start every hour (for example 9am or 10am).'])
+        self.assertFalse(ScheduleItem.objects.exists())
+        booking = place_booking(self.studio, self.portrait.pk, at(self.monday, '10:00'), {'name': 'Alice'})
+        self.assertEqual(booking.start_time, at(self.monday, '10:00'))
+
+    def test_validation(self):
+        def service(minutes):
+            return Service(business=self.studio, name='S', price=1, duration_minutes=60, start_interval_minutes=minutes)
+
+        for minutes in (15, 30, 45, 60, 90, 1440):
+            with self.subTest(minutes=minutes):
+                service(minutes).full_clean()
+        for minutes in (0, 10, 20, 1455):
+            with self.subTest(minutes=minutes), self.assertRaises(ValidationError) as ctx:
+                service(minutes).full_clean()
+            self.assertIn('start_interval_minutes', ctx.exception.message_dict)
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            service(0).save()

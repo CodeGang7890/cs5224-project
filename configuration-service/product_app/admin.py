@@ -91,7 +91,7 @@ class ServiceAdminForm(forms.ModelForm):
 @admin.register(Service)
 class ServiceAdmin(admin.ModelAdmin):
     form = ServiceAdminForm
-    list_display = ('name', 'business', 'price', 'duration_minutes', 'buffer_minutes', 'is_active')
+    list_display = ('name', 'business', 'price', 'duration_minutes', 'buffer_minutes', 'start_interval_minutes', 'is_active')
     list_filter = ('is_active', 'business')
     search_fields = ('name', 'description', 'information')
     list_select_related = ('business',)

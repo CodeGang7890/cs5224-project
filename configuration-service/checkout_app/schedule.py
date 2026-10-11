@@ -84,6 +84,43 @@ def next_on_grid(moment: datetime) -> datetime:
     return floor if floor == local(moment) else floor + SLOT
 
 
+def starts_on_interval(moment: datetime, interval_minutes: int) -> bool:
+    """Whether `moment` is an allowed start for a service starting every `interval_minutes`:
+    counted from local midnight (30 → 9:00, 9:30…; 60 → 9:00, 10:00…)."""
+    if not is_on_grid(moment):
+        return False
+    moment = local(moment)
+    return (moment.hour * 60 + moment.minute) % max(interval_minutes, SLOT_MINUTES) == 0
+
+
+def day_starts(day: date, interval_minutes: int):
+    """The allowed starts of `day` (local), every `interval_minutes` from midnight, in order."""
+    step = timedelta(minutes=max(interval_minutes, SLOT_MINUTES))
+    midnight, moment = local_midnight(day), local_midnight(day)
+    while moment < midnight + timedelta(days=1):
+        yield moment
+        moment += step
+
+
+def format_clock(moment: datetime) -> str:
+    """A local time of day for customers, e.g. "9am", "9:30am"."""
+    moment = local(moment)
+    hour = moment.hour % 12 or 12
+    minutes = f':{moment.minute:02d}' if moment.minute else ''
+    return f'{hour}{minutes}{"am" if moment.hour < 12 else "pm"}'
+
+
+def interval_problem(service: Service, start: datetime) -> str:
+    """Why `start` isn't an allowed start of `service`, with the nearest allowed ones as examples."""
+    interval = service.start_interval_minutes
+    starts = list(day_starts(local(start).date(), interval))
+    before = [s for s in starts if s < start][-1:]
+    after = [s for s in starts if s > start][:2 - len(before) or 1]
+    examples = ' or '.join(format_clock(s) for s in before + after)
+    every = 'hour' if interval == 60 else f'{interval // 60} hours' if interval % 60 == 0 else f'{interval} minutes'
+    return f'{service.name} can only start every {every} (for example {examples}).'
+
+
 def week_start(day: date) -> date:
     """The Monday of `day`'s week (a WeeklyAvailability's `week`)."""
     return day - timedelta(days=day.weekday())
@@ -184,6 +221,8 @@ def start_problem(service: Service, start: datetime, now: datetime | None = None
         return f'{service.name} is not available for booking at the moment.'
     if not is_on_grid(start):
         return f'Bookings start on the quarter hour (every {SLOT_MINUTES} minutes).'
+    if not starts_on_interval(start, service.start_interval_minutes):
+        return interval_problem(service, start)
     if start < now + MIN_NOTICE:
         return 'That time is too soon: bookings must be at least an hour from now.'
     providers = service_providers(service, lock=lock)
@@ -196,8 +235,9 @@ def start_problem(service: Service, start: datetime, now: datetime | None = None
 
 
 def free_slots(service: Service, date_from: date, date_to: date, now: datetime | None = None) -> list[datetime]:
-    """Every start time (on the 15-minute grid) from `date_from` to `date_to` (inclusive, local
-    dates; at most SLOT_SEARCH_DAYS_MAX days) at which `service` can be booked, in order."""
+    """Every start time from `date_from` to `date_to` (inclusive, local dates; at most
+    SLOT_SEARCH_DAYS_MAX days) at which `service` can be booked, in order: only its allowed starts
+    (every `start_interval_minutes` from local midnight)."""
     now = now or timezone.now()
     date_to = min(date_to, date_from + timedelta(days=SLOT_SEARCH_DAYS_MAX - 1))
     if not service.is_active or date_to < date_from:
@@ -212,11 +252,12 @@ def free_slots(service: Service, date_from: date, date_to: date, now: datetime |
     weeks = load_weeks(ids, start, longest)
     bookings = list(bookings_between(ids, start, longest))
     slots = []
-    moment = start
-    while moment < window_end:
-        if free_provider(service, moment, providers, weeks, bookings) is not None:
-            slots.append(moment)
-        moment += SLOT
+    day = local(start).date()
+    while day <= date_to:
+        for moment in day_starts(day, service.start_interval_minutes):
+            if start <= moment < window_end and free_provider(service, moment, providers, weeks, bookings) is not None:
+                slots.append(moment)
+        day += timedelta(days=1)
     return slots
 
 

@@ -210,6 +210,7 @@ class ServiceSerializer(BusinessOwnedSerializerMixin, serializers.ModelSerialize
             'price',
             'duration_minutes',
             'buffer_minutes',
+            'start_interval_minutes',
             'service_providers',
             'is_active',
         )

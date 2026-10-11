@@ -960,7 +960,7 @@ class ServiceAPITests(ScheduleAPITestCase):
             self.client.get(self.list_url).json()['results'],
             [{
                 'id': self.portrait.pk, 'business': self.cafe.pk, 'name': 'Portrait', 'description': '', 'information': '',
-                'price': '180.00', 'duration_minutes': 60, 'buffer_minutes': 15,
+                'price': '180.00', 'duration_minutes': 60, 'buffer_minutes': 15, 'start_interval_minutes': 15,
                 'service_providers': [self.mei.pk], 'is_active': True,
             }],
         )
@@ -1017,3 +1017,30 @@ class ServiceAPITests(ScheduleAPITestCase):
         self.assertEqual(self.client.get(url).status_code, status.HTTP_400_BAD_REQUEST)
         response = self.client.get(url, {'date_from': self.monday.isoformat(), 'date_to': (self.monday + timedelta(days=100)).isoformat()})
         self.assertEqual(response.json()['date_to'], (self.monday + timedelta(days=30)).isoformat())
+
+    def test_start_interval(self):
+        self.login(self.cafe_user)
+        response = self.client.post(self.list_url, self.valid(start_interval_minutes=30), format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.content)
+        self.assertEqual(response.json()['start_interval_minutes'], 30)
+        self.assertEqual(self.client.post(self.list_url, self.valid(name='Default'), format='json').json()['start_interval_minutes'], 15)
+        for minutes in (0, 20, 1455, 'hourly'):
+            with self.subTest(minutes=minutes):
+                response = self.client.post(self.list_url, self.valid(name=f'Bad {minutes}', start_interval_minutes=minutes), format='json')
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn('start_interval_minutes', response.json())
+        response = self.client.patch(self.detail_url(self.portrait), {'start_interval_minutes': 60}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        self.portrait.refresh_from_db()
+        self.assertEqual(self.portrait.start_interval_minutes, 60)
+
+    def test_slots_follow_the_start_interval(self):
+        self.portrait.start_interval_minutes = 60
+        self.portrait.save()
+        self.login(self.cafe_user)
+        url = reverse('product_app:service-slots', args=[self.portrait.pk])
+        body = self.client.get(url, {'date_from': self.monday.isoformat()}).json()
+        self.assertEqual(
+            [datetime.fromisoformat(slot) for slot in body['slots']],
+            [at(self.monday, hhmm) for hhmm in ('09:00', '10:00', '11:00')],  # open 09:00–12:00, 1-hour Portrait
+        )

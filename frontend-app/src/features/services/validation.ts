@@ -11,6 +11,8 @@ export const SERVICE_LIMITS = {
   durationMinMinutes: 15,
   durationMaxMinutes: 1440,
   bufferMaxMinutes: 1440,
+  startIntervalMinMinutes: 15,
+  startIntervalMaxMinutes: 1440,
   stepMinutes: 15,
   providerNameMaxLength: 150,
   providerDescriptionMaxLength: 300,
@@ -24,6 +26,7 @@ export interface ServiceFormValues {
   price: string
   duration_minutes: string
   buffer_minutes: string
+  start_interval_minutes: string
   service_providers: number[]
   is_active: boolean
 }
@@ -35,6 +38,7 @@ export const SERVICE_FIELD_LABELS: Record<keyof ServiceInput, string> = {
   price: 'Price',
   duration_minutes: 'Duration',
   buffer_minutes: 'Buffer',
+  start_interval_minutes: 'Start times',
   service_providers: 'Who can do it',
   is_active: 'Active',
 }
@@ -46,6 +50,7 @@ export const emptyServiceValues: ServiceFormValues = {
   price: '',
   duration_minutes: '60',
   buffer_minutes: '0',
+  start_interval_minutes: '15',
   service_providers: [],
   is_active: true,
 }
@@ -58,6 +63,7 @@ export function serviceToFormValues(service: Service): ServiceFormValues {
     price: service.price,
     duration_minutes: String(service.duration_minutes),
     buffer_minutes: String(service.buffer_minutes),
+    start_interval_minutes: String(service.start_interval_minutes),
     service_providers: [...service.service_providers],
     is_active: service.is_active,
   }
@@ -71,6 +77,7 @@ export function formValuesToServiceInput(values: ServiceFormValues): ServiceInpu
     price: Number(values.price).toFixed(2),
     duration_minutes: Number(values.duration_minutes),
     buffer_minutes: Number(values.buffer_minutes),
+    start_interval_minutes: Number(values.start_interval_minutes),
     service_providers: [...values.service_providers].sort((a, b) => a - b),
     is_active: values.is_active,
   }
@@ -107,6 +114,12 @@ export function validateService(values: ServiceFormValues): Partial<Record<keyof
   if (duration) errors.duration_minutes = duration
   const buffer = validateMinutes(values.buffer_minutes, 0, SERVICE_LIMITS.bufferMaxMinutes)
   if (buffer) errors.buffer_minutes = buffer
+  const interval = validateMinutes(
+    values.start_interval_minutes,
+    SERVICE_LIMITS.startIntervalMinMinutes,
+    SERVICE_LIMITS.startIntervalMaxMinutes,
+  )
+  if (interval) errors.start_interval_minutes = interval
   return errors
 }
 
@@ -169,4 +182,24 @@ export function formatMinutes(minutes: number): string {
   const rest = minutes % 60
   if (!hours) return `${rest} min`
   return rest ? `${hours} h ${rest} min` : `${hours} h`
+}
+
+/** The start intervals offered as buttons (any multiple of 15 can be entered as a custom value). */
+export const START_INTERVAL_PRESETS = [15, 30, 60] as const
+
+/** "every 15 min", "every hour", "every 2 h", "every 45 min". */
+export function formatStartInterval(minutes: number): string {
+  if (minutes === 60) return 'every hour'
+  return `every ${formatMinutes(minutes)}`
+}
+
+/** A few start times for the hint, counted from midnight like the backend: "9:00, 9:30, 10:00…". */
+export function exampleStartTimes(minutes: number, from = 9 * 60, count = 3): string {
+  if (!Number.isInteger(minutes) || minutes < SERVICE_LIMITS.stepMinutes) return ''
+  const first = Math.ceil(from / minutes) * minutes
+  const times = []
+  for (let start = first; start < 24 * 60 && times.length < count; start += minutes) {
+    times.push(`${Math.floor(start / 60)}:${String(start % 60).padStart(2, '0')}`)
+  }
+  return times.length ? `${times.join(', ')}…` : ''
 }

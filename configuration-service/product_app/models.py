@@ -190,6 +190,11 @@ SERVICE_DESCRIPTION_MAX_LENGTH = PRODUCT_DESCRIPTION_MAX_LENGTH
 SERVICE_INFORMATION_MAX_LENGTH = PRODUCT_INFORMATION_MAX_LENGTH
 SERVICE_DURATION_MAX_MINUTES = 24 * 60
 SERVICE_BUFFER_MAX_MINUTES = 24 * 60
+# Bookings of a service start only every this many minutes, counted from midnight (local time):
+# 30 → 9:00, 9:30, 10:00…; 60 → 9:00, 10:00…. The default, 15, is every block.
+DEFAULT_START_INTERVAL_MINUTES = SLOT_MINUTES
+SERVICE_START_INTERVAL_MAX_MINUTES = 24 * 60
+START_INTERVAL_PRESETS = (15, 30, 60)  # offered first in the frontend (any multiple of 15 is allowed)
 
 
 def default_availability() -> str:
@@ -364,12 +369,28 @@ class Service(models.Model):
             f'the next booking can only start after it: a multiple of {SLOT_MINUTES} minutes.'
         ),
     )
+    start_interval_minutes = models.PositiveIntegerField(
+        default=DEFAULT_START_INTERVAL_MINUTES,
+        validators=[
+            MinValueValidator(SLOT_MINUTES), MaxValueValidator(SERVICE_START_INTERVAL_MAX_MINUTES), validate_slot_minutes,
+        ],
+        help_text=(
+            f'Bookings only start every this many minutes, counted from midnight: {SLOT_MINUTES} (any quarter hour, '
+            f'the default), 30 (on the hour and half hour), 60 (on the hour), or any multiple of {SLOT_MINUTES}.'
+        ),
+    )
     is_active = models.BooleanField(default=True)
 
     class Meta:
         ordering = ['business', 'name']
         constraints = [
             models.CheckConstraint(condition=Q(price__gte=0), name='service_price_non_negative'),
+            models.CheckConstraint(
+                condition=Q(
+                    start_interval_minutes__gte=SLOT_MINUTES, start_interval_minutes__lte=SERVICE_START_INTERVAL_MAX_MINUTES
+                ),
+                name='service_start_interval_in_range',
+            ),
             models.CheckConstraint(condition=~Q(name=''), name='service_name_not_empty'),
             models.CheckConstraint(
                 condition=Q(duration_minutes__gte=SLOT_MINUTES, duration_minutes__lte=SERVICE_DURATION_MAX_MINUTES),

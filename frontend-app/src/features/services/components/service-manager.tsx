@@ -11,7 +11,7 @@ import { usePageParam } from '@/hooks/use-page-param'
 
 import { SERVICES_PAGE_SIZE, useProviders, useServices } from '../hooks/use-services'
 import type { Service, ServiceProvider } from '../types'
-import { formatMinutes } from '../validation'
+import { formatMinutes, formatStartInterval } from '../validation'
 import { DeleteProviderDialog, DeleteServiceDialog } from './delete-dialogs'
 import { ProviderFormDialog } from './provider-form-dialog'
 import { ProviderSchedule } from './provider-schedule'
@@ -98,6 +98,7 @@ function ServicesSection({ onError }: { onError: (message: string | null) => voi
                   <TableHead className="text-right">Price</TableHead>
                   <TableHead>Duration</TableHead>
                   <TableHead>Buffer</TableHead>
+                  <TableHead>Starts</TableHead>
                   <TableHead>Who can do it</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="w-24 text-right">
@@ -119,6 +120,7 @@ function ServicesSection({ onError }: { onError: (message: string | null) => voi
                     <TableCell className="text-muted-foreground whitespace-nowrap">
                       {service.buffer_minutes ? formatMinutes(service.buffer_minutes) : '—'}
                     </TableCell>
+                    <TableCell className="text-muted-foreground whitespace-nowrap">{formatStartInterval(service.start_interval_minutes)}</TableCell>
                     <TableCell className="max-w-60 whitespace-normal">
                       {service.service_providers.length === 0 ? (
                         <span className="text-destructive text-xs">No one: can't be booked</span>

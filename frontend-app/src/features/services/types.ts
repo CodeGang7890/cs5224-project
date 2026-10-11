@@ -41,6 +41,8 @@ export interface Service {
   duration_minutes: number
   /** Time blocked after each booking, without the customer (a multiple of 15). */
   buffer_minutes: number
+  /** Bookings only start every this many minutes, counted from midnight (15: any quarter hour; 30, 60…). */
+  start_interval_minutes: number
   /** IDs of the service providers who can do it. */
   service_providers: number[]
   is_active: boolean
