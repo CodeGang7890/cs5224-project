@@ -1,8 +1,9 @@
 # Local development: PostgreSQL + configuration-service (Django, http://localhost:8000)
 # + frontend-app (Vite dev server with hot reload, http://localhost:5173)
 # + messaging-ingester (WhatsApp webhook → Pub/Sub, http://localhost:8002) + a local Pub/Sub emulator
+# (pubsub-init creates its topics: WhatsApp messages and payment events)
 # + messaging-service (Gunicorn; LLM chat, and the pull consumer of the ingester's messages, http://localhost:8004).
-# + processing-service (Gunicorn; hello world for now, http://localhost:8003)
+# + processing-service (Gunicorn; pull consumer of the payment events, http://localhost:8003)
 # + notification-job (reads the database, run every hour by cron).
 # The database is kept in the postgres-data volume between runs; the sample fixtures are loaded the
 # first time. To wipe it and reload them: RESET_DB=true docker compose up
@@ -83,6 +84,27 @@ services:
       timeout: 5s
       retries: 30
 
+  # Runs once the emulator is up, creates the queues' topics (as Terraform would on Google Cloud), and
+  # exits. The services wait for it. Consumers create their own subscriptions.
+  #   whatsapp-inbound-messages: messaging-ingester → messaging-service
+  #   payment-events: payment-ingester (for now: payment-ingester/scripts/publish_dummy_payments.py) → processing-service
+  pubsub-init:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators # already pulled for the emulator; has curl
+    entrypoint: ["sh", "-ec"]
+    command:
+      - |
+        for topic in whatsapp-inbound-messages payment-events; do
+          code=$$(curl -s -o /dev/null -w '%{http_code}' -X PUT "http://pubsub-emulator:8085/v1/projects/local-project/topics/$$topic")
+          case "$$code" in
+            200) echo "Created topic $$topic" ;;
+            409) echo "Topic $$topic already exists" ;;
+            *) echo "Creating topic $$topic failed: HTTP $$code"; exit 1 ;;
+          esac
+        done
+    depends_on:
+      pubsub-emulator:
+        condition: service_healthy
+
   messaging-ingester:
     build: ./messaging-ingester
     ports:
@@ -94,8 +116,8 @@ services:
       # TODO: Don't set this in production so the ingester use the real Google Cloud Pub/Sub service instead of the emulator
       PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
     depends_on:
-      pubsub-emulator:
-        condition: service_healthy
+      pubsub-init:
+        condition: service_completed_successfully
       configuration-service:
         condition: service_started
 
@@ -118,15 +140,26 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway" # for Linux; Docker Desktop has it already
     depends_on:
-      pubsub-emulator:
-        condition: service_healthy
+      pubsub-init:
+        condition: service_completed_successfully
 
   processing-service:
     build: ./processing-service
     ports:
       - "8003:8003"
     environment:
-      WEB_CONCURRENCY: "2" # Gunicorn workers
+      WEB_CONCURRENCY: "2" # Gunicorn workers; each runs a Pub/Sub consumer, and they share the messages
+      # Pull consumer of the payment events (app/consumer.py).
+      PUBSUB_CONSUMER_ENABLED: "true"
+      GCP_PROJECT_ID: local-project # TODO: a real GCP project ID when deploying to Google Cloud Pub/Sub
+      PUBSUB_TOPIC: payment-events
+      PUBSUB_SUBSCRIPTION: processing-service-payments
+      PROCESSING_SECONDS: "2" # stand-in for the real work: each event waits this long before its ack
+      # TODO: Don't set this in production, so the real Google Cloud Pub/Sub is used instead of the emulator
+      PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+    depends_on:
+      pubsub-init:
+        condition: service_completed_successfully
 
   # The job runs once and exits; this container is its cron, running it every hour (cron.sh).
   notification-job:

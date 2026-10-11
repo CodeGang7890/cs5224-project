@@ -15,14 +15,23 @@ RESET_DB=true docker compose up --build   # reset the database to the sample dat
 | configuration-service (Django API, Swagger at `/api/docs/`) | <http://localhost:8000> |
 | payment-ingester (coming soon: port reserved) | <http://localhost:8001> |
 | messaging-ingester (WhatsApp webhook → Pub/Sub, Swagger at `/docs`) | <http://localhost:8002> |
-| processing-service (Gunicorn: hello world for now, Swagger at `/docs`) | <http://localhost:8003> |
+| processing-service (Gunicorn: pull consumer of the payment events, Swagger at `/docs`) | <http://localhost:8003> |
 | messaging-service (Gunicorn: LLM chat, and the pull consumer of the ingester's messages, Swagger at `/docs`) | <http://localhost:8004> |
-| Pub/Sub emulator (in memory) | `localhost:8085` |
+| Pub/Sub emulator (in memory; `pubsub-init` creates the topics `whatsapp-inbound-messages` and `payment-events`) | `localhost:8085` |
 | PostgreSQL | `localhost:5433` (user/password `postgres`) |
 
 To see the WhatsApp messages the ingester published: `docker compose exec messaging-ingester python scripts/pull_debug.py`
 (see `messaging-ingester/README.md`). messaging-service pulls them too, on its own subscription, and logs each one:
 `docker compose logs -f messaging-service` (see `messaging-service/README.md`).
+
+To publish random dummy payment events (`payment_id`, `status` success / fail) to the `payment-events` topic, with the stack running:
+
+```bash
+cd payment-ingester && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # once
+.venv/bin/python scripts/publish_dummy_payments.py --count 5
+```
+
+processing-service pulls them and logs each one: `docker compose logs -f processing-service` (see `payment-ingester/README.md`).
 
 notification-job runs every hour (cron, no port): `docker compose logs -f notification-job`. To run it once now:
 `docker compose exec notification-job python run.py` (see `notification-job/README.md`).

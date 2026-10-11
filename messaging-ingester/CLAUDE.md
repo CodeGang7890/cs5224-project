@@ -49,7 +49,7 @@ Routes are plain `def`s (blocking HTTP and Pub/Sub calls run in FastAPI's thread
 
 ## Local stack (repo root `docker-compose.yml`)
 
-- `pubsub-emulator` (`gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators`, port 8085, in memory).
+- `pubsub-emulator` (`gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators`, port 8085, in memory). `pubsub-init` then creates the topics (`whatsapp-inbound-messages`, `payment-events`) and exits; the services wait for it. The ingester still creates its topic and debug subscription itself (idempotent).
 - `messaging-ingester` (built image, no source mount, so rebuild after changes: `docker compose up -d --build messaging-ingester`).
 - configuration-service has `DJANGO_ALLOWED_HOSTS` including `configuration-service`, so the ingester's requests aren't rejected.
 

@@ -1,0 +1,2 @@
+# For scripts/publish_dummy_payments.py (the service itself isn't built yet: see TODO.txt).
+google-cloud-pubsub>=2.42,<3

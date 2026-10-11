@@ -1033,3 +1033,16 @@ AI Model Used: claude-opus-5-5
 Original Prompt:
 Please change messaging-service to use port 8004 instead
 Reserve port 8001 for payment-ingester (coming soon!) -> just indicate this in README
+
+Date & Time (GMT+8): 2026-10-11 23:37:39
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Refer to the architecture diagram on the docs folder.
+Now I want in docker-compose, after the mock pub/sub is ready, it should automatically create 2 topics for the queue, as of now 1 is for the WhatsApp message (from message-ingester) and another one from payment-ingester.
+In payment-ingester folder, just add a standalone script that can publish some randomised dummy messages for payment related information.
+Make the message have these 2: payment id, and status (success / fail).
+In the processing-service, configure the connection to this topic.
+As of now simply log (print) the payment id and status, then just do time.sleep(2).
+The actual logic will be added later.
+Please add the command to run this script in the root README.
