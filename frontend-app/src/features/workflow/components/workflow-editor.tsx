@@ -11,10 +11,12 @@ import { useThemeStore } from '@/stores/theme-store'
 import type { ApiError } from '@/types/api'
 
 import { normalizeDetailField } from '../details'
-import { FLOW_EDGES, flowNodes, type StepNode } from '../diagram'
-import { useSaveChatConfiguration } from '../hooks/use-chat-configuration'
+import { FLOW_EDGES, flowNodes, type StepNode, type StepNodeData } from '../diagram'
+import { useReplyStyles, useSaveChatConfiguration } from '../hooks/use-chat-configuration'
+import { type ChatSettings, normalizeSettings, sameSettings, settingsOf } from '../settings'
 import { DETAILS_NODES, type FlowNodeId } from '../steps'
-import type { ChatConfiguration, DetailField } from '../types'
+import type { ChatConfiguration, DetailField, ReplyStyle } from '../types'
+import { ChatSettingsDialog } from './chat-settings-dialog'
 import { DetailFieldsDialog } from './detail-fields-dialog'
 import { StepInfoDialog } from './step-info-dialog'
 import { StepNodeView } from './step-node'
@@ -25,6 +27,14 @@ const nodeTypes = { step: StepNodeView }
 /** Fixed key order, so comparing JSON tells whether anything changed. */
 function normalized(fields: DetailField[]): DetailField[] {
   return fields.map(normalizeDetailField)
+}
+
+/** What the Welcome & style block shows. */
+function settingsSummary(settings: ChatSettings, styles: ReplyStyle[] | undefined): StepNodeData['settings'] {
+  return {
+    welcome: settings.welcome_message.trim() !== '',
+    style: styles?.find((style) => style.key === settings.reply_style)?.label ?? settings.reply_style,
+  }
 }
 
 interface WorkflowEditorProps {
@@ -44,18 +54,31 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
 
   const savedFields = configuration.detail_fields
   const [fields, setFields] = useState<DetailField[]>(savedFields)
-  const isDirty = JSON.stringify(normalized(fields)) !== JSON.stringify(normalized(savedFields))
+  // The welcome message and reply style (the Welcome & style block).
+  const savedSettings = settingsOf(configuration)
+  const [settings, setSettings] = useState<ChatSettings>(savedSettings)
+  const styles = useReplyStyles()
+  const isDirty =
+    JSON.stringify(normalized(fields)) !== JSON.stringify(normalized(savedFields)) || !sameSettings(settings, savedSettings)
 
-  const [nodes, setNodes, onNodesChange] = useNodesState<StepNode>(flowNodes(savedFields))
-  // The details blocks list the (maybe unsaved) details.
+  const [nodes, setNodes, onNodesChange] = useNodesState<StepNode>(flowNodes(savedFields, settingsSummary(savedSettings, undefined)))
+  // The details blocks list the (maybe unsaved) details, and the Welcome & style block its settings.
   useEffect(() => {
+    const summary = settingsSummary(settings, styles.data)
     setNodes((current) =>
-      current.map((node) => (DETAILS_NODES.includes(node.data.nodeId) ? { ...node, data: { ...node.data, fields } } : node)),
+      current.map((node) =>
+        DETAILS_NODES.includes(node.data.nodeId)
+          ? { ...node, data: { ...node.data, fields } }
+          : node.data.nodeId === 'settings'
+            ? { ...node, data: { ...node.data, settings: summary } }
+            : node,
+      ),
     )
-  }, [fields, setNodes])
+  }, [fields, settings, styles.data, setNodes])
 
   const [openNode, setOpenNode] = useState<FlowNodeId | null>(null)
   const detailsOpen = openNode !== null && DETAILS_NODES.includes(openNode)
+  const settingsOpen = openNode === 'settings'
 
   // --- Save / discard -------------------------------------------------------------------
 
@@ -65,14 +88,22 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
   const [isDiscarding, setIsDiscarding] = useState(false)
   const [discardError, setDiscardError] = useState<string | null>(null)
   const saveErrors = save.error ? getFormErrors(save.error) : null
-  const saveErrorMessage = saveErrors && (saveErrors.fields.detail_fields ?? saveErrors.form ?? save.error?.message)
+  const saveErrorMessage =
+    saveErrors &&
+    (saveErrors.fields.detail_fields ??
+      saveErrors.fields.welcome_message ??
+      saveErrors.fields.reply_style ??
+      saveErrors.fields.custom_style ??
+      saveErrors.form ??
+      save.error?.message)
 
   const onConfirmSave = () => {
     save.mutate(
-      { detail_fields: normalized(fields) },
+      { detail_fields: normalized(fields), ...normalizeSettings(settings) },
       {
         onSuccess: (saved) => {
           setFields(saved.detail_fields)
+          setSettings(settingsOf(saved))
           setSaveOpen(false)
         },
       },
@@ -90,6 +121,7 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
       return
     }
     setFields(result.data.detail_fields)
+    setSettings(settingsOf(result.data))
     setDiscardOpen(false)
   }
 
@@ -121,7 +153,7 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
             </span>
           ) : (
             <span className="text-muted-foreground flex items-center gap-1.5">
-              <Info className="size-4" /> Using the default settings. Click Details collection to change them.
+              <Info className="size-4" /> Using the default settings. Click a block (e.g. Welcome & style) to change them.
             </span>
           )}
         </div>
@@ -175,7 +207,14 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
         onApply={setFields}
       />
 
-      <StepInfoDialog nodeId={detailsOpen ? null : openNode} onClose={() => setOpenNode(null)} />
+      <ChatSettingsDialog
+        open={settingsOpen}
+        onOpenChange={(open) => !open && setOpenNode(null)}
+        settings={settings}
+        onApply={setSettings}
+      />
+
+      <StepInfoDialog nodeId={detailsOpen || settingsOpen ? null : openNode} onClose={() => setOpenNode(null)} />
 
       <ConfirmDialog
         open={saveOpen}
@@ -185,7 +224,9 @@ export function WorkflowEditor({ configuration, refetch }: WorkflowEditorProps) 
           <span className="grid gap-2">
             <span>
               The assistant will ask new customers for these {fields.length} detail{fields.length === 1 ? '' : 's'}{' '}
-              at the Details collection and Booking details steps.
+              at the Details collection and Booking details steps,{' '}
+              {settings.welcome_message.trim() ? 'send your welcome message to new chats' : 'send no welcome message'}, and
+              write in the {settingsSummary(settings, styles.data)?.style.toLowerCase()} style.
             </span>
             {saveErrorMessage && (
               <span role="alert" className="text-destructive">

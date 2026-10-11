@@ -10,10 +10,13 @@ export type StepNodeData = {
   nodeId: FlowNodeId
   /** The details steps only: the details they ask for (the editor's current, maybe unsaved, ones). */
   fields?: DetailField[]
+  /** The Welcome & style block only: a summary of the (maybe unsaved) settings. */
+  settings?: { welcome: boolean; style: string }
 }
 export type StepNode = Node<StepNodeData, 'step'>
 
 const POSITIONS: Record<FlowNodeId, { x: number; y: number }> = {
+  settings: { x: -330, y: 300 },
   router: { x: 0, y: 300 },
   product_selection: { x: 330, y: 20 },
   details_collection: { x: 630, y: 20 },
@@ -26,13 +29,13 @@ const POSITIONS: Record<FlowNodeId, { x: number; y: number }> = {
   order_status: { x: 330, y: 620 },
 }
 
-/** The diagram's blocks; `fields` go on the details blocks. */
-export function flowNodes(fields: DetailField[]): StepNode[] {
+/** The diagram's blocks; `fields` go on the details blocks, `settings` on the Welcome & style block. */
+export function flowNodes(fields: DetailField[], settings?: StepNodeData['settings']): StepNode[] {
   return (Object.keys(POSITIONS) as FlowNodeId[]).map((nodeId) => ({
     id: nodeId,
     type: 'step',
     position: POSITIONS[nodeId],
-    data: DETAILS_NODES.includes(nodeId) ? { nodeId, fields } : { nodeId },
+    data: DETAILS_NODES.includes(nodeId) ? { nodeId, fields } : nodeId === 'settings' ? { nodeId, settings } : { nodeId },
     draggable: false,
     connectable: false,
     deletable: false,
@@ -54,8 +57,9 @@ function edge(source: FlowNodeId, target: FlowNodeId, label?: string): Edge {
   }
 }
 
-/** The router's branches, and the order and booking steps in order. */
+/** The welcome message before the router, the router's branches, and the order and booking steps in order. */
 export const FLOW_EDGES: Edge[] = [
+  edge('settings', 'router', 'First message'),
   edge('router', 'product_selection', 'Orders'),
   edge('product_selection', 'details_collection'),
   edge('details_collection', 'confirmation'),

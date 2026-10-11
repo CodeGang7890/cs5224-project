@@ -76,3 +76,50 @@ DEFAULT_DETAIL_FIELDS = [
     {'key': 'name', 'label': 'Name', 'type': DETAIL_TYPE_TEXT, 'max_length': 150},
     {'key': 'email', 'label': 'Email', 'type': DETAIL_TYPE_EMAIL},
 ]
+
+# --- The business's welcome message and reply style (ChatConfiguration) --------------------
+# The welcome message is sent word for word as the reply to a chat's very first message.
+WELCOME_MESSAGE_MAX_LENGTH = 1000
+# Placeholders the welcome message may use (filled in when it's sent).
+WELCOME_PLACEHOLDERS = ('{business_name}',)
+# A custom reply style: the business's own description of how the assistant should write.
+CUSTOM_STYLE_MAX_LENGTH = 500
+
+REPLY_STYLE_FRIENDLY = 'friendly'
+REPLY_STYLE_PROFESSIONAL = 'professional'
+REPLY_STYLE_CASUAL = 'casual'
+REPLY_STYLE_BRIEF = 'brief'
+REPLY_STYLE_CUSTOM = 'custom'  # the business writes its own (custom_style)
+DEFAULT_REPLY_STYLE = REPLY_STYLE_FRIENDLY
+
+# The preset styles: a label and description for the business, and the instructions the reply
+# prompts get (prompts.reply_style_section). REPLY_STYLE_CUSTOM uses custom_style instead.
+REPLY_STYLE_PRESETS = {
+    REPLY_STYLE_FRIENDLY: {
+        'label': 'Friendly',
+        'description': 'Warm and helpful, in a few short sentences. The default.',
+        'instructions': 'Write in a friendly, warm and helpful way, in a few short sentences.',
+    },
+    REPLY_STYLE_PROFESSIONAL: {
+        'label': 'Professional',
+        'description': 'Polite and formal, like a front desk. No slang or emoji.',
+        'instructions': (
+            'Write in a polite, professional and formal way, like a front desk would, in a few short sentences. '
+            'Use full sentences and no slang or emoji.'
+        ),
+    },
+    REPLY_STYLE_CASUAL: {
+        'label': 'Casual',
+        'description': 'Relaxed and upbeat, like chatting with a regular. An emoji now and then.',
+        'instructions': (
+            'Write in a relaxed, upbeat and casual way, like chatting with a regular customer, in a few short '
+            'sentences. An emoji now and then is fine.'
+        ),
+    },
+    REPLY_STYLE_BRIEF: {
+        'label': 'Brief',
+        'description': 'As short as possible: one or two sentences, straight to the point.',
+        'instructions': 'Keep every reply as short as possible: one or two sentences, straight to the point.',
+    },
+}
+REPLY_STYLES = [*REPLY_STYLE_PRESETS, REPLY_STYLE_CUSTOM]

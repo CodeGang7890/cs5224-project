@@ -17,7 +17,7 @@ export function StepNodeView({ data, selected }: NodeProps<StepNode>) {
   const Icon = meta.icon
   const isDetails = DETAILS_NODES.includes(data.nodeId)
   // Blocks with a next step in their branch.
-  const hasNext = ['router', 'product_selection', 'details_collection', 'service_selection', 'slot_selection', 'booking_details'].includes(data.nodeId)
+  const hasNext = ['settings', 'router', 'product_selection', 'details_collection', 'service_selection', 'slot_selection', 'booking_details'].includes(data.nodeId)
 
   return (
     <div
@@ -27,7 +27,7 @@ export function StepNodeView({ data, selected }: NodeProps<StepNode>) {
         selected && 'ring-ring ring-2 ring-offset-2 ring-offset-background',
       )}
     >
-      {data.nodeId !== 'router' && <Handle type="target" position={Position.Left} className={handleClassName} />}
+      {!['settings', 'router'].includes(data.nodeId) && <Handle type="target" position={Position.Left} className={handleClassName} />}
       <div className="flex items-start gap-3">
         <div className={cn('flex size-9 shrink-0 items-center justify-center rounded-lg', meta.iconClassName)}>
           <Icon className="size-4" />
@@ -44,7 +44,19 @@ export function StepNodeView({ data, selected }: NodeProps<StepNode>) {
           <p className="text-muted-foreground mt-0.5 text-xs leading-snug">{meta.description}</p>
         </div>
       </div>
-      {isDetails ? (
+      {data.nodeId === 'settings' ? (
+        <div className="mt-2.5 grid gap-1.5 border-t pt-2">
+          <ul className="flex flex-wrap gap-1" aria-label="Settings">
+            <li className="bg-muted rounded px-1.5 py-0.5 text-[11px]">
+              Welcome: {data.settings?.welcome ? 'on' : <span className="text-muted-foreground">off</span>}
+            </li>
+            <li className="bg-muted max-w-full truncate rounded px-1.5 py-0.5 text-[11px]">Style: {data.settings?.style ?? '…'}</li>
+          </ul>
+          <p className="text-muted-foreground flex items-center gap-1 text-[11px]">
+            <Pencil className="size-3" /> Click to edit
+          </p>
+        </div>
+      ) : isDetails ? (
         <div className="mt-2.5 grid gap-1.5 border-t pt-2">
           <ul className="flex flex-wrap gap-1" aria-label="Details collected">
             {detailFieldsOrDefault(data.fields).map((field) => (

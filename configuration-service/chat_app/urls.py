@@ -8,6 +8,7 @@ app_name = 'chat_app'
 urlpatterns = [
     path('', views.ChatView.as_view(), name='chat'),
     path('configuration/', views.ChatConfigurationView.as_view(), name='chat-configuration'),
+    path('configuration/reply-styles/', views.ReplyStyleListView.as_view(), name='reply-style-list'),
     path('sessions/', views.ChatSessionListView.as_view(), name='chat-session-list'),
     path('sessions/messages/', views.CustomerMessageView.as_view(), name='customer-message'),
     path('sandbox-sessions/', views.SandboxChatSessionListView.as_view(), name='sandbox-session-list'),

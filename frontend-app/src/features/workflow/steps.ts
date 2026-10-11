@@ -6,6 +6,7 @@ import {
   ClipboardPen,
   Clock,
   MessageCircleQuestion,
+  MessagesSquare,
   Route,
   ShoppingBag,
   Truck,
@@ -30,6 +31,7 @@ export const CHAT_STEP_LABELS: Record<ChatStep, string> = {
 
 /** The blocks of the (fixed) chat flow diagram on the Workflow tab. */
 export const FLOW_NODES = [
+  'settings',
   'router',
   'product_selection',
   'details_collection',
@@ -66,6 +68,14 @@ interface FlowNodeMeta {
 
 /** How each block of the flow diagram looks, and what it does. */
 export const FLOW_NODE_META: Record<FlowNodeId, FlowNodeMeta> = {
+  settings: {
+    label: 'Welcome & style',
+    description: 'The welcome message, and how the assistant writes.',
+    about: '',
+    icon: MessagesSquare,
+    accentClassName: 'border-t-violet-500',
+    iconClassName: 'bg-violet-500/15 text-violet-600 dark:text-violet-400',
+  },
   router: {
     label: 'Router',
     description: 'Reads each customer message and decides what it is about.',

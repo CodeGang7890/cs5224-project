@@ -34,7 +34,7 @@ handle_customer_message() runs one turn:
    replaced by a message written by code (past_orders.reply_is_grounded).
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from django.db import transaction
 from django.utils import timezone
@@ -71,12 +71,16 @@ REPLY_BOOKING_CONFIRMED = 'booking_confirmed'  # sent only once the booking is s
 REPLY_ORDER_STATUS = 'order_status'  # the order status prompt (only the records looked up)
 REPLY_ORDER_STATUS_FALLBACK = 'order_status_fallback'  # its reply named something not in the records
 REPLY_ORDER_STATUS_NOT_FOUND = 'order_status_not_found'  # nothing of theirs found: written by code, no LLM call
+REPLY_WELCOME = 'welcome'  # a first message with nothing to do (e.g. "hi"): only the welcome message
 
 
 @dataclass
 class TurnResult:
-    reply: dict  # the chat message saved as the reply
+    reply: dict  # the chat message saved as the reply (the last one sent)
     debug: dict  # what happened inside the turn, for the Chat Sandbox's debug panel
+    # Every message the assistant sent this turn, oldest first: the welcome message (on a chat's
+    # first message, if the business has one), then the reply (unless the welcome was all of it).
+    messages: list[dict] = field(default_factory=list)
 
 
 def handle_customer_message(session_id: int, message: str) -> TurnResult:
@@ -84,6 +88,11 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
 
     The customer message is saved first, so it's kept if an LLM call fails (llm.LLMError). The
     order state is saved before the reply is generated, so it's kept if only the reply fails.
+
+    On a chat's first message, the business's welcome message (ChatConfiguration.welcome_message,
+    if any) is sent first, word for word. If the router finds nothing to do (e.g. "hi"), it's the
+    whole reply; otherwise the reply follows it, told not to greet again. Every reply prompt gets
+    the business's reply style (prompts.reply_style_section).
     """
     append_chat_message(session_id, message, SENT_BY_CUSTOMER)
     session = ChatSession.objects.select_related('business').get(pk=session_id)
@@ -92,6 +101,9 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
     products = active_products(business)
     services = active_services(business)
     chat_config = ChatConfiguration.for_business(business)
+    style = prompts.reply_style_section(chat_config.reply_style, chat_config.custom_style)
+    first_message = len(session.chat_message_json) == 1  # nothing before the message just saved
+    welcome = prompts.welcome_message_text(business, chat_config.welcome_message) if first_message else ''
     before = {'chat_state_id': session.chat_state_id, 'chat_state_data': session.chat_state_data}
     now = timezone.now()
 
@@ -111,9 +123,19 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
     status = check_order_status(session, history, now) if route.order_status else None
     records = status['records'] if status else None
 
+    # The welcome message goes first (the reply model then sees it in the conversation). A first
+    # message the router found nothing to do with gets only the welcome: no reply LLM call.
+    welcome_only = bool(welcome) and not route.intents and not turn.steps
+    sent = []
+    if welcome:
+        sent.append(append_chat_message(session_id, welcome, SENT_BY_BUSINESS_AUTOMATED))
+        history = [*history, {'role': 'assistant', 'content': welcome}]
+
     toolbox = Toolbox(business)
-    template = template_reply(business, turn, prompts.detail_labels(chat_config.detail_fields))
-    if template is not None:
+    template = None if welcome_only else template_reply(business, turn, prompts.detail_labels(chat_config.detail_fields))
+    if welcome_only:
+        reply_kind, system_prompt, reply = REPLY_WELCOME, '', None
+    elif template is not None:
         # Fixed templates: only the database decides what the customer is told is confirmed, and
         # only code which times are free. Anything else in the message gets a short LLM aside.
         reply_kind, text, context, aside_first = template
@@ -121,7 +143,7 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
         answered = check is not None and check['kind'] != prompts.QUESTION_NONE
         if answered or route.order_status or route.off_topic:
             system_prompt = prompts.build_aside_prompt(
-                business, context=context, intents=route.intents, question_check=check, order_records=records
+                business, context=context, intents=route.intents, question_check=check, order_records=records, style=style
             )
             aside = llm.generate_chat_reply(system_prompt, history, toolbox).strip()
             if aside:  # before the summary / times, or after the confirmation
@@ -139,7 +161,7 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
             reply = prompts.order_status_fallback_message(found)
         else:
             reply_kind = REPLY_ORDER_STATUS
-            system_prompt = prompts.build_order_status_prompt(business, records)
+            system_prompt = prompts.build_order_status_prompt(business, records, style=style, welcomed=bool(welcome))
             reply = llm.generate_chat_reply(system_prompt, history)
             if not past_orders.reply_is_grounded(reply, found):
                 reply_kind = REPLY_ORDER_STATUS_FALLBACK
@@ -160,9 +182,12 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
             intents=route.intents,
             question_check=check,
             order_records=records,
+            style=style,
+            welcomed=bool(welcome),
         )
         reply = llm.generate_chat_reply(system_prompt, history, toolbox)
-    saved = append_chat_message(session_id, reply.strip() or '…', SENT_BY_BUSINESS_AUTOMATED)
+    if reply is not None:
+        sent.append(append_chat_message(session_id, reply.strip() or '…', SENT_BY_BUSINESS_AUTOMATED))
     debug = {
         'before': before,
         'after': {'chat_state_id': turn.step, 'chat_state_data': turn.data},
@@ -182,11 +207,12 @@ def handle_customer_message(session_id: int, message: str) -> TurnResult:
             {key: status[key] for key in ('extracted', 'system_prompt', 'records')} | {'found': status['found'].as_dict()}
             if status else None
         ),
+        'welcome_message': welcome or None,
         'reply_kind': reply_kind,
         'reply_system_prompt': system_prompt,
         'tool_calls': toolbox.calls,
     }
-    return TurnResult(reply=saved, debug=debug)
+    return TurnResult(reply=sent[-1], debug=debug, messages=sent)
 
 
 def template_reply(business, turn: order_flow.Turn, labels: dict) -> tuple[str, str, str, bool] | None:

@@ -47,8 +47,27 @@ export interface ChatConfiguration {
   business: number
   /** The customer details the Details collection step asks for. */
   detail_fields: DetailField[]
+  /** Sent word for word as the reply to a chat's first message; '' = none. May use {business_name}. */
+  welcome_message: string
+  /** How the assistant writes its replies (see `GET /api/chat/configuration/reply-styles/`). */
+  reply_style: ReplyStyleKey
+  /** With reply_style "custom": the business's own description of the style. */
+  custom_style: string
   last_updated: string | null
 }
 
-/** The only writable field. `id`, `business` and `last_updated` are read-only. */
-export type ChatConfigurationInput = Pick<ChatConfiguration, 'detail_fields'>
+/** The writable fields. `id`, `business` and `last_updated` are read-only. */
+export type ChatConfigurationInput = Pick<ChatConfiguration, 'detail_fields' | 'welcome_message' | 'reply_style' | 'custom_style'>
+
+/** Reply styles, mirrored from configuration-service `chat_app/constants.py` `REPLY_STYLES`. */
+export const REPLY_STYLE_KEYS = ['friendly', 'professional', 'casual', 'brief', 'custom'] as const
+export type ReplyStyleKey = (typeof REPLY_STYLE_KEYS)[number]
+
+/** One reply style (`GET /api/chat/configuration/reply-styles/`). */
+export interface ReplyStyle {
+  key: ReplyStyleKey
+  label: string
+  description: string
+  /** What the assistant is told; null for "custom" (custom_style is used). */
+  instructions: string | null
+}

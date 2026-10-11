@@ -1,7 +1,15 @@
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from .constants import DETAIL_FIELD_TYPES, MESSAGE_SENDERS
+from .constants import (
+    CUSTOM_STYLE_MAX_LENGTH,
+    DEFAULT_REPLY_STYLE,
+    DETAIL_FIELD_TYPES,
+    MESSAGE_SENDERS,
+    REPLY_STYLE_CUSTOM,
+    REPLY_STYLES,
+    WELCOME_MESSAGE_MAX_LENGTH,
+)
 from .llm import CHAT_PROMPT_MAX_LENGTH, OLLAMA_MODEL, OLLAMA_OPTIONS
 from product_app.models import FAQ_QUESTION_MAX_LENGTH
 
@@ -86,8 +94,49 @@ class ChatConfigurationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ChatConfiguration
-        fields = ['id', 'business', 'detail_fields', 'last_updated']
+        fields = ['id', 'business', 'detail_fields', 'welcome_message', 'reply_style', 'custom_style', 'last_updated']
         read_only_fields = ['id', 'business', 'last_updated']
+        extra_kwargs = {
+            'welcome_message': {
+                'help_text': (
+                    f"Sent word for word as the reply to a chat's first message (at most {WELCOME_MESSAGE_MAX_LENGTH} "
+                    'characters; blank: no welcome message). The only placeholder is {business_name}. Optional on PUT '
+                    '(kept as saved).'
+                ),
+            },
+            'reply_style': {
+                'help_text': (
+                    f'How the assistant writes: one of {", ".join(REPLY_STYLES)} (see GET /api/chat/configuration/reply-styles/). '
+                    'Optional on PUT (kept as saved).'
+                ),
+            },
+            'custom_style': {
+                'help_text': (
+                    f'With reply_style "custom" (then required): how the assistant should write, in your own words, at '
+                    f'most {CUSTOM_STYLE_MAX_LENGTH} characters. Optional on PUT (kept as saved).'
+                ),
+            },
+        }
+
+    def validate(self, attrs):
+        style = attrs.get('reply_style', getattr(self.instance, 'reply_style', DEFAULT_REPLY_STYLE))
+        custom = attrs.get('custom_style', getattr(self.instance, 'custom_style', ''))
+        if style == REPLY_STYLE_CUSTOM and not custom.strip():
+            raise serializers.ValidationError(
+                {'custom_style': ['Describe the style you want (or choose one of the presets).']}
+            )
+        return attrs
+
+
+class ReplyStyleSerializer(serializers.Serializer):
+    """One of the reply styles a business can choose (constants.REPLY_STYLE_PRESETS, plus custom)."""
+
+    key = serializers.CharField(help_text='The value for ChatConfiguration.reply_style.')
+    label = serializers.CharField()
+    description = serializers.CharField(help_text='What the style is like, for the business.')
+    instructions = serializers.CharField(
+        allow_null=True, help_text='What the assistant is told (null for custom: your custom_style is used).'
+    )
 
 
 # --- Chat sessions ------------------------------------------------------------------------
@@ -217,7 +266,19 @@ class CustomerMessageRequestSerializer(serializers.Serializer):
     )
 
 
-class SandboxMessageResponseSerializer(ChatMessageSerializer):
+class CustomerMessageResponseSerializer(ChatMessageSerializer):
+    """The assistant's reply (its last message this turn), and every message it sent."""
+
+    messages = ChatMessageSerializer(
+        many=True,
+        help_text=(
+            "Every message the assistant sent this turn, oldest first: on a chat's first message, the welcome "
+            'message (if the business has one), then the reply (unless the welcome was the whole reply).'
+        ),
+    )
+
+
+class SandboxMessageResponseSerializer(CustomerMessageResponseSerializer):
     """The assistant's reply in a sandbox chat, plus what happened inside the turn (flow.py)."""
 
     debug = serializers.JSONField(
@@ -229,8 +290,8 @@ class SandboxMessageResponseSerializer(ChatMessageSerializer):
             '`not_confirmed` / `confirmed` / null), `order_id` / `booking_id` (placed in this turn, or null), '
             '`missing`, `issues`, `question_check` (`kind`, `question`, `saved`, `system_prompt`; null unless the router '
             'found a question), `order_status` (`extracted`, `system_prompt`, `records`, `found`; null unless the router found an '
-            'order status request), `reply_kind` (`llm`, `order_status` (the order status prompt), `order_status_fallback` / '
-            '`order_status_not_found` (written by code), or a fixed template: `confirmation_request`, '
+            'order status request), `welcome_message` (sent first this turn, or null), `reply_kind` (`llm`, `order_status` (the order status prompt), `order_status_fallback` / '
+            '`order_status_not_found` (written by code), `welcome` (only the welcome message), or a fixed template: `confirmation_request`, '
             '`order_confirmed`, `slot_options`, `booking_confirmation_request`, `booking_confirmed`), `reply_system_prompt` (the aside prompt for templates; may be empty) and '
             '`tool_calls` (`name`, `arguments`).'
         ),

@@ -123,11 +123,12 @@ export function useSendSandboxMessage(sessionId: number) {
         withMessage(session, { message, sent_by: 'customer', message_time: new Date().toISOString() }),
       )
     },
-    onSuccess: ({ debug, ...reply }) => {
+    onSuccess: ({ debug, messages }) => {
       // Keep it until the page reloads, even while no debug panel is showing it.
       queryClient.setQueryDefaults(chatSessionKeys.sandboxTurnDebug(sessionId), { gcTime: Infinity })
       queryClient.setQueryData(chatSessionKeys.sandboxTurnDebug(sessionId), debug)
-      updateCachedSession(queryClient, sessionId, (session) => withMessage(session, reply))
+      // The welcome message (on a chat's first message) comes before the reply.
+      updateCachedSession(queryClient, sessionId, (session) => messages.reduce(withMessage, session))
       // Confirming placed an order: it's a new order, and its products' stock changed.
       if (debug.order_id !== null) {
         void queryClient.invalidateQueries({ queryKey: orderKeys.all })

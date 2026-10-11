@@ -112,7 +112,7 @@ Notes:
 | `product_app` | `WeeklyAvailability` | `id`, `service_provider` → `ServiceProvider`, `week` (its Monday; one per provider and week), `availability` (672 letters: one per 15-minute block of the week from Monday 00:00, local time: `O` available, `U` unavailable (the default), `H` on hold (booked, payment pending), `X` booked) |
 | `product_app` | `Service` | `id`, `business` → `BusinessConfiguration`, `service_providers` (many-to-many → `ServiceProvider`: who can do it), `name` (≤150 chars), `description` (≤300), `information` (≤5,000), `price`, `duration_minutes` (15–1,440), `buffer_minutes` (0–1,440: blocked after each booking, without the customer), `is_active`. Minutes are multiples of 15 |
 | `chat_app` | `ChatSession` | `id`, `business` → `BusinessConfiguration`, `phone_number` (the customer's, international format e.g. `+6591234567`), `display_name` (≤150 chars, optional), `created_time` (defaults to now), `last_chat_time`, `chat_message_json` (the conversation, see below), `chat_state_id` (the chat flow step the customer is at: `start`, `product_selection`, `details_collection` or `confirmation`; default `start`), `chat_state_data` (what the chat flow has collected so far, see below), `is_sandbox` (a test chat from the Chat Sandbox; default false) |
-| `chat_app` | `ChatConfiguration` | `id`, `business` → `BusinessConfiguration` (one per business, optional), `detail_fields` (the customer details the chat asks for, see below; default name and email), `last_updated` (set automatically on every save) |
+| `chat_app` | `ChatConfiguration` | `id`, `business` → `BusinessConfiguration` (one per business, optional), `detail_fields` (the customer details the chat asks for, see below; default name and email), `welcome_message` (≤1,000 characters, sent as the reply to a chat's first message; blank: none; may use `{business_name}`), `reply_style` (`friendly` (default), `professional`, `casual`, `brief` or `custom`), `custom_style` (≤500 characters, your own description of the style; required with `custom`), `last_updated` (set automatically on every save) |
 | `checkout_app` | `OrderItem` | `id`, `business` → `BusinessConfiguration`, `chat_session` → `ChatSession` (the chat it was placed in; cleared if the chat is deleted), `is_sandbox`, `order_data` (what was ordered and the customer details, see below), `order_status` (`pending_payment` (default), `payment_received` or `order_completed`), `created_time`, `updated_time` |
 | `checkout_app` | `ScheduleItem` | A booked time slot: `id`, `business`, `chat_session`, `is_sandbox`, `service` and `service_provider` (both kept as null if deleted), `start_time`, `end_time` (start + duration), `blocked_until` (end + buffer), `schedule_data` (`{service: {service_id, name, price, duration_minutes, buffer_minutes}, details: {...}}`), `order_status` (like orders), `created_time`, `updated_time` |
 
@@ -196,14 +196,15 @@ All of these require you to be logged in.
 | `GET` | `/api/businesses/{business_id}/faqs/` | List all FAQs of a business (paginated) |
 | `GET` | `/api/configuration/random-number/` | Sample endpoint (public, no login needed) |
 | `POST` | `/api/chat/` | `{prompt}` → `{reply, model, options}`: one-off chat with the local LLM (public, no login needed) |
-| `GET` | `/api/chat/configuration/` | Your business's chat configuration `{id, business, detail_fields, last_updated}`; the defaults (with `id` null) if you haven't saved one |
+| `GET` | `/api/chat/configuration/` | Your business's chat configuration `{id, business, detail_fields, welcome_message, reply_style, custom_style, last_updated}`; the defaults (with `id` null) if you haven't saved one |
+| `GET` | `/api/chat/configuration/reply-styles/` | The reply styles to choose from: `{key, label, description, instructions}` (`instructions` null for `custom`) |
 | `GET` / `POST` | `/api/chat/sandbox-sessions/` | List / start your business's sandbox (test) chat sessions |
 | `DELETE` | `/api/chat/sandbox-sessions/{id}/` | Delete one of your sandbox chat sessions |
 | `POST` | `/api/chat/sandbox-sessions/{id}/messages/` | `{message}` → the assistant's reply, in one of your sandbox chat sessions |
 | `GET` | `/api/chat/sessions/` | Your business's chat sessions (real ones by default; `sandbox=include` or `only` for test chats), with filters, sorting and pagination. See [Chat sessions](#chat-sessions) |
 | `POST` | `/api/chat/sessions/messages/` | `{business_id, phone_number, message}` → the assistant's reply. Public (no login), for the Chat Sandbox / future webhook. See [Chat sessions](#chat-sessions) |
 | `POST` | `/api/chat/sessions/` | `{phone_number, display_name}` → the new chat session (201). See [Chat sessions](#chat-sessions) |
-| `PUT` | `/api/chat/configuration/` | `{detail_fields}`: replace the details your chat asks for (validated). Creates the configuration (201) if missing, otherwise 200 |
+| `PUT` | `/api/chat/configuration/` | `{detail_fields, welcome_message?, reply_style?, custom_style?}`: replace the details your chat asks for, and optionally the welcome message and reply style (validated; left out = kept). Creates the configuration (201) if missing, otherwise 200 |
 | `GET` / `POST` | `/api/service-providers/` | List / create your service providers (`GET` / `PUT` / `PATCH` / `DELETE` on `/{id}/`) |
 | `GET` | `/api/service-providers/{id}/calendar/?week=YYYY-MM-DD` | A provider's week: its letters and the bookings in it (who booked, their details, status), for the calendar |
 | `POST` | `/api/service-providers/{id}/slots/` | `{date_from, date_to, weekdays, time_from, time_to, available}`: open (or close) those days' times, e.g. the next 2 weeks Mon–Fri 09:00–17:00. Booked blocks are left alone |
@@ -271,6 +272,8 @@ If Ollama fails (502/503/504), the customer's message is still saved, but there'
 ### Chat flow
 
 The chat flow is the same for every business (`chat_app/flow.py`): a **router** decides what each customer message is about, and code sends it to the right handler. Businesses only configure the steps' settings (so far, the details to collect: see [Chat configuration](#chat-configuration)). It needs Ollama, like the [one-off chat](#chat-temporary).
+
+**Welcome message and reply style.** If the business has a welcome message, a chat's very first customer message gets it first, word for word (`{business_name}` filled in). If that message was only a greeting (the router found nothing to do), the welcome is the whole reply, with no reply LLM call; otherwise the usual reply follows, and isn't told to greet again. Every LLM-written reply follows the business's reply style: a preset (`friendly`, `professional`, `casual`, `brief`) or its own description (`custom`), which only changes the tone, never the rules. Both message endpoints return every message sent in the turn as `messages`.
 
 ```
 customer message → router ─┬─ order        → Product selection → Details collection → Confirmation

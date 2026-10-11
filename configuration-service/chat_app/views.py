@@ -14,7 +14,7 @@ from config.pagination import DetailedPageNumberPagination
 
 from . import flow, llm, questions
 from .filters import ChatSessionFilter, UnansweredQuestionFilter
-from .constants import STEP_START
+from .constants import REPLY_STYLE_CUSTOM, REPLY_STYLE_PRESETS, STEP_START
 from .models import ChatConfiguration, ChatSession, UnansweredQuestion
 from .serializers import (
     ChatConfigurationSerializer,
@@ -23,6 +23,8 @@ from .serializers import (
     ChatResponseSerializer,
     ChatSessionSerializer,
     CustomerMessageRequestSerializer,
+    CustomerMessageResponseSerializer,
+    ReplyStyleSerializer,
     SandboxChatSessionSerializer,
     SandboxMessageRequestSerializer,
     SandboxMessageResponseSerializer,
@@ -143,17 +145,19 @@ class ChatConfigurationView(APIView):
 
     @extend_schema(
         tags=['Chat configuration'],
-        summary="Replace your business's chat configuration (detail_fields)",
+        summary="Replace your business's chat configuration",
         description=(
             'Replaces `detail_fields` (the customer details the Details collection step asks for), after '
-            "checking it with `validate_detail_fields`. Creates the configuration (201) if your business "
-            "hasn't saved one yet. `id`, `business` and `last_updated` are read-only."
+            'checking it with `validate_detail_fields`, and, if given, `welcome_message` (the reply to a '
+            "chat's first message), `reply_style` and `custom_style` (how the assistant writes; see "
+            "`reply-styles/`). Creates the configuration (201) if your business hasn't saved one yet. `id`, "
+            '`business` and `last_updated` are read-only.'
         ),
         request=ChatConfigurationSerializer,
         responses={
             200: ChatConfigurationSerializer,
             201: ChatConfigurationSerializer,
-            400: OpenApiResponse(description='Invalid `detail_fields`; every problem is listed.'),
+            400: OpenApiResponse(description='Invalid fields (e.g. `detail_fields`, or a welcome message that is too long); every problem is listed.'),
             403: OpenApiResponse(description='Your account is not linked to a business.'),
         },
         examples=[
@@ -175,6 +179,30 @@ class ChatConfigurationView(APIView):
             status=status.HTTP_200_OK if chat_config else status.HTTP_201_CREATED,
         )
 
+
+
+class ReplyStyleListView(APIView):
+    """The reply styles a business can choose for its chat assistant (ChatConfiguration.reply_style)."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=['Chat configuration'],
+        summary='List the reply styles',
+        description=(
+            'The preset styles (what the assistant is told for each) and `custom`, which uses your own '
+            '`custom_style` instead. The style only changes how replies are written, never the rules.'
+        ),
+        responses={200: ReplyStyleSerializer(many=True)},
+    )
+    def get(self, request: Request) -> Response:
+        styles = [{'key': key, **meta} for key, meta in REPLY_STYLE_PRESETS.items()] + [{
+            'key': REPLY_STYLE_CUSTOM,
+            'label': 'Custom',
+            'description': 'Describe the style in your own words.',
+            'instructions': None,
+        }]
+        return Response(ReplyStyleSerializer(styles, many=True).data)
 
 def create_chat_session(serializer, business, *, is_sandbox: bool) -> Response:
     """Validates and saves a new session, at the start of the chat flow (no order in progress)."""
@@ -301,7 +329,7 @@ class CustomerMessageView(APIView):
         ),
         request=CustomerMessageRequestSerializer,
         responses={
-            200: ChatMessageSerializer,
+            200: CustomerMessageResponseSerializer,
             400: OpenApiResponse(description='Invalid business ID, phone number or message.'),
             404: OpenApiResponse(description='No chat session for this phone number at this business.'),
             502: OpenApiResponse(description='Ollama returned an error (e.g. the model is not pulled).'),
@@ -327,7 +355,8 @@ class CustomerMessageView(APIView):
         )
         if session is None:
             raise NotFound(NO_CHAT_SESSION_MESSAGE)
-        return Response(ChatMessageSerializer(reply_to_customer_message(session, data['message']).reply).data)
+        result = reply_to_customer_message(session, data['message'])
+        return Response(CustomerMessageResponseSerializer({**result.reply, 'messages': result.messages}).data)
 
 
 def get_own_sandbox_session(request: Request, pk: int) -> ChatSession:
@@ -453,7 +482,9 @@ class SandboxChatMessageView(APIView):
         serializer = SandboxMessageRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         result = reply_to_customer_message(session, serializer.validated_data['message'])
-        return Response(SandboxMessageResponseSerializer({**result.reply, 'debug': result.debug}).data)
+        return Response(
+            SandboxMessageResponseSerializer({**result.reply, 'messages': result.messages, 'debug': result.debug}).data
+        )
 
 
 # --- Unanswered questions ------------------------------------------------------------------

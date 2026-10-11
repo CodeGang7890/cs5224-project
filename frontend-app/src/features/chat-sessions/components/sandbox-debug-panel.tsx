@@ -130,6 +130,7 @@ export function SandboxDebugPanel({ session, onClose }: SandboxDebugPanelProps) 
               )}
 
               <p className="text-muted-foreground mt-1">Reply</p>
+              {debug.welcome_message && <KeyValue label="Welcome message (sent first)" value={debug.welcome_message} />}
               {debug.missing.length > 0 && <KeyValue label="Still needed" value={debug.missing.join(', ')} />}
               {debug.issues.length > 0 && <KeyValue label="Issues" value={debug.issues.join(' ')} />}
               <KeyValue
@@ -173,6 +174,7 @@ const REPLY_KIND_LABELS: Record<SandboxTurnDebug['reply_kind'], string> = {
   order_status: 'The LLM, from the order status records only (checked: it named nothing else)',
   order_status_fallback: 'Written by code: the LLM reply named something not in the records',
   order_status_not_found: 'Written by code: nothing of theirs found (no LLM call)',
+  welcome: 'The welcome message only (first message, nothing else to do; no LLM call)',
   confirmation_request: 'Template: order summary + "reply CONFIRM" (plus an LLM aside, if any)',
   order_confirmed: 'Template: order confirmed (plus an LLM aside, if any)',
   slot_options: 'Template: the free times offered, numbered (plus an LLM aside, if any)',

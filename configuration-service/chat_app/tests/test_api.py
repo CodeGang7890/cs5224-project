@@ -77,7 +77,10 @@ class ChatConfigurationAPITests(APITestCase):
         self.client.force_authenticate(self.florist_user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(set(response.json()), {'id', 'business', 'detail_fields', 'last_updated'})
+        self.assertEqual(
+            set(response.json()),
+            {'id', 'business', 'detail_fields', 'welcome_message', 'reply_style', 'custom_style', 'last_updated'},
+        )
         self.assertEqual(response.json()['id'], self.florist_config.pk)
         self.assertEqual(response.json()['business'], self.florist.pk)
         self.assertEqual(response.json()['detail_fields'], DETAIL_FIELDS)
@@ -89,7 +92,10 @@ class ChatConfigurationAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(
             response.json(),
-            {'id': None, 'business': self.cafe.pk, 'detail_fields': DEFAULT_DETAIL_FIELDS, 'last_updated': None},
+            {
+                'id': None, 'business': self.cafe.pk, 'detail_fields': DEFAULT_DETAIL_FIELDS,
+                'welcome_message': '', 'reply_style': 'friendly', 'custom_style': '', 'last_updated': None,
+            },
         )
         self.assertFalse(ChatConfiguration.objects.filter(business=self.cafe).exists())
 
@@ -457,7 +463,8 @@ class CustomerMessageAPITests(APITestCase):
         response = self.send()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         reply = response.json()
-        self.assertEqual(set(reply), {'message', 'sent_by', 'message_time'})
+        self.assertEqual(set(reply), {'message', 'sent_by', 'message_time', 'messages'})
+        self.assertEqual(reply.pop('messages'), [reply])  # no welcome message: just the reply
         self.assertEqual(reply['message'], 'Yes, we are open until 6pm!')
         self.assertEqual(reply['sent_by'], 'business-automated')
 
