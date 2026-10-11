@@ -245,5 +245,135 @@
       "total_quantity": 3,
       "is_active": true
     }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 20,
+    "fields": {
+      "business": 4,
+      "name": "4R Photo Prints (Pack of 10)",
+      "description": "Ten classic 4R (4×6 in) prints of your favourite shots from your session, on lustre photo paper.",
+      "information": "Printed from the photos in your Lumen & Lens online gallery: tell us the gallery name and the photo numbers when you order. We print only photos from your own session with us.\n\nSize: 4R, 4 × 6 inches (10.2 × 15.2 cm), borderless. Paper: 260 gsm lustre (semi-gloss) photo paper, which resists fingerprints and glare. Colours are colour-corrected by our editors before printing. You can mix any 10 photos in one pack.\n\nDelivery: made to order in our studio within 3 to 5 working days, then delivered anywhere in Singapore (1 to 2 working days; $8, free for orders of $150 or more). We send you a photo of the finished piece before it ships.",
+      "price": "18.00",
+      "total_quantity": 314,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 21,
+    "fields": {
+      "business": 4,
+      "name": "A4 Fine Art Print",
+      "description": "One A4 print on archival cotton rag paper, with a soft matte finish: our most popular print for framing.",
+      "information": "Printed from the photos in your Lumen & Lens online gallery: tell us the gallery name and the photo numbers when you order. We print only photos from your own session with us.\n\nSize: A4 (21 × 29.7 cm), with a 1 cm white border. Paper: 310 gsm Hahnemühle Photo Rag, 100% cotton, acid-free; pigment inks rated to last over 100 years indoors. Matte, so it looks best behind glass or in our frames.\n\nDelivery: made to order in our studio within 3 to 5 working days, then delivered anywhere in Singapore (1 to 2 working days; $8, free for orders of $150 or more). We send you a photo of the finished piece before it ships.",
+      "price": "35.00",
+      "total_quantity": 205,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 22,
+    "fields": {
+      "business": 4,
+      "name": "A3 Fine Art Print",
+      "description": "One A3 print on archival cotton rag paper, matte: big enough to be the centrepiece of a wall.",
+      "information": "Printed from the photos in your Lumen & Lens online gallery: tell us the gallery name and the photo numbers when you order. We print only photos from your own session with us.\n\nSize: A3 (29.7 × 42 cm), with a 1.5 cm white border. Paper: 310 gsm Hahnemühle Photo Rag, 100% cotton, acid-free, pigment inks. Rolled in a tube for delivery unless ordered with a frame.\n\nDelivery: made to order in our studio within 3 to 5 working days, then delivered anywhere in Singapore (1 to 2 working days; $8, free for orders of $150 or more). We send you a photo of the finished piece before it ships.",
+      "price": "55.00",
+      "total_quantity": 151,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 23,
+    "fields": {
+      "business": 4,
+      "name": "Stretched Canvas Print (40×60 cm)",
+      "description": "Your photo printed on cotton canvas and stretched over a 3 cm wooden frame, ready to hang.",
+      "information": "Printed from the photos in your Lumen & Lens online gallery: tell us the gallery name and the photo numbers when you order. We print only photos from your own session with us.\n\nSize: 40 × 60 cm (portrait or landscape), 3 cm deep. Canvas: 380 gsm matte cotton-poly canvas over a kiln-dried pine frame, with the image wrapped around the edges (or a white edge, if you prefer). Comes with a hanging wire fitted. Not for bathrooms or direct sunlight.\n\nDelivery: made to order in our studio within 3 to 5 working days, then delivered anywhere in Singapore (1 to 2 working days; $8, free for orders of $150 or more). We send you a photo of the finished piece before it ships.",
+      "price": "139.00",
+      "total_quantity": 42,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 24,
+    "fields": {
+      "business": 4,
+      "name": "Classic Oak Frame (8×10 in)",
+      "description": "A solid oak frame with a white mount and an 8×10 in print of your choice, ready for a shelf or wall.",
+      "information": "Printed from the photos in your Lumen & Lens online gallery: tell us the gallery name and the photo numbers when you order. We print only photos from your own session with us.\n\nFrame: solid oak, 2 cm moulding, natural finish, with a stand for shelves and a hook for walls. Outer size about 30 × 25 cm. Includes an 8 × 10 inch lustre print in a white mount, behind clear acrylic glazing (light and shatterproof).\n\nDelivery: made to order in our studio within 3 to 5 working days, then delivered anywhere in Singapore (1 to 2 working days; $8, free for orders of $150 or more). We send you a photo of the finished piece before it ships.",
+      "price": "68.00",
+      "total_quantity": 31,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 25,
+    "fields": {
+      "business": 4,
+      "name": "Gallery Black Frame with A3 Print",
+      "description": "A slim matte-black frame with a wide white mount and an A3 fine art print inside: our signature wall piece.",
+      "information": "Printed from the photos in your Lumen & Lens online gallery: tell us the gallery name and the photo numbers when you order. We print only photos from your own session with us.\n\nFrame: 2.5 cm aluminium, matte black, outer size about 50 × 40 cm. Includes an A3 fine art print (Hahnemühle Photo Rag) in a 6 cm acid-free white mount, behind anti-reflective acrylic. Delivered with wall hooks and a level.\n\nDelivery: made to order in our studio within 3 to 5 working days, then delivered anywhere in Singapore (1 to 2 working days; $8, free for orders of $150 or more). We send you a photo of the finished piece before it ships.",
+      "price": "149.00",
+      "total_quantity": 24,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 26,
+    "fields": {
+      "business": 4,
+      "name": "Set of 3 Framed A4 Prints",
+      "description": "Three A4 fine art prints in matching oak or black frames: a ready-made gallery wall for a family or couple.",
+      "information": "Printed from the photos in your Lumen & Lens online gallery: tell us the gallery name and the photo numbers when you order. We print only photos from your own session with us.\n\nThree A4 prints on Hahnemühle Photo Rag, each in a 2 cm frame (choose natural oak or matte black) with a white mount, outer size about 35 × 28 cm each. We suggest a layout and send a paper template so hanging is easy.\n\nDelivery: made to order in our studio within 3 to 5 working days, then delivered anywhere in Singapore (1 to 2 working days; $8, free for orders of $150 or more). We send you a photo of the finished piece before it ships.",
+      "price": "189.00",
+      "total_quantity": 18,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 27,
+    "fields": {
+      "business": 4,
+      "name": "Linen Photo Album (30 Pages)",
+      "description": "A lay-flat album bound in linen, with 30 pages of your photos laid out by our designers.",
+      "information": "Printed from the photos in your Lumen & Lens online gallery: tell us the gallery name and the photo numbers when you order. We print only photos from your own session with us.\n\nSize: 25 × 25 cm, lay-flat pages on 300 gsm photo paper, 30 pages (15 spreads), up to about 60 photos. Cover: linen in oatmeal, sage or charcoal, with your names or a date debossed. We send you the layout to approve before printing.\n\nDelivery: made to order in our studio within 3 to 5 working days, then delivered anywhere in Singapore (1 to 2 working days; $8, free for orders of $150 or more). We send you a photo of the finished piece before it ships.",
+      "price": "240.00",
+      "total_quantity": 14,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 28,
+    "fields": {
+      "business": 4,
+      "name": "Acrylic Photo Block (5×7 in)",
+      "description": "Your photo printed behind a 2 cm thick crystal-clear acrylic block that stands on its own.",
+      "information": "Printed from the photos in your Lumen & Lens online gallery: tell us the gallery name and the photo numbers when you order. We print only photos from your own session with us.\n\nSize: 5 × 7 inches (12.7 × 17.8 cm), 2 cm thick, polished edges; stands upright or on its side on a desk or shelf. The photo is printed on lustre paper and bonded to the back.\n\nDelivery: made to order in our studio within 3 to 5 working days, then delivered anywhere in Singapore (1 to 2 working days; $8, free for orders of $150 or more). We send you a photo of the finished piece before it ships.",
+      "price": "75.00",
+      "total_quantity": 36,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 29,
+    "fields": {
+      "business": 4,
+      "name": "Mini Instant-Style Prints (Pack of 20)",
+      "description": "Twenty small instant-camera-style prints with a white border, for walls, journals and gifts.",
+      "information": "Printed from the photos in your Lumen & Lens online gallery: tell us the gallery name and the photo numbers when you order. We print only photos from your own session with us.\n\nSize: 5.4 × 8.6 cm each, with a classic white border (wider at the bottom, for writing on). Paper: 260 gsm lustre. Comes with 20 mini wooden pegs and a 1.5 m string to hang them.\n\nDelivery: made to order in our studio within 3 to 5 working days, then delivered anywhere in Singapore (1 to 2 working days; $8, free for orders of $150 or more). We send you a photo of the finished piece before it ships.",
+      "price": "24.00",
+      "total_quantity": 200,
+      "is_active": true
+    }
   }
 ]

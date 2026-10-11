@@ -862,5 +862,627 @@
       "created_time": "2026-09-12T09:30:00+08:00",
       "updated_time": "2026-09-12T11:30:00+08:00"
     }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 31,
+    "fields": {
+      "business": 4,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 25,
+            "name": "Gallery Black Frame with A3 Print",
+            "unit_price": "149.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Ravi Teo",
+          "email": "ravi.teo9@hotmail.com",
+          "photos": "Teo couple, photos 4, 42, 56",
+          "delivery_address": "7 Marine Parade Road, #12-03 The Seaview, Singapore 449284"
+        }
+      },
+      "created_time": "2026-09-09T10:00:00+08:00",
+      "updated_time": "2026-09-16T13:00:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 32,
+    "fields": {
+      "business": 4,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 21,
+            "name": "A4 Fine Art Print",
+            "unit_price": "35.00",
+            "quantity": 3
+          },
+          {
+            "product_id": 24,
+            "name": "Classic Oak Frame (8×10 in)",
+            "unit_price": "68.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Vikram Kumar",
+          "email": "vikram.kumar93@gmail.com",
+          "photos": "Kumar family, photos 25, 27, 52",
+          "delivery_address": "120 Upper Bukit Timah Road, #04-02, Singapore 588172"
+        }
+      },
+      "created_time": "2026-09-11T00:36:00+08:00",
+      "updated_time": "2026-09-18T08:36:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 33,
+    "fields": {
+      "business": 4,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 26,
+            "name": "Set of 3 Framed A4 Prints",
+            "unit_price": "189.00",
+            "quantity": 1
+          },
+          {
+            "product_id": 21,
+            "name": "A4 Fine Art Print",
+            "unit_price": "35.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Ethan Low",
+          "email": "ethan.low3@hotmail.com",
+          "photos": "Low family, photos 17, 36, 55",
+          "delivery_address": "7 Marine Parade Road, #12-03 The Seaview, Singapore 449284"
+        }
+      },
+      "created_time": "2026-09-13T17:50:00+08:00",
+      "updated_time": "2026-09-20T18:50:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 34,
+    "fields": {
+      "business": 4,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 23,
+            "name": "Stretched Canvas Print (40×60 cm)",
+            "unit_price": "139.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Isaac Ong",
+          "email": "isaac.ong31@outlook.com",
+          "photos": "Ong newborn, photos 12, 32, 54",
+          "delivery_address": "31 Jalan Kembangan, Singapore 419063"
+        }
+      },
+      "created_time": "2026-09-15T22:04:00+08:00",
+      "updated_time": "2026-09-20T05:04:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 35,
+    "fields": {
+      "business": 4,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 20,
+            "name": "4R Photo Prints (Pack of 10)",
+            "unit_price": "18.00",
+            "quantity": 1
+          },
+          {
+            "product_id": 24,
+            "name": "Classic Oak Frame (8×10 in)",
+            "unit_price": "68.00",
+            "quantity": 1
+          },
+          {
+            "product_id": 28,
+            "name": "Acrylic Photo Block (5×7 in)",
+            "unit_price": "75.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Clara Goh",
+          "email": "clara.goh76@outlook.com",
+          "photos": "Goh graduation, photos 1, 15, 24",
+          "delivery_address": "Blk 88 Toa Payoh Lorong 4, #09-120, Singapore 310088"
+        }
+      },
+      "created_time": "2026-09-17T15:58:00+08:00",
+      "updated_time": "2026-09-24T22:58:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 36,
+    "fields": {
+      "business": 4,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 23,
+            "name": "Stretched Canvas Print (40×60 cm)",
+            "unit_price": "139.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Aisyah Koh",
+          "email": "aisyah.koh21@gmail.com",
+          "photos": "Koh portraits, photos 31, 44, 59",
+          "delivery_address": "18 Holland Grove Road, Singapore 278805"
+        }
+      },
+      "created_time": "2026-09-19T05:56:00+08:00",
+      "updated_time": "2026-09-23T08:56:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 37,
+    "fields": {
+      "business": 4,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 20,
+            "name": "4R Photo Prints (Pack of 10)",
+            "unit_price": "18.00",
+            "quantity": 2
+          },
+          {
+            "product_id": 24,
+            "name": "Classic Oak Frame (8×10 in)",
+            "unit_price": "68.00",
+            "quantity": 1
+          },
+          {
+            "product_id": 28,
+            "name": "Acrylic Photo Block (5×7 in)",
+            "unit_price": "75.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Ryan Wong",
+          "email": "ryan.wong55@gmail.com",
+          "photos": "Wong family, photos 39, 41, 48",
+          "delivery_address": "2 Pasir Panjang Road, #06-15, Singapore 117371"
+        }
+      },
+      "created_time": "2026-09-20T21:00:00+08:00",
+      "updated_time": "2026-09-25T22:00:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 38,
+    "fields": {
+      "business": 4,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 25,
+            "name": "Gallery Black Frame with A3 Print",
+            "unit_price": "149.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Gabriel Quek",
+          "email": "gabriel.quek72@yahoo.com.sg",
+          "photos": "Quek couple, photos 22, 48, 53",
+          "delivery_address": "31 Jalan Kembangan, Singapore 419063"
+        }
+      },
+      "created_time": "2026-09-21T19:01:00+08:00",
+      "updated_time": "2026-09-26T21:01:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 39,
+    "fields": {
+      "business": 4,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 28,
+            "name": "Acrylic Photo Block (5×7 in)",
+            "unit_price": "75.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Jonathan Seah",
+          "email": "jonathan.seah32@outlook.com",
+          "photos": "Seah portraits, photos 4, 37, 59",
+          "delivery_address": "Blk 456 Tampines Street 42, #05-210, Singapore 520456"
+        }
+      },
+      "created_time": "2026-09-23T14:17:00+08:00",
+      "updated_time": "2026-09-27T22:17:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 40,
+    "fields": {
+      "business": 4,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 27,
+            "name": "Linen Photo Album (30 Pages)",
+            "unit_price": "240.00",
+            "quantity": 1
+          },
+          {
+            "product_id": 20,
+            "name": "4R Photo Prints (Pack of 10)",
+            "unit_price": "18.00",
+            "quantity": 2
+          }
+        ],
+        "details": {
+          "name": "Amanda Nair",
+          "email": "amanda.nair8@outlook.com",
+          "photos": "Nair graduation, photos 6, 17, 40",
+          "delivery_address": "Blk 302 Punggol Field, #14-552, Singapore 820302"
+        }
+      },
+      "created_time": "2026-09-25T15:12:00+08:00",
+      "updated_time": "2026-09-29T19:12:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 41,
+    "fields": {
+      "business": 4,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 27,
+            "name": "Linen Photo Album (30 Pages)",
+            "unit_price": "240.00",
+            "quantity": 1
+          },
+          {
+            "product_id": 20,
+            "name": "4R Photo Prints (Pack of 10)",
+            "unit_price": "18.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Dinesh Lim",
+          "email": "dinesh.lim41@yahoo.com.sg",
+          "photos": "Lim graduation, photos 27, 50, 53",
+          "delivery_address": "2 Pasir Panjang Road, #06-15, Singapore 117371"
+        }
+      },
+      "created_time": "2026-09-26T11:45:00+08:00",
+      "updated_time": "2026-10-02T17:45:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 42,
+    "fields": {
+      "business": 4,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 21,
+            "name": "A4 Fine Art Print",
+            "unit_price": "35.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Aisyah Ong",
+          "email": "aisyah.ong24@yahoo.com.sg",
+          "photos": "Ong graduation, photos 12, 34, 49",
+          "delivery_address": "Blk 88 Toa Payoh Lorong 4, #09-120, Singapore 310088"
+        }
+      },
+      "created_time": "2026-09-27T13:03:00+08:00",
+      "updated_time": "2026-10-02T20:03:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 43,
+    "fields": {
+      "business": 4,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 26,
+            "name": "Set of 3 Framed A4 Prints",
+            "unit_price": "189.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Ryan Koh",
+          "email": "ryan.koh1@outlook.com",
+          "photos": "Koh newborn, photos 15, 32, 41",
+          "delivery_address": "Blk 88 Toa Payoh Lorong 4, #09-120, Singapore 310088"
+        }
+      },
+      "created_time": "2026-09-29T02:44:00+08:00",
+      "updated_time": "2026-10-05T09:44:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 44,
+    "fields": {
+      "business": 4,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 22,
+            "name": "A3 Fine Art Print",
+            "unit_price": "55.00",
+            "quantity": 1
+          },
+          {
+            "product_id": 25,
+            "name": "Gallery Black Frame with A3 Print",
+            "unit_price": "149.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Hannah Fernandez",
+          "email": "hannah.fernandez81@gmail.com",
+          "photos": "Fernandez portraits, photos 37, 39, 50",
+          "delivery_address": "55 Sixth Avenue, Singapore 276518"
+        }
+      },
+      "created_time": "2026-09-30T01:43:00+08:00",
+      "updated_time": "2026-10-05T07:43:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 45,
+    "fields": {
+      "business": 4,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "payment_received",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 25,
+            "name": "Gallery Black Frame with A3 Print",
+            "unit_price": "149.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Natalie Menon",
+          "email": "natalie.menon82@hotmail.com",
+          "photos": "Menon newborn, photos 15, 18, 32",
+          "delivery_address": "7 Marine Parade Road, #12-03 The Seaview, Singapore 449284"
+        }
+      },
+      "created_time": "2026-10-01T07:53:00+08:00",
+      "updated_time": "2026-10-01T09:53:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 46,
+    "fields": {
+      "business": 4,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "payment_received",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 20,
+            "name": "4R Photo Prints (Pack of 10)",
+            "unit_price": "18.00",
+            "quantity": 2
+          },
+          {
+            "product_id": 24,
+            "name": "Classic Oak Frame (8×10 in)",
+            "unit_price": "68.00",
+            "quantity": 1
+          },
+          {
+            "product_id": 28,
+            "name": "Acrylic Photo Block (5×7 in)",
+            "unit_price": "75.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Daniel Ho",
+          "email": "daniel.ho51@hotmail.com",
+          "photos": "Ho portraits, photos 20, 33, 56",
+          "delivery_address": "Blk 678 Jurong West Street 64, #03-88, Singapore 640678"
+        }
+      },
+      "created_time": "2026-10-04T02:44:00+08:00",
+      "updated_time": "2026-10-04T03:44:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 47,
+    "fields": {
+      "business": 4,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "payment_received",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 20,
+            "name": "4R Photo Prints (Pack of 10)",
+            "unit_price": "18.00",
+            "quantity": 3
+          },
+          {
+            "product_id": 24,
+            "name": "Classic Oak Frame (8×10 in)",
+            "unit_price": "68.00",
+            "quantity": 1
+          },
+          {
+            "product_id": 28,
+            "name": "Acrylic Photo Block (5×7 in)",
+            "unit_price": "75.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Zhi Hao Kumar",
+          "email": "zhi.kumar92@outlook.com",
+          "photos": "Kumar portraits, photos 46, 52, 54",
+          "delivery_address": "120 Upper Bukit Timah Road, #04-02, Singapore 588172"
+        }
+      },
+      "created_time": "2026-10-06T18:40:00+08:00",
+      "updated_time": "2026-10-07T00:40:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 48,
+    "fields": {
+      "business": 4,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "pending_payment",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 26,
+            "name": "Set of 3 Framed A4 Prints",
+            "unit_price": "189.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Ben Toh",
+          "email": "ben.toh61@yahoo.com.sg",
+          "photos": "Toh couple, photos 36, 39, 44",
+          "delivery_address": "Blk 302 Punggol Field, #14-552, Singapore 820302"
+        }
+      },
+      "created_time": "2026-10-08T05:02:00+08:00",
+      "updated_time": "2026-10-08T05:02:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 49,
+    "fields": {
+      "business": 4,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "pending_payment",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 20,
+            "name": "4R Photo Prints (Pack of 10)",
+            "unit_price": "18.00",
+            "quantity": 3
+          },
+          {
+            "product_id": 24,
+            "name": "Classic Oak Frame (8×10 in)",
+            "unit_price": "68.00",
+            "quantity": 1
+          },
+          {
+            "product_id": 28,
+            "name": "Acrylic Photo Block (5×7 in)",
+            "unit_price": "75.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Valerie Lau",
+          "email": "valerie.lau49@yahoo.com.sg",
+          "photos": "Lau family, photos 15, 27, 58",
+          "delivery_address": "Blk 123 Ang Mo Kio Avenue 6, #08-1234, Singapore 560123"
+        }
+      },
+      "created_time": "2026-10-10T10:57:00+08:00",
+      "updated_time": "2026-10-10T10:57:00+08:00"
+    }
   }
 ]

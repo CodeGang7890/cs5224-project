@@ -931,3 +931,15 @@ If this is 30 mins, then my start time can only be 9am or 9.30am or 10am.
 If this is 1 hour, my start time can only be 9 am or 10am.
 Make this configurable.
 Add test cases, relevant APIs as usual.
+
+Date & Time (GMT+8): 2026-10-11 21:16:30
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Now I want you to work on the fixtures once again.
+Keep the kopi_owner as like a small business only for testing.
+So I want the florist business (bloom_owner) who sell those flowers (only product).
+Then also I want the photography business (lumen_owner) who sell that photography session (only service), but now I want you to add with products such as photo frames and photo prints, which can be delivered to an address.
+Add more products there and just make it realistic!
+Then I want another business which is a simple court renting business where there’re simply 2 badminton courts and 2 tennis courts that can be rented per 1-hour block, starting from 9am to 9pm.
+Please make the fixtures realistic with lots of bookings, up to bookings in end of November 2026 (because I need data to be available until that time).

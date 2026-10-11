@@ -31,8 +31,17 @@
     "pk": 4,
     "fields": {
       "business_name": "Lumen & Lens Photography Studio",
-      "description": "Lumen & Lens is a natural-light photography studio in a Tanjong Pagar shophouse, run by photographers Mei Lin Tan and Arjun Pillai. We photograph portraits, couples, families, newborns, maternity, graduations, pets and corporate headshots, in the studio or at a location nearby, and cover small events. Every session includes professional editing and an online gallery of your photos within 7 days. Book a time slot in this chat: we confirm your booking straight away, and you pay a deposit afterwards.",
+      "description": "Lumen & Lens is a natural-light photography studio in a Tanjong Pagar shophouse, run by photographers Mei Lin Tan and Arjun Pillai. We photograph portraits, couples, families, newborns, maternity, graduations, pets and corporate headshots, in the studio or at a location nearby, and cover small events. Every session includes professional editing and an online gallery of your photos within 7 days. We also print your photos: fine-art prints, canvases, frames, albums and acrylic blocks, made in our studio and delivered to your door anywhere in Singapore. Book a time slot or order prints in this chat: we confirm straight away, and you pay afterwards.",
       "location": "88 Tanjong Pagar Road, #03-01, Singapore 088509"
+    }
+  },
+  {
+    "model": "configuration_app.businessconfiguration",
+    "pk": 5,
+    "fields": {
+      "business_name": "Rally Point Courts",
+      "description": "Rally Point Courts is a sports centre in Kallang with 2 indoor, air-conditioned badminton courts and 2 outdoor, floodlit hard tennis courts. Courts are rented by the hour, every day from 9am to 9pm, and can be booked in this chat: choose the court type and a time, and we confirm your booking straight away. Rackets, shuttlecocks and tennis balls can be rented at the counter.",
+      "location": "9 Kallang Place, #01-08, Singapore 339155"
     }
   }
 ]

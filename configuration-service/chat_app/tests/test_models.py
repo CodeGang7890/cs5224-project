@@ -199,8 +199,15 @@ class SampleChatConfigurationFixtureTests(TestCase):
     def test_photography_fixture_collects_its_own_booking_details(self):
         chat_config = ChatConfiguration.objects.get(business_id=4)
         chat_config.full_clean()
-        self.assertEqual(chat_config.product_detail_fields, DEFAULT_DETAIL_FIELDS)
+        # Prints and frames are delivered: the orders ask for the photos and an address.
+        self.assertEqual([f['key'] for f in chat_config.product_detail_fields], ['name', 'email', 'photos', 'delivery_address'])
         self.assertEqual([f['key'] for f in chat_config.schedule_detail_fields], ['name', 'people', 'notes'])
+
+    def test_court_fixture(self):
+        chat_config = ChatConfiguration.objects.get(business_id=5)
+        chat_config.full_clean()
+        self.assertEqual([f['key'] for f in chat_config.schedule_detail_fields], ['name', 'email', 'players'])
+        self.assertEqual((chat_config.reply_style, chat_config.welcome_message[:28]), ('casual', 'Hi, welcome to {business_nam'))
 
     def test_no_fixture_asks_for_a_phone_number(self):
         for chat_config in ChatConfiguration.objects.all():

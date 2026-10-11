@@ -358,5 +358,113 @@
       "question": "Do you shoot outside the studio?",
       "answer": "Yes: any session can be at a location within the city area (e.g. the Botanic Gardens or Tiong Bahru) at no extra cost, except Newborn Sessions, which are only in the studio."
     }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 41,
+    "fields": {
+      "business": 4,
+      "question": "Do you deliver prints and frames?",
+      "answer": "Yes, anywhere in Singapore. Prints, frames, canvases and albums are made to order in our studio within 3 to 5 working days, then delivered in 1 to 2 working days. Delivery is $8, and free for orders of $150 or more. We send you a photo of the finished piece before it ships."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 42,
+    "fields": {
+      "business": 4,
+      "question": "Can I order prints of photos taken elsewhere?",
+      "answer": "No, sorry: we only print photos from your own Lumen & Lens session, from your online gallery. Tell us the gallery name and photo numbers when you order."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 43,
+    "fields": {
+      "business": 4,
+      "question": "What if my print arrives damaged?",
+      "answer": "Send us a photo of it in this chat within 7 days of delivery and we will reprint and redeliver it free of charge."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 44,
+    "fields": {
+      "business": 4,
+      "question": "Can I collect my prints from the studio instead?",
+      "answer": "Yes. Tell us when you order and we will message you when it is ready; there is no delivery fee for collection."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 45,
+    "fields": {
+      "business": 5,
+      "question": "What are your opening hours?",
+      "answer": "Every day, including public holidays, from 9am to 9pm. Courts are rented by the hour, so the last booking starts at 8pm."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 46,
+    "fields": {
+      "business": 5,
+      "question": "How long can I book a court for?",
+      "answer": "Bookings are in 1-hour blocks, starting on the hour. For 2 hours, just book two back-to-back slots."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 47,
+    "fields": {
+      "business": 5,
+      "question": "Can I rent rackets and balls?",
+      "answer": "Yes, at the counter: badminton rackets $3 each and a tube of shuttlecocks $8; tennis rackets $5 each and a can of 3 balls $6."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 48,
+    "fields": {
+      "business": 5,
+      "question": "Are the courts indoors?",
+      "answer": "The 2 badminton courts are indoors and air-conditioned. The 2 tennis courts are outdoors, with floodlights from 7pm."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 49,
+    "fields": {
+      "business": 5,
+      "question": "What happens to tennis bookings when it rains?",
+      "answer": "If it rains and the courts are unplayable, we move your booking to another time or refund it in full. Badminton courts are indoors and not affected."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 50,
+    "fields": {
+      "business": 5,
+      "question": "What is your cancellation policy?",
+      "answer": "Cancel or change for free up to 24 hours before your booking. Within 24 hours, we can only move it to another slot that is free."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 51,
+    "fields": {
+      "business": 5,
+      "question": "Is there parking and showers?",
+      "answer": "Yes: there is a car park next to the building ($1.20 an hour), and changing rooms with lockers and showers on level 1."
+    }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 52,
+    "fields": {
+      "business": 5,
+      "question": "How do I pay?",
+      "answer": "After you book in this chat, we send a PayNow QR code. Please pay within 24 hours to keep your booking; you can also pay at the counter before you play."
+    }
   }
 ]
