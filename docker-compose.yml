@@ -2,6 +2,7 @@
 # + frontend-app (Vite dev server with hot reload, http://localhost:5173)
 # + messaging-ingester (WhatsApp webhook → Pub/Sub, http://localhost:8002) + a local Pub/Sub emulator
 # + messaging-service (Gunicorn; LLM chat, and the pull consumer of the ingester's messages, http://localhost:8001).
+# + notification-job (reads the database, run every hour by cron).
 # The database is kept in the postgres-data volume between runs; the sample fixtures are loaded the
 # first time. To wipe it and reload them: RESET_DB=true docker compose up
 # (see configuration-service/docker-entrypoint.sh).
@@ -118,6 +119,21 @@ services:
     depends_on:
       pubsub-emulator:
         condition: service_healthy
+
+  # The job runs once and exits; this container is its cron, running it every hour (cron.sh).
+  notification-job:
+    build: ./notification-job
+    command: ["./cron.sh"]
+    environment:
+      <<: *postgres-env # configuration-service's database (read-only use)
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      CRON_SCHEDULE: ${NOTIFICATION_JOB_SCHEDULE:-0 * * * *} # every hour (UTC); e.g. "* * * * *" to try it
+    depends_on:
+      postgres:
+        condition: service_healthy
+      configuration-service: # its migrations create the tables
+        condition: service_started
 
 volumes:
   postgres-data:

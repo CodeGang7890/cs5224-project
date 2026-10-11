@@ -1001,3 +1001,20 @@ Date & Time (GMT+8): 2026-10-11 23:14:43
 AI Model Used: claude-opus-5-5
 Original Prompt:
 yes
+
+Date & Time (GMT+8): 2026-10-11 23:15:21
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Now I want you to create boilerplate code for notification-job.
+Notification job is just a simple python script that does these 3:
+(1) Read from DB
+(2) Do some operation / business logic
+(3) Call external API
+We’ll not focus on the operation or the external API for now.
+We simply focus on connecting to the DB (please use proper ORM).
+The DB is the same DB connected to configuration-service.
+In the boilerplate, just have it read any table from the DB, log it, then that’s all for now.
+Add Dockerfile to this app, then in docker compose I want a cron job that runs every hour and trigger this job.
+The goal now is just to have the script running every hour triggered by the cron job, and that it can query the PostgreSQL database.
+Add just a single dummy test case as of now.

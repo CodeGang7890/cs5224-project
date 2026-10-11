@@ -22,5 +22,8 @@ To see the WhatsApp messages the ingester published: `docker compose exec messag
 (see `messaging-ingester/README.md`). messaging-service pulls them too, on its own subscription, and logs each one:
 `docker compose logs -f messaging-service` (see `messaging-service/README.md`).
 
+notification-job runs every hour (cron, no port): `docker compose logs -f notification-job`. To run it once now:
+`docker compose exec notification-job python run.py` (see `notification-job/README.md`).
+
 After changing `frontend-app/package.json`, rebuild it: `docker compose up --build -V frontend-app`
 (`-V` recreates the `node_modules` volume so the new packages are used).
