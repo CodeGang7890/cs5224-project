@@ -3,7 +3,7 @@
 import os
 
 # --- This service -------------------------------------------------------------------------
-# 8000 is configuration-service and 8001 messaging-service, so this service runs on 8002.
+# 8000 is configuration-service and 8001 is reserved for payment-ingester, so this service runs on 8002.
 PORT = 8002
 
 # --- configuration-service (holds each business's WhatsApp secrets) -----------------------

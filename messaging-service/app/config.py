@@ -4,8 +4,9 @@ deployment-specific values (hosts, Pub/Sub) can also come from environment varia
 import os
 
 # --- This service -------------------------------------------------------------------------
-# 8000 is used by configuration-service (Django), so this service runs on 8001.
-PORT = 8001
+# 8000 is configuration-service, 8001 is reserved for payment-ingester, 8002 is messaging-ingester
+# and 8003 processing-service, so this service runs on 8004.
+PORT = 8004
 # Gunicorn worker processes (gunicorn.conf.py). Each one runs its own Pub/Sub consumer, and they
 # share the subscription's messages.
 WORKERS = int(os.getenv('WEB_CONCURRENCY', '2'))

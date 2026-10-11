@@ -1,4 +1,4 @@
-"""Development server entry point: `python run.py` (serves on http://127.0.0.1:8001, with reload).
+"""Development server entry point: `python run.py` (serves on http://127.0.0.1:8004, with reload).
 
 In Docker (and production) Gunicorn serves the app instead: see gunicorn.conf.py.
 """

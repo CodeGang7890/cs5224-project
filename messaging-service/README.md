@@ -1,6 +1,6 @@
 # Messaging Service
 
-FastAPI backend for Ansera Business Admin. It runs on **port 8001**, because 8000 is used by `configuration-service` (Django).
+FastAPI backend for Ansera Business Admin. It runs on **port 8004** (8000 is `configuration-service`, 8001 is reserved for `payment-ingester`, 8002 is `messaging-ingester` and 8003 is `processing-service`).
 
 It currently offers a one-off **chat** endpoint backed by a local LLM through [Ollama](https://ollama.com), and a **Pub/Sub consumer**: a pull subscriber for the customer WhatsApp messages `messaging-ingester` publishes (for now it logs each one, waits, and acknowledges it; see [Pub/Sub consumer](#pubsub-consumer)). It has no database. In Docker it's served by **Gunicorn** with Uvicorn workers.
 
@@ -40,10 +40,10 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
 # 3. Start the development server
-python run.py                      # http://127.0.0.1:8001
+python run.py                      # http://127.0.0.1:8004
 ```
 
-Then open **Swagger UI at <http://127.0.0.1:8001/docs>** to try the API in the browser.
+Then open **Swagger UI at <http://127.0.0.1:8004/docs>** to try the API in the browser.
 
 When you come back later, reactivate the virtual environment and start the server:
 
@@ -61,7 +61,7 @@ All settings are constants in **`app/config.py`**. Edit them there:
 
 | Constant | Default | What it is |
 | --- | --- | --- |
-| `PORT` | `8001` | Port this service listens on |
+| `PORT` | `8004` | Port this service listens on |
 | `OLLAMA_PORT` | `11434` | Port of the Ollama server |
 | `OLLAMA_HOST` | `http://localhost:{OLLAMA_PORT}` | Ollama base URL |
 | `OLLAMA_MODEL` | `qwen2.5:7b-instruct-q4_K_M` | Model used for chat |
@@ -87,25 +87,25 @@ These also come from environment variables (docker-compose sets them):
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `PORT` | `PORT` constant (`8001`) | e.g. `PORT=8002 python run.py` |
+| `PORT` | `PORT` constant (`8004`) | e.g. `PORT=8002 python run.py` |
 | `HOST` | `127.0.0.1` | Use `0.0.0.0` to accept connections from other machines or containers |
 | `RELOAD` | `1` | `1` restarts the server automatically when the code changes; `0` turns that off |
 
 You can also run uvicorn directly. `--factory` tells it to call the `create_app()` factory:
 
 ```bash
-uvicorn app:create_app --factory --port 8001 --reload
+uvicorn app:create_app --factory --port 8004 --reload
 ```
 
 ### With Docker and Gunicorn
 
-From the repo root, `docker compose up --build messaging-service` starts it (with the Pub/Sub emulator) on <http://localhost:8001>. In Docker, **Gunicorn** serves the app, as it would in production:
+From the repo root, `docker compose up --build messaging-service` starts it (with the Pub/Sub emulator) on <http://localhost:8004>. In Docker, **Gunicorn** serves the app, as it would in production:
 
 ```bash
 gunicorn -c gunicorn.conf.py "app:create_app()"   # the Dockerfile's CMD
 ```
 
-`gunicorn.conf.py`: bind `0.0.0.0:$PORT` (8001; Cloud Run sets `PORT`), `WEB_CONCURRENCY` workers (2) of `uvicorn_worker.UvicornWorker`, a 150 s request timeout (longer than `OLLAMA_TIMEOUT_SECONDS`, for `/chat`), 30 s to finish the messages being handled when shutting down, and access logs to stdout.
+`gunicorn.conf.py`: bind `0.0.0.0:$PORT` (8004; Cloud Run sets `PORT`), `WEB_CONCURRENCY` workers (2) of `uvicorn_worker.UvicornWorker`, a 150 s request timeout (longer than `OLLAMA_TIMEOUT_SECONDS`, for `/chat`), 30 s to finish the messages being handled when shutting down, and access logs to stdout.
 
 ## API
 
@@ -122,7 +122,7 @@ gunicorn -c gunicorn.conf.py "app:create_app()"   # the Dockerfile's CMD
 It takes a single prompt and returns a single reply. **No conversation history is kept**, so each request is independent. The model sees `SYSTEM_PROMPT` followed by your prompt.
 
 ```bash
-curl -X POST http://127.0.0.1:8001/chat \
+curl -X POST http://127.0.0.1:8004/chat \
   -H 'Content-Type: application/json' \
   -d '{"prompt": "Suggest three names for a neighbourhood café."}'
 ```
@@ -152,7 +152,7 @@ Validation errors (422) list the messages by location (`json` is the request bod
 
 ### Trying it in Swagger UI
 
-1. Open <http://127.0.0.1:8001/docs>.
+1. Open <http://127.0.0.1:8004/docs>.
 2. Expand **POST /chat** and click **Try it out**.
 3. Edit the example body, e.g. `{"prompt": "Hello!"}`, and click **Execute**.
 
@@ -171,7 +171,7 @@ Trying it end to end, from the repo root:
 ```bash
 docker compose up --build                     # Pub/Sub emulator, messaging-ingester, messaging-service, ...
 docker compose logs -f messaging-service      # "Customer message wamid... for business ... from +65...: ..."
-curl http://localhost:8001/consumer           # {"enabled": true, "running": true, "handled": ..., ...}
+curl http://localhost:8004/consumer           # {"enabled": true, "running": true, "handled": ..., ...}
 ```
 
 Then send a WhatsApp message to a connected business (or post a webhook to the ingester, see its README): the ingester publishes it, and messaging-service logs it.

@@ -4,7 +4,7 @@ Guidance for Claude Code when working in `messaging-service/`.
 
 ## What this is
 
-A **FastAPI** backend for Ansera Business Admin, on port **8001**. It provides:
+A **FastAPI** backend for Ansera Business Admin, on port **8004** (it moved from 8001, which is reserved for payment-ingester). It provides:
 - `GET /`: hello world / health check.
 - `POST /chat`: a **one-off** chat with a local LLM through **Ollama**. Single prompt in, single reply out, no history.
 - A **Pub/Sub pull consumer** (the user asked) of the customer messages `../messaging-ingester` publishes, and `GET /consumer` (its status). For now it logs each message and `time.sleep(PROCESSING_SECONDS)`s before acking; the chat flow comes later.
@@ -28,7 +28,7 @@ The sibling services are `../configuration-service` (Django, port 8000) and `../
 
 ## Configuration: `app/config.py` (ALL-CAPS constants, as requested)
 
-- `PORT = 8001`, `WORKERS` (env `WEB_CONCURRENCY`, 2).
+- `PORT = 8004`, `WORKERS` (env `WEB_CONCURRENCY`, 2).
 - `OLLAMA_PORT = 11434` and `OLLAMA_HOST` (env, default `f'http://localhost:{OLLAMA_PORT}'`; Docker: `http://host.docker.internal:11434`).
 - Pub/Sub (all env, see the README): `PUBSUB_CONSUMER_ENABLED` (off by default), `GCP_PROJECT_ID`, `PUBSUB_TOPIC` (`whatsapp-inbound-messages`), `PUBSUB_SUBSCRIPTION` (`messaging-service-inbound`), `PUBSUB_MAX_MESSAGES` (5), `PROCESSING_SECONDS` (2); the library reads `PUBSUB_EMULATOR_HOST`.
 - `OLLAMA_MODEL = 'qwen2.5:7b-instruct-q4_K_M'`.
@@ -61,10 +61,10 @@ Keep every tunable setting here as a constant. Don't hard-code values in routes.
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python run.py                 # http://127.0.0.1:8001, Swagger UI at /docs (consumer off)
+python run.py                 # http://127.0.0.1:8004, Swagger UI at /docs (consumer off)
 gunicorn -c gunicorn.conf.py "app:create_app()"          # as in Docker
 gunicorn --check-config -c gunicorn.conf.py "app:create_app()"   # check Gunicorn's settings without starting it
-uvicorn app:create_app --factory --port 8001 --reload   # same, via uvicorn directly
+uvicorn app:create_app --factory --port 8004 --reload   # same, via uvicorn directly
 python -m unittest -v         # tests (Ollama mocked)
 ```
 

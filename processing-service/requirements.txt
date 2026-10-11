@@ -1,0 +1,7 @@
+fastapi>=0.142,<0.143
+# Production / Docker server: Gunicorn managing Uvicorn workers (gunicorn.conf.py).
+gunicorn>=26,<27
+uvicorn-worker>=0.4,<0.5
+uvicorn>=0.54,<1
+# Used by FastAPI's TestClient in the tests.
+httpx2>=2.13,<3

@@ -13,8 +13,10 @@ RESET_DB=true docker compose up --build   # reset the database to the sample dat
 | --- | --- |
 | frontend-app (Vite dev server, hot reload) | <http://localhost:5173> |
 | configuration-service (Django API, Swagger at `/api/docs/`) | <http://localhost:8000> |
-| messaging-service (Gunicorn: LLM chat, and the pull consumer of the ingester's messages, Swagger at `/docs`) | <http://localhost:8001> |
+| payment-ingester (coming soon: port reserved) | <http://localhost:8001> |
 | messaging-ingester (WhatsApp webhook → Pub/Sub, Swagger at `/docs`) | <http://localhost:8002> |
+| processing-service (Gunicorn: hello world for now, Swagger at `/docs`) | <http://localhost:8003> |
+| messaging-service (Gunicorn: LLM chat, and the pull consumer of the ingester's messages, Swagger at `/docs`) | <http://localhost:8004> |
 | Pub/Sub emulator (in memory) | `localhost:8085` |
 | PostgreSQL | `localhost:5433` (user/password `postgres`) |
 

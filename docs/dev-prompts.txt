@@ -1018,3 +1018,18 @@ In the boilerplate, just have it read any table from the DB, log it, then thatâ€
 Add Dockerfile to this app, then in docker compose I want a cron job that runs every hour and trigger this job.
 The goal now is just to have the script running every hour triggered by the cron job, and that it can query the PostgreSQL database.
 Add just a single dummy test case as of now.
+
+Date & Time (GMT+8): 2026-10-11 23:29:24
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Now I want you to add a boilerplate code for processing-service.
+It should be a Python FastAPI app with GUnicorn, refer to the ingester-app for reference.
+Please also setup the Dockerfile, docker-compose, and update the README and clearly state the port it used (use a port thatâ€™s unused yet).
+Now just simply have a single hello world API, with a single test case for that.
+
+Date & Time (GMT+8): 2026-10-11 23:33:30
+AI Model Used: claude-opus-5-5
+Original Prompt:
+Please change messaging-service to use port 8004 instead
+Reserve port 8001 for payment-ingester (coming soon!) -> just indicate this in README
