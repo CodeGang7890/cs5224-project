@@ -242,3 +242,20 @@ CORS_ALLOWED_ORIGINS = env_list(
 
 # Only send CORS headers for API routes (not /admin/).
 CORS_URLS_REGEX = r'^/api/.*$'
+
+
+# WhatsApp integration (configuration_app.WhatsAppConfiguration)
+
+# Encrypts the stored WhatsApp secrets (any secret string; see configuration_app/crypto.py).
+# Empty falls back to SECRET_KEY. Changing it (or SECRET_KEY, when empty) makes stored secrets unreadable.
+CONFIGURATION_ENCRYPTION_KEY = os.getenv('CONFIGURATION_ENCRYPTION_KEY', '')
+
+# Shared key for service-to-service calls (/api/internal/), sent in the X-Internal-Api-Key header.
+# Empty disables the internal API (every call gets 403). The fallback is for local development only.
+INTERNAL_API_KEY = os.getenv('INTERNAL_API_KEY', 'dev-internal-api-key' if DEBUG else '')
+
+# Public URL of messaging-ingester, used to show each business its webhook Callback URL.
+# Meta's Graph API (WhatsApp Cloud API), used to check the credentials owners enter. Tests mock it.
+META_GRAPH_API_URL = os.getenv('META_GRAPH_API_URL', 'https://graph.facebook.com/v25.0').rstrip('/')
+
+MESSAGING_INGESTER_PUBLIC_URL = os.getenv('MESSAGING_INGESTER_PUBLIC_URL', 'http://localhost:8002').rstrip('/')
