@@ -1,5 +1,10 @@
 fastapi>=0.142,<0.143
+# Gunicorn manages the worker processes; each one runs the app with Uvicorn (uvicorn-worker).
+gunicorn>=26,<27
+uvicorn-worker>=0.4,<0.5
 uvicorn>=0.54,<1
 ollama>=0.6,<0.7
+# Pull subscriber for the customer messages messaging-ingester publishes (app/consumer.py).
+google-cloud-pubsub>=2.42,<3
 # Used by FastAPI's TestClient in the tests.
 httpx2>=2.13,<3

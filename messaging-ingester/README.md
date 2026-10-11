@@ -115,6 +115,8 @@ To see what was published, pull the debug subscription (each message is shown on
 docker compose exec messaging-ingester python scripts/pull_debug.py
 ```
 
+messaging-service consumes the same topic through its own `messaging-service-inbound` subscription (`docker compose logs -f messaging-service`).
+
 ### Trying it without Meta
 
 Connect WhatsApp for a business first (frontend Home → WhatsApp, or `PUT /api/configuration/whatsapp/`), then act as Meta. With App Secret `my-app-secret` and Phone Number ID `123456789`:

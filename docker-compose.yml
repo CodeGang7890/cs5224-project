@@ -1,6 +1,7 @@
 # Local development: PostgreSQL + configuration-service (Django, http://localhost:8000)
 # + frontend-app (Vite dev server with hot reload, http://localhost:5173)
-# + messaging-ingester (WhatsApp webhook → Pub/Sub, http://localhost:8002) + a local Pub/Sub emulator.
+# + messaging-ingester (WhatsApp webhook → Pub/Sub, http://localhost:8002) + a local Pub/Sub emulator
+# + messaging-service (Gunicorn; LLM chat, and the pull consumer of the ingester's messages, http://localhost:8001).
 # The database is kept in the postgres-data volume between runs; the sample fixtures are loaded the
 # first time. To wipe it and reload them: RESET_DB=true docker compose up
 # (see configuration-service/docker-entrypoint.sh).
@@ -95,6 +96,28 @@ services:
         condition: service_healthy
       configuration-service:
         condition: service_started
+
+  messaging-service:
+    build: ./messaging-service
+    ports:
+      - "8001:8001"
+    environment:
+      WEB_CONCURRENCY: "2" # Gunicorn workers; each runs a Pub/Sub consumer, and they share the messages
+      # Ollama runs on the host machine, not in Docker.
+      OLLAMA_HOST: http://host.docker.internal:11434
+      # Pull consumer of the customer messages messaging-ingester publishes (app/consumer.py).
+      PUBSUB_CONSUMER_ENABLED: "true"
+      GCP_PROJECT_ID: local-project # TODO: a real GCP project ID when deploying to Google Cloud Pub/Sub
+      PUBSUB_TOPIC: whatsapp-inbound-messages
+      PUBSUB_SUBSCRIPTION: messaging-service-inbound
+      PROCESSING_SECONDS: "2" # stand-in for the real work: each message waits this long before its ack
+      # TODO: Don't set this in production, so the real Google Cloud Pub/Sub is used instead of the emulator
+      PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # for Linux; Docker Desktop has it already
+    depends_on:
+      pubsub-emulator:
+        condition: service_healthy
 
 volumes:
   postgres-data:

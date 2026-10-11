@@ -987,3 +987,17 @@ Just a few sparse bookings here and there for October, and a few future ones in 
 Around 30 bookings should be good enough. Now there're like 1k bookings.
 Please modify it.
 Update the test cases too when necesssary.
+
+Date & Time (GMT+8): 2026-10-11 23:03:45
+AI Model Used: claude-opus-5-5
+Original Prompt:
+Goal set: Please setup the messaging-service to use similar boilerplate and Gunicorn server.
+Leave the LLM endpoint there.
+I want you to add another pub/sub consumer, for now simply log the message and do time.sleep.
+The goal is to integrate the pub/sub with this messaging-service.
+It should be a pull-based subscriber.
+
+Date & Time (GMT+8): 2026-10-11 23:14:43
+AI Model Used: claude-opus-5-5
+Original Prompt:
+yes
