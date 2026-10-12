@@ -245,6 +245,7 @@ Vite only exposes variables that start with `VITE_`. Put local values in `.env.l
 | Variable | Description | Default |
 | --- | --- | --- |
 | `VITE_CONFIGURATION_SERVICE_URL` | API root of `configuration-service`, used by `configurationApiClient`. Request paths are relative to it, e.g. `/auth/me/`, `/products/`, `/configuration/random-number/`. | `http://localhost:8000/api` |
+| `VITE_MESSAGING_SERVICE_URL` | API root of `messaging-service`, used by `messagingApiClient`: the chat flow (the Chat Sandbox's messages, `/chat/sandbox-sessions/{id}/messages/`). | `http://localhost:8004/api` |
 
 > [!NOTE]
 > This variable changed from `…/api/configuration` to `…/api` when authentication was added. If you have a `.env.local`, update it.

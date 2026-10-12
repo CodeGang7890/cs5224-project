@@ -8,7 +8,7 @@ A **FastAPI** service (port **8002**) that receives Meta's WhatsApp Cloud API we
 
 ## Design decisions (the user chose these; don't change them without asking)
 
-- **No secrets, no database, no cache.** Each business's WhatsApp settings live in `../configuration-service` (`configuration_app.WhatsAppConfiguration`). The ingester asks configuration-service's internal API on **every** request, which answers **yes/no only** (secrets never leave it):
+- **No secrets, no database, no cache.** (If it ever needs the database: configuration-service owns the schema and every migration; other services only query it. See the repo-root `CLAUDE.md`.) Each business's WhatsApp settings live in `../configuration-service` (`configuration_app.WhatsAppConfiguration`). The ingester asks configuration-service's internal API on **every** request, which answers **yes/no only** (secrets never leave it):
 
   - `POST /api/internal/whatsapp/<id>/verify-token/` with `{verify_token}`
   - `POST …/verify-signature/` with the **raw webhook body forwarded unchanged** (`application/octet-stream`) and Meta's `X-Hub-Signature-256` header
@@ -49,7 +49,7 @@ Routes are plain `def`s (blocking HTTP and Pub/Sub calls run in FastAPI's thread
 
 ## Local stack (repo root `docker-compose.yml`)
 
-- `pubsub-emulator` (`gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators`, port 8085, in memory).
+- `pubsub-emulator` (`gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators`, port 8085, in memory). `pubsub-init` then creates the topics (`whatsapp-inbound-messages`, `payment-events`) and exits; the services wait for it. The ingester still creates its topic and debug subscription itself (idempotent).
 - `messaging-ingester` (built image, no source mount, so rebuild after changes: `docker compose up -d --build messaging-ingester`).
 - configuration-service has `DJANGO_ALLOWED_HOSTS` including `configuration-service`, so the ingester's requests aren't rejected.
 

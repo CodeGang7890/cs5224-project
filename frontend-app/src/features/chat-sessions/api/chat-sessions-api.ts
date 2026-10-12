@@ -1,4 +1,4 @@
-import { configurationApiClient } from '@/lib/api-client'
+import { configurationApiClient, messagingApiClient } from '@/lib/api-client'
 import type { DetailedPaginated, Paginated } from '@/types/api'
 
 import type { ChatSession, ChatSessionListParams, SandboxChatSessionInput, SandboxMessageReply } from '../types'
@@ -31,9 +31,12 @@ export async function deleteSandboxSession(id: number): Promise<void> {
   await configurationApiClient.delete(`/chat/sandbox-sessions/${id}/`)
 }
 
-/** Sends a message as the pretend customer and returns the assistant's reply (with debug info). */
+/**
+ * Sends a message as the pretend customer and returns the assistant's reply (with debug info).
+ * The chat flow runs in messaging-service; everything else about chats stays in configuration-service.
+ */
 export async function sendSandboxMessage(id: number, message: string): Promise<SandboxMessageReply> {
-  const { data } = await configurationApiClient.post<SandboxMessageReply>(
+  const { data } = await messagingApiClient.post<SandboxMessageReply>(
     `/chat/sandbox-sessions/${id}/messages/`,
     { message },
     { timeout: SEND_MESSAGE_TIMEOUT_MS },

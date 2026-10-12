@@ -1,4 +1,5 @@
-# CI for configuration-service (Django) and frontend-app (React). Runs on every pull request to
+# CI for configuration-service (Django), frontend-app (React) and the Python services (messaging-ingester,
+# messaging-service, processing-service, notification-job). Runs on every pull request to
 # main and every push to main. Branch protection on main requires the "CI passed" check, which only passes when every
 # job below does (see the README's CI section).
 #
@@ -110,12 +111,112 @@ jobs:
       - name: Type-check and build
         run: npm run build
 
+  # Each Python service's unit tests (python -m unittest), on the Python of its Dockerfile.
+  python-services:
+    name: ${{ matrix.service }} (tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false # report every service's result, not just the first failure
+      matrix:
+        service: [messaging-ingester, messaging-service, processing-service, notification-job]
+        include:
+          # Its EmulatorIntegrationTests publish to a real Pub/Sub emulator (skipped without one).
+          - service: messaging-ingester
+            pubsub-emulator: true
+    defaults:
+      run:
+        working-directory: ${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: ${{ matrix.service }}/requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      # Same image and command as docker-compose.yml's pubsub-emulator (a service container can't
+      # be given a command, hence docker run).
+      - name: Start the Pub/Sub emulator
+        if: matrix.pubsub-emulator
+        run: |
+          docker run -d --name pubsub-emulator -p 8085:8085 gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators \
+            gcloud beta emulators pubsub start --project=local-project --host-port=0.0.0.0:8085
+          for attempt in $(seq 1 60); do
+            curl -sf http://localhost:8085 > /dev/null && exit 0
+            sleep 2
+          done
+          docker logs pubsub-emulator
+          echo "::error::The Pub/Sub emulator didn't start."
+          exit 1
+      - name: Tests
+        env:
+          PUBSUB_EMULATOR_HOST: ${{ matrix.pubsub-emulator && 'localhost:8085' || '' }}
+        run: python -m unittest -v
+
+  # configuration-service (Django) owns the PostgreSQL schema and every migration; messaging-service and
+  # processing-service map the tables they use with SQLAlchemy. Migrate a database with Django, then
+  # check their models against it (tests/test_schema.py, skipped elsewhere).
+  schema:
+    name: SQLAlchemy models match Django's schema
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17-alpine # same as docker-compose.yml
+        env:
+          POSTGRES_DB: configuration_service
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      SCHEMA_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/configuration_service
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            configuration-service/requirements.txt
+            messaging-service/requirements.txt
+            processing-service/requirements.txt
+      - name: Migrate with Django
+        working-directory: configuration-service
+        env:
+          DJANGO_DB_ENGINE: postgresql
+          POSTGRES_DB: configuration_service
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: '5432'
+        run: |
+          pip install -r requirements.txt
+          python manage.py migrate --noinput
+      - name: messaging-service models
+        working-directory: messaging-service
+        run: |
+          pip install -r requirements.txt
+          python -m unittest -v tests.test_schema
+      - name: processing-service models
+        working-directory: processing-service
+        run: |
+          pip install -r requirements.txt
+          python -m unittest -v tests.test_schema
+
   # The one check branch protection requires: fails unless every job above succeeded (also when
   # one was cancelled or skipped), so new jobs only need adding to `needs`.
   ci-passed:
     name: CI passed
     if: always()
-    needs: [backend, frontend]
+    needs: [backend, frontend, python-services, schema]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

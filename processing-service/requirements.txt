@@ -1,0 +1,15 @@
+fastapi>=0.142,<0.143
+# Production / Docker server: Gunicorn managing Uvicorn workers (gunicorn.conf.py).
+gunicorn>=26,<27
+uvicorn-worker>=0.4,<0.5
+uvicorn>=0.54,<1
+# Pull consumer of the payment events (app/consumer.py).
+google-cloud-pubsub>=2.42,<3
+# Pulled in by google-auth. Pinned like configuration-service's: cryptography 50's aarch64 wheel
+# crashes with "illegal instruction" (exit 132) on the local Docker VM (vessel).
+cryptography>=46,<47
+# configuration-service's PostgreSQL, through the ORM (app/models.py, app/payments.py).
+SQLAlchemy>=2.0,<2.1
+psycopg[binary]>=3.2,<4
+# Used by FastAPI's TestClient in the tests.
+httpx2>=2.13,<3

@@ -216,6 +216,9 @@ SIMPLE_JWT = {
     'BLACKLIST_AFTER_ROTATION': True,
     'UPDATE_LAST_LOGIN': True,
     'AUTH_HEADER_TYPES': ('Bearer',),
+    # messaging-service checks these tokens too (its Chat Sandbox endpoint), with the same key:
+    # set JWT_SIGNING_KEY to the same value in both. Unset: SECRET_KEY (SimpleJWT's default).
+    'SIGNING_KEY': os.getenv('JWT_SIGNING_KEY') or SECRET_KEY,
 }
 
 

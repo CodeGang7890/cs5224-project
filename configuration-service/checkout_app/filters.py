@@ -12,6 +12,9 @@ class OrderItemFilter(django_filters.FilterSet):
     """
 
     order_status = django_filters.ChoiceFilter(choices=OrderStatus.choices, help_text='Only orders with this status.')
+    payment_reference = django_filters.CharFilter(
+        field_name='payment_reference', lookup_expr='iexact', help_text='Only the order with this payment reference.',
+    )
     sandbox = django_filters.ChoiceFilter(
         choices=[(SANDBOX_INCLUDE, SANDBOX_INCLUDE), (SANDBOX_EXCLUDE, SANDBOX_EXCLUDE), (SANDBOX_ONLY, SANDBOX_ONLY)],
         method='filter_sandbox',
@@ -27,7 +30,7 @@ class OrderItemFilter(django_filters.FilterSet):
 
     class Meta:
         model = OrderItem
-        fields = ['order_status', 'created_time']
+        fields = ['order_status', 'payment_reference', 'created_time']
 
     def filter_sandbox(self, queryset, name, value):
         if value == SANDBOX_ONLY:
@@ -44,6 +47,9 @@ class ScheduleItemFilter(django_filters.FilterSet):
     """
 
     order_status = django_filters.ChoiceFilter(choices=OrderStatus.choices, help_text='Only bookings with this status.')
+    payment_reference = django_filters.CharFilter(
+        field_name='payment_reference', lookup_expr='iexact', help_text='Only the booking with this payment reference.',
+    )
     sandbox = django_filters.ChoiceFilter(
         choices=[(SANDBOX_INCLUDE, SANDBOX_INCLUDE), (SANDBOX_EXCLUDE, SANDBOX_EXCLUDE), (SANDBOX_ONLY, SANDBOX_ONLY)],
         method='filter_sandbox',
@@ -69,6 +75,6 @@ class ScheduleItemFilter(django_filters.FilterSet):
 
     class Meta:
         model = ScheduleItem
-        fields = ['order_status', 'start_time', 'created_time']
+        fields = ['order_status', 'payment_reference', 'start_time', 'created_time']
 
     filter_sandbox = OrderItemFilter.filter_sandbox

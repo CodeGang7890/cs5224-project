@@ -45,3 +45,12 @@ class ValidationErrorResponse(BaseModel):
         description='Error messages by location (`json` = request body), then by field.',
         examples=[{'json': {'prompt': ['Field required']}}],
     )
+
+
+class ConsumerStatus(BaseModel):
+    enabled: bool = Field(description='Whether the consumer is on (PUBSUB_CONSUMER_ENABLED).')
+    running: bool = Field(description='Whether it is pulling messages right now.')
+    subscription: str | None = Field(examples=['projects/local-project/subscriptions/messaging-service-inbound'])
+    handled: int = Field(description='Messages processed and acknowledged.', examples=[3])
+    skipped: int = Field(description='Malformed messages, acknowledged without processing.', examples=[0])
+    failed: int = Field(description='Messages whose processing raised: not acknowledged, to be redelivered.', examples=[0])

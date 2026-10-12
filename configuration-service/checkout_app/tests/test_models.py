@@ -4,13 +4,15 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
-from django.test import SimpleTestCase, TestCase, override_settings
+from django.db import connection
+from django.db.migrations.executor import MigrationExecutor
+from django.test import SimpleTestCase, TestCase, TransactionTestCase, override_settings
 
 from chat_app.models import ChatSession
 from configuration_app.models import BusinessConfiguration
 from product_app.models import Service, ServiceProvider, WeeklyAvailability
 
-from ..models import OrderItem, OrderStatus, ScheduleItem
+from ..models import PAYMENT_REFERENCE_PATTERN, OrderItem, OrderStatus, ScheduleItem, new_payment_reference
 from ..validators import validate_order_data, validate_schedule_data
 
 VALID_ORDER_DATA = {
@@ -96,6 +98,20 @@ class OrderItemModelTests(TestCase):
         self.assertFalse(order.is_sandbox)
         self.assertIsNone(order.chat_session)
         self.assertEqual(order.total, Decimal('9.10'))  # 2 × 1.80 + 5.50
+        self.assertRegex(order.payment_reference, PAYMENT_REFERENCE_PATTERN)
+
+    def test_payment_reference_is_random_128_bits(self):
+        references = {new_payment_reference() for _ in range(1000)}
+        self.assertEqual(len(references), 1000)
+        for reference in list(references)[:10]:
+            self.assertRegex(reference, PAYMENT_REFERENCE_PATTERN)  # 32 hex characters = 128 bits
+        first, second = (OrderItem.objects.create(business=self.business, order_data=VALID_ORDER_DATA) for _ in range(2))
+        self.assertNotEqual(first.payment_reference, second.payment_reference)
+
+    def test_invalid_payment_reference_rejected_by_the_database(self):
+        for reference in ('', 'ABCDEF' + '0' * 26, '0' * 31, 'g' * 32):
+            with self.subTest(reference=reference), self.assertRaises(IntegrityError), transaction.atomic():
+                OrderItem.objects.create(business=self.business, order_data=VALID_ORDER_DATA, payment_reference=reference)
 
     def test_statuses(self):
         self.assertEqual(OrderStatus.values, ['pending_payment', 'payment_received', 'order_completed', 'payment_failed'])
@@ -130,6 +146,8 @@ class SampleOrderItemFixtureTests(TestCase):
         for order in orders:
             with self.subTest(order=order.pk):
                 order.full_clean()  # loaddata skips validation
+                self.assertRegex(order.payment_reference, PAYMENT_REFERENCE_PATTERN)
+        self.assertEqual(len(set(orders.values_list('payment_reference', flat=True))), 49)
 
     def test_florist_has_many_realistic_orders(self):
         orders = OrderItem.objects.filter(business_id=2)
@@ -297,6 +315,10 @@ class SampleScheduleItemFixtureTests(TestCase):
             for a, b in zip(provider_bookings, provider_bookings[1:]):
                 self.assertLessEqual(a.blocked_until, b.start_time, (a.pk, b.pk))
         self.assertEqual({b.order_status for b in bookings}, set(OrderStatus.values))
+        references = [b.payment_reference for b in bookings]
+        self.assertEqual(len(set(references)), 30)
+        for reference in references:
+            self.assertRegex(reference, PAYMENT_REFERENCE_PATTERN)
         self.assertEqual([b.pk for b in bookings if b.is_sandbox], [5])
 
     def test_the_letters_match_the_bookings(self):
@@ -377,3 +399,31 @@ class SampleScheduleItemFixtureTests(TestCase):
         # Saved after the customer confirmed, and before they were told.
         self.assertLessEqual(datetime.fromisoformat(confirm['message_time']), booking.created_time)
         self.assertLessEqual(booking.created_time, datetime.fromisoformat(reply['message_time']))
+
+
+class PaymentReferenceMigrationTests(TransactionTestCase):
+    """checkout_app 0005–0006: every existing order and booking gets its own payment reference."""
+
+    before = [('checkout_app', '0004_payment_failed_status')]
+    after = [('checkout_app', '0006_payment_reference_required')]
+
+    def migrate(self, targets):
+        executor = MigrationExecutor(connection)
+        executor.loader.build_graph()
+        executor.migrate(targets)
+        return executor.loader.project_state(targets).apps
+
+    def tearDown(self):
+        self.migrate(MigrationExecutor(connection).loader.graph.leaf_nodes())
+
+    def test_existing_rows_get_distinct_references(self):
+        apps = self.migrate(self.before)
+        business = apps.get_model('configuration_app', 'BusinessConfiguration').objects.create(business_name='Kopi', location='SG')
+        OldOrder = apps.get_model('checkout_app', 'OrderItem')
+        for _ in range(3):
+            OldOrder.objects.create(business=business, order_data=VALID_ORDER_DATA)
+        apps = self.migrate(self.after)
+        references = list(apps.get_model('checkout_app', 'OrderItem').objects.values_list('payment_reference', flat=True))
+        self.assertEqual(len(set(references)), 3)
+        for reference in references:
+            self.assertRegex(reference, PAYMENT_REFERENCE_PATTERN)
