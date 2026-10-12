@@ -3,6 +3,7 @@ import { Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
+import { shortPaymentReference } from '../payment-reference'
 import type { ScheduleItem } from '../types'
 import { OrderStatusBadge, SandboxBadge } from './order-status-badge'
 import { bookingCustomer, formatBookingTime } from './schedule-format'
@@ -39,6 +40,9 @@ export function ScheduleTable({ bookings, onOpen }: ScheduleTableProps) {
                   <span className="font-medium tabular-nums">#{booking.id}</span>
                   {booking.is_sandbox && <SandboxBadge />}
                 </div>
+                <p className="text-muted-foreground font-mono text-xs" title={`Payment reference ${booking.payment_reference}`}>
+                  {shortPaymentReference(booking.payment_reference)}
+                </p>
               </TableCell>
               <TableCell>{bookingCustomer(booking) ?? <span className="text-muted-foreground">—</span>}</TableCell>
               <TableCell className="font-medium">{booking.schedule_data.service.name}</TableCell>

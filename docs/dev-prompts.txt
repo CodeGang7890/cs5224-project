@@ -1256,3 +1256,15 @@ Date & Time (GMT+8): 2026-10-12 12:37:07
 AI Model Used: claude-opus-5-5
 Original Prompt:
 please just remove the ollama from docker compose because of memory limit issue, update the docs too and in the root README write the steps people need to do to setup the local llm
+
+Date & Time (GMT+8): 2026-10-12 14:09:37
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Make the payment reference to be shown in OrderItems and ScheduleItems in both the Django admin page and frontend-app.
+Modify the APIs, test cases, frontend code, as necessary.
+
+Date & Time (GMT+8): 2026-10-12 15:17:25
+AI Model Used: claude-opus-5-5
+Original Prompt:
+ok commit it

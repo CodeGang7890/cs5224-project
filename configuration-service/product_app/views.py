@@ -112,6 +112,7 @@ class ServiceProviderViewSet(BusinessScopedViewSetMixin, viewsets.ModelViewSet):
                     'end_time': booking.end_time,
                     'blocked_until': booking.blocked_until,
                     'order_status': booking.order_status,
+                    'payment_reference': booking.payment_reference,
                     'total': booking.total,
                     'is_sandbox': booking.is_sandbox,
                     'chat_session': booking.chat_session_id,

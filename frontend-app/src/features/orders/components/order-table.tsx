@@ -3,6 +3,7 @@ import { Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
+import { shortPaymentReference } from '../payment-reference'
 import type { Order } from '../types'
 import { OrderStatusBadge, SandboxBadge } from './order-status-badge'
 
@@ -49,6 +50,9 @@ export function OrderTable({ orders, onOpen }: OrderTableProps) {
                     <span className="font-medium tabular-nums">#{order.id}</span>
                     {order.is_sandbox && <SandboxBadge />}
                   </div>
+                  <p className="text-muted-foreground font-mono text-xs" title={`Payment reference ${order.payment_reference}`}>
+                    {shortPaymentReference(order.payment_reference)}
+                  </p>
                 </TableCell>
                 <TableCell>{customer ?? <span className="text-muted-foreground">—</span>}</TableCell>
                 <TableCell className="max-w-0">

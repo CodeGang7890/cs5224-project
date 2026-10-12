@@ -63,6 +63,8 @@ export interface CalendarBooking {
   /** `end_time` + the buffer. */
   blocked_until: string
   order_status: OrderStatus
+  /** Random 128-bit reference (32 hex characters) the payment is made under. */
+  payment_reference: string
   /** Decimal string. */
   total: string
   is_sandbox: boolean

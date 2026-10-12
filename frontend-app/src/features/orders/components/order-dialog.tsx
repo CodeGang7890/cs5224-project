@@ -9,6 +9,7 @@ import { useOrder } from '../hooks/use-orders'
 import type { Order } from '../types'
 import { MarkCompletedButton } from './mark-completed-button'
 import { OrderStatusBadge, SandboxBadge } from './order-status-badge'
+import { PaymentReference } from './payment-reference'
 
 interface OrderDialogProps {
   /** The open order's ID (from `?order=`), or null when closed. */
@@ -70,6 +71,7 @@ function OrderDetails({ order }: { order: Order }) {
   const details = Object.entries(order.order_data.details)
   return (
     <div className="grid min-h-0 gap-4 overflow-y-auto">
+      <PaymentReference reference={order.payment_reference} />
       <div className="rounded-lg border">
         <Table>
           <TableHeader>
