@@ -1268,3 +1268,26 @@ Date & Time (GMT+8): 2026-10-12 15:17:25
 AI Model Used: claude-opus-5-5
 Original Prompt:
 ok commit it
+
+Date & Time (GMT+8): 2026-10-12 20:34:32
+AI Model Used: claude-opus-5-5
+Original Prompt:
+Based on the current models / tables in configuration-service, please update the object-diagram.png in docs/diagram
+Do not add the tables that Django gives by default, but instead only the one created via the code and the BusinessUsers that inherit from AbstractUser
+
+Date & Time (GMT+8): 2026-10-12 20:38:13
+AI Model Used: claude-opus-5-5
+Original Prompt:
+Don't make the lines slanted like that, please make it so it's straight and more professional and easier to see! positions are a bit awkward now
+
+Date & Time (GMT+8): 2026-10-12 20:38:42
+AI Model Used: claude-opus-5-5
+Original Prompt:
+clearly indicate simply if it's 1-1 or 1-many
+
+Date & Time (GMT+8): 2026-10-12 20:41:56
+AI Model Used: claude-opus-5-5
+Original Prompt:
+the many to many is Service to ServiceProvider right?
+then no need to add the service_service_providers again
+just right away between those 2 tables
