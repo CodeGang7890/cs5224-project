@@ -1345,3 +1345,19 @@ Make it go from left to right
 Also please make so that it also shows the flow for FAQ and looking at order status
 For ecah of the state indicates the tools that are given
 Make the diagram more compact and presentable
+
+Date & Time (GMT+8): 2026-10-12 21:45:01
+AI Model Used: claude-opus-5-5
+Original Prompt:
+I want you to generate me another diagram in docs/diagram.
+This will be a flow diagram similar to arch-diagram, but labelled with numbers and brief explanation.
+Please give it a shot.
+It should give this journey for the user from WhatsApp until payment etc until the notification job too.
+
+Date & Time (GMT+8): 2026-10-12 22:08:34
+AI Model Used: claude-opus-5-5
+Original Prompt:
+For (5): LLM also makes tool call and update DB too
+(16) It should also call the email service and whatsapp service (reminder like current logic)
+(0) Make it first so user get authenticated with their Google account, before going to the next step, label it as (1) where user configure all those things, and make the rest of the order shifts
+- Remove the "planned" from the steps, we focus on the final product envisioned
