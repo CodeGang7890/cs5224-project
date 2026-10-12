@@ -134,12 +134,11 @@ services:
       # Ollama runs on the host machine, not in Docker (see the root README, "Local LLM"). Override the
       # address in a root .env file, e.g. OLLAMA_HOST=http://192.168.64.1:11434 on a vessel VM.
       OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
-      # Pull consumer of the customer messages messaging-ingester publishes (app/consumer.py).
+      # Pull consumer of the customer messages messaging-ingester publishes: answered by the chat flow (app/inbound.py).
       PUBSUB_CONSUMER_ENABLED: "true"
       GCP_PROJECT_ID: local-project # TODO: a real GCP project ID when deploying to Google Cloud Pub/Sub
       PUBSUB_TOPIC: whatsapp-inbound-messages
       PUBSUB_SUBSCRIPTION: messaging-service-inbound
-      PROCESSING_SECONDS: "2" # stand-in for the real work: each message waits this long before its ack
       # TODO: Don't set this in production, so the real Google Cloud Pub/Sub is used instead of the emulator
       PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
       # The chat flow (moved from configuration-service): its database, logins and the browser's origin.

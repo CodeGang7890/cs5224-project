@@ -1361,3 +1361,11 @@ For (5): LLM also makes tool call and update DB too
 (16) It should also call the email service and whatsapp service (reminder like current logic)
 (0) Make it first so user get authenticated with their Google account, before going to the next step, label it as (1) where user configure all those things, and make the rest of the order shifts
 - Remove the "planned" from the steps, we focus on the final product envisioned
+
+Date & Time (GMT+8): 2026-10-12 22:19:34
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+In messaging-service, now it should have both of these flows:
+- Accept API from configuration-service to answer question, like the current functionality is
+- Another thing, is to subscribe to the pub/sub queue, particularly the “whatsapp-inbound-messages” topic, and process it accordingly

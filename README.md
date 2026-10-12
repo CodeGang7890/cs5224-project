@@ -24,7 +24,7 @@ RESET_DB=true docker compose up --build   # reset the database to the sample dat
 | PostgreSQL | `localhost:5433` (user/password `postgres`) |
 
 To see the WhatsApp messages the ingester published: `docker compose exec messaging-ingester python scripts/pull_debug.py`
-(see `messaging-ingester/README.md`). messaging-service pulls them too, on its own subscription, and logs each one:
+(see `messaging-ingester/README.md`). messaging-service pulls them too, on its own subscription, and answers each one with the chat flow (sending the reply on WhatsApp is still a TODO):
 `docker compose logs -f messaging-service` (see `messaging-service/README.md`).
 
 To publish dummy payment events (`payment_reference`, `status` success / fail) to the `payment-events` topic, with the stack running (by default for random orders / bookings still pending payment):

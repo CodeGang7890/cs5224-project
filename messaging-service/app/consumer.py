@@ -4,15 +4,16 @@ Topic `whatsapp-inbound-messages`, one message per customer message; the data is
 (`business_id`, `phone_number_id`, `message_id`, `from`, `display_name`, `type`, `text`,
 `timestamp`: see messaging-ingester/README.md, "Pub/Sub message contract").
 
-For now each message is only logged, then the consumer sleeps PROCESSING_SECONDS as a stand-in for
-the real work (the chat flow, later), then acknowledges it. The subscriber uses streaming pull: the
-client library keeps a connection open and calls `handle()` on its own threads, at most
-PUBSUB_MAX_MESSAGES at a time.
+Each message is answered by the chat flow (app/inbound.py: the customer's chat, the router, the
+order / booking steps, the reply; duplicates by `message_id` are answered once), then
+acknowledged. The subscriber uses streaming pull: the client library keeps a connection open and
+calls `handle()` on its own threads, at most PUBSUB_MAX_MESSAGES at a time. The ingester publishes
+with the customer's number as the ordering key, so one customer's messages come one at a time.
 
-- Handled → ack. Handling raised → nack, so Pub/Sub redelivers it.
+- Handled (answered, or skipped: not text, unknown business, a duplicate) → ack.
+- Handling raised (e.g. the LLM is down) → nack, so Pub/Sub redelivers it (the turn runs again,
+  without saving the customer message twice).
 - Not JSON, or not the contract's shape → logged and acked: redelivering it would never help.
-- Pub/Sub delivers at least once (and the ingester may publish a message twice): drop duplicates
-  by `message_id` before doing real work (TODO, when there is real work).
 """
 
 import json
@@ -49,13 +50,18 @@ def parse(data: bytes) -> dict:
     return payload
 
 
-def process(payload: dict) -> None:
-    """The work for one customer message: for now, log it and wait (the chat flow comes later)."""
+def process(payload: dict, sessions=None) -> None:
+    """The work for one customer message: answer it with the chat flow (app/inbound.py)."""
+    from .db import get_sessionmaker  # here: building the app (and the tests) needs no database
+    from .inbound import handle_inbound
+
     logger.info(
         'Customer message %s for business %s from %s (%s): %r',
         payload['message_id'], payload['business_id'], payload['from'], payload['type'], payload.get('text'),
     )
-    time.sleep(config.PROCESSING_SECONDS)
+    result = handle_inbound(sessions or get_sessionmaker(), payload)
+    if result.outcome == 'skipped':
+        logger.info('Message %s not answered: %s', payload['message_id'], result.reason)
 
 
 @dataclass
@@ -72,7 +78,7 @@ class ConsumerStats:
             setattr(self, outcome, getattr(self, outcome) + 1)
 
 
-def handle(message, stats: ConsumerStats) -> None:
+def handle(message, stats: ConsumerStats, sessions=None) -> None:
     """Callback for each pulled message (runs on the client library's threads)."""
     try:
         payload = parse(message.data)
@@ -82,7 +88,7 @@ def handle(message, stats: ConsumerStats) -> None:
         stats.count('skipped')
         return
     try:
-        process(payload)
+        process(payload, sessions)
     except Exception:
         logger.exception('Processing Pub/Sub message %s failed; it will be redelivered', message.message_id)
         message.nack()
@@ -121,8 +127,9 @@ def ensure_emulator_resources(subscriber, publisher, attempts: int = 30, delay_s
 class Consumer:
     """The streaming pull subscriber: start() when the app starts, stop() when it shuts down."""
 
-    def __init__(self, subscriber=None, publisher=None):
+    def __init__(self, subscriber=None, publisher=None, sessions=None):
         self._subscriber = subscriber
+        self._sessions = sessions  # the database (default: config's, created on first use)
         self._publisher = publisher
         self._future = None
         self.stats = ConsumerStats()
@@ -142,7 +149,7 @@ class Consumer:
             ensure_emulator_resources(self._subscriber, self._publisher or pubsub_v1.PublisherClient())
         self._future = self._subscriber.subscribe(
             self.subscription,
-            callback=lambda message: handle(message, self.stats),
+            callback=lambda message: handle(message, self.stats, self._sessions),
             flow_control=pubsub_v1.types.FlowControl(max_messages=config.PUBSUB_MAX_MESSAGES),
         )
         logger.info('Pulling messages from %s (at most %d at a time)', self.subscription, config.PUBSUB_MAX_MESSAGES)

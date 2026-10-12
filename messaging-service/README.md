@@ -88,7 +88,6 @@ These also come from environment variables (docker-compose sets them):
 | `PUBSUB_TOPIC` | `whatsapp-inbound-messages` | The topic messaging-ingester publishes to |
 | `PUBSUB_SUBSCRIPTION` | `messaging-service-inbound` | This service's (pull) subscription to it |
 | `PUBSUB_MAX_MESSAGES` | `5` | At most this many messages handled at once, per worker (flow control) |
-| `PROCESSING_SECONDS` | `2` | How long each message waits before its ack (a stand-in for the real work) |
 | `PUBSUB_EMULATOR_HOST` | unset | `host:port` of the local Pub/Sub emulator (the library then uses it instead of Google Cloud) |
 | `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | `configuration_service` / `postgres` / `postgres` | configuration-service's database (the chat flow) |
 | `POSTGRES_HOST` / `POSTGRES_PORT` | `localhost` / `5433` | docker-compose's PostgreSQL from the host (in Docker: `postgres` / `5432`) |
@@ -198,19 +197,23 @@ A **pull** subscriber (`app/consumer.py`) for the customer messages `messaging-i
 
 - It runs only when `PUBSUB_CONSUMER_ENABLED` is set, from the app's startup to its shutdown. With Gunicorn, each worker runs one, and they share the subscription's messages.
 - Its subscription is its own, `messaging-service-inbound`, so it gets every message (separate from the ingester's debug subscription). With the local emulator (`PUBSUB_EMULATOR_HOST`), it creates the topic and the subscription (with message ordering) at startup; on Google Cloud they'll come from Terraform. Pub/Sub only delivers messages published after a subscription exists.
-- **For now**, each message is logged (`Customer message <message_id> for business <id> from <number> (<type>): <text>`), then it waits `PROCESSING_SECONDS`, then it's acknowledged. The chat flow will go there later.
-- If handling raises, the message is **nacked**, so Pub/Sub redelivers it. A message that isn't JSON, or lacks `business_id`, `message_id`, `from` or `type`, is logged and **acked** (redelivering it would never help).
-- Pub/Sub delivers at least once, and the ingester may publish a message twice: when there's real work, drop duplicates by `message_id` first.
+- **Each message is answered by the chat flow** (`app/inbound.py`), the same as the Chat Sandbox:
+  1. Only text messages, for a business that exists (others are acked and skipped).
+  2. The customer's chat: the business's real chat session with that number, or a new one (named after their WhatsApp profile).
+  3. In one transaction: an `InboundMessage` row for Meta's message id (configuration-service's `chat_app.InboundMessage`), saved with the customer message in the chat. **A duplicate** (Pub/Sub delivers at least once, Meta retries) is skipped; a message redelivered after a failure runs again without being saved twice.
+  4. The chat flow runs (router, order / booking steps, FAQ, order status, reply) and saves the reply; the row becomes `replied`.
+  5. **Sending the reply on WhatsApp is a TODO** (an outbound messages queue): it's logged (`TODO: send to +65… on WhatsApp`) and saved in the chat.
+- If handling raises (e.g. the LLM is down), the message is **nacked**, so Pub/Sub redelivers it. A message that isn't JSON, or lacks `business_id`, `message_id`, `from` or `type`, is logged and **acked** (redelivering it would never help). The ingester orders by customer, so one customer's messages are answered one at a time.
 
 Trying it end to end, from the repo root:
 
 ```bash
 docker compose up --build                     # Pub/Sub emulator, messaging-ingester, messaging-service, ...
-docker compose logs -f messaging-service      # "Customer message wamid... for business ... from +65...: ..."
+docker compose logs -f messaging-service      # "Customer message wamid..." then "TODO: send to +65... on WhatsApp: <the reply>"
 curl http://localhost:8004/consumer           # {"enabled": true, "running": true, "handled": ..., ...}
 ```
 
-Then send a WhatsApp message to a connected business (or post a webhook to the ingester, see its README): the ingester publishes it, and messaging-service logs it.
+Then send a WhatsApp message to a connected business (or post a webhook to the ingester, see its README): the ingester publishes it, and messaging-service answers it; the conversation shows in the frontend's Chats → Conversations.
 
 ## Running tests
 

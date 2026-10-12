@@ -10,7 +10,7 @@ Guidance for Claude Code that applies to every service. Each service also has it
 | `payment-ingester` | Not built yet (port reserved); for now a script publishing dummy payment events | 8001 |
 | `messaging-ingester` | FastAPI: WhatsApp webhooks → Pub/Sub (no database) | 8002 |
 | `processing-service` | FastAPI + Gunicorn: pulls payment events, updates orders / bookings | 8003 |
-| `messaging-service` | FastAPI + Gunicorn: the chat flow (LLM), one-off `/chat`, pulls WhatsApp messages | 8004 |
+| `messaging-service` | FastAPI + Gunicorn: the chat flow (LLM): the Chat Sandbox's API, and answering the WhatsApp messages it pulls from Pub/Sub; one-off `/chat` | 8004 |
 | `notification-job` | Python script, run hourly by cron: payment and appointment reminders (logged for now; reads the database) | none |
 | `frontend-app` | Vite / React | 5173 |
 

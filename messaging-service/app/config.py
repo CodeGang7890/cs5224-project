@@ -38,8 +38,6 @@ PUBSUB_TOPIC = os.getenv('PUBSUB_TOPIC', 'whatsapp-inbound-messages')
 PUBSUB_SUBSCRIPTION = os.getenv('PUBSUB_SUBSCRIPTION', 'messaging-service-inbound')
 # At most this many messages are handled at once, per worker (Pub/Sub flow control).
 PUBSUB_MAX_MESSAGES = int(os.getenv('PUBSUB_MAX_MESSAGES', '5'))
-# Stand-in for the real work (the chat flow, later): each message waits this long before its ack.
-PROCESSING_SECONDS = float(os.getenv('PROCESSING_SECONDS', '2'))
 
 # --- The chat flow's LLM calls (app/chat_flow, the same as configuration-service's chat_app/llm.py) --
 # Sampling hyperparameters sent as Ollama `options` on every chat flow request. The seed is fixed

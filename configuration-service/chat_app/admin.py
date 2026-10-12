@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import ChatConfiguration, ChatSession, UnansweredQuestion
+from .models import ChatConfiguration, ChatSession, InboundMessage, UnansweredQuestion
 
 
 @admin.register(ChatConfiguration)
@@ -32,3 +32,19 @@ class UnansweredQuestionAdmin(admin.ModelAdmin):
     autocomplete_fields = ('business', 'chat_session', 'faq')
     readonly_fields = ('created_time',)
 
+
+
+@admin.register(InboundMessage)
+class InboundMessageAdmin(admin.ModelAdmin):
+    """WhatsApp messages messaging-service took from Pub/Sub (read only: it writes them)."""
+
+    list_display = ('message_id', 'business', 'chat_session', 'status', 'received_time', 'replied_time')
+    list_filter = ('status', 'business')
+    search_fields = ('message_id', 'chat_session__phone_number', 'business__business_name')
+    list_select_related = ('business', 'chat_session')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
