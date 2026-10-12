@@ -1251,3 +1251,8 @@ michael_andrew_chan@Michaels-MacBook-Pro cs5224-project % curl http://localhost:
 
 i think ollama is already running, it's just that cannot connect
 possible to just add the ollama / llm service into another container in docker compose?
+
+Date & Time (GMT+8): 2026-10-12 12:37:07
+AI Model Used: claude-opus-5-5
+Original Prompt:
+please just remove the ollama from docker compose because of memory limit issue, update the docs too and in the root README write the steps people need to do to setup the local llm
