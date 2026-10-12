@@ -524,7 +524,7 @@ DJANGO_SUPERUSER_PASSWORD=123 python manage.py createsuperuser --noinput --usern
 | `META_GRAPH_API_URL` | `https://graph.facebook.com/v25.0` | Meta's Graph API, used to check the WhatsApp details owners enter (`configuration_app/meta_api.py`). Point it at a fake for testing without real Meta credentials. |
 | `DJANGO_DB_ENGINE` | `sqlite` | `sqlite` (`db.sqlite3`, for running without Docker) or `postgresql` (used by `docker-compose.yml`). |
 | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT` | `configuration_service`, `postgres`, empty, `localhost`, `5432` | The PostgreSQL connection, when `DJANGO_DB_ENGINE=postgresql`. |
-| `OLLAMA_HOST` | `http://localhost:11434` | The Ollama server for chat (docker-compose: `http://ollama:11434`, its Ollama container; `OLLAMA_HOST=http://host.docker.internal:11434` uses the host machine's instead). |
+| `OLLAMA_HOST` | `http://localhost:11434` | The Ollama server for chat (docker-compose: `http://host.docker.internal:11434`, Ollama on the host machine, overridable in the root `.env`; see the root README, "Local LLM"). |
 
 ## Connecting from frontend-app
 

@@ -4,6 +4,8 @@
 
 ## Running locally with Docker
 
+Set up the [local LLM](#local-llm-ollama) first: the chat features need it.
+
 ```bash
 docker compose up --build
 RESET_DB=true docker compose up --build   # reset the database to the sample data
@@ -17,7 +19,7 @@ RESET_DB=true docker compose up --build   # reset the database to the sample dat
 | messaging-ingester (WhatsApp webhook → Pub/Sub, Swagger at `/docs`) | <http://localhost:8002> |
 | processing-service (Gunicorn: pull consumer of the payment events, Swagger at `/docs`) | <http://localhost:8003> |
 | messaging-service (Gunicorn: the chat flow behind the Chat Sandbox, LLM chat, and the pull consumer of the ingester's messages, Swagger at `/docs`) | <http://localhost:8004> |
-| Ollama (the LLM, CPU only; `ollama-pull` downloads the model the first time, a few GB: `docker compose logs -f ollama-pull`) | inside Docker only (`http://ollama:11434`) |
+| Ollama (the LLM, on your machine, not in Docker: see [Local LLM](#local-llm-ollama)) | <http://localhost:11434> |
 | Pub/Sub emulator (in memory; `pubsub-init` creates the topics `whatsapp-inbound-messages` and `payment-events`) | `localhost:8085` |
 | PostgreSQL | `localhost:5433` (user/password `postgres`) |
 
@@ -39,6 +41,42 @@ notification-job runs every hour (cron, no port): `docker compose logs -f notifi
 
 After changing `frontend-app/package.json`, rebuild it: `docker compose up --build -V frontend-app`
 (`-V` recreates the `node_modules` volume so the new packages are used).
+
+## Local LLM (Ollama)
+
+The chat assistant (configuration-service and messaging-service) uses a local LLM through [Ollama](https://ollama.com), running **on your machine, not in Docker**. A Docker VM usually has too little memory for the model (it needs about 5 GB), and Ollama on the host can use the GPU.
+
+1. **Install Ollama:** download it from <https://ollama.com/download>, or `brew install ollama` on macOS.
+2. **Download the model** (about 4.7 GB, once):
+
+   ```bash
+   ollama pull qwen2.5:7b-instruct-q4_K_M
+   ```
+
+   This is the model both services use (`OLLAMA_MODEL` in `configuration-service/chat_app/llm.py` and `messaging-service/app/config.py`).
+3. **Start Ollama so the containers can reach it.** By default it only listens on `127.0.0.1`, which Docker can't reach, so listen on all interfaces:
+
+   ```bash
+   OLLAMA_HOST=0.0.0.0 ollama serve
+   ```
+
+   Keep it running while you use the app. Quit any Ollama that's already running first (the app, or `brew services stop ollama`). With the Ollama desktop app, you can instead run `launchctl setenv OLLAMA_HOST 0.0.0.0` once, then quit and reopen the app. Check it with `lsof -nP -iTCP:11434 -sTCP:LISTEN`: it should show `*:11434`, not `127.0.0.1:11434`.
+4. **Tell docker-compose where it is.** The default is `http://host.docker.internal:11434`, which works with Docker Desktop. Other Docker setups may need your machine's address on the VM's network, set in a `.env` file in the repo root (git-ignored). docker-compose reads it automatically:
+
+   ```bash
+   echo "OLLAMA_HOST=http://192.168.64.1:11434" > .env   # e.g. a vessel VM, which runs at 192.168.64.2
+   docker compose up -d configuration-service messaging-service
+   ```
+
+5. **Check that the containers reach it:**
+
+   ```bash
+   docker compose exec messaging-service python -c "import urllib.request; print(urllib.request.urlopen('http://host.docker.internal:11434/api/tags', timeout=5).read()[:80])"
+   ```
+
+   Use the address from your `.env`, if you set one. It should print JSON listing the model. If it times out, allow incoming connections for `ollama` in your firewall (macOS: System Settings → Network → Firewall).
+
+If the Chat Sandbox says "Could not connect to Ollama", repeat steps 3 to 5.
 
 ## CI
 

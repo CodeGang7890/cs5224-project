@@ -10,10 +10,6 @@
 # first time. To wipe it and reload them: RESET_DB=true docker compose up
 # (see configuration-service/docker-entrypoint.sh).
 
-# The LLM both chat services use (must match OLLAMA_MODEL in configuration-service/chat_app/llm.py
-# and messaging-service/app/config.py).
-x-ollama-model: &ollama-model qwen2.5:7b-instruct-q4_K_M
-
 x-postgres-env: &postgres-env
   POSTGRES_DB: configuration_service
   POSTGRES_USER: postgres
@@ -46,9 +42,9 @@ services:
       DJANGO_DB_ENGINE: postgresql
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
-      # The ollama container below. To use the Mac's own Ollama instead (faster: it has the GPU), run with
-      # OLLAMA_HOST=http://host.docker.internal:11434 (Ollama on the host must listen on 0.0.0.0).
-      OLLAMA_HOST: ${OLLAMA_HOST:-http://ollama:11434}
+      # Ollama runs on the host machine, not in Docker (see the root README, "Local LLM"). Override the
+      # address in a root .env file, e.g. OLLAMA_HOST=http://192.168.64.1:11434 on a vessel VM.
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
       # WhatsApp connection (configuration_app.WhatsAppConfiguration). Local-development values only.
       CONFIGURATION_ENCRYPTION_KEY: dev-whatsapp-encryption-key # encrypts the stored WhatsApp secrets
       INTERNAL_API_KEY: dev-internal-api-key # messaging-ingester sends it to /api/internal/
@@ -61,8 +57,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      ollama: # the LLM (its chat endpoints)
-        condition: service_started
 
   frontend-app:
     build:
@@ -137,9 +131,9 @@ services:
       - "8004:8004"
     environment:
       WEB_CONCURRENCY: "2" # Gunicorn workers; each runs a Pub/Sub consumer, and they share the messages
-      # The ollama container below. To use the Mac's own Ollama instead (faster: it has the GPU), run with
-      # OLLAMA_HOST=http://host.docker.internal:11434 (Ollama on the host must listen on 0.0.0.0).
-      OLLAMA_HOST: ${OLLAMA_HOST:-http://ollama:11434}
+      # Ollama runs on the host machine, not in Docker (see the root README, "Local LLM"). Override the
+      # address in a root .env file, e.g. OLLAMA_HOST=http://192.168.64.1:11434 on a vessel VM.
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
       # Pull consumer of the customer messages messaging-ingester publishes (app/consumer.py).
       PUBSUB_CONSUMER_ENABLED: "true"
       GCP_PROJECT_ID: local-project # TODO: a real GCP project ID when deploying to Google Cloud Pub/Sub
@@ -163,8 +157,6 @@ services:
       postgres:
         condition: service_healthy
       configuration-service: # its migrations create the tables
-        condition: service_started
-      ollama: # the LLM (the chat flow)
         condition: service_started
 
   processing-service:
@@ -208,31 +200,5 @@ services:
       configuration-service: # its migrations create the tables
         condition: service_started
 
-  # The LLM server (Ollama), so the chat services don't depend on reaching the host machine. In Docker
-  # on a Mac it runs on the CPU only (no GPU): slower than the Mac's own Ollama. Not published on the
-  # host (the Mac's Ollama may already use 11434); the services reach it as http://ollama:11434.
-  ollama:
-    image: ollama/ollama
-    volumes:
-      - ollama-data:/root/.ollama # the downloaded models, kept between runs
-    healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-
-  # Downloads the model into the ollama container (a few GB, only the first time), then exits.
-  # Follow it with: docker compose logs -f ollama-pull. Chats fail until it's done.
-  ollama-pull:
-    image: ollama/ollama
-    entrypoint: ["ollama"]
-    command: ["pull", *ollama-model]
-    environment:
-      OLLAMA_HOST: http://ollama:11434
-    depends_on:
-      ollama:
-        condition: service_healthy
-
 volumes:
   postgres-data:
-  ollama-data:
