@@ -87,6 +87,8 @@ class ChatConfiguration(models.Model):
     last_updated = models.DateTimeField(auto_now=True)
 
     class Meta:
+        verbose_name = 'Chat Configuration'
+        verbose_name_plural = 'Chat Configurations'
         ordering = ['business']
         constraints = [
             models.CheckConstraint(condition=Q(reply_style__in=REPLY_STYLES), name='chat_configuration_reply_style_valid'),
@@ -166,6 +168,8 @@ class ChatSession(models.Model):
     )
 
     class Meta:
+        verbose_name = 'Chat Session'
+        verbose_name_plural = 'Chat Sessions'
         ordering = ['business', '-last_chat_time']
         constraints = [
             # Sandbox sessions are excluded: they may share a number or have none.
@@ -242,6 +246,8 @@ class UnansweredQuestion(models.Model):
     answered_time = models.DateTimeField(null=True, blank=True, help_text='When it was answered (answered only).')
 
     class Meta:
+        verbose_name = 'Unanswered Question'
+        verbose_name_plural = 'Unanswered Questions'
         ordering = ['-created_time', '-id']
         constraints = [
             models.CheckConstraint(

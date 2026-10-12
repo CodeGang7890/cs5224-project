@@ -1291,3 +1291,27 @@ Original Prompt:
 the many to many is Service to ServiceProvider right?
 then no need to add the service_service_providers again
 just right away between those 2 tables
+
+Date & Time (GMT+8): 2026-10-12 21:00:23
+AI Model Used: claude-opus-5-5
+Original Prompt:
+When we call WhatsApp API (reply chat), do you think we need a queue before calling WhatsApp API?
+So whatsapp call our webhook in ingestion and there is queue to messaging service
+When messaging service wants to reply (call whatsapp api), is it better to call directly or also have a queue?
+
+Date & Time (GMT+8): 2026-10-12 21:01:49
+AI Model Used: claude-opus-5-5
+Original Prompt:
+so when adding the queue, then need another consumer that sends it and does the retry?
+
+Date & Time (GMT+8): 2026-10-12 21:17:42
+AI Model Used: claude-opus-5-5
+Original Prompt:
+In Django Admin Page, can you please:
+- Have a link and show the ID of the ChatSession for all the OrderItem and ScheduleItem instance please
+
+Date & Time (GMT+8): 2026-10-12 21:18:41
+AI Model Used: claude-opus-5-5
+Original Prompt:
+[Image #40] For this sidebar, I'm a bit OCD, can you add verbose name or sth to capitalise and have the pluralisation correct
+e.g., Order items -> Order Items
