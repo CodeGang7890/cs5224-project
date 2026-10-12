@@ -32,7 +32,7 @@ The sibling services are `../configuration-service` (Django, port 8000) and `../
 ## Configuration: `app/config.py` (ALL-CAPS constants, as requested)
 
 - `PORT = 8004`, `WORKERS` (env `WEB_CONCURRENCY`, 2).
-- `OLLAMA_PORT = 11434` and `OLLAMA_HOST` (env, default `f'http://localhost:{OLLAMA_PORT}'`; Docker: `http://host.docker.internal:11434`).
+- `OLLAMA_PORT = 11434` and `OLLAMA_HOST` (env, default `f'http://localhost:{OLLAMA_PORT}'`; docker-compose: `http://ollama:11434`, the `ollama` container (CPU only); `OLLAMA_HOST=http://host.docker.internal:11434` for the Mac's own, which must listen on 0.0.0.0).
 - Pub/Sub (all env, see the README): `PUBSUB_CONSUMER_ENABLED` (off by default), `GCP_PROJECT_ID`, `PUBSUB_TOPIC` (`whatsapp-inbound-messages`), `PUBSUB_SUBSCRIPTION` (`messaging-service-inbound`), `PUBSUB_MAX_MESSAGES` (5), `PROCESSING_SECONDS` (2); the library reads `PUBSUB_EMULATOR_HOST`.
 - `OLLAMA_MODEL = 'qwen2.5:7b-instruct-q4_K_M'`.
 - `SYSTEM_PROMPT`, `OLLAMA_TIMEOUT_SECONDS = 120`, `CHAT_PROMPT_MAX_LENGTH = 4000`, `API_TITLE` and `API_VERSION`.

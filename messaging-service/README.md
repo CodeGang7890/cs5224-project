@@ -81,7 +81,7 @@ These also come from environment variables (docker-compose sets them):
 
 | Variable | Default | What it is |
 | --- | --- | --- |
-| `OLLAMA_HOST` | `http://localhost:11434` | Ollama base URL (in Docker: `http://host.docker.internal:11434`) |
+| `OLLAMA_HOST` | `http://localhost:11434` | Ollama base URL (docker-compose: `http://ollama:11434`, its Ollama container) |
 | `WEB_CONCURRENCY` | `2` | Gunicorn worker processes (`gunicorn.conf.py`) |
 | `PUBSUB_CONSUMER_ENABLED` | off | `true` to run the Pub/Sub consumer (off by default, so `python run.py` and the tests need no Pub/Sub) |
 | `GCP_PROJECT_ID` | `local-project` | Google Cloud project of the topic and subscription |

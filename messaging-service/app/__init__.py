@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
 from . import config
@@ -63,6 +64,16 @@ def create_app(consumer: Consumer | None = None) -> FastAPI:
     app.state.consumer = consumer
     register_error_handlers(app)
     register_drf_errors(app)
+    # Unexpected errors → a JSON 500 *inside* the CORS middleware (added after it, so it's outermost):
+    # Starlette's own 500 page skips CORS, and the browser would only say it couldn't reach the server.
+    @app.middleware('http')
+    async def server_errors_as_json(request, call_next):
+        try:
+            return await call_next(request)
+        except Exception:
+            logging.getLogger('app').exception('Unhandled error on %s %s', request.method, request.url.path)
+            return JSONResponse({'detail': 'A server error occurred.'}, status_code=500)
+
     # The frontend calls the Chat Sandbox endpoint from the browser (with its login token).
     app.add_middleware(
         CORSMiddleware,

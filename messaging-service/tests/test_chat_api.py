@@ -12,6 +12,8 @@ import httpx
 import jwt
 from ollama import ResponseError
 
+from fastapi.testclient import TestClient
+
 from app import config
 from app.chat_flow.validators import validate_chat_messages
 from app.models import ChatSession
@@ -429,3 +431,24 @@ class SandboxChatMessageAuthTests(ApiTestCase):
         inactive = self.make.user(self.cafe, username='inactive', is_active=False)
         self.assert401(self.send(f'Bearer {access_token(inactive.id)}'), {'detail': 'User is inactive', 'code': 'user_inactive'})
         self.ollama.chat.assert_not_called()
+
+
+class ServerErrorTests(ApiTestCase):
+    """An unexpected error is a JSON 500 the browser can read (with CORS headers), not a bare one."""
+
+    def test_unexpected_errors_keep_the_cors_headers(self):
+        business = self.make.business()
+        user = self.make.user(business)
+        session = self.make.session(business)
+        self.login(user)
+        with patch('app.chat_api.flow.handle_customer_message', side_effect=RuntimeError('boom')), \
+                self.assertLogs('app', level='ERROR'):
+            client = TestClient(self.app, raise_server_exceptions=False)
+            client.headers.update(self.client.headers)
+            response = client.post(
+                f'/api/chat/sandbox-sessions/{session.id}/messages/', json={'message': 'hi'},
+                headers={'Origin': 'http://localhost:5173'},
+            )
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json(), {'detail': 'A server error occurred.'})
+        self.assertEqual(response.headers['access-control-allow-origin'], 'http://localhost:5173')

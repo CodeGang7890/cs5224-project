@@ -17,6 +17,7 @@ RESET_DB=true docker compose up --build   # reset the database to the sample dat
 | messaging-ingester (WhatsApp webhook → Pub/Sub, Swagger at `/docs`) | <http://localhost:8002> |
 | processing-service (Gunicorn: pull consumer of the payment events, Swagger at `/docs`) | <http://localhost:8003> |
 | messaging-service (Gunicorn: the chat flow behind the Chat Sandbox, LLM chat, and the pull consumer of the ingester's messages, Swagger at `/docs`) | <http://localhost:8004> |
+| Ollama (the LLM, CPU only; `ollama-pull` downloads the model the first time, a few GB: `docker compose logs -f ollama-pull`) | inside Docker only (`http://ollama:11434`) |
 | Pub/Sub emulator (in memory; `pubsub-init` creates the topics `whatsapp-inbound-messages` and `payment-events`) | `localhost:8085` |
 | PostgreSQL | `localhost:5433` (user/password `postgres`) |
 

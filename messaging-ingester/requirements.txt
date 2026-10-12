@@ -2,5 +2,8 @@ fastapi>=0.142,<0.143
 uvicorn>=0.54,<1
 httpx>=0.28,<0.29
 google-cloud-pubsub>=2.42,<3
+# Pulled in by google-auth. Pinned like configuration-service's: cryptography 50's aarch64 wheel
+# crashes with "illegal instruction" (exit 132) on the local Docker VM (vessel).
+cryptography>=46,<47
 # Used by FastAPI's TestClient in the tests.
 httpx2>=2.13,<3
