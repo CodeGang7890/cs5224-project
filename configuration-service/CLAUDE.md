@@ -17,6 +17,18 @@ A Django REST API backend for Ansera Business Admin. It is consumed by `../front
 - **Database:** SQLite (`db.sqlite3`, git-ignored, disposable) by default when run directly; **PostgreSQL** (`psycopg` 3) when `DJANGO_DB_ENGINE=postgresql`, configured by `POSTGRES_DB/USER/PASSWORD/HOST/PORT` (`config/settings.py`; any other value raises `ImproperlyConfigured`). Keep the code database-agnostic (no raw SQLite- or Postgres-specific SQL); `select_for_update` really locks only on PostgreSQL.
 - **Docker** (the user asked): `Dockerfile` (python:3.14-slim, dev server) + `docker-entrypoint.sh`, which runs `migrate`, then: with `RESET_DB=true`, `flush` + `loaddata` of all 10 fixtures + creates `superuser` / `123`; otherwise (the default, the user asked: data must survive restarts) keeps the data, loading the fixtures and superuser only when the database is empty (no BusinessConfiguration); then `exec "$@"` (default `runserver 0.0.0.0:8000`). The root `docker-compose.yml` runs it (`RESET_DB: ${RESET_DB:-false}`) with `postgres:17-alpine` (named volume `postgres-data`, host port 5433, healthcheck; the app waits for it), `DJANGO_DB_ENGINE=postgresql` and `OLLAMA_HOST=http://host.docker.internal:11434` (Ollama stays on the host). When adding a fixture, add it to the entrypoint's `loaddata` too. The Docker daemon isn't reachable from Claude's sandbox: validate with `docker compose config` and let the user run it.
 
+## The database schema is owned here (the user's rule)
+
+- **All PostgreSQL migrations are done here, and only here.** Every schema change (tables, columns, indexes, constraints, data migrations) is a Django model change plus a migration (`makemigrations`, committed). No other service runs migrations or DDL.
+- Other services connect only to query the data (and write rows where their job needs it):
+  - messaging-service's chat flow: chat messages and state, orders, bookings, questions;
+  - processing-service: payment status and booking weeks;
+  - notification-job: reads only.
+
+  They map the tables with SQLAlchemy. **When changing a model those services use, update their mappings too** (`messaging-service/app/models.py`, `processing-service/app/models.py`, `notification-job/app/models.py`). CI's `schema` job migrates PostgreSQL with these migrations and checks the messaging-service and processing-service models against it.
+- Model defaults (e.g. `new_payment_reference`, `auto_now`) and signals (e.g. `checkout_app.signals` painting bookings into weeks) don't run in those services. A new default or side effect that another service's writes must respect needs porting there too.
+- **The chat flow is also in messaging-service** (`messaging-service/app/chat_flow`, a SQLAlchemy port of `chat_app`'s `flow`, `order_flow`, `router`, `prompts`, `tools`, `past_orders`, `ask_business`, plus `checkout_app`'s `place_order` / `place_booking` / schedule / stock). The frontend's Chat Sandbox sends messages there now. This service keeps `CustomerMessageView` / `SandboxChatMessageView` and `POST /api/chat/` for now (the user asked not to remove them yet), so **change both copies together** (and the ported tests, `messaging-service/tests/test_chat_*.py`) until they're removed here. Logins: messaging-service checks this service's access tokens with the same `JWT_SIGNING_KEY` (`SIMPLE_JWT['SIGNING_KEY']`, default `SECRET_KEY`).
+
 ## Structure and conventions
 
 ### Apps
@@ -124,10 +136,10 @@ The user asked for a **router + sub-flows** design (replacing the user-built blo
 ### General
 
 - All API routes live under `/api/`.
-- Settings read from environment variables (`DJANGO_DEBUG`, `DJANGO_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS`, `DJANGO_CORS_ALLOWED_ORIGINS`, `DJANGO_SCHEDULE_TIME_ZONE`, `CONFIGURATION_ENCRYPTION_KEY`, `INTERNAL_API_KEY`, `MESSAGING_INGESTER_PUBLIC_URL`, `META_GRAPH_API_URL`) with local-dev defaults. When adding a new setting, add it to `.env.example` and the README table.
+- Settings read from environment variables (`DJANGO_DEBUG`, `DJANGO_SECRET_KEY`, `JWT_SIGNING_KEY`, `DJANGO_ALLOWED_HOSTS`, `DJANGO_CORS_ALLOWED_ORIGINS`, `DJANGO_SCHEDULE_TIME_ZONE`, `CONFIGURATION_ENCRYPTION_KEY`, `INTERNAL_API_KEY`, `MESSAGING_INGESTER_PUBLIC_URL`, `META_GRAPH_API_URL`) with local-dev defaults. When adding a new setting, add it to `.env.example` and the README table.
 - The host Python is 3.8 (too old for Django 6.1) and there's no `.venv`: run commands in the Docker image with the source mounted, as your user (or created files end up owned by root), e.g. `docker compose run --rm --user "$(id -u):$(id -g)" --entrypoint python -v "$PWD/configuration-service:/app" configuration-service manage.py test` from the repo root. Rebuild the image after changing `requirements.txt`. The Docker daemon is reachable.
 - Add new dependencies to `requirements.txt` with a version range.
-- After changing models, run `makemigrations` and commit the migration files. Don't edit applied migrations; the database is still disposable, but teammates may have it.
+- After changing models, run `makemigrations` and commit the migration files. Don't edit applied migrations; the database is still disposable, but teammates may have it. This is the only place migrations happen (see "The database schema is owned here" above).
 
 - **Test layout:** each app's tests are `tests.py` / `test_api.py`, except `chat_app` and `checkout_app`, which have a `tests/` package (`chat_app`: `test_models.py`, `test_api.py`, `test_flow.py`, `test_booking_flow.py`, `test_tools.py`, `test_questions.py`; `checkout_app`: `test_models.py`, `test_services.py`, `test_stock.py`, `test_schedule.py`, `test_api.py`; the user asked, to keep app folders tidy). Run one with e.g. `python manage.py test chat_app.tests.test_flow`.
 

@@ -9,7 +9,7 @@ A scheduled Python script (not a server). It will (1) read from the database, (2
 ## Decisions (the user chose these)
 
 - **A proper ORM: SQLAlchemy 2.0** (typed `Mapped[...]` models, `select()`), with psycopg 3 like configuration-service.
-- **The database is configuration-service's PostgreSQL.** Django owns the schema: `app/models.py` maps existing tables **read-only**. Never create, alter or migrate tables from here (the test's `create_all` on SQLite is the only exception). Table names are Django's `<app_label>_<model>`, e.g. `configuration_app_businessconfiguration`. Map only the columns you need, and keep them in sync with the Django models.
+- **The database is configuration-service's PostgreSQL, and all migrations are done there only** (the user's rule; see the repo-root `CLAUDE.md`). This job only queries it. Django owns the schema: `app/models.py` maps existing tables **read-only**. Never create, alter or migrate tables from here (the test's `create_all` on SQLite is the only exception). Table names are Django's `<app_label>_<model>`, e.g. `configuration_app_businessconfiguration`. Map only the columns you need, and keep them in sync with the Django models.
 - **Hourly cron in docker-compose.** The `notification-job` service runs `./cron.sh` (supercronic, `CRON_SCHEDULE`, default `0 * * * *` UTC). The image's default `CMD` runs the job once, ready for a Cloud Run Job plus Cloud Scheduler later.
 - **One test only for now** (the user asked): `tests/test_job.py` on in-memory SQLite, passing a `sessionmaker` to `job.run()`.
 

@@ -155,12 +155,68 @@ jobs:
           PUBSUB_EMULATOR_HOST: ${{ matrix.pubsub-emulator && 'localhost:8085' || '' }}
         run: python -m unittest -v
 
+  # configuration-service (Django) owns the PostgreSQL schema and every migration; messaging-service and
+  # processing-service map the tables they use with SQLAlchemy. Migrate a database with Django, then
+  # check their models against it (tests/test_schema.py, skipped elsewhere).
+  schema:
+    name: SQLAlchemy models match Django's schema
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17-alpine # same as docker-compose.yml
+        env:
+          POSTGRES_DB: configuration_service
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      SCHEMA_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/configuration_service
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            configuration-service/requirements.txt
+            messaging-service/requirements.txt
+            processing-service/requirements.txt
+      - name: Migrate with Django
+        working-directory: configuration-service
+        env:
+          DJANGO_DB_ENGINE: postgresql
+          POSTGRES_DB: configuration_service
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: '5432'
+        run: |
+          pip install -r requirements.txt
+          python manage.py migrate --noinput
+      - name: messaging-service models
+        working-directory: messaging-service
+        run: |
+          pip install -r requirements.txt
+          python -m unittest -v tests.test_schema
+      - name: processing-service models
+        working-directory: processing-service
+        run: |
+          pip install -r requirements.txt
+          python -m unittest -v tests.test_schema
+
   # The one check branch protection requires: fails unless every job above succeeded (also when
   # one was cancelled or skipped), so new jobs only need adding to `needs`.
   ci-passed:
     name: CI passed
     if: always()
-    needs: [backend, frontend, python-services]
+    needs: [backend, frontend, python-services, schema]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

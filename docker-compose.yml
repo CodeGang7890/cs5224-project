@@ -2,7 +2,8 @@
 # + frontend-app (Vite dev server with hot reload, http://localhost:5173)
 # + messaging-ingester (WhatsApp webhook → Pub/Sub, http://localhost:8002) + a local Pub/Sub emulator
 # (pubsub-init creates its topics: WhatsApp messages and payment events)
-# + messaging-service (Gunicorn; LLM chat, and the pull consumer of the ingester's messages, http://localhost:8004).
+# + messaging-service (Gunicorn; the chat flow (Chat Sandbox messages), LLM chat, and the pull consumer of the ingester's
+#   messages, http://localhost:8004).
 # + processing-service (Gunicorn; pull consumer of the payment events: updates the orders / bookings, http://localhost:8003)
 # + notification-job (reads the database, run every hour by cron).
 # The database is kept in the postgres-data volume between runs; the sample fixtures are loaded the
@@ -46,6 +47,7 @@ services:
       # WhatsApp connection (configuration_app.WhatsAppConfiguration). Local-development values only.
       CONFIGURATION_ENCRYPTION_KEY: dev-whatsapp-encryption-key # encrypts the stored WhatsApp secrets
       INTERNAL_API_KEY: dev-internal-api-key # messaging-ingester sends it to /api/internal/
+      JWT_SIGNING_KEY: &jwt-signing-key dev-jwt-signing-key-local-only-change-me # signs logins; messaging-service checks them
       MESSAGING_INGESTER_PUBLIC_URL: http://localhost:8002 # shown to owners as their webhook Callback URL
       # Meta's Graph API, used to check the WhatsApp details owners enter (override to point at a fake for testing).
       META_GRAPH_API_URL: ${META_GRAPH_API_URL:-https://graph.facebook.com/v25.0}
@@ -64,6 +66,7 @@ services:
     environment:
       # Called from the browser, not from inside Docker, so it's localhost rather than configuration-service.
       VITE_CONFIGURATION_SERVICE_URL: http://localhost:8000/api
+      VITE_MESSAGING_SERVICE_URL: http://localhost:8004/api # the Chat Sandbox's messages (the chat flow)
       # File change events don't cross into the container on WSL/Windows: poll (see vite.config.ts).
       CHOKIDAR_USEPOLLING: "true"
     volumes:
@@ -137,11 +140,22 @@ services:
       PROCESSING_SECONDS: "2" # stand-in for the real work: each message waits this long before its ack
       # TODO: Don't set this in production, so the real Google Cloud Pub/Sub is used instead of the emulator
       PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+      # The chat flow (moved from configuration-service): its database, logins and the browser's origin.
+      <<: *postgres-env
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      SCHEDULE_TIME_ZONE: Asia/Singapore # must equal configuration-service's (DJANGO_SCHEDULE_TIME_ZONE)
+      JWT_SIGNING_KEY: *jwt-signing-key # must equal configuration-service's
+      CORS_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173 # the frontend's Chat Sandbox
     extra_hosts:
       - "host.docker.internal:host-gateway" # for Linux; Docker Desktop has it already
     depends_on:
       pubsub-init:
         condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      configuration-service: # its migrations create the tables
+        condition: service_started
 
   processing-service:
     build: ./processing-service

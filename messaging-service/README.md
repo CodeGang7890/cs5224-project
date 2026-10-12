@@ -2,7 +2,13 @@
 
 FastAPI backend for Ansera Business Admin. It runs on **port 8004** (8000 is `configuration-service`, 8001 is reserved for `payment-ingester`, 8002 is `messaging-ingester` and 8003 is `processing-service`).
 
-It currently offers a one-off **chat** endpoint backed by a local LLM through [Ollama](https://ollama.com), and a **Pub/Sub consumer**: a pull subscriber for the customer WhatsApp messages `messaging-ingester` publishes (for now it logs each one, waits, and acknowledges it; see [Pub/Sub consumer](#pubsub-consumer)). It has no database. In Docker it's served by **Gunicorn** with Uvicorn workers.
+It offers:
+
+- **The chat flow**, moved from configuration-service: the Chat Sandbox's messages and customer messages get the assistant's reply (a local LLM through [Ollama](https://ollama.com)), with orders, bookings and questions saved to configuration-service's PostgreSQL. See [Chat flow](#chat-flow).
+- A one-off **chat** endpoint (`POST /chat`).
+- A **Pub/Sub consumer**: a pull subscriber for the customer WhatsApp messages `messaging-ingester` publishes. For now it logs each one, waits, and acknowledges it; see [Pub/Sub consumer](#pubsub-consumer).
+
+In Docker it's served by **Gunicorn** with Uvicorn workers.
 
 ## Tech stack
 
@@ -11,6 +17,8 @@ It currently offers a one-off **chat** endpoint backed by a local LLM through [O
 | Web framework | [FastAPI](https://fastapi.tiangolo.com/) 0.142 |
 | API docs + validation | FastAPI's built-in OpenAPI 3 + Swagger UI, [pydantic](https://docs.pydantic.dev/) v2 models |
 | Server | [Gunicorn](https://gunicorn.org/) with Uvicorn workers ([uvicorn-worker](https://github.com/Kludex/uvicorn-worker)) in Docker; [uvicorn](https://www.uvicorn.org/) with reload for `python run.py` |
+| Database | [SQLAlchemy](https://www.sqlalchemy.org/) 2.0 + psycopg 3: configuration-service's PostgreSQL (its schema; no migrations here) |
+| Logins | [PyJWT](https://pyjwt.readthedocs.io/): configuration-service's access tokens |
 | Pub/Sub | [google-cloud-pubsub](https://cloud.google.com/python/docs/reference/pubsub/latest) (streaming pull subscriber) |
 | LLM | [ollama](https://github.com/ollama/ollama-python) Python client → a local Ollama server |
 | Tests | Python's built-in `unittest` + FastAPI's `TestClient` (Ollama is mocked) |
@@ -82,6 +90,12 @@ These also come from environment variables (docker-compose sets them):
 | `PUBSUB_MAX_MESSAGES` | `5` | At most this many messages handled at once, per worker (flow control) |
 | `PROCESSING_SECONDS` | `2` | How long each message waits before its ack (a stand-in for the real work) |
 | `PUBSUB_EMULATOR_HOST` | unset | `host:port` of the local Pub/Sub emulator (the library then uses it instead of Google Cloud) |
+| `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | `configuration_service` / `postgres` / `postgres` | configuration-service's database (the chat flow) |
+| `POSTGRES_HOST` / `POSTGRES_PORT` | `localhost` / `5433` | docker-compose's PostgreSQL from the host (in Docker: `postgres` / `5432`) |
+| `DATABASE_URL` | unset | A full SQLAlchemy URL; overrides the `POSTGRES_*` values |
+| `SCHEDULE_TIME_ZONE` | `Asia/Singapore` | Time zone of the services' weekly availability: must equal configuration-service's `DJANGO_SCHEDULE_TIME_ZONE` |
+| `JWT_SIGNING_KEY` | empty | Checks the login tokens: must equal configuration-service's `JWT_SIGNING_KEY` (docker-compose sets both). Empty: every token is rejected (401) |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated browser origins allowed to call the API (the frontend) |
 
 `run.py` also reads a few environment variables for convenience. These override the defaults for a single run without editing code:
 
@@ -114,6 +128,8 @@ gunicorn -c gunicorn.conf.py "app:create_app()"   # the Dockerfile's CMD
 | `GET` | `/` | Health check: `{"message": "Hello, World!"}` |
 | `POST` | `/chat` | One-off chat: send one prompt, get one reply |
 | `GET` | `/consumer` | The Pub/Sub consumer's status: on or off, running, and how many messages it handled, skipped and failed |
+| `POST` | `/api/chat/sandbox-sessions/{id}/messages/` | The Chat Sandbox: send `{message}` in one of your business's sandbox chats, get the reply + `debug` (login required) |
+| `POST` | `/api/chat/sessions/messages/` | A customer message: `{business_id, phone_number, message}` → the reply (public) |
 | `GET` | `/docs` | Swagger UI (interactive API docs) |
 | `GET` | `/openapi.json` | OpenAPI 3 spec, which also lists every route |
 
@@ -156,6 +172,26 @@ Validation errors (422) list the messages by location (`json` is the request bod
 2. Expand **POST /chat** and click **Try it out**.
 3. Edit the example body, e.g. `{"prompt": "Hello!"}`, and click **Execute**.
 
+## Chat flow
+
+The assistant's side of a customer chat, moved here from configuration-service's `chat_app` (the parts that need the LLM; `app/chat_flow/`). For each message, it runs the same steps as before: the router, the order or booking steps, the question check, a past order or booking lookup, then the reply (or a fixed template), saving everything in configuration-service's PostgreSQL. The details are in configuration-service's README, "Chat flow".
+
+| Endpoint | Who | Like configuration-service's |
+| --- | --- | --- |
+| `POST /api/chat/sandbox-sessions/{id}/messages/` | The frontend's Chat Sandbox. Log in with configuration-service and send its access token (`Authorization: Bearer …`) | `SandboxChatMessageView` |
+| `POST /api/chat/sessions/messages/` | A customer (public, like a webhook) | `CustomerMessageView` |
+
+- **The same as configuration-service's**: paths, request bodies, responses, status codes and error bodies (`{"detail": …}`, `{"message": ["This field may not be blank."]}`), so callers only change the host:
+  - 401: not logged in;
+  - 403: no business, or another business's chat;
+  - 404: no such chat;
+  - 400: a real chat (not a sandbox one), or an invalid body;
+  - 502 / 503 / 504: Ollama failed.
+- configuration-service still has these endpoints too, for now. Everything else about chats stays there: listing chats, creating and deleting sandbox chats, the chat settings and answering questions.
+- **Database:** configuration-service (Django) owns the schema and every migration. This service only queries and writes rows (messages, chat state, orders, bookings and their calendar letters, questions); `app/models.py` maps the tables it uses.
+
+Trying it: `docker compose up --build`, log in to the frontend, and use the Chat Sandbox (its messages now go to <http://localhost:8004>).
+
 ## Pub/Sub consumer
 
 A **pull** subscriber (`app/consumer.py`) for the customer messages `messaging-ingester` publishes to the topic `whatsapp-inbound-messages` (the message format is in `messaging-ingester/README.md`, "Pub/Sub message contract"). It uses **streaming pull**: the client library keeps a connection open to Pub/Sub and hands over messages as they arrive, on its own threads, at most `PUBSUB_MAX_MESSAGES` at a time.
@@ -187,6 +223,7 @@ The tests mock the Ollama client, so they **don't need Ollama running**. They co
 - validation errors (422);
 - 502, 503 and 504 when Ollama fails;
 - the Swagger UI page and the OpenAPI spec;
+- the chat flow (`tests/test_chat_*.py`, ported from configuration-service's `chat_app` / `checkout_app` tests): every step of ordering and booking, the router, tools, past orders, questions, the welcome message and reply style, the validators, and both endpoints (logins, permissions, validation, LLM errors). They use a throwaway SQLite database (`tests/chat_helpers.py`), so they **don't need PostgreSQL**; `tests/test_schema.py` checks the models against a Django-migrated PostgreSQL when `SCHEMA_DATABASE_URL` is set (CI does);
 - the Pub/Sub consumer (`tests/test_consumer.py`, with fake Pub/Sub clients, so no emulator is needed): a message is logged, processed and acked; a failure nacks; a malformed one is acked and skipped; the emulator's topic and subscription are created (and retried while it starts); the streaming pull's subscription and flow control; it starts and stops with the app; `GET /consumer`.
 
 ## Project structure
@@ -202,10 +239,18 @@ messaging-service/
 │   ├── routes.py       # Router "main": GET /
 │   ├── chat.py         # Router "chat": POST /chat
 │   ├── consumer.py     # Pub/Sub pull consumer: parse, process (log + sleep), ack / nack, emulator setup
-│   └── consumer_routes.py  # Router "consumer": GET /consumer
+│   ├── consumer_routes.py  # Router "consumer": GET /consumer
+│   ├── chat_api.py     # Router "chat flow": the sandbox and customer message endpoints
+│   ├── chat_flow/      # the chat flow (ported from configuration-service's chat_app + checkout_app)
+│   ├── auth.py         # configuration-service's login tokens (SimpleJWT-compatible checks)
+│   ├── drf.py          # DRF-style validation and error bodies, for the chat flow endpoints
+│   ├── db.py           # SQLAlchemy engine and sessions (lazy)
+│   └── models.py       # SQLAlchemy models of configuration-service's tables (no migrations here)
 ├── tests/
 │   ├── test_routes.py
 │   ├── test_chat.py    # /chat (Ollama mocked) + API docs
+│   ├── test_chat_*.py  # the chat flow (SQLite; helpers in chat_helpers.py, schedule_helpers.py)
+│   ├── test_schema.py  # the models against Django's schema (SCHEMA_DATABASE_URL)
 │   └── test_consumer.py  # the Pub/Sub consumer (fake clients)
 ├── run.py              # Dev server entry point: uvicorn on config.PORT, with reload
 ├── gunicorn.conf.py    # Gunicorn settings (Docker / production)

@@ -3,10 +3,12 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.concurrency import run_in_threadpool
 
 from . import config
 from .consumer import Consumer
+from .drf import register_drf_errors
 from .errors import register_error_handlers
 
 
@@ -48,17 +50,34 @@ def create_app(consumer: Consumer | None = None) -> FastAPI:
             {'name': 'main', 'description': 'Service health / hello world'},
             {'name': 'chat', 'description': 'One-off chat with the LLM (Ollama)'},
             {'name': 'consumer', 'description': 'The Pub/Sub consumer of customer messages'},
+            {
+                'name': 'chat flow',
+                'description': (
+                    "Customer chats with the assistant (moved from configuration-service's chat_app, with the same "
+                    'requests, responses and DRF-style errors)'
+                ),
+            },
         ],
         lifespan=lifespan_for(consumer),
     )
     app.state.consumer = consumer
     register_error_handlers(app)
+    register_drf_errors(app)
+    # The frontend calls the Chat Sandbox endpoint from the browser (with its login token).
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=config.CORS_ALLOWED_ORIGINS,
+        allow_methods=['GET', 'POST', 'OPTIONS'],
+        allow_headers=['Authorization', 'Content-Type'],
+    )
 
     from .chat import router as chat_router
+    from .chat_api import router as chat_api_router
     from .consumer_routes import router as consumer_router
     from .routes import router as main_router
 
     app.include_router(main_router)
     app.include_router(chat_router)
     app.include_router(consumer_router)
+    app.include_router(chat_api_router)
     return app

@@ -303,6 +303,9 @@ If Ollama fails (502/503/504), the customer's message is still saved, but there'
 
 ### Chat flow
 
+> [!NOTE]
+> The chat flow has been copied to `messaging-service` (the parts that need the LLM: the sandbox and customer message endpoints, same requests and responses), and the frontend's Chat Sandbox now sends its messages there. The endpoints here still work for now; until they're removed, keep both copies the same. All database migrations stay here: other services only query and write rows.
+
 The chat flow is the same for every business (`chat_app/flow.py`): a **router** decides what each customer message is about, and code sends it to the right handler. Businesses only configure the steps' settings (so far, the details to collect: see [Chat configuration](#chat-configuration)). It needs Ollama, like the [one-off chat](#chat-temporary).
 
 **Welcome message and reply style.** If the business has a welcome message, a chat's very first customer message gets it first, word for word (`{business_name}` filled in). If that message was only a greeting (the router found nothing to do), the welcome is the whole reply, with no reply LLM call; otherwise the usual reply follows, and isn't told to greet again. Every LLM-written reply follows the business's reply style: a preset (`friendly`, `professional`, `casual`, `brief`) or its own description (`custom`), which only changes the tone, never the rules. Both message endpoints return every message sent in the turn as `messages`.
@@ -516,6 +519,7 @@ DJANGO_SUPERUSER_PASSWORD=123 python manage.py createsuperuser --noinput --usern
 | `DJANGO_SCHEDULE_TIME_ZONE` | `Asia/Singapore` | Time zone of the service providers' weekly availability (their 15-minute blocks are local times). |
 | `CONFIGURATION_ENCRYPTION_KEY` | empty (uses `SECRET_KEY`) | Encrypts the stored WhatsApp access token and App Secret. Any secret string. Changing it (or `SECRET_KEY`, while this is empty) makes the stored secrets unreadable, so owners must re-enter them. |
 | `INTERNAL_API_KEY` | `dev-internal-api-key` (only when `DEBUG` is on) | Shared key other services send in the `X-Internal-Api-Key` header to call `/api/internal/`. Empty disables the internal API. |
+| `JWT_SIGNING_KEY` | empty (uses `SECRET_KEY`) | Signs the login (JWT) access and refresh tokens. `messaging-service` checks the access tokens with the same key (its Chat Sandbox endpoint), so set it to the same value in both (docker-compose does). Changing it logs everyone out. |
 | `MESSAGING_INGESTER_PUBLIC_URL` | `http://localhost:8002` | Public URL of `messaging-ingester`. Owners see `<this>/webhook/<business id>` as their WhatsApp webhook Callback URL. |
 | `META_GRAPH_API_URL` | `https://graph.facebook.com/v25.0` | Meta's Graph API, used to check the WhatsApp details owners enter (`configuration_app/meta_api.py`). Point it at a fake for testing without real Meta credentials. |
 | `DJANGO_DB_ENGINE` | `sqlite` | `sqlite` (`db.sqlite3`, for running without Docker) or `postgresql` (used by `docker-compose.yml`). |

@@ -166,7 +166,10 @@ class AppConsumerTests(unittest.TestCase):
 
     def test_the_llm_endpoint_is_still_there(self):
         spec = TestClient(create_app()).get('/openapi.json').json()
-        self.assertEqual(set(spec['paths']), {'/', '/chat', '/consumer'})
+        self.assertEqual(
+            set(spec['paths']),
+            {'/', '/chat', '/consumer', '/api/chat/sandbox-sessions/{pk}/messages/', '/api/chat/sessions/messages/'},
+        )
 
 
 if __name__ == '__main__':
