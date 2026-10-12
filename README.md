@@ -36,7 +36,7 @@ cd payment-ingester && python3 -m venv .venv && .venv/bin/pip install -r require
 
 processing-service pulls them and updates those orders / bookings (payment received or failed, and the booking's calendar): `docker compose logs -f processing-service` (see `payment-ingester/README.md`).
 
-notification-job runs every hour (cron, no port): `docker compose logs -f notification-job`. To run it once now:
+notification-job runs every hour (cron, no port) and logs the payment and appointment reminders it would send: `docker compose logs -f notification-job`. To run it once now:
 `docker compose exec notification-job python run.py` (see `notification-job/README.md`).
 
 After changing `frontend-app/package.json`, rebuild it: `docker compose up --build -V frontend-app`

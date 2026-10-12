@@ -1315,3 +1315,17 @@ AI Model Used: claude-opus-5-5
 Original Prompt:
 [Image #40] For this sidebar, I'm a bit OCD, can you add verbose name or sth to capitalise and have the pluralisation correct
 e.g., Order items -> Order Items
+
+Date & Time (GMT+8): 2026-10-12 21:24:39
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+I want you to work with notification-job.
+Notification job for each run will do both of these:
+(1) payment reminder flow
+- Get current time round to the nearest hour (e.g., 9.11pm 30sec = 9pm)
+- Get all OrderItem and ScheduleItem, filter those whose status is pending payment, and creation time is within [1hour, 2hour) before the current time rounded to nearest hour from above
+- For those, just print / log a message (the phone number which you can get from reverse accessor, and a draft message) and command “TODO”
+(2) schedule / appointment reminder flow
+- Get all ScheduleItem, filter whose start time is within [23hour, 24hour) before the current time rounded to nearest hour from above
+- For those items, just print / log a message (the phone number, and draft message for reminder) and command “TODO”

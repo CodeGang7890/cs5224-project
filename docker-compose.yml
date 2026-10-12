@@ -5,7 +5,7 @@
 # + messaging-service (Gunicorn; the chat flow (Chat Sandbox messages), LLM chat, and the pull consumer of the ingester's
 #   messages, http://localhost:8004).
 # + processing-service (Gunicorn; pull consumer of the payment events: updates the orders / bookings, http://localhost:8003)
-# + notification-job (reads the database, run every hour by cron).
+# + notification-job (payment and appointment reminders, logged for now; run every hour by cron).
 # The database is kept in the postgres-data volume between runs; the sample fixtures are loaded the
 # first time. To wipe it and reload them: RESET_DB=true docker compose up
 # (see configuration-service/docker-entrypoint.sh).
@@ -193,6 +193,7 @@ services:
       <<: *postgres-env # configuration-service's database (read-only use)
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
+      SCHEDULE_TIME_ZONE: Asia/Singapore # the times in the reminders (configuration-service's DJANGO_SCHEDULE_TIME_ZONE)
       CRON_SCHEDULE: ${NOTIFICATION_JOB_SCHEDULE:-0 * * * *} # every hour (UTC); e.g. "* * * * *" to try it
     depends_on:
       postgres:
