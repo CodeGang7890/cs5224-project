@@ -1329,3 +1329,19 @@ Notification job for each run will do both of these:
 (2) schedule / appointment reminder flow
 - Get all ScheduleItem, filter whose start time is within [23hour, 24hour) before the current time rounded to nearest hour from above
 - For those items, just print / log a message (the phone number, and draft message for reminder) and command “TODO”
+
+Date & Time (GMT+8): 2026-10-12 21:32:00
+AI Model Used: claude-opus-5-5
+Original Prompt:
+I want you to generate me another diagram in docs/diagram.
+This will be LLM flow diagram.
+It should show clearly the current LLM flow (router LLM, different LLM states for each routes, and the tools provided for each of those different states), and also the intermediary deterministic code to perform action in between / updating important things in DB (e.g., when order is confirmed, or when a question can’t be answer just by the FAQs).
+
+Date & Time (GMT+8): 2026-10-12 21:38:14
+AI Model Used: claude-opus-5-5
+Original Prompt:
+The position of the diagram is awkward, please improve it
+Make it go from left to right
+Also please make so that it also shows the flow for FAQ and looking at order status
+For ecah of the state indicates the tools that are given
+Make the diagram more compact and presentable
