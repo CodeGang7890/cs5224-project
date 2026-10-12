@@ -1,0 +1,5 @@
+.venv/
+__pycache__/
+*.py[cod]
+# The local database (conversations); delete it to start over.
+mock_whatsapp.sqlite3

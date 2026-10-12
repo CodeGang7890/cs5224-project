@@ -31,9 +31,9 @@ class BusinessConfiguration(models.Model):
     location = models.CharField(max_length=LOCATION_MAX_LENGTH)
 
     class Meta:
+        verbose_name = 'Business Configuration'
+        verbose_name_plural = 'Business Configurations'
         ordering = ['business_name']
-        verbose_name = 'business configuration'
-        verbose_name_plural = 'business configurations'
         constraints = [
             models.CheckConstraint(
                 condition=~Q(business_name=''),
@@ -113,9 +113,9 @@ class WhatsAppConfiguration(models.Model):
     last_updated = models.DateTimeField(auto_now=True)
 
     class Meta:
+        verbose_name = 'WhatsApp Configuration'
+        verbose_name_plural = 'WhatsApp Configurations'
         ordering = ['business']
-        verbose_name = 'WhatsApp configuration'
-        verbose_name_plural = 'WhatsApp configurations'
         # Every field is needed for the connection to work, so none may be empty, even when saved
         # without validation (e.g. objects.create(), fixtures). NOT NULL alone still allows ''.
         constraints = [

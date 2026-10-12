@@ -59,6 +59,8 @@ class Product(models.Model):
     is_active = models.BooleanField(default=True)
 
     class Meta:
+        verbose_name = 'Product'
+        verbose_name_plural = 'Products'
         ordering = ['business', 'name']
         constraints = [
             models.CheckConstraint(condition=Q(price__gte=0), name='product_price_non_negative'),
@@ -146,9 +148,9 @@ class FAQ(models.Model):
     )
 
     class Meta:
-        ordering = ['business', 'question']
         verbose_name = 'FAQ'
         verbose_name_plural = 'FAQs'
+        ordering = ['business', 'question']
         constraints = [
             models.CheckConstraint(condition=~Q(question=''), name='faq_question_not_empty'),
             models.CheckConstraint(condition=~Q(answer=''), name='faq_answer_not_empty'),
@@ -257,6 +259,8 @@ class ServiceProvider(models.Model):
     is_active = models.BooleanField(default=True, help_text='Inactive providers take no new bookings.')
 
     class Meta:
+        verbose_name = 'Service Provider'
+        verbose_name_plural = 'Service Providers'
         ordering = ['business', 'name']
         constraints = [
             models.CheckConstraint(condition=~Q(name=''), name='service_provider_name_not_empty'),
@@ -294,8 +298,9 @@ class WeeklyAvailability(models.Model):
     )
 
     class Meta:
+        verbose_name = 'Weekly Availability'
+        verbose_name_plural = 'Weekly Availabilities'
         ordering = ['service_provider', 'week']
-        verbose_name_plural = 'weekly availabilities'
         constraints = [
             models.UniqueConstraint(
                 fields=['service_provider', 'week'],
@@ -382,6 +387,8 @@ class Service(models.Model):
     is_active = models.BooleanField(default=True)
 
     class Meta:
+        verbose_name = 'Service'
+        verbose_name_plural = 'Services'
         ordering = ['business', 'name']
         constraints = [
             models.CheckConstraint(condition=Q(price__gte=0), name='service_price_non_negative'),

@@ -114,6 +114,21 @@ class UnansweredQuestion(Base):
     answered_time: Mapped[datetime | None] = mapped_column(AwareDateTime)
 
 
+class InboundMessage(Base):
+    """chat_app.InboundMessage: a WhatsApp message taken from Pub/Sub, one row per Meta message id
+    (so a message delivered twice is answered once). Written by this service (app/inbound.py)."""
+
+    __tablename__ = 'chat_app_inboundmessage'
+
+    id: Mapped[int] = mapped_column(BigId, primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey('configuration_app_businessconfiguration.id'))
+    chat_session_id: Mapped[int] = mapped_column(ForeignKey('chat_app_chatsession.id'))
+    message_id: Mapped[str] = mapped_column(String(255), unique=True)
+    status: Mapped[str] = mapped_column(String(16))  # received | replied
+    received_time: Mapped[datetime] = mapped_column(AwareDateTime)
+    replied_time: Mapped[datetime | None] = mapped_column(AwareDateTime)
+
+
 class Product(Base):
     """product_app.Product. Only total_quantity is stored: on hold / sold / available come from the
     orders (chat_flow.stock), like Django's Product.quantity_* properties."""

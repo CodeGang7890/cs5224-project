@@ -1,5 +1,5 @@
 """Job settings. Database values come from environment variables, with the same names as
-configuration-service's (it owns the database: this job only reads it)."""
+configuration-service's (it owns the database and every migration: this job only reads it)."""
 
 import os
 
@@ -13,5 +13,9 @@ POSTGRES_HOST = os.getenv('POSTGRES_HOST', 'localhost')
 POSTGRES_PORT = int(os.getenv('POSTGRES_PORT', '5433'))
 # A full SQLAlchemy URL overrides the values above (e.g. Cloud SQL, or SQLite in tests).
 DATABASE_URL = os.getenv('DATABASE_URL', '')
+
+# The businesses' time zone, for the times in the reminders (configuration-service's
+# DJANGO_SCHEDULE_TIME_ZONE).
+SCHEDULE_TIME_ZONE = os.getenv('SCHEDULE_TIME_ZONE', 'Asia/Singapore')
 
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')

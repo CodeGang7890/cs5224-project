@@ -38,8 +38,6 @@ PUBSUB_TOPIC = os.getenv('PUBSUB_TOPIC', 'whatsapp-inbound-messages')
 PUBSUB_SUBSCRIPTION = os.getenv('PUBSUB_SUBSCRIPTION', 'messaging-service-inbound')
 # At most this many messages are handled at once, per worker (Pub/Sub flow control).
 PUBSUB_MAX_MESSAGES = int(os.getenv('PUBSUB_MAX_MESSAGES', '5'))
-# Stand-in for the real work (the chat flow, later): each message waits this long before its ack.
-PROCESSING_SECONDS = float(os.getenv('PROCESSING_SECONDS', '2'))
 
 # --- The chat flow's LLM calls (app/chat_flow, the same as configuration-service's chat_app/llm.py) --
 # Sampling hyperparameters sent as Ollama `options` on every chat flow request. The seed is fixed
@@ -86,6 +84,13 @@ SCHEDULE_TIME_ZONE = os.getenv('SCHEDULE_TIME_ZONE', 'Asia/Singapore')
 # every token is rejected (401).
 JWT_SIGNING_KEY = os.getenv('JWT_SIGNING_KEY', '')
 JWT_ALGORITHM = 'HS256'
+
+# --- Sending replies on WhatsApp (configuration-service's internal send endpoint) -------------
+# The access token never leaves configuration-service: replies to WhatsApp messages are sent with
+# POST {CONFIGURATION_SERVICE_URL}/internal/whatsapp/{business_id}/send/ (X-Internal-Api-Key).
+CONFIGURATION_SERVICE_URL = os.getenv('CONFIGURATION_SERVICE_URL', 'http://localhost:8000/api').rstrip('/')
+INTERNAL_API_KEY = os.getenv('INTERNAL_API_KEY', 'dev-internal-api-key')  # must equal configuration-service's
+WHATSAPP_SEND_TIMEOUT_SECONDS = 20
 
 # --- CORS (the frontend calls the Chat Sandbox endpoint from the browser) ------------------
 CORS_ALLOWED_ORIGINS = [

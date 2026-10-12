@@ -1,6 +1,7 @@
 import json
 import os
 import unittest
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
@@ -50,36 +51,48 @@ class ParseTests(unittest.TestCase):
                 parse(data)
 
 
-@patch('app.consumer.time.sleep')
+@patch('app.inbound.handle_inbound')
 class HandleTests(unittest.TestCase):
+    """handle(): the Pub/Sub side (ack / nack, stats); the chat flow is app/inbound.py (test_inbound.py)."""
+
     def setUp(self):
         self.stats = ConsumerStats()
 
-    def test_a_message_is_logged_then_processed_then_acked(self, sleep):
+    def test_a_message_is_logged_then_answered_then_acked(self, handle_inbound):
+        handle_inbound.return_value = SimpleNamespace(outcome='replied')
         pulled = message()
+        sessions = MagicMock()
         with self.assertLogs('app.consumer', level='INFO') as logs:
-            handle(pulled, self.stats)
+            handle(pulled, self.stats, sessions)
         self.assertTrue(pulled.acked)
         self.assertFalse(pulled.nacked)
-        sleep.assert_called_once_with(config.PROCESSING_SECONDS)
+        handle_inbound.assert_called_once_with(sessions, PAYLOAD)
         self.assertIn("Customer message wamid.1 for business 1 from +6591234567 (text): 'Hi! Do you have pandan chiffon cake?'", logs.output[0])
         self.assertEqual((self.stats.handled, self.stats.skipped, self.stats.failed), (1, 0, 0))
 
-    def test_a_failure_nacks_so_it_is_redelivered(self, sleep):
-        sleep.side_effect = RuntimeError('boom')
+    def test_a_skipped_message_is_acked_too(self, handle_inbound):
+        handle_inbound.return_value = SimpleNamespace(outcome='skipped', reason='already replied (a duplicate)')
+        pulled = message()
+        with self.assertLogs('app.consumer', level='INFO') as logs:
+            handle(pulled, self.stats, MagicMock())
+        self.assertTrue(pulled.acked)
+        self.assertIn('not answered: already replied (a duplicate)', logs.output[-1])
+
+    def test_a_failure_nacks_so_it_is_redelivered(self, handle_inbound):
+        handle_inbound.side_effect = RuntimeError('the LLM is down')
         pulled = message()
         with self.assertLogs('app.consumer', level='ERROR'):
-            handle(pulled, self.stats)
+            handle(pulled, self.stats, MagicMock())
         self.assertTrue(pulled.nacked)
         self.assertFalse(pulled.acked)
         self.assertEqual((self.stats.handled, self.stats.failed), (0, 1))
 
-    def test_a_malformed_message_is_acked_without_processing(self, sleep):
+    def test_a_malformed_message_is_acked_without_processing(self, handle_inbound):
         pulled = FakeMessage(b'garbage')
         with self.assertLogs('app.consumer', level='WARNING'):
             handle(pulled, self.stats)
         self.assertTrue(pulled.acked)
-        sleep.assert_not_called()
+        handle_inbound.assert_not_called()
         self.assertEqual((self.stats.handled, self.stats.skipped), (0, 1))
 
 
@@ -130,7 +143,8 @@ class ConsumerTests(unittest.TestCase):
         # The callback handles each pulled message.
         callback = subscriber.subscribe.call_args.kwargs['callback']
         pulled = message()
-        with patch('app.consumer.time.sleep'), self.assertLogs('app.consumer'):
+        with patch('app.inbound.handle_inbound', return_value=SimpleNamespace(outcome='replied')), \
+                self.assertLogs('app.consumer'):
             callback(pulled)
         self.assertTrue(pulled.acked)
         self.assertEqual(pull.stats.handled, 1)

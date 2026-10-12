@@ -4,7 +4,7 @@ import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { paths } from '@/config/navigation'
-import { OrderStatusBadge, SandboxBadge } from '@/features/orders'
+import { OrderStatusBadge, PaymentReference, SandboxBadge } from '@/features/orders'
 import { useDetailLabels } from '@/features/workflow'
 
 import type { CalendarBooking } from '../types'
@@ -62,6 +62,7 @@ function BookingSummary({ booking, timeZone, providerName }: { booking: Calendar
         </DialogDescription>
       </DialogHeader>
 
+      <PaymentReference reference={booking.payment_reference} />
       <dl className="grid gap-x-4 gap-y-2 rounded-lg border p-3 text-sm sm:grid-cols-2">
         <Row label="Customer" value={booking.customer ?? 'No name given'} />
         <Row label="Service" value={booking.service} />

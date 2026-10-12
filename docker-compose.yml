@@ -5,7 +5,7 @@
 # + messaging-service (Gunicorn; the chat flow (Chat Sandbox messages), LLM chat, and the pull consumer of the ingester's
 #   messages, http://localhost:8004).
 # + processing-service (Gunicorn; pull consumer of the payment events: updates the orders / bookings, http://localhost:8003)
-# + notification-job (reads the database, run every hour by cron).
+# + notification-job (payment and appointment reminders, logged for now; run every hour by cron).
 # The database is kept in the postgres-data volume between runs; the sample fixtures are loaded the
 # first time. To wipe it and reload them: RESET_DB=true docker compose up
 # (see configuration-service/docker-entrypoint.sh).
@@ -134,12 +134,11 @@ services:
       # Ollama runs on the host machine, not in Docker (see the root README, "Local LLM"). Override the
       # address in a root .env file, e.g. OLLAMA_HOST=http://192.168.64.1:11434 on a vessel VM.
       OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
-      # Pull consumer of the customer messages messaging-ingester publishes (app/consumer.py).
+      # Pull consumer of the customer messages messaging-ingester publishes: answered by the chat flow (app/inbound.py).
       PUBSUB_CONSUMER_ENABLED: "true"
       GCP_PROJECT_ID: local-project # TODO: a real GCP project ID when deploying to Google Cloud Pub/Sub
       PUBSUB_TOPIC: whatsapp-inbound-messages
       PUBSUB_SUBSCRIPTION: messaging-service-inbound
-      PROCESSING_SECONDS: "2" # stand-in for the real work: each message waits this long before its ack
       # TODO: Don't set this in production, so the real Google Cloud Pub/Sub is used instead of the emulator
       PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
       # The chat flow (moved from configuration-service): its database, logins and the browser's origin.
@@ -149,6 +148,9 @@ services:
       SCHEDULE_TIME_ZONE: Asia/Singapore # must equal configuration-service's (DJANGO_SCHEDULE_TIME_ZONE)
       JWT_SIGNING_KEY: *jwt-signing-key # must equal configuration-service's
       CORS_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173 # the frontend's Chat Sandbox
+      # Replies to WhatsApp messages go out through configuration-service (it holds the access tokens).
+      CONFIGURATION_SERVICE_URL: http://configuration-service:8000/api
+      INTERNAL_API_KEY: dev-internal-api-key # must equal configuration-service's
     extra_hosts:
       - "host.docker.internal:host-gateway" # for Linux; Docker Desktop has it already
     depends_on:
@@ -193,6 +195,7 @@ services:
       <<: *postgres-env # configuration-service's database (read-only use)
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
+      SCHEDULE_TIME_ZONE: Asia/Singapore # the times in the reminders (configuration-service's DJANGO_SCHEDULE_TIME_ZONE)
       CRON_SCHEDULE: ${NOTIFICATION_JOB_SCHEDULE:-0 * * * *} # every hour (UTC); e.g. "* * * * *" to try it
     depends_on:
       postgres:
