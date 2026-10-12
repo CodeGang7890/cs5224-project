@@ -34,6 +34,9 @@ class InboundTests(DatabaseTestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
         self.ollama.chat.side_effect = fake_ollama_chat('Yes, we do! A whole cake is $25.')
+        sender = patch('app.inbound.whatsapp_sender.send_text', return_value='wamid.out1')
+        self.send_text = sender.start()
+        self.addCleanup(sender.stop)
 
     def answer(self, **changes):
         with self.assertLogs('app.inbound', level='INFO') as logs:
@@ -55,7 +58,19 @@ class InboundTests(DatabaseTestCase):
         record, = self.all(InboundMessage)
         self.assertEqual((record.message_id, record.status, record.chat_session_id), ('wamid.1', 'replied', session.id))
         self.assertIsNotNone(record.replied_time)
-        self.assertIn('TODO: send to +6591234567 on WhatsApp', logs[-1])
+        self.send_text.assert_called_once_with(self.cafe.id, '+6591234567', 'Yes, we do! A whole cake is $25.')
+        self.assertIn('sent to +6591234567 on WhatsApp (wamid.out1)', logs[-1])
+
+    def test_a_failed_send_is_logged_and_the_reply_kept(self):
+        from app.whatsapp_sender import SendError
+
+        self.send_text.side_effect = SendError('Not sent (503): Could not reach Meta')
+        with self.assertLogs('app.inbound', level='ERROR') as logs:
+            result = handle_inbound(self.sessions, self.payload)
+        self.assertEqual(result.outcome, 'replied')
+        self.assertIn('not sent to +6591234567: Not sent (503)', logs.output[-1])
+        self.assertEqual(self.all(InboundMessage)[0].status, 'replied')
+        self.assertEqual(self.all(ChatSession)[0].chat_message_json[-1]['sent_by'], 'business-automated')
 
     def test_an_existing_chat_is_used(self):
         existing = self.make.session(self.cafe, phone_number='+6591234567', is_sandbox=False, display_name='Al')
@@ -128,7 +143,8 @@ class ConsumerToChatFlowTests(DatabaseTestCase):
 
         pulled, stats, ollama = Pulled(), ConsumerStats(), MagicMock()
         ollama.chat.side_effect = fake_ollama_chat('Hello!')
-        with patch('app.llm.get_client', return_value=ollama), self.assertLogs('app', level='INFO'):
+        with patch('app.llm.get_client', return_value=ollama), patch('app.inbound.whatsapp_sender.send_text', return_value='w1'), \
+                self.assertLogs('app', level='INFO'):
             handle(pulled, stats, self.sessions)
         self.assertTrue(pulled.acked)
         self.assertEqual(stats.handled, 1)

@@ -94,6 +94,7 @@ These also come from environment variables (docker-compose sets them):
 | `DATABASE_URL` | unset | A full SQLAlchemy URL; overrides the `POSTGRES_*` values |
 | `SCHEDULE_TIME_ZONE` | `Asia/Singapore` | Time zone of the services' weekly availability: must equal configuration-service's `DJANGO_SCHEDULE_TIME_ZONE` |
 | `JWT_SIGNING_KEY` | empty | Checks the login tokens: must equal configuration-service's `JWT_SIGNING_KEY` (docker-compose sets both). Empty: every token is rejected (401) |
+| `CONFIGURATION_SERVICE_URL` / `INTERNAL_API_KEY` | `http://localhost:8000/api` / `dev-internal-api-key` | configuration-service's internal API, to send replies on WhatsApp (the key must equal its `INTERNAL_API_KEY`) |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated browser origins allowed to call the API (the frontend) |
 
 `run.py` also reads a few environment variables for convenience. These override the defaults for a single run without editing code:
@@ -202,14 +203,14 @@ A **pull** subscriber (`app/consumer.py`) for the customer messages `messaging-i
   2. The customer's chat: the business's real chat session with that number, or a new one (named after their WhatsApp profile).
   3. In one transaction: an `InboundMessage` row for Meta's message id (configuration-service's `chat_app.InboundMessage`), saved with the customer message in the chat. **A duplicate** (Pub/Sub delivers at least once, Meta retries) is skipped; a message redelivered after a failure runs again without being saved twice.
   4. The chat flow runs (router, order / booking steps, FAQ, order status, reply) and saves the reply; the row becomes `replied`.
-  5. **Sending the reply on WhatsApp is a TODO** (an outbound messages queue): it's logged (`TODO: send to +65… on WhatsApp`) and saved in the chat.
+  5. **The reply is sent on WhatsApp** through configuration-service's internal send endpoint (`app/whatsapp_sender.py`; configuration-service holds the access token and calls Meta's Graph API, or locally `mock_whatsapp`'s fake one). A failed send is logged; the reply stays saved in the chat (retries: a TODO, via an outbound queue).
 - If handling raises (e.g. the LLM is down), the message is **nacked**, so Pub/Sub redelivers it. A message that isn't JSON, or lacks `business_id`, `message_id`, `from` or `type`, is logged and **acked** (redelivering it would never help). The ingester orders by customer, so one customer's messages are answered one at a time.
 
 Trying it end to end, from the repo root:
 
 ```bash
 docker compose up --build                     # Pub/Sub emulator, messaging-ingester, messaging-service, ...
-docker compose logs -f messaging-service      # "Customer message wamid..." then "TODO: send to +65... on WhatsApp: <the reply>"
+docker compose logs -f messaging-service      # "Customer message wamid..." then "Reply in chat N sent to +65... on WhatsApp"
 curl http://localhost:8004/consumer           # {"enabled": true, "running": true, "handled": ..., ...}
 ```
 

@@ -8,7 +8,7 @@ set -e
 
 load_sample_data() {
     python manage.py loaddata \
-        sample_business_configurations sample_business_users sample_products sample_faqs sample_services \
+        sample_business_configurations sample_whatsapp_configurations sample_business_users sample_products sample_faqs sample_services \
         sample_chat_configurations sample_chat_sessions sample_order_items sample_schedule_items \
         sample_unanswered_questions
     # The local superuser (not in a fixture, see CLAUDE.md): superuser / 123.

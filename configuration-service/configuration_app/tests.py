@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import json
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
 
@@ -687,3 +688,108 @@ class MetaApiTests(SimpleTestCase):
             hmac.new(b'secret', b'token', hashlib.sha256).hexdigest(),
         )
 
+
+
+class SampleWhatsAppConfigurationFixtureTests(TestCase):
+    """configuration_app/fixtures/sample_whatsapp_configurations.json: every sample business is
+    connected (dummy credentials, for mock_whatsapp), with a Singapore number."""
+
+    fixtures = ['sample_business_configurations', 'sample_whatsapp_configurations']
+
+    def test_every_business_has_one_valid_connection(self):
+        from .models import WhatsAppConfiguration
+
+        businesses = BusinessConfiguration.objects.all()
+        configs = WhatsAppConfiguration.objects.select_related('business')
+        self.assertEqual(configs.count(), businesses.count())
+        self.assertEqual({c.business_id for c in configs}, {b.pk for b in businesses})
+        for config in configs:
+            with self.subTest(business=config.business_id):
+                config.full_clean()  # loaddata skips validation
+                self.assertRegex(config.display_phone_number, r'^\+65 [89]\d{3} \d{4}$')
+                self.assertEqual(config.verified_name, config.business.business_name)
+                # Stored encrypted, read back as the plain dummy values mock_whatsapp uses.
+                self.assertEqual(config.app_secret, f'dev-app-secret-{config.business_id}')
+                self.assertEqual(config.access_token, f'dev-access-token-{config.business_id}')
+        from django.db import connection
+
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT app_secret FROM configuration_app_whatsappconfiguration')
+            self.assertTrue(all(not value.startswith('dev-') for (value,) in cursor.fetchall()))
+
+
+@override_settings(INTERNAL_API_KEY=TEST_INTERNAL_KEY)
+class InternalWhatsAppSendAPITests(APITestCase):
+    """POST /api/internal/whatsapp/<id>/send/: messaging-service's replies go out through here."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.cafe = BusinessConfiguration.objects.create(business_name='Café', location='Singapore')
+        cls.florist = BusinessConfiguration.objects.create(business_name='Florist', location='Singapore')
+        WhatsAppConfiguration.objects.create(
+            business=cls.cafe, phone_number_id='106540352242922', access_token='EAAGtoken', app_secret=TEST_APP_SECRET
+        )
+
+    def send(self, data, business_id=None, key=TEST_INTERNAL_KEY):
+        headers = {} if key is None else {INTERNAL_API_KEY_HEADER: key}
+        url = reverse('internal:whatsapp-send', args=[business_id or self.cafe.pk])
+        return self.client.post(url, data, format='json', headers=headers)
+
+    @patch('configuration_app.meta_api.send_text_message', return_value='wamid.out1')
+    def test_sends_with_the_stored_credentials(self, send):
+        response = self.send({'to': '+6591234567', 'text': 'Hello!'})
+        self.assertEqual((response.status_code, response.json()), (200, {'message_id': 'wamid.out1'}))
+        send.assert_called_once_with('106540352242922', 'EAAGtoken', TEST_APP_SECRET, '+6591234567', 'Hello!')
+        self.assertNotIn('EAAGtoken', response.content.decode())
+
+    @patch('configuration_app.meta_api.send_text_message')
+    def test_errors(self, send):
+        self.assertEqual(self.send({'to': '+6591234567', 'text': 'Hi'}, key='wrong').status_code, 403)
+        self.assertEqual(self.send({'to': '+6591234567', 'text': 'Hi'}, business_id=self.florist.pk).status_code, 404)
+        self.assertEqual(self.send({'to': '91234567', 'text': 'Hi'}).status_code, 400)
+        self.assertEqual(self.send({'to': '+6591234567', 'text': ''}).status_code, 400)
+        send.side_effect = meta_api.MetaSendError('Meta refused the message (400): bad number')
+        self.assertEqual(self.send({'to': '+6591234567', 'text': 'Hi'}).status_code, 502)
+        send.side_effect = meta_api.MetaUnavailableError('Could not reach Meta')
+        response = self.send({'to': '+6591234567', 'text': 'Hi'})
+        self.assertEqual((response.status_code, response.json()), (503, {'detail': 'Could not reach Meta'}))
+
+
+@override_settings(META_GRAPH_API_URL='https://graph.example/v25.0')
+class SendTextMessageTests(SimpleTestCase):
+    def send(self, status=200, body=None, error=None):
+        self.requests = []
+
+        def handler(request):
+            self.requests.append(request)
+            if error is not None:
+                raise error
+            return httpx.Response(status, json=body if body is not None else {
+                'messaging_product': 'whatsapp', 'contacts': [{'input': '6591234567', 'wa_id': '6591234567'}],
+                'messages': [{'id': 'wamid.out1'}],
+            })
+
+        return meta_api.send_text_message(
+            '106540352242922', 'EAAGtoken', 'appsecret', '+6591234567', 'Hello!', transport=httpx.MockTransport(handler)
+        )
+
+    def test_request_in_metas_format(self):
+        self.assertEqual(self.send(), 'wamid.out1')
+        request = self.requests[0]
+        url = urlsplit(str(request.url))
+        self.assertEqual((request.method, f'{url.scheme}://{url.netloc}{url.path}'), ('POST', 'https://graph.example/v25.0/106540352242922/messages'))
+        self.assertEqual(request.headers['Authorization'], 'Bearer EAAGtoken')
+        self.assertEqual(parse_qs(url.query)['appsecret_proof'], [meta_api.appsecret_proof('EAAGtoken', 'appsecret')])
+        self.assertEqual(json.loads(request.content), {
+            'messaging_product': 'whatsapp', 'recipient_type': 'individual', 'to': '6591234567',
+            'type': 'text', 'text': {'preview_url': False, 'body': 'Hello!'},
+        })
+
+    def test_errors(self):
+        with self.assertRaises(meta_api.MetaSendError):
+            self.send(400, {'error': {'message': 'Invalid parameter', 'code': 100}})
+        for status, body in ((500, {'error': {'message': 'oops'}}), (429, {'error': {'message': 'slow down', 'code': 4}}), (200, {})):
+            with self.subTest(status=status), self.assertRaises(meta_api.MetaUnavailableError):
+                self.send(status, body)
+        with self.assertRaises(meta_api.MetaUnavailableError):
+            self.send(error=httpx.ConnectError('down'))

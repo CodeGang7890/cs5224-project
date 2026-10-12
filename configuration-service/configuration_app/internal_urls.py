@@ -5,7 +5,7 @@ from . import views
 app_name = 'internal'
 
 # Service-to-service routes (X-Internal-Api-Key, no user), mounted under /api/internal/ in config/urls.py.
-# They only answer yes/no: no secret is ever returned.
+# No secret is ever returned: the checks answer yes/no, and send uses the token itself.
 urlpatterns = [
     path(
         'whatsapp/<int:business_id>/verify-token/',
@@ -17,4 +17,5 @@ urlpatterns = [
         views.InternalWhatsAppVerifySignatureView.as_view(),
         name='whatsapp-verify-signature',
     ),
+    path('whatsapp/<int:business_id>/send/', views.InternalWhatsAppSendView.as_view(), name='whatsapp-send'),
 ]

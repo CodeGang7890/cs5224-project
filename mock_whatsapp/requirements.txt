@@ -1,0 +1,7 @@
+fastapi>=0.142,<0.143
+uvicorn>=0.54,<1
+jinja2>=3.1,<4
+# Calls messaging-ingester's webhook.
+httpx>=0.28,<0.29
+# Used by FastAPI's TestClient in the tests.
+httpx2>=2.13,<3

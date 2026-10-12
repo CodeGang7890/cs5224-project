@@ -148,6 +148,9 @@ services:
       SCHEDULE_TIME_ZONE: Asia/Singapore # must equal configuration-service's (DJANGO_SCHEDULE_TIME_ZONE)
       JWT_SIGNING_KEY: *jwt-signing-key # must equal configuration-service's
       CORS_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173 # the frontend's Chat Sandbox
+      # Replies to WhatsApp messages go out through configuration-service (it holds the access tokens).
+      CONFIGURATION_SERVICE_URL: http://configuration-service:8000/api
+      INTERNAL_API_KEY: dev-internal-api-key # must equal configuration-service's
     extra_hosts:
       - "host.docker.internal:host-gateway" # for Linux; Docker Desktop has it already
     depends_on:

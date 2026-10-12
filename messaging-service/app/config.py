@@ -85,6 +85,13 @@ SCHEDULE_TIME_ZONE = os.getenv('SCHEDULE_TIME_ZONE', 'Asia/Singapore')
 JWT_SIGNING_KEY = os.getenv('JWT_SIGNING_KEY', '')
 JWT_ALGORITHM = 'HS256'
 
+# --- Sending replies on WhatsApp (configuration-service's internal send endpoint) -------------
+# The access token never leaves configuration-service: replies to WhatsApp messages are sent with
+# POST {CONFIGURATION_SERVICE_URL}/internal/whatsapp/{business_id}/send/ (X-Internal-Api-Key).
+CONFIGURATION_SERVICE_URL = os.getenv('CONFIGURATION_SERVICE_URL', 'http://localhost:8000/api').rstrip('/')
+INTERNAL_API_KEY = os.getenv('INTERNAL_API_KEY', 'dev-internal-api-key')  # must equal configuration-service's
+WHATSAPP_SEND_TIMEOUT_SECONDS = 20
+
 # --- CORS (the frontend calls the Chat Sandbox endpoint from the browser) ------------------
 CORS_ALLOWED_ORIGINS = [
     origin.strip() for origin in os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:5173').split(',') if origin.strip()

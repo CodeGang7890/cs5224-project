@@ -1,0 +1,52 @@
+[
+  {
+    "business_id": 1,
+    "name": "Kopi & Co. Café",
+    "waba_id": "200000000000001",
+    "phone_number_id": "100000000000001",
+    "display_phone_number": "+65 8832 3212",
+    "access_token": "dev-access-token-1",
+    "app_secret": "dev-app-secret-1",
+    "verify_token": "dev-verify-token-1"
+  },
+  {
+    "business_id": 2,
+    "name": "Bloom & Twine Florist Studio",
+    "waba_id": "200000000000002",
+    "phone_number_id": "100000000000002",
+    "display_phone_number": "+65 9688 7523",
+    "access_token": "dev-access-token-2",
+    "app_secret": "dev-app-secret-2",
+    "verify_token": "dev-verify-token-2"
+  },
+  {
+    "business_id": 3,
+    "name": "FitLab Personal Training",
+    "waba_id": "200000000000003",
+    "phone_number_id": "100000000000003",
+    "display_phone_number": "+65 8960 5320",
+    "access_token": "dev-access-token-3",
+    "app_secret": "dev-app-secret-3",
+    "verify_token": "dev-verify-token-3"
+  },
+  {
+    "business_id": 4,
+    "name": "Lumen & Lens Photography Studio",
+    "waba_id": "200000000000004",
+    "phone_number_id": "100000000000004",
+    "display_phone_number": "+65 9250 0450",
+    "access_token": "dev-access-token-4",
+    "app_secret": "dev-app-secret-4",
+    "verify_token": "dev-verify-token-4"
+  },
+  {
+    "business_id": 5,
+    "name": "Rally Point Courts",
+    "waba_id": "200000000000005",
+    "phone_number_id": "100000000000005",
+    "display_phone_number": "+65 8346 2653",
+    "access_token": "dev-access-token-5",
+    "app_secret": "dev-app-secret-5",
+    "verify_token": "dev-verify-token-5"
+  }
+]

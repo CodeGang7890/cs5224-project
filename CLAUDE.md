@@ -13,6 +13,7 @@ Guidance for Claude Code that applies to every service. Each service also has it
 | `messaging-service` | FastAPI + Gunicorn: the chat flow (LLM): the Chat Sandbox's API, and answering the WhatsApp messages it pulls from Pub/Sub; one-off `/chat` | 8004 |
 | `notification-job` | Python script, run hourly by cron: payment and appointment reminders (logged for now; reads the database) | none |
 | `frontend-app` | Vite / React | 5173 |
+| `mock_whatsapp` | Local stand-in for WhatsApp / Meta (FastAPI + Jinja2 + SQLite, not in Docker): sends Meta's webhooks, fakes the Graph API for replies | 9000 |
 
 `docker-compose.yml` runs them all locally, with PostgreSQL (host port 5433) and a Pub/Sub emulator (8085).
 

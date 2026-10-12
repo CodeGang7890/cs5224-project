@@ -1369,3 +1369,38 @@ Original Prompt:
 In messaging-service, now it should have both of these flows:
 - Accept API from configuration-service to answer question, like the current functionality is
 - Another thing, is to subscribe to the pub/sub queue, particularly the “whatsapp-inbound-messages” topic, and process it accordingly
+
+Date & Time (GMT+8): 2026-10-12 22:55:06
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Update the fixture with WhatsAppConfiguration instances.
+Each BusinessConfiguration should have 1-1 relation with this WhatsAppConfiguration.
+Please just use random SG format phone number for this, and the rest you can just fill any dummy value for now.
+Then, create mock_whatsapp folder in the root directory and create a mock WhatsApp frontend (no need to container / docker compose) where we can choose phone numbers and chat to that phone number.
+Make it as a FastAPI template but it is server rendered app, so there’ll be Jinja2 template (or sth similar) and JavaScript too there, Vanilla CSS (make it similar to WhatsApp but allow you to “mock” as a different phone number with different WhatsApp id), also just use local SQLite.
+Chatting to that phone number should call the message-ingester API and it should be received by messaging-service.
+Please make the API call from this mock_whatsapp similar to the API format of WhatsApp when calling our web hook (goal is to simulate this).
+The end goal is without WhatsApp on the picture, we’re able to get end to end flow (message should receive the messaging-service, and then reply should come back).
+
+Date & Time (GMT+8): 2026-10-12 23:17:35
+AI Model Used: claude-opus-5-5
+Original Prompt:
+For the trying mock whatsapp section, please make it very concise, simply put the 4th step to start the mock server and say it's open in which port
+Can you please make the port 9000 instead? 8xxx all reserved for the actual infra
+
+Date & Time (GMT+8): 2026-10-12 23:28:47
+AI Model Used: claude-opus-5-5
+Original Prompt:
+I updated the README, please see and clean it up when necessary (e.g., if some formatting is off)
+
+Date & Time (GMT+8): 2026-10-12 23:57:37
+AI Model Used: claude-opus-5-5
+Original Prompt:
+Can you please improve the UI, the boxes looks off (for the mock_whatsapp)
+Take your time and format it that it resembles similar to real WhatsApp web
+
+Date & Time (GMT+8): 2026-10-13 00:13:26
+AI Model Used: claude-opus-5-5
+Original Prompt:
+For "Chatting as...", please add 3 more mock users so in total there are 5... Now there's only Alice and Ben, please add more C D E

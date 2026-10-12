@@ -11,7 +11,14 @@ One call checks all three values together:
 - a wrong Phone Number ID, or one the token can't access → Meta error 100
 
 Outbound calls to Meta live here (not in messaging-ingester), because the secrets never leave this
-service. Sending replies will use the same client.
+service. send_text_message() sends a reply (the internal send endpoint, called by messaging-service):
+
+    POST {META_GRAPH_API_URL}/{phone_number_id}/messages?appsecret_proof=…
+    {"messaging_product": "whatsapp", "recipient_type": "individual", "to": "6591234567",
+     "type": "text", "text": {"preview_url": false, "body": "…"}}
+    → {"messaging_product": "whatsapp", "contacts": [...], "messages": [{"id": "wamid.…"}]}
+
+Locally, META_GRAPH_API_URL can point at mock_whatsapp's fake Graph API.
 """
 
 import hashlib
@@ -49,6 +56,10 @@ class MetaCredentialsError(Exception):
 
 class MetaUnavailableError(Exception):
     """Meta couldn't be reached or didn't answer usefully (network, timeout, 5xx, rate limit)."""
+
+
+class MetaSendError(Exception):
+    """Meta refused to send the message (e.g. a bad number, or the 24-hour window has closed)."""
 
 
 def appsecret_proof(access_token: str, app_secret: str) -> str:
@@ -103,3 +114,46 @@ def _error_from(status_code: int, error) -> Exception:
     if code == 100:
         return MetaCredentialsError('phone_number_id', UNKNOWN_PHONE_NUMBER_ID_MESSAGE)
     return MetaCredentialsError('non_field_errors', f'Meta rejected these credentials: {message or status_code}')
+
+
+def send_text_message(
+    phone_number_id: str,
+    access_token: str,
+    app_secret: str,
+    to: str,
+    text: str,
+    transport: httpx.BaseTransport | None = None,  # tests pass an httpx.MockTransport
+) -> str:
+    """Sends `text` to the customer `to` (E.164, e.g. +6591234567) from the business's number.
+    Returns Meta's message id (wamid…). Raises MetaSendError if Meta refuses it, MetaUnavailableError
+    if Meta can't be reached (worth retrying)."""
+    url = f'{settings.META_GRAPH_API_URL}/{phone_number_id}/messages'
+    body = {
+        'messaging_product': 'whatsapp',
+        'recipient_type': 'individual',
+        'to': to.removeprefix('+'),  # Meta's wa_id: the number without "+"
+        'type': 'text',
+        'text': {'preview_url': False, 'body': text},
+    }
+    try:
+        with httpx.Client(timeout=META_TIMEOUT_SECONDS, transport=transport) as client:
+            response = client.post(
+                url, json=body, params={'appsecret_proof': appsecret_proof(access_token, app_secret)},
+                headers={'Authorization': f'Bearer {access_token}'},
+            )
+    except httpx.HTTPError as exc:
+        raise MetaUnavailableError(f'Could not reach Meta: {exc}') from exc
+    try:
+        data = response.json()
+    except ValueError as exc:
+        raise MetaUnavailableError(f'Meta answered {response.status_code} without JSON.') from exc
+    if response.status_code == 200 and isinstance(data, dict):
+        messages = data.get('messages')
+        if isinstance(messages, list) and messages and isinstance(messages[0], dict) and messages[0].get('id'):
+            return str(messages[0]['id'])
+        raise MetaUnavailableError('Meta answered 200 without a message id.')
+    error = data.get('error') if isinstance(data, dict) else None
+    error = error if isinstance(error, dict) else {}
+    if response.status_code >= 500 or error.get('code') in (1, 2, 4, 17, 32, 613, 130429, 131048, 131056):
+        raise MetaUnavailableError(f'Meta answered {response.status_code}: {error.get("message") or "no details"}')
+    raise MetaSendError(f'Meta refused the message ({response.status_code}): {error.get("message") or "no details"}')

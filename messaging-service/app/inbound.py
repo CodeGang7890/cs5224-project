@@ -17,8 +17,10 @@ handle_inbound(sessions, payload) for one message:
    - new: saved now.
 4. The chat flow runs (router, order / booking steps, FAQ, order status, the reply) and saves the
    reply; the row becomes `replied`.
-5. TODO: send the reply to the customer on WhatsApp (e.g. an outbound messages queue). For now it's
-   logged; it is saved in the chat either way.
+5. Every message sent this turn (a welcome message, the reply) goes to the customer on WhatsApp:
+   configuration-service's internal send endpoint (app/whatsapp_sender.py; it holds the access
+   token). A failed send is logged and doesn't redo the turn: the reply is saved in the chat
+   either way (TODO: an outbound queue, to retry).
 
 An LLM failure (or any error) is raised: the consumer nacks the message, so Pub/Sub redelivers it.
 """
@@ -30,6 +32,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
+from . import whatsapp_sender
 from .chat_flow import dates, flow
 from .chat_flow.constants import SENT_BY_CUSTOMER, STEP_START
 from .chat_flow.validators import CHAT_MESSAGE_MAX_LENGTH
@@ -107,6 +110,11 @@ def handle_inbound(sessions: sessionmaker, payload: dict) -> InboundResult:
         record = db.scalars(select(InboundMessage).where(InboundMessage.message_id == message_id)).one()
         record.status, record.replied_time = REPLIED, dates.now()
     for sent in result.messages:
-        # TODO: send it to the customer on WhatsApp (an outbound messages queue → the WhatsApp API).
-        logger.info('TODO: send to %s on WhatsApp (chat %s): %s', payload['from'], session_id, sent['message'])
+        try:
+            message_id = whatsapp_sender.send_text(payload['business_id'], payload['from'], sent['message'])
+        except whatsapp_sender.SendError as exc:
+            # TODO: retry (an outbound messages queue). The reply is saved in the chat either way.
+            logger.error('Reply in chat %s not sent to %s: %s', session_id, payload['from'], exc)
+        else:
+            logger.info('Reply in chat %s sent to %s on WhatsApp (%s)', session_id, payload['from'], message_id)
     return InboundResult('replied', chat_session_id=session_id, reply=result.reply['message'])

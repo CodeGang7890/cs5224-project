@@ -13,10 +13,12 @@ from rest_framework.views import APIView
 
 from auth_app.business_scope import NO_BUSINESS_MESSAGE
 
-from . import whatsapp
+from . import meta_api, whatsapp
 from .models import WhatsAppConfiguration
 from .serializers import (
     RandomNumberSerializer,
+    SendMessageRequestSerializer,
+    SendMessageResponseSerializer,
     VerificationResultSerializer,
     VerifyTokenRequestSerializer,
     WhatsAppConfigurationSerializer,
@@ -253,3 +255,44 @@ class InternalWhatsAppVerifySignatureView(InternalWhatsAppView):
         signature = request.headers.get(SIGNATURE_HEADER, '')
         valid = whatsapp.signature_matches(config.app_secret, request.body, signature)
         return self.result(valid, config)
+
+
+class InternalWhatsAppSendView(InternalWhatsAppView):
+    """For messaging-service: sends a reply to a customer on WhatsApp, from the business's number.
+
+    The access token never leaves this service: the caller gives the business, the customer's
+    number and the text; this calls Meta's Graph API (meta_api.send_text_message).
+    """
+
+    @extend_schema(
+        tags=['Internal'],
+        summary='Send a WhatsApp message (internal)',
+        description=(
+            "For messaging-service. Sends `text` to the customer `to` from the business's WhatsApp number, "
+            "through Meta's Graph API (`META_GRAPH_API_URL`; locally, mock_whatsapp). 502 if Meta refuses "
+            f'it, 503 if Meta can\'t be reached (retry later). Requires the `{INTERNAL_API_KEY_HEADER}` header. '
+            'Not for browsers.'
+        ),
+        parameters=[INTERNAL_API_KEY_PARAMETER],
+        request=SendMessageRequestSerializer,
+        responses={
+            200: SendMessageResponseSerializer,
+            **INTERNAL_ERROR_RESPONSES,
+            502: OpenApiResponse(description='Meta refused the message.'),
+            503: OpenApiResponse(description="Meta couldn't be reached."),
+        },
+    )
+    def post(self, request: Request, business_id: int) -> Response:
+        serializer = SendMessageRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        config = self.get_config(business_id)
+        try:
+            message_id = meta_api.send_text_message(
+                config.phone_number_id, config.access_token, config.app_secret,
+                serializer.validated_data['to'], serializer.validated_data['text'],
+            )
+        except meta_api.MetaSendError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+        except meta_api.MetaUnavailableError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        return Response(SendMessageResponseSerializer({'message_id': message_id}).data)
