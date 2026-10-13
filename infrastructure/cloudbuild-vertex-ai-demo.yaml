@@ -1,0 +1,26 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/vertex-ai-demo:${SHORT_SHA}
+      - ./vertex-ai-demo
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/vertex-ai-demo:${SHORT_SHA}
+  - name: gcr.io/google.com/cloudsdktool/google-cloud-cli:stable
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - vertex-ai-demo
+      - --image=${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/vertex-ai-demo:${SHORT_SHA}
+      - --service-account=${_RUNTIME_SERVICE_ACCOUNT}
+      - --region=${_REGION}
+      - --project=${_PROJECT_ID}
+      - --quiet
+images:
+  - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/vertex-ai-demo:${SHORT_SHA}
+options:
+  logging: CLOUD_LOGGING_ONLY
