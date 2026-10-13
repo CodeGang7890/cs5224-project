@@ -1,4 +1,5 @@
-"""SQLAlchemy models of the configuration-service (Django) tables the payment flow reads and writes.
+"""
+SQLAlchemy models of the configuration-service (Django) tables the payment flow reads and writes.
 
 configuration-service owns the schema and its migrations: never create or alter tables from here
 (the tests' create_all on SQLite is the only exception). Only the columns the flow needs are mapped;

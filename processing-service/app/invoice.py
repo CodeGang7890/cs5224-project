@@ -1,4 +1,5 @@
-"""The invoice for a paid order or booking: its data, then a PDF.
+"""
+The invoice for a paid order or booking: its data, then a PDF.
 
 Two steps, so each can be tested on its own:
 1. build_invoice(session, item): reads what the invoice shows (the business, the customer, the

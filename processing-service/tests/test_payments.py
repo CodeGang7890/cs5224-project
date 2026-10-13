@@ -7,11 +7,13 @@ from unittest import mock
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.models import UNAVAILABLE_WEEK, Base, BusinessConfiguration, OrderItem, ScheduleItem, WeeklyAvailability
+from app.models import UNAVAILABLE_WEEK, Base, BusinessConfiguration, ChatSession, OrderItem, ScheduleItem, WeeklyAvailability
 from app.payments import PaymentNotFoundError, apply_payment
+from app.whatsapp_sender import SendError
 
 ORDER_REFERENCE = 'a' * 32
 BOOKING_REFERENCE = 'b' * 32
+CHAT_ORDER_REFERENCE = 'd' * 32
 MONDAY = date(2026, 10, 12)
 # Monday 10:00–11:00 (Singapore) is H (the booking), 11:00–11:30 its buffer (H), the rest of the
 # morning open (O). Blocks are 15 minutes from Monday 00:00: 10:00 is block 40.
@@ -35,6 +37,8 @@ class PaymentFlowTests(unittest.TestCase):
         with self.sessions.begin() as session:
             session.add(BusinessConfiguration(id=1, business_name='Kopi & Toast', location='1 Raffles Place'))
             session.add(BusinessConfiguration(id=4, business_name='Studio', location='2 Orchard Road'))
+            session.add(ChatSession(id=1, phone_number='+6591234567', display_name='Daniel'))
+            session.add(OrderItem(id=2, business_id=1, chat_session_id=1, is_sandbox=False, order_data=ORDER_DATA, order_status='pending_payment', payment_reference=CHAT_ORDER_REFERENCE, updated_time=now))
             session.add(OrderItem(id=1, business_id=1, is_sandbox=False, order_data=ORDER_DATA, order_status='pending_payment', payment_reference=ORDER_REFERENCE, updated_time=now))
             session.add(ScheduleItem(
                 id=1, business_id=4, is_sandbox=False, service_provider_id=1, schedule_data=SCHEDULE_DATA, order_status='pending_payment', payment_reference=BOOKING_REFERENCE,
@@ -90,6 +94,43 @@ class PaymentFlowTests(unittest.TestCase):
         self.assertFalse(result.changed)
         self.assertEqual(upload.call_count, 2)
         self.assertEqual(result.invoice_uri, 'gs://b/x.pdf')
+
+    def test_the_customer_is_told_a_payment_was_received_with_the_invoice_link(self):
+        with mock.patch('app.storage.upload_invoice', return_value='gs://b/x.pdf'), \
+                mock.patch('app.storage.invoice_link', return_value='https://signed/x.pdf'), \
+                mock.patch('app.whatsapp_sender.send_text', return_value='wamid.1') as send, self.sessions() as session:
+            apply_payment(session, CHAT_ORDER_REFERENCE, 'success')
+        business_id, to, text = send.call_args.args
+        self.assertEqual((business_id, to), (1, '+6591234567'))
+        self.assertIn('received your payment', text)
+        self.assertIn('https://signed/x.pdf', text)
+
+    def test_the_customer_is_told_a_payment_failed(self):
+        with mock.patch('app.whatsapp_sender.send_text', return_value='wamid.1') as send, self.sessions() as session:
+            apply_payment(session, CHAT_ORDER_REFERENCE, 'fail')
+        self.assertIn("didn't go through", send.call_args.args[2])
+
+    def test_a_sandbox_or_deleted_chat_is_not_messaged(self):
+        with mock.patch('app.whatsapp_sender.send_text') as send, self.sessions() as session:
+            apply_payment(session, ORDER_REFERENCE, 'fail')
+        send.assert_not_called()
+
+    def test_a_message_that_could_not_be_sent_yet_is_retried_with_the_event(self):
+        down = SendError('configuration-service is down', retryable=True)
+        with mock.patch('app.whatsapp_sender.send_text', side_effect=[down, 'wamid.1']) as send:
+            with self.sessions() as session, self.assertRaises(SendError):
+                apply_payment(session, CHAT_ORDER_REFERENCE, 'fail')
+            with self.sessions() as session:
+                self.assertEqual(session.get(OrderItem, 2).order_status, 'payment_failed')  # the payment stood
+            with self.sessions() as session:
+                apply_payment(session, CHAT_ORDER_REFERENCE, 'fail')  # Pub/Sub redelivers
+        self.assertEqual(send.call_count, 2)
+
+    def test_a_refused_message_does_not_fail_the_payment(self):
+        refused = SendError('the 24-hour window has closed', retryable=False)
+        with mock.patch('app.whatsapp_sender.send_text', side_effect=refused), self.sessions() as session:
+            result = apply_payment(session, CHAT_ORDER_REFERENCE, 'fail')
+        self.assertEqual(result.new_status, 'payment_failed')
 
     def test_an_unknown_payment_reference_is_an_error(self):
         with self.sessions() as session, self.assertRaises(PaymentNotFoundError):

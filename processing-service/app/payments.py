@@ -1,4 +1,5 @@
-"""The payment flow: what a payment event does to the order or booking it's for.
+"""
+The payment flow: what a payment event does to the order or booking it's for.
 
 A draft (the user asked; to be filled in). For one event `{payment_reference, status}`, in one
 transaction:
@@ -16,9 +17,11 @@ transaction:
      signals that don't run here, so schedule.py paints them: paid → X (taken), failed → O (free).
 4. For a payment that was received: the invoice (app/invoice.py) is rendered and
    uploaded (app/storage.py). It also runs for a repeated event, so if the upload failed (the
-   consumer nacks, Pub/Sub redelivers) the retry makes the invoice; the object name is fixed, so
+   consumer nacks, Pub/Sub redelivers) the retry makes the invoice. The object name is fixed, so
    doing it twice just overwrites it.
-5. TODO: tell the customer (after the commit).
+5. For received and failed payments, the customer is told on WhatsApp (app/notifications.py), 
+   with the invoice link when there is one. A message that couldn't be sent but could be later raises,
+   so the event is redelivered and a refusal is only logged.
 """
 
 import logging
@@ -28,7 +31,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import invoice, schedule, storage
+from . import invoice, notifications, schedule, storage
 from .models import PAYMENT_FAILED, PAYMENT_RECEIVED, PENDING_PAYMENT, OrderItem, ScheduleItem
 
 logger = logging.getLogger(__name__)
@@ -74,18 +77,22 @@ def find_item(session: Session, payment_reference: str) -> OrderItem | ScheduleI
     raise PaymentNotFoundError(f'No order or booking has payment reference {payment_reference}')
 
 
-def issue_invoice(session: Session, result: PaymentResult) -> PaymentResult:
-    """Renders the invoice of a paid order / booking, uploads it, and returns `result` with its links."""
+def finish(session: Session, result: PaymentResult) -> PaymentResult:
+    """Makes and uploads the invoice, then tells the customer."""
     item = session.get(OrderItem if result.kind == 'order' else ScheduleItem, result.id)
     document = invoice.build_invoice(session, item)
-    name = invoice.object_name(document.payment_reference)
-    session.rollback()  # no connection held during the upload
-    uri = storage.upload_invoice(invoice.render_pdf(document), name)
-    return replace(result, invoice_uri=uri, invoice_link=storage.invoice_link(name) if uri else None)
+    business_id = item.business_id
+    session.rollback()  # no connection held during the upload and the message
+    if result.new_status == PAYMENT_RECEIVED:
+        name = invoice.object_name(document.payment_reference)
+        uri = storage.upload_invoice(invoice.render_pdf(document), name)
+        result = replace(result, invoice_uri=uri, invoice_link=storage.invoice_link(name) if uri else None)
+    notifications.notify_customer(business_id, document, result.new_status, result.invoice_link)
+    return result
 
 
 def apply_payment(session: Session, payment_reference: str, status: str) -> PaymentResult:
-    """Applies one payment event and commits it, then makes the invoice (see the module docstring)."""
+    """Applies one payment event and commits it, then makes the invoice and tells the customer."""
     with session.begin():
         item = find_item(session, payment_reference)
         kind = 'order' if isinstance(item, OrderItem) else 'booking'
@@ -110,11 +117,4 @@ def apply_payment(session: Session, payment_reference: str, status: str) -> Paym
     # From `result`: the committed item's attributes are expired, and reading them would reload it.
     logger.info('Payment %s: %s #%s %s → %s', payment_reference, kind, result.id, result.old_status, new_status)
 
-    if new_status == PAYMENT_RECEIVED:
-        # After the commit and outside the row lock: the payment stands even if this fails (the event
-        # is then redelivered, and lands here again as a repeated event).
-        result = issue_invoice(session, result)
-
-    # TODO: tell the customer the outcome (and send the invoice link) through the WhatsApp API or the
-    # Gmail API. After the commit, so a failed message doesn't undo the payment.
-    return result
+    return finish(session, result)

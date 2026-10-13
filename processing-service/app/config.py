@@ -21,6 +21,11 @@ PUBSUB_SUBSCRIPTION = os.getenv('PUBSUB_SUBSCRIPTION', 'processing-service-payme
 # At most this many messages are handled at once, per worker (Pub/Sub flow control).
 PUBSUB_MAX_MESSAGES = int(os.getenv('PUBSUB_MAX_MESSAGES', '5'))
 
+# --- configuration-service: sends the customer's WhatsApp message (app/whatsapp_sender.py) ---
+CONFIGURATION_SERVICE_URL = os.getenv('CONFIGURATION_SERVICE_URL', 'http://localhost:8000/api').rstrip('/')
+INTERNAL_API_KEY = os.getenv('INTERNAL_API_KEY', 'dev-internal-api-key')
+WHATSAPP_SEND_TIMEOUT_SECONDS = 20
+
 # --- Invoices (Google Cloud Storage) ---------------------------------------------------------
 # The bucket for the invoice PDFs (Terraform: cs5224-ansera-app-objects). Unset: invoices are made
 # but not uploaded (local development, the tests).

@@ -179,6 +179,10 @@ services:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       SCHEDULE_TIME_ZONE: Asia/Singapore # must equal configuration-service's (DJANGO_SCHEDULE_TIME_ZONE)
+      # Tells the customer on WhatsApp through configuration-service's endpoint (app/whatsapp_sender.py).
+      CONFIGURATION_SERVICE_URL: http://configuration-service:8000/api
+      INTERNAL_API_KEY: dev-internal-api-key # must equal configuration-service's
+      # Invoices are made but not uploaded while GCS_BUCKET is unset.
     depends_on:
       pubsub-init:
         condition: service_completed_successfully
