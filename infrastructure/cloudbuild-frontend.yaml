@@ -8,6 +8,11 @@ steps:
     entrypoint: npm
     args: ["run", "build"]
   - name: node:22
+    entrypoint: bash
+    args:
+      - "-ceu"
+      - "mkdir -p infrastructure/hosting-dist && cp -R frontend-app/dist/. infrastructure/hosting-dist/"
+  - name: node:22
     dir: infrastructure
     entrypoint: bash
     args:

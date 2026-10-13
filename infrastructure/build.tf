@@ -30,6 +30,13 @@ resource "google_service_account_iam_member" "builder_act_as" {
   member             = "serviceAccount:${google_service_account.builder.email}"
 }
 
+resource "google_service_account_iam_member" "builder_notification_act_as" {
+  count              = var.enable_ci_cd && var.enable_cloud_sql ? 1 : 0
+  service_account_id = google_service_account.runtime["notification-job"].name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.builder.email}"
+}
+
 resource "google_project_iam_member" "builder_firebase_hosting_admin" {
   count   = var.enable_ci_cd && var.enable_firebase ? 1 : 0
   project = var.project_id
@@ -93,6 +100,7 @@ resource "google_cloudbuild_trigger" "notification_job" {
     google_artifact_registry_repository_iam_member.builder_writer,
     google_project_iam_member.builder_run_admin,
     google_project_iam_member.builder_log_writer,
+    google_service_account_iam_member.builder_notification_act_as,
   ]
 }
 
