@@ -19,15 +19,6 @@
   },
   {
     "model": "configuration_app.businessconfiguration",
-    "pk": 3,
-    "fields": {
-      "business_name": "FitLab Personal Training",
-      "description": "One-on-one and small-group strength training with certified coaches.",
-      "location": "1 Kent Ridge Road, Singapore 119224"
-    }
-  },
-  {
-    "model": "configuration_app.businessconfiguration",
     "pk": 4,
     "fields": {
       "business_name": "Lumen & Lens Photography Studio",
@@ -40,7 +31,7 @@
     "pk": 5,
     "fields": {
       "business_name": "Rally Point Courts",
-      "description": "Rally Point Courts is a sports centre in Kallang with 2 indoor, air-conditioned badminton courts and 2 outdoor, floodlit hard tennis courts. Courts are rented by the hour, every day from 9am to 9pm, and can be booked in this chat: choose the court type and a time, and we confirm your booking straight away. We don't rent or sell equipment: please bring your own rackets, shuttlecocks or tennis balls.",
+      "description": "Rally Point Courts is a sports centre in Kallang with 2 indoor, air-conditioned badminton courts and 2 outdoor, floodlit hard tennis courts. Courts are rented by the hour, every day from 9am to 9pm, and can be booked in this chat: choose the court type and a time, and we confirm your booking straight away. We don't rent equipment, but we sell a few badminton and tennis rackets, shuttlecocks and tennis balls: order them in this chat and collect them from our front counter.",
       "location": "9 Kallang Place, #01-08, Singapore 339155"
     }
   }

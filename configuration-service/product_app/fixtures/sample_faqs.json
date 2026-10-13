@@ -37,24 +37,6 @@
   },
   {
     "model": "product_app.faq",
-    "pk": 5,
-    "fields": {
-      "business": 3,
-      "question": "Do I need prior gym experience?",
-      "answer": "Not at all. Your coach will assess your fitness in the first session and build a programme around your level and goals."
-    }
-  },
-  {
-    "model": "product_app.faq",
-    "pk": 6,
-    "fields": {
-      "business": 3,
-      "question": "What is your cancellation policy?",
-      "answer": "Please cancel or reschedule at least 24 hours before your session. Late cancellations are counted as a used session."
-    }
-  },
-  {
-    "model": "product_app.faq",
     "pk": 7,
     "fields": {
       "business": 1,
@@ -419,7 +401,7 @@
     "fields": {
       "business": 5,
       "question": "Can I rent rackets and balls?",
-      "answer": "No, sorry: we don't rent or sell any equipment. Please bring your own rackets, shuttlecocks or tennis balls."
+      "answer": "We don't rent equipment, sorry. But we sell a few rackets, shuttlecocks and tennis balls: order them in this chat and collect them from our front counter, or bring your own."
     }
   },
   {

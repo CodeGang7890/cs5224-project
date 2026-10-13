@@ -20,16 +20,6 @@
     "verify_token": "dev-verify-token-2"
   },
   {
-    "business_id": 3,
-    "name": "FitLab Personal Training",
-    "waba_id": "200000000000003",
-    "phone_number_id": "100000000000003",
-    "display_phone_number": "+65 8960 5320",
-    "access_token": "dev-access-token-3",
-    "app_secret": "dev-app-secret-3",
-    "verify_token": "dev-verify-token-3"
-  },
-  {
     "business_id": 4,
     "name": "Lumen & Lens Photography Studio",
     "waba_id": "200000000000004",

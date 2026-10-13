@@ -79,32 +79,6 @@
   },
   {
     "model": "product_app.product",
-    "pk": 7,
-    "fields": {
-      "business": 3,
-      "name": "Single PT Session (60 min)",
-      "description": "One-on-one session with a certified coach.",
-      "information": "60 minutes with a certified coach at our gym: a short warm-up, the main workout planned for your goals, and a cool-down. Bring a towel and water; shoes are required. Reschedule at least 24 hours ahead or the session is forfeited.",
-      "price": "95.00",
-      "total_quantity": 30,
-      "is_active": true
-    }
-  },
-  {
-    "model": "product_app.product",
-    "pk": 8,
-    "fields": {
-      "business": 3,
-      "name": "10-Session PT Package",
-      "description": "Ten one-on-one sessions, valid for 3 months.",
-      "information": "Ten 60-minute one-on-one sessions with the same coach, to be used within 3 months of the first session. Includes a fitness assessment in the first session and a written plan. The package is non-refundable but can be transferred to a friend once.",
-      "price": "850.00",
-      "total_quantity": 15,
-      "is_active": true
-    }
-  },
-  {
-    "model": "product_app.product",
     "pk": 9,
     "fields": {
       "business": 1,
@@ -373,6 +347,71 @@
       "information": "Printed from the photos in your Lumen & Lens online gallery: tell us the gallery name and the photo numbers when you order. We print only photos from your own session with us.\n\nSize: 5.4 × 8.6 cm each, with a classic white border (wider at the bottom, for writing on). Paper: 260 gsm lustre. Comes with 20 mini wooden pegs and a 1.5 m string to hang them.\n\nDelivery: made to order in our studio within 3 to 5 working days, then delivered anywhere in Singapore (1 to 2 working days, free of charge). We send you a photo of the finished piece before it ships.",
       "price": "24.00",
       "total_quantity": 200,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 30,
+    "fields": {
+      "business": 5,
+      "name": "Yonex Nanoflare 700 Badminton Racket",
+      "description": "A light, head-light badminton racket for fast drives and quick defence. Strung and ready to play.",
+      "information": "Brand: Yonex. Model: Nanoflare 700 (2024). Weight: 4U (about 83 g), grip size G5. Balance: head-light. Flex: medium. Frame: high-modulus graphite. Colour: midnight purple.\n\nComes factory-strung with Yonex BG65 string at 24 lb, with a full-length racket cover.\n\nGood for: doubles players and improving singles players who like a fast, manoeuvrable racket.\n\nCollection: pick it up from our front counter at 9 Kallang Place, #01-08, any day from 9am to 9pm, once you have paid. Bring your order number. We don't deliver.",
+      "price": "239.00",
+      "total_quantity": 15,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 31,
+    "fields": {
+      "business": 5,
+      "name": "Yonex Astrox 99 Pro Badminton Racket",
+      "description": "A head-heavy, stiff attacking racket for powerful smashes. For advanced players.",
+      "information": "Brand: Yonex. Model: Astrox 99 Pro. Weight: 4U (about 83 g), grip size G5. Balance: head-heavy. Flex: stiff. Frame: high-modulus graphite with Namd. Colour: cherry sunburst.\n\nComes factory-strung with Yonex BG80 string at 26 lb, with a full-length racket cover.\n\nGood for: advanced singles players with a fast swing. Beginners usually find it heavy at the head.\n\nCollection: pick it up from our front counter at 9 Kallang Place, #01-08, any day from 9am to 9pm, once you have paid. Bring your order number. We don't deliver.",
+      "price": "289.00",
+      "total_quantity": 0,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 32,
+    "fields": {
+      "business": 5,
+      "name": "Yonex Aerosensa 30 Shuttlecocks (Tube of 12)",
+      "description": "Tournament-grade goose-feather shuttlecocks, speed 77, the ones we use at our own events.",
+      "information": "Brand: Yonex. Model: Aerosensa 30 (AS-30). Feathers: goose. Cork: natural composite cork. Speed: 77, suited to Singapore's heat and humidity in indoor, air-conditioned halls.\n\nA tube holds 12 shuttlecocks. Keep the tube closed and out of the sun so the feathers don't dry out and break.\n\nCollection: pick it up from our front counter at 9 Kallang Place, #01-08, any day from 9am to 9pm, once you have paid. Bring your order number. We don't deliver.",
+      "price": "42.00",
+      "total_quantity": 60,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 33,
+    "fields": {
+      "business": 5,
+      "name": "Wilson Clash 100 v2 Tennis Racket",
+      "description": "A flexible, arm-friendly all-court tennis racket with a lot of control. Strung and ready to play.",
+      "information": "Brand: Wilson. Model: Clash 100 v2. Head size: 100 sq in. Unstrung weight: 295 g. Grip size: 2 (4 1/4\"). String pattern: 16 x 19. Colour: black and red.\n\nComes factory-strung with Wilson Sensation string at 53 lb, with a racket cover.\n\nGood for: intermediate and advanced players, and anyone who wants a racket that is easy on the arm and shoulder.\n\nCollection: pick it up from our front counter at 9 Kallang Place, #01-08, any day from 9am to 9pm, once you have paid. Bring your order number. We don't deliver.",
+      "price": "329.00",
+      "total_quantity": 2,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 34,
+    "fields": {
+      "business": 5,
+      "name": "Wilson US Open Tennis Balls (Can of 3)",
+      "description": "The official ball of the US Open, made for hard courts like ours.",
+      "information": "Brand: Wilson. Model: US Open Extra Duty. Felt: extra-duty, which lasts longer on hard courts. A pressurised can of 3 balls: open it just before you play, as the balls slowly lose their bounce once opened.\n\nCollection: pick it up from our front counter at 9 Kallang Place, #01-08, any day from 9am to 9pm, once you have paid. Bring your order number. We don't deliver.",
+      "price": "9.90",
+      "total_quantity": 80,
       "is_active": true
     }
   }

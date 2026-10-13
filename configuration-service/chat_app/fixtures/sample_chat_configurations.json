@@ -180,7 +180,7 @@
           "required": false
         }
       ],
-      "welcome_message": "Hi, welcome to {business_name}! I can book a badminton or tennis court for you (1-hour slots, 9am to 9pm daily), or answer your questions.",
+      "welcome_message": "Hi, welcome to {business_name}! I can book a badminton or tennis court for you (1-hour slots, 9am to 9pm daily), take your order for rackets, shuttlecocks and balls, or answer your questions.",
       "reply_style": "casual",
       "custom_style": "",
       "last_updated": "2026-09-01T00:00:00Z"

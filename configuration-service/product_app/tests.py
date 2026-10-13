@@ -135,8 +135,8 @@ class SampleProductAndFAQFixtureTests(TestCase):
     fixtures = ['sample_business_configurations', 'sample_products', 'sample_faqs', 'sample_order_items']
 
     def test_fixtures_are_valid(self):
-        self.assertEqual(Product.objects.count(), 29)  # 20–29: Lumen & Lens's prints and frames
-        self.assertEqual(FAQ.objects.count(), 52)  # 35–44: Lumen & Lens, 45–52: Rally Point Courts
+        self.assertEqual(Product.objects.count(), 32)  # 20–29: Lumen & Lens's prints and frames, 30–34: Rally Point Courts
+        self.assertEqual(FAQ.objects.count(), 50)  # 35–44: Lumen & Lens, 45–52: Rally Point Courts
         for record in [*Product.objects.all(), *FAQ.objects.all()]:
             with self.subTest(record=str(record)):
                 record.full_clean()  # loaddata skips validation
@@ -170,6 +170,17 @@ class SampleProductAndFAQFixtureTests(TestCase):
                 self.assertIn('delivered anywhere in Singapore', product.information)
         self.assertTrue(FAQ.objects.filter(business_id=4, question='Do you deliver prints and frames?').exists())
         self.assertEqual(FAQ.objects.filter(business_id=5).count(), 8)
+
+    def test_courts_sell_a_few_rackets_and_balls(self):
+        # Rally Point Courts (business 5): collected at the counter; one sold out, one nearly.
+        products = {p.name: p for p in Product.load_stock(Product.objects.filter(business_id=5))}
+        self.assertEqual(len(products), 5)
+        for product in products.values():
+            with self.subTest(product=product.name):
+                self.assertTrue(product.is_active and product.description)
+                self.assertIn('front counter', product.information)
+        self.assertEqual(products['Yonex Astrox 99 Pro Badminton Racket'].quantity_available, 0)
+        self.assertEqual(products['Wilson Clash 100 v2 Tennis Racket'].quantity_available, 2)
 
     def test_florist_has_a_realistic_catalogue_and_faqs(self):
         # Bloom & Twine Florist Studio (business 2): fresh, dried / preserved, soap and crochet flowers.
@@ -514,11 +525,13 @@ class SampleServiceFixtureTests(TestCase):
     def test_fixture_is_valid(self):
         self.assertEqual(ServiceProvider.objects.count(), 6)
         self.assertEqual(Service.objects.count(), 10)
-        # 13 weeks per provider, 7 Sep to the week of 30 Nov 2026 (bookings run to the end of November).
-        self.assertEqual(WeeklyAvailability.objects.count(), 6 * 13)
+        # From 7 Sep 2026: 13 weeks for the photographers (to the week of 30 Nov), 17 for the courts
+        # (to the week of 28 Dec, as their bookings run to the end of December).
+        self.assertEqual(WeeklyAvailability.objects.count(), 2 * 13 + 4 * 17)
         for provider in ServiceProvider.objects.all():
             weeks = list(provider.weekly_availabilities.values_list('week', flat=True))
-            self.assertEqual((weeks[0], weeks[-1], len(weeks)), (date(2026, 9, 7), date(2026, 11, 30), 13))
+            last, count = (date(2026, 12, 28), 17) if provider.business_id == 5 else (date(2026, 11, 30), 13)
+            self.assertEqual((weeks[0], weeks[-1], len(weeks)), (date(2026, 9, 7), last, count))
         for item in [*ServiceProvider.objects.all(), *Service.objects.all(), *WeeklyAvailability.objects.all()]:
             with self.subTest(item=str(item)):
                 item.full_clean()  # loaddata skips validation
