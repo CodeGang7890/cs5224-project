@@ -1,0 +1,17 @@
+steps:
+  - name: node:22
+    dir: frontend-app
+    entrypoint: npm
+    args: ["ci"]
+  - name: node:22
+    dir: frontend-app
+    entrypoint: npm
+    args: ["run", "build"]
+  - name: node:22
+    dir: infrastructure
+    entrypoint: bash
+    args:
+      - "-ceu"
+      - "npm install --global firebase-tools && firebase deploy --only hosting --project=${_PROJECT_ID} --config=firebase.json --non-interactive"
+options:
+  logging: CLOUD_LOGGING_ONLY

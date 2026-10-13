@@ -1,6 +1,24 @@
-# Copy to terraform.tfvars and fill in tags as images get pushed.
-# Services left out run the placeholder "hello" image.
-image_tags = {
-  # "configuration-service" = "abc1234"
-  # "messaging-service"     = "abc1234"
-}
+project_id = "YOUR_GCP_PROJECT_ID"
+region     = "us-central1"
+
+# Fill only after the images exist and the application is safe to deploy.
+# service_images = {
+#   messaging-ingester = "us-central1-docker.pkg.dev/YOUR_GCP_PROJECT_ID/apps/messaging-ingester:COMMIT_SHA"
+# }
+
+# Cloud SQL and Cloud DNS have ongoing charges.
+enable_cloud_sql = false
+dns_domain       = ""
+
+# Firebase project enrollment cannot be undone. Enable only when needed.
+enable_firebase = false
+firebase_hosting_site_id = "cs5224-ansera"
+
+# Create this GitHub connection in Cloud Build (2nd gen) and install the Cloud Build GitHub App first.
+github_connection_name  = ""
+github_repository_name  = "cs5224-project"
+github_repository_uri   = "https://github.com/michac789/cs5224-project.git"
+
+# Keep triggers off until backend services are ready for deployment.
+enable_ci_cd = false
+ci_cd_services = []

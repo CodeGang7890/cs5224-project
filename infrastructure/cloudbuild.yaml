@@ -1,0 +1,12 @@
+# Triggered only after the app image has been made deployment-safe and the
+# existing Cloud Run service has been created by Terraform.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-t", "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/${_SERVICE}:${SHORT_SHA}", "./${_SERVICE}"]
+  - name: gcr.io/cloud-builders/docker
+    args: ["push", "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/${_SERVICE}:${SHORT_SHA}"]
+  - name: gcr.io/google.com/cloudsdktool/google-cloud-cli:stable
+    entrypoint: gcloud
+    args: ["run", "deploy", "${_SERVICE}", "--image=${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/${_SERVICE}:${SHORT_SHA}", "--region=${_REGION}", "--project=${_PROJECT_ID}", "--quiet"]
+options:
+  logging: CLOUD_LOGGING_ONLY
