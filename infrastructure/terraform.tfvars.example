@@ -33,3 +33,7 @@ notification_job_image       = "us-docker.pkg.dev/cloudrun/container/hello"
 enable_vertex_ai       = true
 vertex_ai_location     = "us-central1"
 vertex_ai_model        = "gemini-2.5-flash"
+
+# Standalone browser demo. Public access can allow untrusted model requests and charges.
+enable_vertex_ai_demo                 = false
+vertex_ai_demo_allow_unauthenticated = false

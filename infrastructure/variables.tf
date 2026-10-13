@@ -163,3 +163,21 @@ variable "vertex_ai_model" {
   type        = string
   default     = "gemini-2.5-flash"
 }
+
+variable "enable_vertex_ai_demo" {
+  description = "Create the separate Vertex AI demo Cloud Run service and runtime service account."
+  type        = bool
+  default     = false
+}
+
+variable "vertex_ai_demo_allow_unauthenticated" {
+  description = "Allow public access to the Vertex AI demo. Public users can submit requests that incur model usage charges."
+  type        = bool
+  default     = false
+}
+
+variable "vertex_ai_demo_image" {
+  description = "Initial image for the separate Vertex AI demo Cloud Run service before Cloud Build deploys its Docker image."
+  type        = string
+  default     = "us-docker.pkg.dev/cloudrun/container/hello"
+}

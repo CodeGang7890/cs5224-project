@@ -10,6 +10,14 @@ output "cloud_run_urls" {
   value = { for name, service in google_cloud_run_v2_service.backend : name => service.uri }
 }
 
+output "vertex_ai_demo_url" {
+  value = var.enable_vertex_ai_demo ? google_cloud_run_v2_service.vertex_ai_demo[0].uri : null
+}
+
+output "vertex_ai_demo_service_account" {
+  value = var.enable_vertex_ai_demo ? google_service_account.vertex_ai_demo[0].email : null
+}
+
 output "notification_job_name" {
   value = var.enable_cloud_sql ? google_cloud_run_v2_job.notification[0].name : null
 }
