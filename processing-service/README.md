@@ -1,6 +1,6 @@
 # processing-service
 
-A **FastAPI** service, served by **Gunicorn**, on port **8003**. It pulls the **payment events** payment-ingester publishes to Pub/Sub (topic `payment-events`). For each, it updates the order or booking with that payment reference in configuration-service's PostgreSQL (SQLAlchemy). The flow is a draft: the invoice and telling the customer are TODOs.
+A **FastAPI** service, served by **Gunicorn**, on port **8003**. It pulls the **payment events** payment-ingester publishes to Pub/Sub (topic `payment-events`). For each, it updates the order or booking with that payment reference in configuration-service's PostgreSQL (SQLAlchemy). For a paid order or booking it also makes an **invoice PDF**, uploads it to Cloud Storage, and tells the customer on **WhatsApp**.
 
 | Port | Service |
 | --- | --- |
@@ -22,9 +22,9 @@ Swagger UI is at <http://localhost:8003/docs>, and the OpenAPI spec at `/openapi
 
 `app/consumer.py` is a **pull** subscriber (streaming pull) on its own subscription, `processing-service-payments`, to the topic `payment-events`. Each message's data is JSON `{payment_reference, status}` (32 hex characters; `success` / `fail`; see `payment-ingester/README.md`).
 
-- **Valid:** it goes through the payment flow (below), then is acked. A repeated event changes nothing.
+- **Valid:** it goes through the payment flow (below), then is acked. A repeated event changes nothing in the database (but see step 5).
 - **Unknown payment reference, or not pending payment** (e.g. already completed): logged as an error and acked.
-- **Processing raised:** nacked, so Pub/Sub redelivers it.
+- **Processing raised** (e.g. the database, Cloud Storage or configuration-service is down): nacked, so Pub/Sub redelivers it. The payment itself is already committed by then; the retry sees a repeated event and finishes the invoice and the message.
 - **Malformed:** logged as a warning and acked, so it isn't redelivered forever.
 
 It starts and stops with the app. Each Gunicorn worker runs one, and they share the messages. It's off unless `PUBSUB_CONSUMER_ENABLED` is set; docker-compose turns it on. With the emulator (`PUBSUB_EMULATOR_HOST`), the consumer creates its subscription itself.
@@ -39,7 +39,18 @@ In one transaction, with the row locked:
 2. Only `pending_payment` changes: `success` → `payment_received`, `fail` → `payment_failed`. Already in that status: nothing changes. Any other status: `PaymentStatusConflictError`.
 3. **Product orders:** nothing else is stored. configuration-service works out each product's on hold / sold / available quantities from the orders' statuses: payment received still holds them, and a failed payment holds nothing, so they're available again.
 4. **Bookings:** the provider's weekly availability letters are stored, and Django's signals don't run here, so `app/schedule.py` (a port of configuration-service's `checkout_app.schedule`) paints them. Paid: on hold (H) → booked (X) over the duration, and the buffer where open. Failed: back to available (O).
-5. TODOs: generate the invoice and upload it to object storage; tell the customer (WhatsApp API or Gmail API).
+
+Then, **after the commit** (so a failure here never undoes the payment, and no connection is held during the upload):
+
+5. **Invoice (payment received only).** `app/invoice.py` builds the invoice from the order / booking, its business, chat and provider (`build_invoice`), then draws the PDF (`render_pdf`, fpdf2). `app/storage.py` uploads it to `invoices/<payment_reference>.pdf` in the `GCS_BUCKET` bucket, so a repeated event just overwrites it, and makes a signed link valid for 7 days. Invoice numbers are `INV-O-000012` (order #12) and `INV-B-000028` (booking #28). Without `GCS_BUCKET` (local development, the tests) the PDF is made but not uploaded, and there is no link.
+6. **Tell the customer (received and failed).** `app/notifications.py` sends a WhatsApp message to the chat's phone number, with the invoice link when there is one. It goes through `app/whatsapp_sender.py`: configuration-service's `POST /api/internal/whatsapp/<business_id>/send/`, which holds the business's access token (the same call messaging-service makes). A chat without a phone number (a Chat Sandbox, or a deleted chat) isn't messaged.
+
+Things to know about the message:
+
+- **A repeated event sends it again.** Nothing stored says it was sent (the schema is configuration-service's), and a customer who gets a message twice is better off than one who never gets it.
+- **Temporary failure** (configuration-service or Meta can't be reached): raises, so the event is redelivered. **A refusal** (Meta says no, or the business hasn't connected WhatsApp): logged as an error, and the payment still stands.
+- **The 24-hour window:** free-form WhatsApp text only works within 24 hours of the customer's last message. A customer who pays later than that gets a Meta refusal (logged). Reaching them then needs an approved message template, which isn't built.
+- **Signed links need a service account.** Your own `gcloud auth application-default login` can't sign, so locally the invoice is uploaded but the message has no link. On Cloud Run the runtime service account needs `roles/iam.serviceAccountTokenCreator` on itself.
 
 `app/models.py` maps only the columns the flow needs. configuration-service (Django) owns the schema and every migration: this service never creates or alters tables.
 
@@ -53,6 +64,10 @@ In one transaction, with the row locked:
 | `POSTGRES_HOST` / `POSTGRES_PORT` | `localhost` / `5433` | docker-compose: `postgres` / `5432` |
 | `DATABASE_URL` | unset | A full SQLAlchemy URL; overrides the above |
 | `SCHEDULE_TIME_ZONE` | `Asia/Singapore` | Must equal configuration-service's `DJANGO_SCHEDULE_TIME_ZONE` |
+| `GCS_BUCKET` | unset | The bucket for the invoice PDFs (`cs5224-ansera-app-objects`). Unset: invoices aren't uploaded |
+| `INVOICE_CURRENCY` | `SGD` | Shown on the invoice and in the message |
+| `CONFIGURATION_SERVICE_URL` | `http://localhost:8000/api` | docker-compose: `http://configuration-service:8000/api` |
+| `INTERNAL_API_KEY` | `dev-internal-api-key` | Must equal configuration-service's |
 | `PUBSUB_EMULATOR_HOST` | unset | `host:port` of the local emulator (docker-compose: `pubsub-emulator:8085`) |
 
 ## Running
@@ -82,6 +97,19 @@ gunicorn -c gunicorn.conf.py "app:create_app()"   # or as in Docker
 python -m unittest -v
 ```
 
+`tests/test_schema.py` (2 tests) is skipped unless `SCHEMA_DATABASE_URL` points at a database migrated by configuration-service; CI's `schema` job runs it.
+
+## Trying the invoice and the storage
+
+```bash
+python scripts/preview_invoice.py       # sample_order_invoice.pdf and sample_booking_invoice.pdf, no database or cloud
+gcloud auth application-default login   # once
+GCS_BUCKET=cs5224-ansera-app-objects python scripts/check_storage.py --keep   # uploads one sample to invoices/_check/
+gcloud storage ls gs://cs5224-ansera-app-objects/invoices/_check/
+```
+
+`check_storage.py` deletes its file again unless you pass `--keep`.
+
 ## Project structure
 
 ```
@@ -92,12 +120,18 @@ processing-service/
 │   ├── routes.py     # GET /
 │   ├── consumer.py   # Pub/Sub pull consumer of the payment events
 │   ├── payments.py   # the payment flow
+│   ├── invoice.py    # the invoice: its data from the rows, and the PDF (fpdf2)
+│   ├── storage.py    # invoice PDFs in Cloud Storage, and their signed links
+│   ├── notifications.py   # the customer's WhatsApp message
+│   ├── whatsapp_sender.py # configuration-service's internal send endpoint
 │   ├── schedule.py   # painting a booking into its provider's weeks
 │   ├── models.py     # SQLAlchemy models of configuration-service's tables
 │   ├── db.py         # engine and sessions (lazy)
 │   ├── schemas.py
 │   └── errors.py     # JSON error bodies (as in messaging-ingester)
-├── tests/          # test_routes.py, test_consumer.py (fake Pub/Sub clients), test_payments.py (SQLite)
+├── scripts/          # preview_invoice.py (PDFs to look at), check_storage.py (a real upload)
+├── tests/          # test_routes.py, test_consumer.py (fake Pub/Sub clients), test_payments.py (SQLite, fake storage and sender),
+│                   # test_invoice.py, test_storage.py, test_notifications.py, test_whatsapp_sender.py, test_schema.py
 ├── gunicorn.conf.py
 ├── run.py            # development server
 └── Dockerfile
