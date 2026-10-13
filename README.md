@@ -59,7 +59,7 @@ It opens on <http://localhost:9000>.
 
 ## Local LLM (Ollama)
 
-The chat assistant (configuration-service and messaging-service) uses a local LLM through [Ollama](https://ollama.com), running **on your machine, not in Docker**. A Docker VM usually has too little memory for the model (it needs about 5 GB), and Ollama on the host can use the GPU.
+The chat assistant (messaging-service) uses a local LLM through [Ollama](https://ollama.com), running **on your machine, not in Docker**. A Docker VM usually has too little memory for the model (it needs about 5 GB), and Ollama on the host can use the GPU.
 
 1. **Install Ollama:** download it from <https://ollama.com/download>, or `brew install ollama` on macOS.
 2. **Download the model** (about 4.7 GB, once):
@@ -80,7 +80,7 @@ The chat assistant (configuration-service and messaging-service) uses a local LL
 
    ```bash
    echo "OLLAMA_HOST=http://192.168.64.1:11434" > .env   # e.g. a vessel VM, which runs at 192.168.64.2
-   docker compose up -d configuration-service messaging-service
+   docker compose up -d messaging-service
    ```
 
 5. **Check that the containers reach it:**

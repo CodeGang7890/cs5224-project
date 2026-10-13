@@ -10,13 +10,11 @@ from .constants import (
     REPLY_STYLES,
     WELCOME_MESSAGE_MAX_LENGTH,
 )
-from .llm import CHAT_PROMPT_MAX_LENGTH, OLLAMA_MODEL, OLLAMA_OPTIONS
 from product_app.models import FAQ_QUESTION_MAX_LENGTH
 
 from .models import PHONE_NUMBER_MAX_LENGTH, ChatConfiguration, ChatSession, UnansweredQuestion, phone_number_validator
 from .questions import ANSWER_MAX_LENGTH
 from .validators import (
-    CHAT_MESSAGE_MAX_LENGTH,
     DETAIL_DESCRIPTION_MAX_LENGTH,
     DETAIL_FIELDS_MAX,
     DETAIL_KEY_MAX_LENGTH,
@@ -26,26 +24,6 @@ from .validators import (
     validate_detail_fields,
 )
 
-
-class ChatRequestSerializer(serializers.Serializer):
-    # trim_whitespace + allow_blank=False rejects empty and whitespace-only prompts.
-    prompt = serializers.CharField(
-        max_length=CHAT_PROMPT_MAX_LENGTH,
-        help_text=f'Your message to the assistant (max {CHAT_PROMPT_MAX_LENGTH} characters).',
-    )
-
-
-class ChatResponseSerializer(serializers.Serializer):
-    reply = serializers.CharField(help_text="The model's answer.")
-    model = serializers.CharField(help_text=f'The Ollama model used, e.g. `{OLLAMA_MODEL}`.')
-    options = serializers.DictField(
-        help_text=f'Sampling hyperparameters sent to Ollama (hardcoded): `{OLLAMA_OPTIONS}`.',
-    )
-
-
-# --- Chat configuration -------------------------------------------------------------------
-# detail_fields is stored and validated as plain JSON (validate_detail_fields). The serializer
-# below only describes its shape in the Swagger docs.
 
 class ChatDetailFieldSerializer(serializers.Serializer):
     """One customer detail the Details collection step asks for."""
@@ -263,62 +241,6 @@ class SandboxChatSessionSerializer(ChatSessionSerializer):
     def validate_phone_number(self, value: str) -> str:
         return value  # sandbox sessions may share a number
 
-
-class CustomerMessageRequestSerializer(serializers.Serializer):
-    business_id = serializers.IntegerField(min_value=1, help_text='ID of the business the customer is messaging.')
-    phone_number = serializers.CharField(
-        max_length=PHONE_NUMBER_MAX_LENGTH,
-        validators=[phone_number_validator],
-        help_text="The customer's phone number, in international format (e.g. +6591234567).",
-    )
-    # trim_whitespace + allow_blank=False rejects empty and whitespace-only messages.
-    message = serializers.CharField(
-        max_length=CHAT_MESSAGE_MAX_LENGTH,
-        help_text=f"The customer's message (max {CHAT_MESSAGE_MAX_LENGTH} characters).",
-    )
-
-
-class CustomerMessageResponseSerializer(ChatMessageSerializer):
-    """The assistant's reply (its last message this turn), and every message it sent."""
-
-    messages = ChatMessageSerializer(
-        many=True,
-        help_text=(
-            "Every message the assistant sent this turn, oldest first: on a chat's first message, the welcome "
-            'message (if the business has one), then the reply (unless the welcome was the whole reply).'
-        ),
-    )
-
-
-class SandboxMessageResponseSerializer(CustomerMessageResponseSerializer):
-    """The assistant's reply in a sandbox chat, plus what happened inside the turn (flow.py)."""
-
-    debug = serializers.JSONField(
-        help_text=(
-            'For debugging, not stored: `before` / `after` (`chat_state_id`, `chat_state_data`), '
-            '`route` (the router\'s `intents`, `extracted` and `system_prompt`), `steps` (per order step: '
-            '`step`, `system_prompt`, `extracted` (the LLM\'s JSON), `complete`, `go_back`, `go_back_to`, '
-            '`missing`, `issues`, `chat_state_data`), `stop_reason`, `finished`, `confirmation` (Confirmation\'s or Booking confirmation\'s substage: '
-            '`not_confirmed` / `confirmed` / null), `order_id` / `booking_id` (placed in this turn, or null), '
-            '`missing`, `issues`, `question_check` (`kind`, `question`, `saved`, `system_prompt`; null unless the router '
-            'found a question), `order_status` (`extracted`, `system_prompt`, `records`, `found`; null unless the router found an '
-            'order status request), `welcome_message` (sent first this turn, or null), `reply_kind` (`llm`, `order_status` (the order status prompt), `order_status_fallback` / '
-            '`order_status_not_found` (written by code), `welcome` (only the welcome message), or a fixed template: `confirmation_request`, '
-            '`order_confirmed`, `slot_options`, `booking_confirmation_request`, `booking_confirmed`), `reply_system_prompt` (the aside prompt for templates; may be empty) and '
-            '`tool_calls` (`name`, `arguments`).'
-        ),
-    )
-
-
-class SandboxMessageRequestSerializer(serializers.Serializer):
-    # trim_whitespace + allow_blank=False rejects empty and whitespace-only messages.
-    message = serializers.CharField(
-        max_length=CHAT_MESSAGE_MAX_LENGTH,
-        help_text=f'Your message, as the pretend customer (max {CHAT_MESSAGE_MAX_LENGTH} characters).',
-    )
-
-
-# --- Unanswered questions --------------------------------------------------------------------
 
 class UnansweredQuestionSerializer(serializers.ModelSerializer):
     """A question the chat assistant couldn't answer, with who asked it (read only)."""

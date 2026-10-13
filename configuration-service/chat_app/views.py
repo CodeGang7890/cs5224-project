@@ -4,7 +4,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import generics, status
 from rest_framework.exceptions import APIException, NotFound, PermissionDenied, ValidationError
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -12,27 +12,19 @@ from rest_framework.views import APIView
 from auth_app.business_scope import NO_BUSINESS_MESSAGE, OTHER_BUSINESS_MESSAGE
 from config.pagination import DetailedPageNumberPagination
 
-from . import flow, llm, questions
+from . import questions
 from .filters import ChatSessionFilter, UnansweredQuestionFilter
 from .constants import REPLY_STYLE_CUSTOM, REPLY_STYLE_PRESETS, STEP_START
 from .models import ChatConfiguration, ChatSession, UnansweredQuestion
 from .serializers import (
     ChatConfigurationSerializer,
-    ChatMessageSerializer,
-    ChatRequestSerializer,
-    ChatResponseSerializer,
     ChatSessionSerializer,
-    CustomerMessageRequestSerializer,
-    CustomerMessageResponseSerializer,
     ReplyStyleSerializer,
     SandboxChatSessionSerializer,
-    SandboxMessageRequestSerializer,
-    SandboxMessageResponseSerializer,
     AnswerQuestionSerializer,
     UnansweredQuestionSerializer,
 )
 
-NO_CHAT_SESSION_MESSAGE = 'No chat session found for this phone number at this business.'
 NOT_SANDBOX_MESSAGE = 'This is a real customer chat session; only sandbox chat sessions can be used here.'
 
 SAMPLE_DETAIL_FIELDS = [
@@ -47,70 +39,6 @@ class NotSandboxSession(APIException):
     status_code = status.HTTP_400_BAD_REQUEST
     default_detail = NOT_SANDBOX_MESSAGE
     default_code = 'not_sandbox'
-
-
-class LLMBadGateway(APIException):
-    status_code = status.HTTP_502_BAD_GATEWAY
-    default_code = 'llm_error'
-
-
-class LLMUnavailable(APIException):
-    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-    default_code = 'llm_unavailable'
-
-
-class LLMTimeout(APIException):
-    status_code = status.HTTP_504_GATEWAY_TIMEOUT
-    default_code = 'llm_timeout'
-
-
-class ChatView(APIView):
-    """One-off chat with the LLM (Ollama). Moved here from messaging-service for now."""
-
-    # Public, like messaging-service's /chat, so it can be tried from Swagger UI without logging in.
-    permission_classes = [AllowAny]
-    authentication_classes: list = []
-
-    @extend_schema(
-        tags=['Chat'],
-        summary='Send a prompt, get a reply',
-        description=(
-            'Single prompt in, single message out. No conversation history is kept: every request '
-            f'is independent. Uses the `{llm.OLLAMA_MODEL}` model at `{llm.OLLAMA_HOST}` with a '
-            'fixed system prompt and hardcoded sampling options (`chat_app/llm.py`). The seed is '
-            'fixed, so the same prompt returns the same reply.'
-        ),
-        request=ChatRequestSerializer,
-        responses={
-            200: ChatResponseSerializer,
-            400: OpenApiResponse(description='Invalid prompt (missing, blank or too long).'),
-            502: OpenApiResponse(description='Ollama returned an error (e.g. the model is not pulled).'),
-            503: OpenApiResponse(description='Ollama is not reachable.'),
-            504: OpenApiResponse(description='Ollama took too long to answer.'),
-        },
-        examples=[
-            OpenApiExample(
-                'Prompt',
-                value={'prompt': 'Suggest three names for a neighbourhood café.'},
-                request_only=True,
-            ),
-        ],
-    )
-    def post(self, request: Request) -> Response:
-        serializer = ChatRequestSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        try:
-            reply = llm.generate_reply(serializer.validated_data['prompt'])
-        except llm.LLMUnavailableError as exc:
-            raise LLMUnavailable(str(exc)) from exc
-        except llm.LLMTimeoutError as exc:
-            raise LLMTimeout(str(exc)) from exc
-        except llm.LLMError as exc:
-            raise LLMBadGateway(str(exc)) from exc
-        response = ChatResponseSerializer(
-            {'reply': reply, 'model': llm.OLLAMA_MODEL, 'options': llm.OLLAMA_OPTIONS}
-        )
-        return Response(response.data)
 
 
 def get_user_business(request: Request):
@@ -180,7 +108,6 @@ class ChatConfigurationView(APIView):
             serializer.data,
             status=status.HTTP_200_OK if chat_config else status.HTTP_201_CREATED,
         )
-
 
 
 class ReplyStyleListView(APIView):
@@ -294,73 +221,6 @@ class ChatSessionListView(generics.ListCreateAPIView):
         return create_chat_session(serializer, business, is_sandbox=False)
 
 
-def reply_to_customer_message(session: ChatSession, message: str) -> flow.TurnResult:
-    """Runs one turn of the chat flow (flow.py): the assistant's reply message, and debug info.
-
-    The customer message is saved first, so it's kept even if the LLM call fails (502/503/504).
-    """
-    try:
-        return flow.handle_customer_message(session.pk, message)
-    except llm.LLMUnavailableError as exc:
-        raise LLMUnavailable(str(exc)) from exc
-    except llm.LLMTimeoutError as exc:
-        raise LLMTimeout(str(exc)) from exc
-    except llm.LLMError as exc:
-        raise LLMBadGateway(str(exc)) from exc
-
-
-class CustomerMessageView(APIView):
-    """A customer sends a message to a business and gets the assistant's reply.
-
-    Used by the Chat Sandbox for now; it will become the WhatsApp webhook later.
-    """
-
-    # Public, like a webhook: the customer isn't a logged-in user.
-    permission_classes = [AllowAny]
-    authentication_classes: list = []
-
-    @extend_schema(
-        tags=['Chat sessions'],
-        summary='Send a customer message and get the reply',
-        description=(
-            'Finds the chat session for `business_id` + `phone_number`, appends the message '
-            '(`sent_by: customer`), runs the chat flow (the router, then the handlers: the order steps may '
-            'move `chat_state_id` on and update `chat_state_data`), asks the LLM for a reply, appends the reply '
-            '(`sent_by: business-automated`) and returns it. `last_chat_time` is set to the time '
-            'of each appended message. The customer message is kept even if the LLM fails.'
-        ),
-        request=CustomerMessageRequestSerializer,
-        responses={
-            200: CustomerMessageResponseSerializer,
-            400: OpenApiResponse(description='Invalid business ID, phone number or message.'),
-            404: OpenApiResponse(description='No chat session for this phone number at this business.'),
-            502: OpenApiResponse(description='Ollama returned an error (e.g. the model is not pulled).'),
-            503: OpenApiResponse(description='Ollama is not reachable.'),
-            504: OpenApiResponse(description='Ollama took too long to answer.'),
-        },
-        examples=[
-            OpenApiExample(
-                'Customer message',
-                value={'business_id': 1, 'phone_number': '+6591234567', 'message': 'Hi, are you open today?'},
-                request_only=True,
-            ),
-        ],
-    )
-    def post(self, request: Request) -> Response:
-        serializer = CustomerMessageRequestSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-        session = (
-            ChatSession.objects.select_related('business')
-            .filter(business_id=data['business_id'], phone_number=data['phone_number'], is_sandbox=False)
-            .first()
-        )
-        if session is None:
-            raise NotFound(NO_CHAT_SESSION_MESSAGE)
-        result = reply_to_customer_message(session, data['message'])
-        return Response(CustomerMessageResponseSerializer({**result.reply, 'messages': result.messages}).data)
-
-
 def get_own_sandbox_session(request: Request, pk: int) -> ChatSession:
     """The logged-in user's business's sandbox session `pk`.
 
@@ -449,47 +309,6 @@ class SandboxChatSessionDetailView(APIView):
         get_own_sandbox_session(request, pk).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-
-class SandboxChatMessageView(APIView):
-    """Send a message in one of your sandbox sessions, as the pretend customer."""
-
-    permission_classes = [IsAuthenticated]
-
-    @extend_schema(
-        tags=['Sandbox chat sessions'],
-        summary='Send a message in a sandbox chat and get the reply',
-        description=(
-            'Same flow as `POST /api/chat/sessions/messages/`, for one of your sandbox sessions: '
-            'appends the message (`sent_by: customer`), runs the chat flow (`chat_state_id` / '
-            '`chat_state_data`), asks the LLM for a reply, appends it (`sent_by: business-automated`) '
-            'and returns it, plus `debug`: what happened inside the turn (state before/after, the router\'s '
-            "intents, each order step's extraction prompt, the LLM's JSON and the check result, the question "
-            'check, the reply prompt and tool calls), for the Chat Sandbox\'s debug panel. The message is '
-            'kept if the LLM fails.'
-        ),
-        request=SandboxMessageRequestSerializer,
-        responses={
-            200: SandboxMessageResponseSerializer,
-            400: OpenApiResponse(description='Invalid message, or the session is a real customer session.'),
-            403: OpenApiResponse(description="Another business's session, or your account has no business."),
-            404: OpenApiResponse(description='No chat session with this ID.'),
-            502: OpenApiResponse(description='Ollama returned an error (e.g. the model is not pulled).'),
-            503: OpenApiResponse(description='Ollama is not reachable.'),
-            504: OpenApiResponse(description='Ollama took too long to answer.'),
-        },
-        examples=[OpenApiExample('Message', value={'message': 'Are you open today?'}, request_only=True)],
-    )
-    def post(self, request: Request, pk: int) -> Response:
-        session = get_own_sandbox_session(request, pk)
-        serializer = SandboxMessageRequestSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        result = reply_to_customer_message(session, serializer.validated_data['message'])
-        return Response(
-            SandboxMessageResponseSerializer({**result.reply, 'messages': result.messages, 'debug': result.debug}).data
-        )
-
-
-# --- Unanswered questions ------------------------------------------------------------------
 
 NO_QUESTION_MESSAGE = 'No question with this ID.'
 QUESTION_CLOSED_MESSAGE = 'This question has already been answered or dismissed.'

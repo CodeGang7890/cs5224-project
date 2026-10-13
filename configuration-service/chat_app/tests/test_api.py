@@ -1,7 +1,4 @@
-import json
 from datetime import timedelta
-from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
 
 from django.urls import reverse
 from django.utils import timezone
@@ -11,28 +8,9 @@ from rest_framework.test import APITestCase
 from auth_app.models import BusinessUser
 from configuration_app.models import BusinessConfiguration
 
-from .. import llm
 from ..models import ChatConfiguration, ChatSession
-from ..validators import validate_chat_messages
 from ..constants import DEFAULT_DETAIL_FIELDS
 from .test_models import DETAIL_FIELDS, VALID_MESSAGES
-
-
-class ChatViewTests(APITestCase):
-    url = reverse('chat_app:chat')
-
-    def test_returns_mocked_llm_reply(self):
-        # Replace the Ollama client so the test never needs a running model.
-        ollama = MagicMock()
-        ollama.chat.return_value = SimpleNamespace(message=SimpleNamespace(content='Hi there!'))
-        with patch('chat_app.llm.get_client', return_value=ollama):
-            response = self.client.post(self.url, {'prompt': 'Hello'}, format='json')
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            response.json(),
-            {'reply': 'Hi there!', 'model': llm.OLLAMA_MODEL, 'options': llm.OLLAMA_OPTIONS},
-        )
 
 
 class ChatConfigurationAPITests(APITestCase):
@@ -313,77 +291,6 @@ class ChatSessionCreateAPITests(APITestCase):
         self.assertFalse(ChatConfiguration.objects.exists())
 
 
-def fake_chat_response(content: str):
-    """Shape of ollama's ChatResponse that the app reads: response.message.content."""
-    return SimpleNamespace(message=SimpleNamespace(content=content))
-
-
-NO_QUESTION = {'kind': 'none', 'question': None}
-NO_INTENTS = {'intents': []}  # the router found nothing to do (e.g. a greeting)
-ANY_ORDERS = {'kind': 'any', 'numbers': []}  # the order status extraction: "my orders"
-
-
-def is_question_check(call_kwargs: dict) -> bool:
-    """Whether a mocked ollama `chat` call is the flow's question check (flow.check_customer_question)."""
-    properties = (call_kwargs.get('format') or {}).get('properties', {})
-    return 'kind' in properties and 'question' in properties
-
-
-def is_order_status_check(call_kwargs: dict) -> bool:
-    """Whether a mocked ollama `chat` call is the order status extraction (flow.check_order_status)."""
-    return 'numbers' in (call_kwargs.get('format') or {}).get('properties', {})
-
-
-def is_router(call_kwargs: dict) -> bool:
-    """Whether a mocked ollama `chat` call is the router (router.route_message)."""
-    return 'intents' in (call_kwargs.get('format') or {}).get('properties', {})
-
-
-def _route(intents) -> dict:
-    return intents if isinstance(intents, dict) else {'intents': list(intents)}
-
-
-def fake_ollama_chat(reply: str, extractions=(), question_check=NO_QUESTION, intents=NO_INTENTS, order_status=ANY_ORDERS):
-    """A `side_effect` for the mocked ollama `chat`, for the chat flow (flow.py).
-
-    The router returns `intents` (a list of intents, or the whole JSON; default: none). The
-    question check returns `question_check` (default: no question), the order status extraction
-    `order_status` (default: any orders, no numbers). Other structured calls (with
-    `format`, the order steps' extractions) return the next of `extractions` as JSON (`{}`, i.e.
-    nothing found, once they run out). Other calls (the reply) return `reply`.
-    """
-    queue = list(extractions)
-
-    def chat(**kwargs):
-        if is_router(kwargs):
-            return fake_chat_response(json.dumps(_route(intents)))
-        if is_question_check(kwargs):
-            return fake_chat_response(json.dumps(question_check))
-        if is_order_status_check(kwargs):
-            return fake_chat_response(json.dumps(order_status))
-        if kwargs.get('format'):
-            return fake_chat_response(json.dumps(queue.pop(0) if queue else {}))
-        return fake_chat_response(reply)
-
-    return chat
-
-
-def with_question_check(responses, question_check=NO_QUESTION, intents=NO_INTENTS):
-    """A `side_effect` that answers the router with `intents`, the question check with
-    `question_check`, and every other call with the next of `responses` (for tests that script the
-    calls one by one, e.g. tool calls)."""
-    responses = iter(responses)
-
-    def chat(**kwargs):
-        if is_router(kwargs):
-            return fake_chat_response(json.dumps(_route(intents)))
-        if is_question_check(kwargs):
-            return fake_chat_response(json.dumps(question_check))
-        return next(responses)
-
-    return chat
-
-
 class ChatSessionListAPITests(APITestCase):
     url = reverse('chat_app:chat-session-list')
 
@@ -450,117 +357,6 @@ class ChatSessionListAPITests(APITestCase):
                 'has_next': False, 'has_previous': False, 'next': None, 'previous': None, 'results': [],
             },
         )
-
-
-class CustomerMessageAPITests(APITestCase):
-    url = reverse('chat_app:customer-message')
-
-    @classmethod
-    def setUpTestData(cls):
-        cls.cafe = BusinessConfiguration.objects.create(
-            business_name='Kopi Café', description='Local kopi and toast.', location='Tiong Bahru'
-        )
-        cls.florist = BusinessConfiguration.objects.create(business_name='Florist', location='Singapore')
-
-    def setUp(self):
-        self.created = timezone.now() - timedelta(days=1)
-        self.session = ChatSession.objects.create(
-            business=self.cafe,
-            phone_number='+6591234567',
-            created_time=self.created,
-            last_chat_time=self.created,
-            chat_message_json=list(VALID_MESSAGES),
-            chat_state_id='product_selection',
-        )
-        # Replace the Ollama client so tests never need a running model.
-        self.ollama = MagicMock()
-        self.ollama.chat.side_effect = fake_ollama_chat('Yes, we are open until 6pm!')
-        patcher = patch('chat_app.llm.get_client', return_value=self.ollama)
-        patcher.start()
-        self.addCleanup(patcher.stop)
-
-    def send(self, **overrides):
-        body = {'business_id': self.cafe.pk, 'phone_number': '+6591234567', 'message': 'Are you open today?'}
-        return self.client.post(self.url, {**body, **overrides}, format='json')
-
-    def test_appends_both_messages_and_returns_reply(self):
-        response = self.send()
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        reply = response.json()
-        self.assertEqual(set(reply), {'message', 'sent_by', 'message_time', 'messages'})
-        self.assertEqual(reply.pop('messages'), [reply])  # no welcome message: just the reply
-        self.assertEqual(reply['message'], 'Yes, we are open until 6pm!')
-        self.assertEqual(reply['sent_by'], 'business-automated')
-
-        self.session.refresh_from_db()
-        messages = self.session.chat_message_json
-        self.assertEqual(messages[:len(VALID_MESSAGES)], VALID_MESSAGES)  # history kept
-        customer, bot = messages[len(VALID_MESSAGES):]
-        self.assertEqual((customer['message'], customer['sent_by']), ('Are you open today?', 'customer'))
-        self.assertEqual(bot, reply)
-        validate_chat_messages(messages)  # stored in the agreed format, in time order
-
-        self.assertGreater(self.session.last_chat_time, self.created)
-        self.assertEqual(self.session.last_chat_time.isoformat(), bot['message_time'])
-        self.assertEqual(self.session.created_time, self.created)
-        self.assertEqual(self.session.chat_state_id, 'product_selection')  # nothing chosen yet: still there
-
-    def test_llm_gets_business_system_prompt_and_conversation(self):
-        self.send(message='  Do you have kaya toast?  ')
-        reply_call = self.ollama.chat.call_args.kwargs  # the reply is the last call
-        messages = reply_call['messages']
-        self.assertEqual(messages[0]['role'], 'system')
-        for part in ('Kopi Café', 'Local kopi and toast.', 'Tiong Bahru', 'Product selection'):
-            self.assertIn(part, messages[0]['content'])
-        # The whole conversation: the customer is `user`, the business (bot or person) `assistant`.
-        self.assertEqual(
-            [m['role'] for m in messages[1:]], ['user', 'assistant', 'assistant', 'user']
-        )
-        self.assertEqual(messages[-1], {'role': 'user', 'content': 'Do you have kaya toast?'})
-        self.assertEqual(reply_call['options'], llm.OLLAMA_OPTIONS)
-        self.assertNotIn('format', reply_call)
-
-    def test_no_login_needed(self):
-        # The customer isn't a logged-in user (it will be a webhook).
-        self.assertEqual(self.send().status_code, status.HTTP_200_OK)
-
-    def test_unknown_session_returns_404(self):
-        ChatSession.objects.create(business=self.florist, phone_number='+6591234567', is_sandbox=True)
-        cases = {
-            'unknown phone number': {'phone_number': '+6599999999'},
-            'another business': {'business_id': self.florist.pk},
-            'unknown business': {'business_id': 99999},
-        }
-        for label, overrides in cases.items():
-            with self.subTest(label):
-                self.assertEqual(self.send(**overrides).status_code, status.HTTP_404_NOT_FOUND)
-        self.ollama.chat.assert_not_called()
-
-    def test_invalid_input_returns_400(self):
-        cases = {
-            'missing business_id': ({'business_id': None}, 'business_id'),
-            'business_id not a number': ({'business_id': 'abc'}, 'business_id'),
-            'invalid phone number': ({'phone_number': '91234567'}, 'phone_number'),
-            'blank message': ({'message': '   '}, 'message'),
-            'message too long': ({'message': 'x' * 4097}, 'message'),
-        }
-        for label, (overrides, field) in cases.items():
-            with self.subTest(label):
-                response = self.send(**overrides)
-                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-                self.assertIn(field, response.json())
-        self.ollama.chat.assert_not_called()
-        self.session.refresh_from_db()
-        self.assertEqual(self.session.chat_message_json, VALID_MESSAGES)
-
-    def test_llm_failure_keeps_customer_message(self):
-        self.ollama.chat.side_effect = ConnectionError('Failed to connect to Ollama.')
-        response = self.send()
-        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
-        self.session.refresh_from_db()
-        self.assertEqual(len(self.session.chat_message_json), len(VALID_MESSAGES) + 1)
-        self.assertEqual(self.session.chat_message_json[-1]['sent_by'], 'customer')
-        self.assertGreater(self.session.last_chat_time, self.created)
 
 
 class SandboxChatSessionAPITests(APITestCase):
@@ -727,101 +523,6 @@ class SandboxChatSessionAPITests(APITestCase):
         self.login(self.cafe_user)
         self.assertEqual(self.client.get(self.detail_url(self.cafe_sandbox_old)).status_code, 405)
         self.assertEqual(self.client.put(self.detail_url(self.cafe_sandbox_old), {}).status_code, 405)
-
-
-class SandboxChatMessageAPITests(APITestCase):
-    @staticmethod
-    def url(session):
-        return reverse('chat_app:sandbox-session-messages', args=[session.pk])
-
-    @classmethod
-    def setUpTestData(cls):
-        cls.cafe = BusinessConfiguration.objects.create(business_name='Kopi Café', location='Tiong Bahru')
-        cls.florist = BusinessConfiguration.objects.create(business_name='Florist', location='Singapore')
-        cls.cafe_user = BusinessUser.objects.create_user(username='cafe', password='123', business=cls.cafe)
-        cls.no_business_user = BusinessUser.objects.create_user(username='nobiz', password='123')
-
-    def setUp(self):
-        self.sandbox = ChatSession.objects.create(business=self.cafe, is_sandbox=True)
-        self.other_sandbox = ChatSession.objects.create(business=self.cafe, is_sandbox=True)
-        self.ollama = MagicMock()
-        self.ollama.chat.side_effect = fake_ollama_chat('Hello from the café!')
-        patcher = patch('chat_app.llm.get_client', return_value=self.ollama)
-        patcher.start()
-        self.addCleanup(patcher.stop)
-
-    def send(self, session, message='Hi there'):
-        return self.client.post(self.url(session), {'message': message}, format='json')
-
-    def test_requires_authentication(self):
-        self.assertEqual(self.send(self.sandbox).status_code, status.HTTP_401_UNAUTHORIZED)
-        self.ollama.chat.assert_not_called()
-
-    def test_user_without_business_gets_403(self):
-        self.client.force_authenticate(self.no_business_user)
-        self.assertEqual(self.send(self.sandbox).status_code, status.HTTP_403_FORBIDDEN)
-
-    def test_appends_messages_and_returns_reply(self):
-        self.client.force_authenticate(self.cafe_user)
-        response = self.send(self.sandbox, '  Are you open?  ')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.json()['message'], 'Hello from the café!')
-        self.assertEqual(response.json()['sent_by'], 'business-automated')
-        self.sandbox.refresh_from_db()
-        self.assertEqual(
-            [(m['sent_by'], m['message']) for m in self.sandbox.chat_message_json],
-            [('customer', 'Are you open?'), ('business-automated', 'Hello from the café!')],
-        )
-        validate_chat_messages(self.sandbox.chat_message_json)
-        self.assertEqual(self.sandbox.chat_state_id, 'start')  # no wish to order: still at the start
-        self.assertIn('Kopi Café', self.ollama.chat.call_args.kwargs['messages'][0]['content'])
-
-    def test_sessions_are_independent(self):
-        self.client.force_authenticate(self.cafe_user)
-        self.send(self.sandbox, 'first chat')
-        self.send(self.other_sandbox, 'second chat')
-        self.sandbox.refresh_from_db()
-        self.other_sandbox.refresh_from_db()
-        self.assertEqual(self.sandbox.chat_message_json[0]['message'], 'first chat')
-        self.assertEqual(self.other_sandbox.chat_message_json[0]['message'], 'second chat')
-        self.assertEqual(len(self.sandbox.chat_message_json), 2)
-
-    def test_real_session_returns_400(self):
-        real = ChatSession.objects.create(business=self.cafe, phone_number='+6591234567')
-        self.client.force_authenticate(self.cafe_user)
-        self.assertEqual(self.send(real).status_code, status.HTTP_400_BAD_REQUEST)
-        real.refresh_from_db()
-        self.assertEqual(real.chat_message_json, [])
-
-    def test_other_business_session_returns_403(self):
-        florist_sandbox = ChatSession.objects.create(business=self.florist, is_sandbox=True)
-        self.client.force_authenticate(self.cafe_user)
-        self.assertEqual(self.send(florist_sandbox).status_code, status.HTTP_403_FORBIDDEN)
-        florist_sandbox.refresh_from_db()
-        self.assertEqual(florist_sandbox.chat_message_json, [])
-
-    def test_unknown_session_returns_404(self):
-        self.client.force_authenticate(self.cafe_user)
-        response = self.client.post(
-            reverse('chat_app:sandbox-session-messages', args=[99999]), {'message': 'hi'}, format='json'
-        )
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-
-    def test_invalid_message_returns_400(self):
-        self.client.force_authenticate(self.cafe_user)
-        for message in ('', '   ', 'x' * 4097):
-            with self.subTest(length=len(message)):
-                response = self.send(self.sandbox, message)
-                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-                self.assertIn('message', response.json())
-        self.ollama.chat.assert_not_called()
-
-    def test_llm_failure_keeps_message(self):
-        self.ollama.chat.side_effect = ConnectionError('down')
-        self.client.force_authenticate(self.cafe_user)
-        self.assertEqual(self.send(self.sandbox).status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
-        self.sandbox.refresh_from_db()
-        self.assertEqual([m['sent_by'] for m in self.sandbox.chat_message_json], ['customer'])
 
 
 class ChatSessionListFilteringAPITests(APITestCase):

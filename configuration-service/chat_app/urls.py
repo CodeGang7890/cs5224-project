@@ -6,14 +6,11 @@ app_name = 'chat_app'
 
 # API routes for this app, mounted under /api/chat/ in config/urls.py.
 urlpatterns = [
-    path('', views.ChatView.as_view(), name='chat'),
     path('configuration/', views.ChatConfigurationView.as_view(), name='chat-configuration'),
     path('configuration/reply-styles/', views.ReplyStyleListView.as_view(), name='reply-style-list'),
     path('sessions/', views.ChatSessionListView.as_view(), name='chat-session-list'),
-    path('sessions/messages/', views.CustomerMessageView.as_view(), name='customer-message'),
     path('sandbox-sessions/', views.SandboxChatSessionListView.as_view(), name='sandbox-session-list'),
     path('sandbox-sessions/<int:pk>/', views.SandboxChatSessionDetailView.as_view(), name='sandbox-session-detail'),
-    path('sandbox-sessions/<int:pk>/messages/', views.SandboxChatMessageView.as_view(), name='sandbox-session-messages'),
     path('questions/', views.UnansweredQuestionListView.as_view(), name='question-list'),
     path('questions/<int:pk>/answer/', views.UnansweredQuestionAnswerView.as_view(), name='question-answer'),
     path('questions/<int:pk>/dismiss/', views.UnansweredQuestionDismissView.as_view(), name='question-dismiss'),

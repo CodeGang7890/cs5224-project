@@ -1,5 +1,5 @@
 """The chat endpoints that need the LLM, moved here from configuration-service's chat_app (the user
-asked; configuration-service still has them too, for now). Same paths, status codes and bodies
+asked; removed there since). Same paths, status codes and bodies
 (DRF's: app/drf.py), so callers only change the host:
 
 - POST /api/chat/sandbox-sessions/{pk}/messages/: the Chat Sandbox (login required). Sends a message

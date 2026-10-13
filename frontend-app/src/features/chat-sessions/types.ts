@@ -114,7 +114,7 @@ export interface SandboxTurnDebug {
   welcome_message: string | null
 }
 
-/** Mirrored from configuration-service `chat_app/flow.py` `check_order_status` / `past_orders.Lookup`. */
+/** Mirrored from messaging-service `app/chat_flow/flow.py` `check_order_status` / `past_orders.Lookup`. */
 export interface OrderStatusDebug {
   /** The extraction LLM's JSON: `{kind, numbers}`. */
   extracted: Record<string, unknown>

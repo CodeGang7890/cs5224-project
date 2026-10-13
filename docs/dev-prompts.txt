@@ -1404,3 +1404,12 @@ Date & Time (GMT+8): 2026-10-13 00:13:26
 AI Model Used: claude-opus-5-5
 Original Prompt:
 For "Chatting as...", please add 3 more mock users so in total there are 5... Now there's only Alice and Ben, please add more C D E
+
+Date & Time (GMT+8): 2026-10-13 01:10:23
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Please deprecate the LLM flow in configuration-service that has been moved to messaging-service.
+That means the POST api, the entire LLM order flow, prompts, tool calls, etc.
+Remove the Ollama dependency too from this service.
+Please double check that those deprecated parts are not used anymore, and we have moved things to messaging-service for the messaging related LLM tasks (accepting message & taking action & giving reply).

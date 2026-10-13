@@ -40,7 +40,7 @@ phone_number_validator = RegexValidator(
 class ChatConfiguration(models.Model):
     """A business's settings for the chat flow's steps.
 
-    The flow itself is fixed in code (flow.py): the router, then the order steps (Product
+    The flow itself is fixed in code (messaging-service's app/chat_flow): the router, then the order steps (Product
     selection → Details collection → Confirmation), the FAQs and order status. The business only
     configures the steps' settings: which details the Details collection step asks for (for
     product orders) and the Booking details step (for service bookings), separately; the
@@ -159,7 +159,7 @@ class ChatSession(models.Model):
         help_text='A test chat from the Chat Sandbox rather than a real customer.',
     )
     # What the order steps have collected so far (chosen products, customer details, completed).
-    # See validators.validate_chat_state_data and order_flow.py.
+    # See validators.validate_chat_state_data and messaging-service's app/chat_flow/order_flow.py.
     chat_state_data = models.JSONField(
         default=dict,
         blank=True,
@@ -209,7 +209,7 @@ QUESTION_STATUS_MAX_LENGTH = 16
 class UnansweredQuestion(models.Model):
     """A customer question the chat assistant couldn't answer from the FAQs or product details.
 
-    Saved by the chat's question check (flow.check_customer_question calls questions.ask_business)
+    Saved by messaging-service's chat flow (its question check calls ask_business)
     when the router finds a question that the business's information doesn't answer. The business
     owner answers it in the Chats tab, which saves the Q&A as an FAQ and sends the answer in the
     chat, or dismisses it.

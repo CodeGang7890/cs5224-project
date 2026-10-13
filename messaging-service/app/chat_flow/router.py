@@ -12,7 +12,7 @@ model, then decides which handlers run (flow.handle_customer_message):
   what they ask about, code looks it up among their own, an LLM rewrites only that).
 - off_topic: the reply declines it politely.
 
-A copy of configuration-service's chat_app/router.py.
+Originally configuration-service's chat_app/router.py (removed there: this is the only copy).
 """
 
 from dataclasses import dataclass
