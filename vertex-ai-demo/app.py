@@ -76,12 +76,39 @@ def generate_json(instruction: str, prompt: str, schema: dict[str, Any]) -> dict
             response_mime_type="application/json",
             response_schema=schema,
             temperature=0.2,
-            max_output_tokens=512,
+            max_output_tokens=1024,
         ),
     )
-    if not response.text:
+
+    candidates = getattr(response, "candidates", None) or []
+    finish_reason = getattr(candidates[0], "finish_reason", None) if candidates else None
+    finish_reason = getattr(finish_reason, "name", finish_reason)
+
+    # The SDK exposes schema-constrained JSON as a parsed value. Prefer it over
+    # reparsing generated text, which can be incomplete if generation is cut off.
+    try:
+        result = response.parsed
+    except (json.JSONDecodeError, ValueError):
+        result = None
+    if hasattr(result, "model_dump"):
+        result = result.model_dump()
+    if isinstance(result, dict):
+        return result
+
+    response_text = response.text
+    if not response_text:
+        logger.warning("Vertex AI returned an empty response; finish_reason=%s", finish_reason)
         raise RuntimeError("Vertex AI returned an empty response.")
-    result = json.loads(response.text)
+    try:
+        result = json.loads(response_text)
+    except json.JSONDecodeError as exc:
+        # Log diagnostics only; generated text may contain customer information.
+        logger.warning(
+            "Vertex AI returned invalid JSON; finish_reason=%s response_chars=%d",
+            finish_reason,
+            len(response_text),
+        )
+        raise RuntimeError("Vertex AI returned incomplete JSON.") from exc
     if not isinstance(result, dict):
         raise RuntimeError("Vertex AI returned an unexpected response format.")
     return result
