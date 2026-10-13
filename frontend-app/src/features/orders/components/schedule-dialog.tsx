@@ -9,6 +9,7 @@ import type { ScheduleItem } from '../types'
 import { MarkCompletedButton } from './mark-completed-button'
 import { OrderStatusBadge, SandboxBadge } from './order-status-badge'
 import { formatBookingTime } from './schedule-format'
+import { PaymentReference } from './payment-reference'
 
 interface ScheduleDialogProps {
   /** The open booking's ID (from `?booking=`), or null when closed. */
@@ -83,6 +84,7 @@ function BookingDetails({ booking }: { booking: ScheduleItem }) {
   ]
   return (
     <div className="grid min-h-0 gap-4 overflow-y-auto">
+      <PaymentReference reference={booking.payment_reference} />
       <dl className="grid gap-x-4 gap-y-2 rounded-lg border p-3 text-sm sm:grid-cols-2">
         {rows.map((row) => (
           <div key={row.label} className="grid min-w-0 gap-0.5">

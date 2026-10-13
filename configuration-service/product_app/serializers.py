@@ -274,6 +274,7 @@ class CalendarBookingSerializer(serializers.Serializer):
     order_status = serializers.CharField(
         help_text='`pending_payment` (H), `payment_received` / `order_completed` (X); bookings whose payment failed take up no time and are not listed.'
     )
+    payment_reference = serializers.CharField(help_text='The random 128-bit reference (32 hex characters) the payment is made under.')
     total = serializers.DecimalField(max_digits=12, decimal_places=2)
     is_sandbox = serializers.BooleanField()
     chat_session = serializers.IntegerField(allow_null=True)

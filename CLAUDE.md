@@ -10,9 +10,10 @@ Guidance for Claude Code that applies to every service. Each service also has it
 | `payment-ingester` | Not built yet (port reserved); for now a script publishing dummy payment events | 8001 |
 | `messaging-ingester` | FastAPI: WhatsApp webhooks → Pub/Sub (no database) | 8002 |
 | `processing-service` | FastAPI + Gunicorn: pulls payment events, updates orders / bookings | 8003 |
-| `messaging-service` | FastAPI + Gunicorn: the chat flow (LLM), one-off `/chat`, pulls WhatsApp messages | 8004 |
-| `notification-job` | Python script, run hourly by cron: reads the database | none |
+| `messaging-service` | FastAPI + Gunicorn: the chat flow (LLM): the Chat Sandbox's API, and answering the WhatsApp messages it pulls from Pub/Sub; one-off `/chat` | 8004 |
+| `notification-job` | Python script, run hourly by cron: payment and appointment reminders (logged for now; reads the database) | none |
 | `frontend-app` | Vite / React | 5173 |
+| `mock_whatsapp` | Local stand-in for WhatsApp / Meta (FastAPI + Jinja2 + SQLite, not in Docker): sends Meta's webhooks, fakes the Graph API for replies | 9000 |
 
 `docker-compose.yml` runs them all locally, with PostgreSQL (host port 5433) and a Pub/Sub emulator (8085).
 
@@ -30,7 +31,7 @@ There is one PostgreSQL database, and **configuration-service (Django) owns its 
   - `processing-service/app/models.py`
   - `notification-job/app/models.py`
 
-  CI's `schema` job migrates a PostgreSQL database with Django and checks the messaging-service and processing-service models against it (`tests/test_schema.py`).
+  CI's `schema` job migrates a PostgreSQL database with Django and checks the messaging-service, processing-service and notification-job models against it (`tests/test_schema.py`).
 - Django's model defaults (`default=…`, `auto_now`, `new_payment_reference()`) and signals (for example, painting a booking into its provider's weekly availability) don't run outside Django. Code in another service that inserts or updates rows must set those values, and repeat those side effects, itself.
 
 ## The chat flow is in two places for now

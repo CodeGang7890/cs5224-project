@@ -708,8 +708,8 @@ class ServiceProviderAPITests(ScheduleAPITestCase):
         self.assertEqual(first, {
             'id': pending.pk, 'service': 'Portrait', 'customer': 'Alice', 'details': {'name': 'Alice', 'email': 'alice@example.com'},
             'start_time': first['start_time'], 'end_time': first['end_time'], 'blocked_until': first['blocked_until'],
-            'order_status': 'pending_payment', 'total': '180.00', 'is_sandbox': True, 'chat_session': session.pk,
-            'start_block': 36, 'end_block': 40, 'until_block': 41,
+            'order_status': 'pending_payment', 'payment_reference': pending.payment_reference, 'total': '180.00',
+            'is_sandbox': True, 'chat_session': session.pk, 'start_block': 36, 'end_block': 40, 'until_block': 41,
         })
         self.assertEqual(body['time_zone'], 'Asia/Singapore')
         self.assertEqual(datetime.fromisoformat(first['blocked_until']), at(self.monday, '10:15'))

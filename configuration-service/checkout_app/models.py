@@ -88,6 +88,8 @@ class OrderItem(models.Model):
     updated_time = models.DateTimeField(auto_now=True)
 
     class Meta:
+        verbose_name = 'Order Item'
+        verbose_name_plural = 'Order Items'
         ordering = ['-created_time', '-id']
         constraints = [
             models.CheckConstraint(
@@ -173,6 +175,8 @@ class ScheduleItem(models.Model):
     updated_time = models.DateTimeField(auto_now=True)
 
     class Meta:
+        verbose_name = 'Schedule Item'
+        verbose_name_plural = 'Schedule Items'
         ordering = ['-start_time', '-id']
         indexes = [models.Index(fields=['service_provider', 'start_time'], name='schedule_item_provider_time')]
         constraints = [

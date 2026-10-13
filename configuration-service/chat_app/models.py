@@ -87,6 +87,8 @@ class ChatConfiguration(models.Model):
     last_updated = models.DateTimeField(auto_now=True)
 
     class Meta:
+        verbose_name = 'Chat Configuration'
+        verbose_name_plural = 'Chat Configurations'
         ordering = ['business']
         constraints = [
             models.CheckConstraint(condition=Q(reply_style__in=REPLY_STYLES), name='chat_configuration_reply_style_valid'),
@@ -166,6 +168,8 @@ class ChatSession(models.Model):
     )
 
     class Meta:
+        verbose_name = 'Chat Session'
+        verbose_name_plural = 'Chat Sessions'
         ordering = ['business', '-last_chat_time']
         constraints = [
             # Sandbox sessions are excluded: they may share a number or have none.
@@ -242,6 +246,8 @@ class UnansweredQuestion(models.Model):
     answered_time = models.DateTimeField(null=True, blank=True, help_text='When it was answered (answered only).')
 
     class Meta:
+        verbose_name = 'Unanswered Question'
+        verbose_name_plural = 'Unanswered Questions'
         ordering = ['-created_time', '-id']
         constraints = [
             models.CheckConstraint(
@@ -272,3 +278,59 @@ class UnansweredQuestion(models.Model):
             errors['faq'] = "The FAQ must belong to the question's business."
         if errors:
             raise ValidationError(errors)
+
+
+class InboundMessageStatus(models.TextChoices):
+    RECEIVED = 'received', 'Received'  # taken off the queue; the chat flow hasn't finished with it
+    REPLIED = 'replied', 'Replied'  # the chat flow ran and saved its reply
+
+
+WHATSAPP_MESSAGE_ID_MAX_LENGTH = 255
+INBOUND_STATUS_MAX_LENGTH = 16
+
+
+class InboundMessage(models.Model):
+    """A customer's WhatsApp message, as messaging-service took it from Pub/Sub (the topic
+    `whatsapp-inbound-messages`, published by messaging-ingester). One row per Meta message id
+    (`wamid…`), so a message delivered twice (Pub/Sub delivers at least once, and Meta can retry a
+    webhook) is answered once. Written by messaging-service only; the migration is here because
+    this app owns the schema.
+    """
+
+    business = models.ForeignKey(
+        'configuration_app.BusinessConfiguration',
+        on_delete=models.CASCADE,
+        related_name='inbound_messages',
+    )
+    chat_session = models.ForeignKey(ChatSession, on_delete=models.CASCADE, related_name='inbound_messages')
+    message_id = models.CharField(
+        max_length=WHATSAPP_MESSAGE_ID_MAX_LENGTH, unique=True, help_text="Meta's message id (wamid…)."
+    )
+    status = models.CharField(
+        max_length=INBOUND_STATUS_MAX_LENGTH,
+        choices=InboundMessageStatus.choices,
+        default=InboundMessageStatus.RECEIVED,
+    )
+    received_time = models.DateTimeField(default=timezone.now, editable=False)
+    replied_time = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Inbound Message'
+        verbose_name_plural = 'Inbound Messages'
+        ordering = ['-received_time', '-id']
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(status__in=InboundMessageStatus.values), name='inbound_message_status_valid'
+            ),
+            models.CheckConstraint(condition=~Q(message_id=''), name='inbound_message_id_not_empty'),
+            models.CheckConstraint(
+                condition=(
+                    Q(status=InboundMessageStatus.REPLIED, replied_time__isnull=False)
+                    | (~Q(status=InboundMessageStatus.REPLIED) & Q(replied_time__isnull=True))
+                ),
+                name='inbound_message_replied_time',
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.message_id

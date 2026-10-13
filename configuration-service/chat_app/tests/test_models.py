@@ -4,11 +4,12 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, connection, transaction
 from django.db.migrations.executor import MigrationExecutor
 from django.test import SimpleTestCase, TestCase, TransactionTestCase
+from django.utils import timezone
 
 from configuration_app.models import BusinessConfiguration
 
 from ..constants import CHAT_STEPS, DEFAULT_DETAIL_FIELDS, MESSAGE_SENDERS
-from ..models import ChatConfiguration, ChatSession
+from ..models import ChatConfiguration, ChatSession, InboundMessage, InboundMessageStatus
 from ..validators import (
     CHAT_MESSAGE_MAX_LENGTH,
     is_required_detail,
@@ -563,3 +564,26 @@ class DetailFieldsSplitMigrationTests(TransactionTestCase):
         cafe_config = Config.objects.get(business_id=cafe.pk)
         self.assertEqual(cafe_config.product_detail_fields, DEFAULT_DETAIL_FIELDS)
         self.assertEqual(cafe_config.schedule_detail_fields, DEFAULT_DETAIL_FIELDS)
+
+
+class InboundMessageModelTests(TestCase):
+    """A WhatsApp message messaging-service took from Pub/Sub: one row per Meta message id."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.business = BusinessConfiguration.objects.create(business_name='Café', location='Singapore')
+        cls.session = ChatSession.objects.create(business=cls.business, phone_number='+6591234567')
+
+    def test_defaults_and_one_row_per_message_id(self):
+        item = InboundMessage.objects.create(business=self.business, chat_session=self.session, message_id='wamid.1')
+        self.assertEqual((item.status, item.replied_time), (InboundMessageStatus.RECEIVED, None))
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            InboundMessage.objects.create(business=self.business, chat_session=self.session, message_id='wamid.1')
+
+    def test_replied_time_set_exactly_when_replied(self):
+        for status, replied_time in (('replied', None), ('received', timezone.now()), ('sent', None)):
+            with self.subTest(status=status), self.assertRaises(IntegrityError), transaction.atomic():
+                InboundMessage.objects.create(
+                    business=self.business, chat_session=self.session, message_id=f'wamid.{status}',
+                    status=status, replied_time=replied_time,
+                )

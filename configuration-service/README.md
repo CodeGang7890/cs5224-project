@@ -37,7 +37,7 @@ pip install -r requirements.txt
 python manage.py migrate
 
 # 4. Load sample data (businesses, business users, products, FAQs)
-python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_services sample_chat_configurations sample_chat_sessions sample_order_items sample_schedule_items sample_unanswered_questions
+python manage.py loaddata sample_business_configurations sample_whatsapp_configurations sample_business_users sample_products sample_faqs sample_services sample_chat_configurations sample_chat_sessions sample_order_items sample_schedule_items sample_unanswered_questions
 
 # 5. Create the local admin superuser (username: superuser, password: 123)
 DJANGO_SUPERUSER_PASSWORD=123 python manage.py createsuperuser --noinput --username superuser --email superuser@example.com
@@ -66,7 +66,7 @@ python manage.py runserver
 The fixtures are JSON files in each app's `fixtures/` folder. Load them all with:
 
 ```bash
-python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_services sample_chat_configurations sample_chat_sessions sample_order_items sample_schedule_items sample_unanswered_questions
+python manage.py loaddata sample_business_configurations sample_whatsapp_configurations sample_business_users sample_products sample_faqs sample_services sample_chat_configurations sample_chat_sessions sample_order_items sample_schedule_items sample_unanswered_questions
 ```
 
 | Fixture | File | Contents |
@@ -442,7 +442,7 @@ You can also use your Django Admin login instead (**cookieAuth**). If you're log
 | `python manage.py makemigrations` | Creates migration files after you change models |
 | `python manage.py migrate` | Applies migrations to the database |
 | `python manage.py createsuperuser` | Creates an admin user |
-| `python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_services sample_chat_configurations sample_chat_sessions sample_order_items sample_schedule_items sample_unanswered_questions` | Loads the sample data |
+| `python manage.py loaddata sample_business_configurations sample_whatsapp_configurations sample_business_users sample_products sample_faqs sample_services sample_chat_configurations sample_chat_sessions sample_order_items sample_schedule_items sample_unanswered_questions` | Loads the sample data |
 | `python manage.py flush --noinput` | Deletes all rows from every table (keeps the tables); see [Resetting the local database](#resetting-the-local-database) |
 | `python manage.py test` | Runs all tests (see [Running tests](#running-tests)) |
 | `python manage.py check` | Checks the project configuration for problems |
@@ -487,7 +487,7 @@ To put the data back to the sample state, delete every row (the tables and migra
 
 ```bash
 python manage.py flush --noinput
-python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_services sample_chat_configurations sample_chat_sessions sample_order_items sample_schedule_items sample_unanswered_questions
+python manage.py loaddata sample_business_configurations sample_whatsapp_configurations sample_business_users sample_products sample_faqs sample_services sample_chat_configurations sample_chat_sessions sample_order_items sample_schedule_items sample_unanswered_questions
 DJANGO_SUPERUSER_PASSWORD=123 python manage.py createsuperuser --noinput --username superuser --email superuser@example.com
 ```
 
@@ -499,7 +499,7 @@ To delete the database file itself and rebuild it from the migrations (e.g. afte
 ```bash
 rm db.sqlite3
 python manage.py migrate
-python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_services sample_chat_configurations sample_chat_sessions sample_order_items sample_schedule_items sample_unanswered_questions
+python manage.py loaddata sample_business_configurations sample_whatsapp_configurations sample_business_users sample_products sample_faqs sample_services sample_chat_configurations sample_chat_sessions sample_order_items sample_schedule_items sample_unanswered_questions
 DJANGO_SUPERUSER_PASSWORD=123 python manage.py createsuperuser --noinput --username superuser --email superuser@example.com
 ```
 

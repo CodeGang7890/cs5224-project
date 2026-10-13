@@ -76,7 +76,7 @@ jobs:
       - name: Migrate and load the fixtures
         run: |
           python manage.py migrate --noinput
-          python manage.py loaddata sample_business_configurations sample_business_users sample_products sample_faqs sample_services sample_chat_configurations sample_chat_sessions sample_order_items sample_schedule_items sample_unanswered_questions
+          python manage.py loaddata sample_business_configurations sample_whatsapp_configurations sample_business_users sample_products sample_faqs sample_services sample_chat_configurations sample_chat_sessions sample_order_items sample_schedule_items sample_unanswered_questions
       - name: Tests
         run: python manage.py test --noinput
 
@@ -119,7 +119,7 @@ jobs:
     strategy:
       fail-fast: false # report every service's result, not just the first failure
       matrix:
-        service: [messaging-ingester, messaging-service, processing-service, notification-job]
+        service: [messaging-ingester, messaging-service, processing-service, notification-job, mock_whatsapp]
         include:
           # Its EmulatorIntegrationTests publish to a real Pub/Sub emulator (skipped without one).
           - service: messaging-ingester
@@ -155,8 +155,8 @@ jobs:
           PUBSUB_EMULATOR_HOST: ${{ matrix.pubsub-emulator && 'localhost:8085' || '' }}
         run: python -m unittest -v
 
-  # configuration-service (Django) owns the PostgreSQL schema and every migration; messaging-service and
-  # processing-service map the tables they use with SQLAlchemy. Migrate a database with Django, then
+  # configuration-service (Django) owns the PostgreSQL schema and every migration; messaging-service,
+  # processing-service and notification-job map the tables they use with SQLAlchemy. Migrate a database with Django, then
   # check their models against it (tests/test_schema.py, skipped elsewhere).
   schema:
     name: SQLAlchemy models match Django's schema
@@ -188,6 +188,7 @@ jobs:
             configuration-service/requirements.txt
             messaging-service/requirements.txt
             processing-service/requirements.txt
+            notification-job/requirements.txt
       - name: Migrate with Django
         working-directory: configuration-service
         env:
@@ -207,6 +208,11 @@ jobs:
           python -m unittest -v tests.test_schema
       - name: processing-service models
         working-directory: processing-service
+        run: |
+          pip install -r requirements.txt
+          python -m unittest -v tests.test_schema
+      - name: notification-job models
+        working-directory: notification-job
         run: |
           pip install -r requirements.txt
           python -m unittest -v tests.test_schema

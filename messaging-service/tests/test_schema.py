@@ -14,11 +14,11 @@ import unittest
 from sqlalchemy import JSON, BigInteger, Boolean, Date, DateTime, Integer, Numeric, String, Text, create_engine, inspect
 from sqlalchemy.types import TypeDecorator
 
-from app.models import Base, ChatSession, OrderItem, ScheduleItem, UnansweredQuestion, WeeklyAvailability
+from app.models import Base, ChatSession, InboundMessage, OrderItem, ScheduleItem, UnansweredQuestion, WeeklyAvailability
 
 SCHEMA_DATABASE_URL = os.getenv('SCHEMA_DATABASE_URL', '')
-INSERTED_INTO = [OrderItem, ScheduleItem, UnansweredQuestion, WeeklyAvailability]
-UPDATED = [ChatSession]
+# ChatSession: a new customer's chat, from WhatsApp (app/inbound.py).
+INSERTED_INTO = [ChatSession, InboundMessage, OrderItem, ScheduleItem, UnansweredQuestion, WeeklyAvailability]
 
 
 def kind(column_type) -> tuple:

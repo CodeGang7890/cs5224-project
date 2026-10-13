@@ -20,5 +20,5 @@ class BusinessUser(AbstractUser):
     )
 
     class Meta(AbstractUser.Meta):
-        verbose_name = 'business user'
-        verbose_name_plural = 'business users'
+        verbose_name = 'Business User'
+        verbose_name_plural = 'Business Users'

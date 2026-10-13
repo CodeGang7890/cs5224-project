@@ -126,3 +126,19 @@ class VerificationResultSerializer(serializers.Serializer):
             '`metadata.phone_number_id`), otherwise null.'
         ),
     )
+
+
+WHATSAPP_TEXT_MAX_LENGTH = 4096  # WhatsApp's limit for a text message
+
+
+class SendMessageRequestSerializer(serializers.Serializer):
+    to = serializers.RegexField(
+        r'^\+[1-9]\d{6,14}$', max_length=16,
+        help_text="The customer's phone number, in international format (e.g. +6591234567).",
+        error_messages={'invalid': 'Enter the phone number in international format, e.g. +6591234567.'},
+    )
+    text = serializers.CharField(max_length=WHATSAPP_TEXT_MAX_LENGTH, help_text='The message to send.')
+
+
+class SendMessageResponseSerializer(serializers.Serializer):
+    message_id = serializers.CharField(help_text="Meta's id of the message sent (wamid…).")

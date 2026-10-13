@@ -89,7 +89,7 @@ class TurnResult:
     messages: list[dict] = field(default_factory=list)
 
 
-def handle_customer_message(sessions: sessionmaker, session_id: int, message: str) -> TurnResult:
+def handle_customer_message(sessions: sessionmaker, session_id: int, message: str, save_message: bool = True) -> TurnResult:
     """Saves the customer message, runs the flow, then saves and returns the assistant's reply.
 
     The customer message is saved first, so it's kept if an LLM call fails (llm.LLMError). The
@@ -99,8 +99,13 @@ def handle_customer_message(sessions: sessionmaker, session_id: int, message: st
     if any) is sent first, word for word. If the router finds nothing to do (e.g. "hi"), it's the
     whole reply; otherwise the reply follows it, told not to greet again. Every reply prompt gets
     the business's reply style (prompts.reply_style_section).
+
+    `save_message=False` (messaging-service only: the WhatsApp consumer, app/inbound.py): the
+    customer message is already the chat's last one (saved with its InboundMessage record, so a
+    redelivered message is never saved twice).
     """
-    append_chat_message(sessions, session_id, message, SENT_BY_CUSTOMER)
+    if save_message:
+        append_chat_message(sessions, session_id, message, SENT_BY_CUSTOMER)
     with sessions() as db:
         session = db.get(ChatSession, session_id)
         business = db.get(BusinessConfiguration, session.business_id)
@@ -340,10 +345,15 @@ def append_chat_message(sessions: sessionmaker, session_id: int, message: str, s
     isn't held during the LLM call, which can take a while.)
     """
     with sessions.begin() as db:
-        session = db.scalars(select(ChatSession).where(ChatSession.id == session_id).with_for_update()).one()
-        now = timezone.now()
-        chat_message = {'message': message, 'sent_by': sent_by, 'message_time': now.isoformat()}
-        # A new list (not append): SQLAlchemy only saves a JSON column that's assigned.
-        session.chat_message_json = [*session.chat_message_json, chat_message]
-        session.last_chat_time = now
+        return append_in_transaction(db, session_id, message, sent_by)
+
+
+def append_in_transaction(db, session_id: int, message: str, sent_by: str) -> dict:
+    """append_chat_message() inside the caller's transaction (`db`), with the row locked."""
+    session = db.scalars(select(ChatSession).where(ChatSession.id == session_id).with_for_update()).one()
+    now = timezone.now()
+    chat_message = {'message': message, 'sent_by': sent_by, 'message_time': now.isoformat()}
+    # A new list (not append): SQLAlchemy only saves a JSON column that's assigned.
+    session.chat_message_json = [*session.chat_message_json, chat_message]
+    session.last_chat_time = now
     return chat_message
