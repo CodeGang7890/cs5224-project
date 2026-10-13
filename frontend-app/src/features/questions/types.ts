@@ -3,7 +3,7 @@
 export const QUESTION_STATUSES = ['open', 'answered', 'dismissed'] as const
 export type QuestionStatus = (typeof QUESTION_STATUSES)[number]
 
-/** A customer question the chat assistant couldn't answer (saved by its `ask_business` tool). */
+/** A customer question the chat assistant couldn't answer (saved by messaging-service's chat flow, `ask_business`). */
 export interface UnansweredQuestion {
   id: number
   business: number

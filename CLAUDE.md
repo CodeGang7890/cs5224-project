@@ -34,12 +34,9 @@ There is one PostgreSQL database, and **configuration-service (Django) owns its 
   CI's `schema` job migrates a PostgreSQL database with Django and checks the messaging-service, processing-service and notification-job models against it (`tests/test_schema.py`).
 - Django's model defaults (`default=…`, `auto_now`, `new_payment_reference()`) and signals (for example, painting a booking into its provider's weekly availability) don't run outside Django. Code in another service that inserts or updates rows must set those values, and repeat those side effects, itself.
 
-## The chat flow is in two places for now
+## The chat flow is only in messaging-service
 
-The chat flow (everything behind the LLM chat endpoints) was copied from `configuration-service/chat_app` to `messaging-service/app/chat_flow`, with the ORM replaced by SQLAlchemy. The frontend's Chat Sandbox now sends its messages to messaging-service. configuration-service still has the same endpoints (the user asked not to remove them yet). Until they're removed there:
-
-- **change both copies together**, and port their tests (`messaging-service/tests/test_chat_*.py`);
-- everything else about chats stays in configuration-service only: listing chats, creating and deleting sandbox sessions, the chat settings, and answering questions.
+The chat flow (everything behind the LLM chat endpoints) lives in `messaging-service/app/chat_flow` (SQLAlchemy). It was moved there from `configuration-service/chat_app`, then removed from configuration-service, with its `ollama` dependency (the user asked). Everything else about chats stays in configuration-service: listing chats, creating and deleting sandbox sessions, the chat settings, and answering questions. The shared rules (the step names, the detail field rules, the reply style presets) are in both services: change them together.
 
 ## Logins
 

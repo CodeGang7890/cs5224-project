@@ -96,7 +96,7 @@ class ProductSerializer(BusinessOwnedSerializerMixin, serializers.ModelSerialize
     def update(self, instance, validated_data):
         """A new total_quantity can't go below what's on hold or sold in orders.
 
-        Checked with the product's row locked (the same lock checkout_app.services.place_order takes),
+        Checked with the product's row locked (the same lock messaging-service's place_order takes),
         so an order placed at the same moment can't make the quantity available negative.
         """
         if 'total_quantity' not in validated_data:
@@ -180,7 +180,7 @@ class WeeklyAvailabilitySerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
     def update(self, instance, validated_data):
-        """Checked and saved with the provider locked (like place_booking), against the week's
+        """Checked and saved with the provider locked (like messaging-service's place_booking), against the week's
         current letters, so a booking made at the same moment is never overwritten."""
         if 'availability' not in validated_data:
             return super().update(instance, validated_data)

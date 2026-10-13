@@ -50,7 +50,7 @@ def payment_reference_field():
 class OrderItem(models.Model):
     """An order a customer confirmed in a chat: what they ordered and their details (`order_data`).
 
-    Created by checkout_app.services.place_order(). Products' on hold / sold / available
+    Created by messaging-service's chat flow (its place_order()). Products' on hold / sold / available
     quantities are derived from the orders (checkout_app.stock): an order's quantities are on hold
     while it's pending payment or paid, and sold once it's completed.
     """
@@ -116,7 +116,7 @@ class ScheduleItem(models.Model):
     """A time slot a customer booked for a service in a chat (`schedule_data`: the service and
     their details). Like OrderItem, but for product_app.Service.
 
-    Created by checkout_app.services.place_booking(). It takes up its service provider's time from
+    Created by messaging-service's chat flow (its place_booking()). It takes up its service provider's time from
     `start_time` until `blocked_until` (the end of the service plus its buffer), and writes that
     into the provider's WeeklyAvailability: on hold (H) while pending payment, booked (X) once paid
     or completed, and available (O) again if it's deleted (checkout_app.schedule.sync_booking, run

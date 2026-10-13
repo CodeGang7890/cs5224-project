@@ -9,7 +9,7 @@ Drafts: tune the wording freely. There are:
   confirmations, and the time slots offered;
 - the question check (the FAQ handler) and the reply prompt, which puts the handlers' results together.
 
-A copy of configuration-service's chat_app/prompts.py (keep the two the same while both exist).
+Originally configuration-service's chat_app/prompts.py (removed there: this is the only copy).
 """
 
 import copy

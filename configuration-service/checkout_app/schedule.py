@@ -360,7 +360,7 @@ def set_slots(
     """Opens (O) or closes (U) the blocks from `time_from` to `time_to` (None: midnight) on every
     day from `date_from` to `date_to` (inclusive) whose weekday (0 = Monday) is in `weekdays`.
     Booked blocks (H / X) are left as they are. Missing weeks are created. One transaction, with the
-    provider locked (like place_booking), so a booking can't be made at the same moment."""
+    provider locked (like messaging-service's place_booking), so a booking can't be made at the same moment."""
     weekdays = set(weekdays)
     letter = SLOT_AVAILABLE if available else SLOT_UNAVAILABLE
     change = WeeksChange(weeks=[])

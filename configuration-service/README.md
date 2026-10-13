@@ -12,7 +12,6 @@ Django REST API backend for Ansera Business Admin. It has five Django apps: `con
 | CORS | [django-cors-headers](https://github.com/adamchainz/django-cors-headers) |
 | API filtering / sorting | [django-filter](https://django-filter.readthedocs.io/) |
 | Authentication | [djangorestframework-simplejwt](https://django-rest-framework-simplejwt.readthedocs.io/) (JWT access/refresh tokens) |
-| LLM (chat) | [ollama](https://github.com/ollama/ollama-python) Python client, talking to a local [Ollama](https://ollama.com/) server |
 | Database | SQLite (local file `db.sqlite3`); a real database will be integrated later |
 
 ## Prerequisites
@@ -196,14 +195,11 @@ All of these require you to be logged in.
 | `GET` | `/api/businesses/{business_id}/products/` | List **all** products of a business, including inactive ones (paginated) |
 | `GET` | `/api/businesses/{business_id}/faqs/` | List all FAQs of a business (paginated) |
 | `GET` | `/api/configuration/random-number/` | Sample endpoint (public, no login needed) |
-| `POST` | `/api/chat/` | `{prompt}` → `{reply, model, options}`: one-off chat with the local LLM (public, no login needed) |
 | `GET` | `/api/chat/configuration/` | Your business's chat configuration `{id, business, product_detail_fields, schedule_detail_fields, welcome_message, reply_style, custom_style, last_updated}`; the defaults (with `id` null) if you haven't saved one |
 | `GET` | `/api/chat/configuration/reply-styles/` | The reply styles to choose from: `{key, label, description, instructions}` (`instructions` null for `custom`) |
 | `GET` / `POST` | `/api/chat/sandbox-sessions/` | List / start your business's sandbox (test) chat sessions |
 | `DELETE` | `/api/chat/sandbox-sessions/{id}/` | Delete one of your sandbox chat sessions |
-| `POST` | `/api/chat/sandbox-sessions/{id}/messages/` | `{message}` → the assistant's reply, in one of your sandbox chat sessions |
 | `GET` | `/api/chat/sessions/` | Your business's chat sessions (real ones by default; `sandbox=include` or `only` for test chats), with filters, sorting and pagination. See [Chat sessions](#chat-sessions) |
-| `POST` | `/api/chat/sessions/messages/` | `{business_id, phone_number, message}` → the assistant's reply. Public (no login), for the Chat Sandbox / future webhook. See [Chat sessions](#chat-sessions) |
 | `POST` | `/api/chat/sessions/` | `{phone_number, display_name}` → the new chat session (201). See [Chat sessions](#chat-sessions) |
 | `PUT` | `/api/chat/configuration/` | `{product_detail_fields?, schedule_detail_fields?, welcome_message?, reply_style?, custom_style?}`: replace the details your chat asks for (for orders, for bookings), and the welcome message and reply style (validated; left out = kept). Creates the configuration (201) if missing, otherwise 200 |
 | `GET` / `POST` | `/api/service-providers/` | List / create your service providers (`GET` / `PUT` / `PATCH` / `DELETE` on `/{id}/`) |
@@ -249,15 +245,6 @@ Users without a business (e.g. `superuser`) get 403. The `verify_token` is gener
 
 Connecting in Meta: enter `webhook_url` as the **Callback URL** and `verify_token` as the **Verify token** (WhatsApp → Configuration → Webhook), then subscribe to the `messages` field.
 
-### Chat (temporary)
-
-`chat_app` is a temporary copy of `../messaging-service`'s `/chat` endpoint, living here until that service has its own database. It needs [Ollama](https://ollama.com/) running on `http://localhost:11434` with the model pulled (`ollama pull qwen2.5:7b-instruct-q4_K_M`).
-
-- Every request is independent: the fixed system prompt plus your `prompt` (≤4,000 characters). No history is kept.
-- The model, system prompt and sampling options (`seed`, `temperature`, `num_predict` (max tokens), `top_k`, `top_p`, `min_p`, `repeat_penalty`, `repeat_last_n`, `presence_penalty`, `frequency_penalty`, `num_ctx` (8,192 tokens)) are hardcoded in `chat_app/llm.py`.
-- The seed is fixed (`42`), so the same prompt gives the same reply, which is handy for testing.
-- Errors: 400 invalid prompt, 502 Ollama error (e.g. model not pulled), 503 Ollama not reachable, 504 Ollama timed out.
-
 ### Chat configuration
 
 The chat flow is fixed (see [Chat flow](#chat-flow)); the chat configuration holds the settings of its steps, such as the customer details the Details collection and Booking details steps ask for (`product_detail_fields`, `schedule_detail_fields`). Each business has at most one. Both endpoints need a login and work on **your own** business, so there's no ID in the URL. Users without a business (e.g. `superuser`) get 403. `GET` returns the defaults (name and email, with `id` and `last_updated` null) until your business saves its own. `PUT` changes the fields you send (the others are kept); `id`, `business` and `last_updated` are read-only. An invalid list returns 400 with every problem listed under its name (e.g. `product_detail_fields`) (see the rules under [Data model](#data-model)). The sample data gives `kopi_owner`'s and `bloom_owner`'s businesses a configuration; FitLab uses the defaults.
@@ -291,76 +278,24 @@ Errors: 400 for an invalid phone number, or a phone number that already has a se
 
 The response is `{count, total_pages, current_page, page_size, has_next, has_previous, next, previous, results}`. An invalid filter or sort value returns 400, and a page past the end returns 404. Example: `/api/chat/sessions/?search=tan&ordering=display_name&page_size=10&page=1`.
 
-`POST /api/chat/sessions/messages/` is how a **customer** sends a message. It needs no login, and will become the WhatsApp webhook later. (The Chat Sandbox uses the sandbox message endpoint above instead.) Send `{business_id, phone_number, message}`. It:
-
-1. Finds that business's session for that phone number (404 if there isn't one; create it first with `POST /api/chat/sessions/`).
-2. Appends the message as `{message, sent_by: "customer", message_time: now}` and sets `last_chat_time` to now.
-3. Runs the [chat flow](#chat-flow): the router decides what the message is about; the order steps may move `chat_state_id` on and update `chat_state_data`.
-4. Asks the LLM for a reply, with a prompt describing what the flow found and the conversation so far.
-5. Appends the reply as `{message, sent_by: "business-automated", message_time: now}`, sets `last_chat_time` again, and returns that reply object.
-
-If Ollama fails (502/503/504), the customer's message is still saved, but there's no reply.
-
 ### Chat flow
 
-> [!NOTE]
-> The chat flow has been copied to `messaging-service` (the parts that need the LLM: the sandbox and customer message endpoints, same requests and responses), and the frontend's Chat Sandbox now sends its messages there. The endpoints here still work for now; until they're removed, keep both copies the same. All database migrations stay here: other services only query and write rows.
-
-The chat flow is the same for every business (`chat_app/flow.py`): a **router** decides what each customer message is about, and code sends it to the right handler. Businesses only configure the steps' settings (so far, the details to collect: see [Chat configuration](#chat-configuration)). It needs Ollama, like the [one-off chat](#chat-temporary).
-
-**Welcome message and reply style.** If the business has a welcome message, a chat's very first customer message gets it first, word for word (`{business_name}` filled in). If that message was only a greeting (the router found nothing to do), the welcome is the whole reply, with no reply LLM call; otherwise the usual reply follows, and isn't told to greet again. Every LLM-written reply follows the business's reply style: a preset (`friendly`, `professional`, `casual`, `brief`) or its own description (`custom`), which only changes the tone, never the rules. Both message endpoints return every message sent in the turn as `messages`.
-
-```
-customer message → router ─┬─ order        → Product selection → Details collection → Confirmation
-                           ├─ booking      → Service selection → Time slot → Booking details → Booking confirmation
-                           ├─ question     → FAQs (answered from the FAQs and products, or sent to the team)
-                           ├─ order status → the customer's own past orders and bookings, looked up with tools
-                           └─ off topic    → politely declined
-```
-
-1. **Route** (`chat_app/router.py`). The LLM reads the conversation and returns the latest message's intents as JSON (Ollama structured output, `temperature` 0): `{"intents": [...]}`, any of `order`, `booking`, `question`, `order_status` (past orders or bookings) and `off_topic` (none for a greeting or thanks; several for e.g. "2 roses please, and do you deliver?"). Unknown values are dropped. The prompt tells it where the customer's order is, so a short reply like "Alice" or "yes" reads as part of the order.
-2. **Order steps** (`chat_app/order_flow.py`): a small state machine over Product selection → Details collection → Confirmation, saved in `chat_state_id`. With no order in progress (`start`), they only start when the router finds the intent `order` (and Product selection then runs on the same message). **Once an order is in progress, they run on every message, whatever the router says.** For each step:
-   - **Extract.** The LLM returns JSON in the step's format (prompts and formats in `chat_app/prompts.py`):
-
-     | Step | Goal | The LLM returns |
-     | --- | --- | --- |
-     | Product selection | Which products, and how many of each, confirmed as everything the customer wants | `{"items": [{"product_id", "quantity"}], "done_choosing": true/false}` |
-     | Details collection | The details in the chat configuration's `product_detail_fields` (default: name and email) | One key per field, e.g. `{"name": …/null, "postal_code": 238801/null}` (numbers as numbers) |
-     | Confirmation | Show the summary, get a confirmation | `{"decision": "confirm"/"change"/"none"}` |
-
-   - **Check deterministically** (in Python, not the LLM) whether that completes the step, and save what's valid in `chat_state_data`:
-     - Product selection: every chosen product must be one of the business's active products, with a quantity from 1 up to `quantity_available`. Otherwise it stays, and the problem (e.g. "Only 3 Kaya Toast Set are available", or that a sold-out product "has run out") goes into the reply prompt. The cart is checked again on every message, so an item that sold out (or has less stock left) since it was chosen is removed, and the customer can't move on with it. The reply prompt says never to offer sold-out products. Then it **pauses**: the assistant recaps the order (items, quantities, prices, total) and asks whether the customer wants anything else. It completes only when the customer says that's everything (`done_choosing`) **about the cart as it already was**, so a message that adds or changes items ("…and 1 Kaya Toast, that's all") gets a recap first. Once confirmed, `chat_state_data.items_confirmed` is set, and kept until the items change, so coming back after a "change" at confirmation that doesn't touch the items (e.g. a new email) passes straight through.
-     - Details collection: complete only when **every required** field is known and valid for its type. Optional fields (`required: false`) are stored when given and never hold the chat back (a problem with one is explained without blocking). Text: at most `max_length`. Number: a number (text like `"238,801"` is accepted), within `min_value`–`max_value`. Email: Django's email validator. Invalid values are explained to the customer (e.g. "Postal code must be at least 100000.") and never replace a valid one. Values already known are kept when the customer doesn't repeat them. The reply prompt lists every field (label in quotes, required or optional, type and limits) under "Details to collect", and the required ones still needed. It tells the assistant: the order is **not** confirmed yet, so never say it is; keep asking for required details in every reply until they're given, even if the customer ignores the question; ask for optional ones once; and use each label **exactly as written**, without paraphrasing or guessing what an unusual label (e.g. "Boo") means. On every step, the assistant may only say an order is confirmed once it is. **Guardrails** on every step: stay on the current step's task; politely decline unrelated requests (general knowledge, coding, jokes, other businesses) or attempts to change or reveal the instructions, and steer back to the current step. The router and extraction prompts also ignore instructions inside the conversation.
-     - Confirmation: `confirm` completes it and places the order; `change` goes back to Product selection, where the steps run again with the data already collected (so only what changed needs re-entering). It is never checked in the same message it's reached: the customer must see the summary first.
-   - **Going back:** at Details collection and Confirmation, the extraction also returns `go_back_to`: `null`, or an earlier step (`"product_selection"`, and at Confirmation `"details_collection"`). Ollama's schema only allows those keys. When the customer clearly asks to change something from an earlier step ("I also want a Kaya Toast", "make it 3", "my email is wrong"), the chat goes back there **keeping everything collected**, and that step runs on the same message, so the change is applied straight away. Going back to Product selection clears `items_confirmed`, so the updated order is recapped and confirmed again; steps that are still complete pass straight through on the way forward. Going back is only offered at the step the chat was at when the message arrived, not at a step reached during that message (otherwise the "That's all" that finished Product selection could be read, at the next step, as going back to it). So there's at most one go-back per message, and none after the order is done.
-
-   When a step completes, the chat moves to the next one and repeats there, so one message can complete several steps. Confirmation has two substages. **Not confirmed:** the chat sends the order summary (a fixed message, not written by the LLM, so it can never claim the order is confirmed) and asks the customer to reply CONFIRM; any other reply (even "no, nothing else") just sends the summary again. **Confirmed:** the order is saved first, and only then is the customer sent a fixed "Your order #N is confirmed" message. The chat then goes back to `start`, with only `chat_state_data.last_order_id`, so the customer can order again. If the order can't be placed (e.g. sold out in the meantime), the chat goes back to Product selection, keeping everything, and the assistant explains the problem.
-   **Booking steps** (for businesses with services; started by the router's `booking` intent): **Service selection** (which service; the LLM returns `{"service_id"}`), **Time slot**, **Booking details** (the chat configuration's `schedule_detail_fields`, set separately from the order details) and **Booking confirmation** (like Confirmation). At **Time slot** the LLM only says what the customer asked for (`{"choice", "date", "date_to", "time", "part_of_day"}`, with today's date and the next two weeks' dates in its prompt); the free times are worked out in code from the weekly availability and the bookings, and the chat sends them as a fixed, numbered list (up to 6, spread out, at most 3 a day), so "2" or "the second one" picks a time the code chose. An exact day and time is booked if it's free; otherwise other times that day are offered. A day or part of the day ("Tuesday afternoon") gets times then, or the next free days if there are none. Confirming saves the booking first (`checkout_app.services.place_booking`, a `ScheduleItem` pending payment, with the first free provider who does the service; its blocks go on hold) and only then sends "Your booking #N … is confirmed"; if someone else took that time in the meantime, the chat goes back to Time slot with fresh times. The chat then goes back to the start, keeping `last_booking_id`.
-3. **Save** `chat_state_id` and `chat_state_data`. A collected name also fills in an empty `display_name`.
-4. **Questions (FAQs)**, if the router found one: the question check (described under [Unanswered questions](#unanswered-questions)) decides whether the business's information answers it.
-5. **Reply.** At Confirmation, the reply is the fixed summary or confirmation message above; if the message also asked a question (or about a past order, or something off topic), the LLM adds a short answer to just that, before the summary or after the confirmation. A message only about past orders or bookings (intent `order_status` alone, with no order step run) goes through the order status branch, with no tools: an LLM call only extracts what the customer asks about (order or booking, and any numbers); code looks those up among the customer's own orders and bookings ("the customer" is the same phone number with the same business, and only real or only sandbox chats, like the current one; sandbox chats without a phone number count as one customer, so you can check a test order from another test chat), where a number that isn't theirs is simply "not found"; then a second LLM call writes the reply from only those records (with each one's status: payment pending, payment received or completed). A reply naming any other order or booking number, or saying more than "not found" about one that wasn't found, is replaced by a message written by code, and so is the reply when nothing of theirs was found (with no LLM call). Otherwise the LLM writes the reply with a system prompt putting together what the flow found: the business's details, the order step and its goal (or no order in progress), what's known so far (order with total, details), what's still needed, problems to explain, the products on sale (with no order in progress and at Product selection, with each product's short description; never the longer information), the customer's question (answered from the information given, or "sent to the team"), a past order or booking question (the customer's own records, looked up by code), and an off-topic message (politely declined). The reply step can call **read-only tools** (`chat_app/tools.py`, only the chatting business's data):
-   - `get_product_details(product)`: one product's description and **information** (the long extra details), price and stock, by name (any case; a partial name works if it matches one product) or id. Ambiguous names list the matches; unknown names list what's on sale; inactive products are "not on sale at the moment".
-   - `list_products`: every active product, with its description (not the information).
-   - `list_faqs`: the business's FAQs.
-
-   The prompt tells the assistant to answer "what is it?" with the product's description, to look other product questions up with `get_product_details` (answering the question rather than reciting the information) and business questions with `list_faqs`, to answer only from what it finds, and otherwise to **say honestly that it doesn't know** (offering to check with the team) rather than make anything up.
-
-A message makes 2 or more LLM calls: the router, one extraction per order step it passes through, the question check (only for questions), plus the reply (plus tool calls). Only the last 20 messages are sent (`HISTORY_MAX_MESSAGES`).
+The chat flow (the router, the order and booking steps, the question check, the order status lookup and the replies, with the LLM) runs in **`messaging-service`**: its README describes it. It answers the Chat Sandbox's messages (`POST /api/chat/sandbox-sessions/{id}/messages/` there) and customers' WhatsApp messages, placing orders and bookings and saving unanswered questions here, in this service's database. This service has no LLM: it keeps the chat sessions, their settings and the unanswered questions.
 
 ### Sandbox chat sessions
 
-Test chats a business starts itself (e.g. from the Chat Sandbox), separate from real customer chats. All four endpoints need a login and only work on **your own** business (403 without a business).
+Test chats a business starts itself (e.g. from the Chat Sandbox), separate from real customer chats. The endpoints need a login and only work on **your own** business (403 without a business).
 
 - `GET /api/chat/sandbox-sessions/`: your sandbox sessions, paginated, most recent chat first.
 - `POST /api/chat/sandbox-sessions/`: `{display_name?, phone_number?}`, both optional. Starts a sandbox session the same way as a real one (`chat_state_id` `start`, no messages, `created_time = last_chat_time = now`). A business can have any number.
 - `DELETE /api/chat/sandbox-sessions/{id}/`: deletes the session and its conversation (204). Another business's session → 403; a real customer session → 400 ("Only sandbox chat sessions can be deleted here."); unknown ID → 404.
-- `POST /api/chat/sandbox-sessions/{id}/messages/`: `{message}`. Same flow as the customer message endpoint above (save the message as `customer`, run the [chat flow](#chat-flow), save and return the `business-automated` reply; the message is kept if the LLM fails), with the same 403/400/404 rules as delete. `frontend-app`'s Chat Sandbox uses this. For debugging, the response also has `debug` (not stored): the state before and after, the router's intents (and its prompt and JSON), each order step's extraction (prompt, the LLM's JSON, the check result: complete / missing / issues / go back), why the order steps stopped, the question check (if the router found a question), the reply system prompt and any tool calls.
+- Sending a message in a sandbox chat (and getting the reply) is messaging-service's `POST /api/chat/sandbox-sessions/{id}/messages/`: see [Chat flow](#chat-flow).
 
-Sandbox sessions are left out of `GET /api/chat/sessions/` unless you ask for them with `sandbox=include` or `sandbox=only`, and `POST /api/chat/sessions/messages/` only finds real sessions.
+Sandbox sessions are left out of `GET /api/chat/sessions/` unless you ask for them with `sandbox=include` or `sandbox=only`, and customer messages only ever go to real sessions.
 
 ### Unanswered questions
 
-When the [router](#chat-flow) finds a question in a customer message, it goes through a **question check**: one extra LLM call (JSON, temperature 0) that sees the business's description, FAQs, products on sale and the full information of any product the message mentions, and decides whether the message is: no question about the business after all; a question the information **answers** (the reply gets that information to answer from); or a genuine question it **doesn't answer** (when unsure, this one). (Off-topic messages are spotted by the router, and the assistant politely declines them.) In the last case the flow itself (not the LLM) saves an open `UnansweredQuestion` for that chat, and the assistant is told not to guess and to tell the customer the team will reply in the chat. (The same question isn't saved twice while it's open, and a chat can have at most 5 open questions.) The Chat Sandbox's debug panel shows the check's result. `frontend-app`'s Chats tab shows them in an "Unanswered questions" sub-tab, with an alert while any are open.
+When messaging-service's [chat flow](#chat-flow) finds a question in a customer message, it goes through a **question check**: one extra LLM call (JSON, temperature 0) that sees the business's description, FAQs, products on sale and the full information of any product the message mentions, and decides whether the message is: no question about the business after all; a question the information **answers** (the reply gets that information to answer from); or a genuine question it **doesn't answer** (when unsure, this one). (Off-topic messages are spotted by the router, and the assistant politely declines them.) In the last case the flow itself (not the LLM) saves an open `UnansweredQuestion` for that chat, and the assistant is told not to guess and to tell the customer the team will reply in the chat. (The same question isn't saved twice while it's open, and a chat can have at most 5 open questions.) The Chat Sandbox's debug panel shows the check's result. `frontend-app`'s Chats tab shows them in an "Unanswered questions" sub-tab, with an alert while any are open.
 
 All three endpoints need a login and only work on **your own** business (403 without a business, 403 for another business's question, 404 for an unknown one).
 
@@ -370,7 +305,7 @@ All three endpoints need a login and only work on **your own** business (403 wit
 
 ### Orders
 
-When a customer confirms at the Confirmation step (a real or sandbox chat), the [chat flow](#chat-flow) calls `checkout_app.services.place_order()`, which creates an `OrderItem` (`pending_payment`). Products only store a `total_quantity`; their quantities on hold, sold and available are worked out from the orders (`checkout_app/stock.py`), so the new order **puts its quantities on hold**: `quantity_on_hold` goes up and `quantity_available` down. When the order is completed, they move from on hold to sold. The chat goes back to the start with `chat_state_data.last_order_id`, and the reply (sent only after the order is saved) gives the customer the order number.
+When a customer confirms at the Confirmation step (a real or sandbox chat), messaging-service's [chat flow](#chat-flow) places the order (its `place_order()`), which creates an `OrderItem` (`pending_payment`). Products only store a `total_quantity`; their quantities on hold, sold and available are worked out from the orders (`checkout_app/stock.py`), so the new order **puts its quantities on hold**: `quantity_on_hold` goes up and `quantity_available` down. When the order is completed, they move from on hold to sold. The chat goes back to the start with `chat_state_data.last_order_id`, and the reply (sent only after the order is saved) gives the customer the order number.
 
 - **All or nothing, safe under concurrency.** It runs in one transaction with the chat session's row locked. The product rows are locked with `SELECT … FOR UPDATE`, in id order so two orders can't deadlock. Stock is checked again (still on sale, enough left), and once more after the order is saved, with it counted (rolled back if anything is now oversold), so stock can't go negative even on SQLite (which ignores `FOR UPDATE` and locks the whole database instead).
 - **If it fails** (e.g. another customer bought the last ones since this customer chose, or the product was deactivated), nothing changes: no order, no stock change, and the chat stays at Confirmation with the problem in the reply ("Only 2 Kopi C are left."), so the customer can change their order.
@@ -469,14 +404,9 @@ Tests use a temporary database, so your `db.sqlite3` isn't touched.
 | `auth_app/tests.py` | `BusinessUser` model, Django Admin pages load |
 | `configuration_app/tests.py` | `BusinessConfiguration` model, random-number endpoint, CORS |
 | `chat_app/tests/test_models.py` | `validate_detail_fields`, `validate_chat_messages` and `validate_chat_state_data` rules; `ChatConfiguration` (defaults, `for_business`) and `ChatSession` models (validation, uniqueness, `chat_state_id` must be a step); sample fixtures are valid |
-| `chat_app/tests/test_api.py` | Chat endpoint returns the reply, with the LLM mocked (no Ollama needed); chat configuration GET/PUT (401/403, the defaults when none is saved, create vs update, read-only fields, invalid detail fields → 400, the order and booking lists saved independently, left-out fields kept); chat sessions create/list (filters, sorting and pagination on the sample fixtures) and customer messages (LLM mocked); sandbox sessions list/create/delete (only sandbox, only your business) |
-| `chat_app/tests/test_questions.py` | Unanswered questions: the model's rules; `ask_business` (saved for the chat, no duplicates, at most 5 open per chat, bad arguments, not a reply tool); `mentioned_products`; the question check in a chat turn (each kind, what the check and the reply are given, invalid output, only when the router finds a question, off topic); the list API (own business only, filters, pagination, 401/403); answering (FAQ created or updated, reworded question, the reply message in the chat, all or nothing, only open questions, permissions) and dismissing; the sample fixture |
-| `chat_app/tests/test_tools.py` | The reply step's tools: `get_product_details` (description + information; name in any case, partial name, id, ambiguous names, no description or information, inactive / unknown / another business's products, bad arguments), `list_products` (no information), `list_faqs`, unknown tools; descriptions in the prompt's catalog |
-| `chat_app/tests/test_past_orders.py` | The order status branch: whose orders a chat sees (same business and phone number, real or sandbox like the chat; sandbox chats without a number are one customer), the order and booking lists (newest first, statuses, at most 10), numbers asked about (theirs, or "not found" for anyone else's or unknown ones), what the extraction may return, the check that a reply names nothing else, the records text and the fallback reply, and that there are no order tools |
-| `chat_app/tests/test_booking_flow.py` | Booking a service (LLM mocked, "now" fixed): a whole booking from start to confirmed, numbered times, exact times (free or taken), parts of the day, closed or past days, a wrong number, changing the service or the time, "change" at confirmation, a time taken before confirming, a question while choosing; the router and when a booking starts; the checks, templates, prompts and state data |
-| `chat_app/tests/test_flow.py` | The chat flow (LLM mocked): a whole conversation from start to confirmed, going back on "change", invalid choices, tool calls, invalid JSON → 502; the router (which handlers run for each intent, an order in progress runs whatever the router says, order status questions: extracted, looked up by code among the customer's own orders, rewritten, checked, off topic); custom detail fields (asks for every field, only moves on when all are valid); going back to an earlier step (keeps data, one per message); confirming places an order and reserves stock (once), and a product sold out since it was chosen undoes the confirmation; each step's deterministic check, each detail type's value check and the prompts |
+| `chat_app/tests/test_api.py` | Chat configuration GET/PUT (401/403, the defaults when none is saved, create vs update, read-only fields, invalid detail fields → 400, the order and booking lists saved independently, left-out fields kept); chat sessions create/list (filters, sorting and pagination on the sample fixtures); sandbox sessions list/create/delete (only sandbox, only your business) |
+| `chat_app/tests/test_questions.py` | Unanswered questions: the model's rules; the list API (own business only, filters, pagination, 401/403); answering (FAQ created or updated, reworded question, the reply message in the chat, all or nothing, only open questions, permissions) and dismissing; the sample fixture |
 | `checkout_app/tests/test_models.py` | `validate_order_data` rules; `OrderItem` defaults (`pending_payment`), statuses (also the database constraint), total; sample fixture is valid; `validate_schedule_data` rules; `ScheduleItem` times must match its service, same-business links, kept when the service is deleted |
-| `checkout_app/tests/test_services.py` | `place_order`: creates the order, which puts its quantities on hold; paid and completed orders count too; all or nothing when any item fails (sold out, inactive, another business's or deleted product); can't oversell; a simulated lost race is stopped by the re-check after saving and rolled back; product rows locked in id order; `place_booking`: books the first free availability, the next one for the same time, keeps the shown price, refuses closed / off-grid / too soon / inactive / other business's, rolls back a clash found after saving |
 | `checkout_app/tests/test_stock.py` | Quantities derived from orders: on hold (pending payment, paid) and sold (completed) per product, other businesses' orders ignored, one query; `Product` available / on hold / sold, completing or deleting an order, adding stock, `load_stock` batching and refreshing, `total_quantity` can't go below on hold + sold |
 | `checkout_app/tests/test_schedule.py` | Free slots (15-minute grid in local time, open blocks only, bookings and buffers, any active provider, one hour's notice, at most 31 days); bookings marking their blocks (O → H pending, → X paid / completed, back to O when deleted or moved, across weeks, buffers over closed blocks); the week calendar; adding / closing slots over weeks; copying a week |
 | `checkout_app/tests/test_api.py` | Orders list/detail: 401, 403 (no business, another business's order), 404 (unknown order, page past the end), 405 (read only), filters, sorting, pagination; bookings list/detail (filters, ordering, scoping, read only) |
@@ -524,7 +454,6 @@ DJANGO_SUPERUSER_PASSWORD=123 python manage.py createsuperuser --noinput --usern
 | `META_GRAPH_API_URL` | `https://graph.facebook.com/v25.0` | Meta's Graph API, used to check the WhatsApp details owners enter (`configuration_app/meta_api.py`). Point it at a fake for testing without real Meta credentials. |
 | `DJANGO_DB_ENGINE` | `sqlite` | `sqlite` (`db.sqlite3`, for running without Docker) or `postgresql` (used by `docker-compose.yml`). |
 | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT` | `configuration_service`, `postgres`, empty, `localhost`, `5432` | The PostgreSQL connection, when `DJANGO_DB_ENGINE=postgresql`. |
-| `OLLAMA_HOST` | `http://localhost:11434` | The Ollama server for chat (docker-compose: `http://host.docker.internal:11434`, Ollama on the host machine, overridable in the root `.env`; see the root README, "Local LLM"). |
 
 ## Connecting from frontend-app
 
@@ -578,40 +507,34 @@ configuration-service/
 │   ├── urls.py             # /api/products/, /api/faqs/, /api/businesses/{id}/products|faqs/
 │   ├── tests.py            # Model validation tests
 │   └── test_api.py         # API tests
-├── chat_app/               # The chat flow (router + order steps), ChatConfiguration (its settings) + temporary one-off chat with the local LLM (Ollama)
+├── chat_app/               # Chats: sessions, ChatConfiguration (the chat flow's settings), unanswered questions (the flow itself: messaging-service)
 │   ├── fixtures/           # sample_chat_configurations.json, sample_chat_sessions.json
 │   ├── migrations/
 │   ├── admin.py
-│   ├── constants.py        # CHAT_STEPS, INTENTS, MESSAGE_SENDERS, DETAIL_FIELD_TYPES, DEFAULT_DETAIL_FIELDS
+│   ├── constants.py        # CHAT_STEPS, MESSAGE_SENDERS, DETAIL_FIELD_TYPES, DEFAULT_DETAIL_FIELDS, the reply styles
 │   ├── models.py           # ChatConfiguration, ChatSession
 │   ├── validators.py       # validate_detail_fields, validate_chat_messages, validate_chat_state_data
-│   ├── llm.py              # Ollama client, model, sampling options; structured output + tool-calling helpers
-│   ├── flow.py             # The chat flow: router → handlers (order steps, question check) → reply
-│   ├── router.py           # The router: what a customer message is about (its intents)
-│   ├── order_flow.py       # The order steps: extraction → deterministic checks → state, placing the order
-│   ├── prompts.py          # Router prompt, per-step goals, extraction prompts + JSON schemas, question check, reply prompts
-│   ├── tools.py            # Read-only tools for the reply step (get_product_details, list_products, list_faqs) + product / FAQ lookups
-│   ├── questions.py        # Unanswered questions: ask_business (from the question check), answer_question (→ FAQ + chat reply), dismiss_question
-│   ├── serializers.py      # Chat request/response, ChatConfigurationSerializer
-│   ├── views.py            # ChatView, ChatConfigurationView
-│   ├── urls.py             # /api/chat/, /api/chat/configuration/
+│   ├── questions.py        # Unanswered questions: answer_question (→ FAQ + chat reply), dismiss_question
+│   ├── serializers.py      # Chat sessions, ChatConfigurationSerializer, unanswered questions
+│   ├── views.py            # Chat sessions, ChatConfigurationView, unanswered questions
+│   ├── urls.py             # /api/chat/sessions/, sandbox-sessions/, configuration/, questions/
 │   └── tests/
 │       ├── test_models.py  # Validator + model tests
-│       ├── test_api.py     # Chat API (mocked LLM) + chat configuration API tests
-│       └── test_flow.py    # Chat flow tests (mocked LLM)
+│       ├── test_api.py     # Chat sessions + chat configuration API tests
+│       └── test_questions.py  # Unanswered questions
 ├── checkout_app/           # Orders placed when customers confirm in a chat
 │   ├── fixtures/           # sample_order_items.json
 │   ├── migrations/
 │   ├── admin.py
 │   ├── models.py           # OrderItem, OrderStatus
 │   ├── validators.py       # validate_order_data
-│   ├── services.py         # place_order(): creates the order if there's enough stock (locked, all or nothing)
+│   ├── services.py         # complete_order() / complete_booking() (orders are placed by messaging-service)
 │   ├── stock.py            # Products' quantities on hold / sold, worked out from the orders
 │   ├── serializers.py      # OrderItemSerializer (read only)
 │   ├── filters.py          # OrderItemFilter
 │   ├── views.py            # OrderItemListView, OrderItemDetailView
 │   ├── urls.py             # /api/orders/, /api/orders/{id}/
-│   └── tests/              # test_models.py, test_services.py, test_api.py
+│   └── tests/              # test_models.py, test_stock.py, test_schedule.py, test_api.py, test_admin.py
 ├── manage.py
 ├── requirements.txt
 └── .env.example

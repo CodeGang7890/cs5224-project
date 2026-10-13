@@ -42,9 +42,6 @@ services:
       DJANGO_DB_ENGINE: postgresql
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
-      # Ollama runs on the host machine, not in Docker (see the root README, "Local LLM"). Override the
-      # address in a root .env file, e.g. OLLAMA_HOST=http://192.168.64.1:11434 on a vessel VM.
-      OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
       # WhatsApp connection (configuration_app.WhatsAppConfiguration). Local-development values only.
       CONFIGURATION_ENCRYPTION_KEY: dev-whatsapp-encryption-key # encrypts the stored WhatsApp secrets
       INTERNAL_API_KEY: dev-internal-api-key # messaging-ingester sends it to /api/internal/

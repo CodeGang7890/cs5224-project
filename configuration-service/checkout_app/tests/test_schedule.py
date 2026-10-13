@@ -11,7 +11,6 @@ from product_app.models import Service, ServiceProvider, WeeklyAvailability
 from product_app.tests import open_hours
 
 from ..models import OrderStatus, ScheduleItem
-from ..services import BookingError, place_booking
 from ..schedule import (
     MIN_NOTICE,
     SLOT_SEARCH_DAYS_MAX,
@@ -62,7 +61,7 @@ def day_letters(provider, day: date, start: str = '00:00', end: str = '24:00') -
 
 
 def book(service, provider, start, status=OrderStatus.PENDING_PAYMENT, **fields):
-    """A booking saved straight to the database (not through place_booking): saving it still
+    """A booking saved straight to the database: saving it still
     writes it into the provider's week (checkout_app.signals)."""
     end = start + timedelta(minutes=service.duration_minutes)
     return ScheduleItem.objects.create(
@@ -464,16 +463,6 @@ class StartIntervalTests(StudioCase):
         )
         self.portrait.start_interval_minutes = 120
         self.assertIn('every 2 hours (for example 8am or 10am)', start_problem(self.portrait, at(self.monday, '09:00')))
-
-    def test_placing_a_booking_off_the_interval_is_refused(self):
-        self.portrait.start_interval_minutes = 60
-        self.portrait.save()
-        with self.assertRaises(BookingError) as ctx:
-            place_booking(self.studio, self.portrait.pk, at(self.monday, '09:30'), {'name': 'Alice'})
-        self.assertEqual(ctx.exception.problems, ['Portrait can only start every hour (for example 9am or 10am).'])
-        self.assertFalse(ScheduleItem.objects.exists())
-        booking = place_booking(self.studio, self.portrait.pk, at(self.monday, '10:00'), {'name': 'Alice'})
-        self.assertEqual(booking.start_time, at(self.monday, '10:00'))
 
     def test_validation(self):
         def service(minutes):
