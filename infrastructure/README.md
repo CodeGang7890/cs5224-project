@@ -8,10 +8,11 @@ Terraform targets an **existing, billing-enabled GCP project**. All files in thi
 | --- | --- |
 | Artifact Registry | One regional Docker repository, `apps`. |
 | Cloud Storage | Private Standard bucket in the compute region. The project ID based default name can be overridden. |
-| Pub/Sub | Payment, messaging, and notification topics, each with a pull subscription. |
-| Cloud Scheduler | One **paused** hourly UTC notification tick publishing to Pub/Sub; unpause when a worker consumes it. |
+| Pub/Sub | Payment and messaging queues, plus the existing notification topic, each with a pull subscription. |
+| Cloud Scheduler | One hourly UTC job that invokes the notification Cloud Run Job through the Cloud Run Jobs API. It is paused until `enable_notification_scheduler = true`. |
 | Secret Manager | Secret containers for Django, LLM, WhatsApp, and Xendit. Terraform creates a Django key version. Add external API token versions separately. |
-| Cloud Run | Up to five services, created only when `service_images` includes an image for each. Scale-to-zero, one instance maximum. Public invoker access only for the configuration and webhook ingesters. |
+| Cloud Run | Five backend services are created with the hello placeholder image unless an image is set in `service_images`; Cloud Build replaces the image on matching pushes. Scale-to-zero, one instance maximum. |
+| Cloud Run Jobs | `notification-job` runs once and exits. It connects to Cloud SQL and is started hourly by Cloud Scheduler; its image is updated by a separate Cloud Build trigger. |
 | Cloud SQL | Optional small PostgreSQL 17 instance, database, user, and password secret. **Billed while running.** |
 | Cloud DNS | Optional public zone and records for a domain you own. **Billed even when idle.** |
 | Cloud Build | Backend build/deploy triggers and a Firebase Hosting frontend deployment trigger for a linked GitHub repository. |
@@ -49,26 +50,19 @@ The default Terraform state is **local** (`terraform.tfstate`, Git-ignored). It 
 
 1. Apply the base resources, with `enable_firebase = true` when ready. This adds Firebase to the existing project (a one-way action), creates the Ansera web app, and creates a Hosting site. The site ID must be globally unique; change `firebase_hosting_site_id` if `cs5224-ansera` is unavailable.
 2. Build `frontend-app` with `npm ci` and `npm run build`. The Firebase Hosting config in this folder serves `frontend-app/dist` and rewrites client-side routes to `index.html`.
-3. In Cloud Build > Repositories > 2nd gen, create a GitHub connection, authorize/install the Cloud Build GitHub App, and link `https://github.com/michac789/cs5224-project`. Set `github_connection_name` to the connection name. Terraform links the repository and creates triggers when `enable_ci_cd = true`. The frontend trigger builds and deploys Hosting on pushes to `main`; backend triggers build/push images to Artifact Registry and update the selected Cloud Run services.
-4. Cloud Run services are created only when `service_images` contains an image URL. After the first Terraform apply creates Artifact Registry and the `cloud-build-deployer` service account, build/push an initial image for a ready service from the repository root (replace `messaging-ingester` and the tag as appropriate):
+3. In Cloud Build > Repositories > 2nd gen, create a GitHub connection and authorize/install the Cloud Build GitHub App for `CodeGang7890/cs5224-project`. Set `github_connection_name = "ansera"`. With `enable_ci_cd = true` and the selected service names in `ci_cd_services`, Terraform links the repository and creates one build/deploy trigger per selected backend service. The frontend trigger builds and deploys Hosting on pushes to `main` when Firebase is enabled.
+4. The five Cloud Run services are created on the first Terraform apply with the hello placeholder image unless `service_images` contains an image reference. `ci_cd_services` currently selects `configuration-service`, `messaging-service`, `messaging-ingester`, and `processing-service`. `payment-ingester` stays on the placeholder and has no build trigger until its Dockerfile is added. Push changes to a selected service folder on `main`; Cloud Build builds the Dockerfile, pushes an immutable commit-tagged image to Artifact Registry, and updates its Cloud Run service.
+5. When `enable_cloud_sql = true`, Terraform creates the `notification-job` Cloud Run Job with the Cloud Run hello placeholder and configures its Cloud SQL socket and database credentials. Its Cloud Build trigger builds `notification-job/Dockerfile` and updates the job image on changes under `notification-job/`.
+6. The scheduler remains paused by default. After the notification job image has been built and its database connection has been verified, set `enable_notification_scheduler = true` and apply. Cloud Scheduler then invokes the Cloud Run Jobs `:run` API hourly using a dedicated OAuth service account. The notification script currently logs draft reminders; it does not send WhatsApp messages yet.
 
-   ```powershell
-   gcloud builds submit . --config=infrastructure/cloudbuild-build-image.yaml --substitutions=_REGION=us-central1,_REPOSITORY=apps,_SERVICE=messaging-ingester,_TAG=bootstrap
-   ```
-
-   Put that full image URL in `service_images` and apply again. Then enable the matching entry in `ci_cd_services` for subsequent automated deploys. Terraform ignores subsequent image changes, so use the Cloud Build trigger for later image updates.
-5. Set `enable_cloud_sql = true` when PostgreSQL is required and the group accepts its ongoing cost. The configuration service receives the Cloud SQL socket and database password from Secret Manager. Other services still need their Cloud SQL environment and runtime behavior configured before they can use the database.
-
-**Backend deployment readiness:** this repository has Dockerfiles for `configuration-service`, `messaging-service`, `processing-service`, and `messaging-ingester`; `payment-ingester` is not implemented and has no Dockerfile yet. The configuration-service Dockerfile runs Django's development server and its entrypoint loads sample data and creates `superuser` with password `123`. The messaging service defaults to a local Ollama endpoint, while the processing and messaging services use long-running Pub/Sub pull consumers that need an always-running worker design. Do not make these services public or enable their deploy triggers until the team has made and tested their production deployment settings. The Cloud Run Terraform currently creates public access for the configuration API and webhook ingester, so review that exposure before applying.
-
-**Current app deployment blocker:** `configuration-service/docker-entrypoint.sh` loads sample data and creates a superuser with password `123` on an empty database. Its Dockerfile runs Django's development server. These application files are outside the authorized edit scope. Do not enable its public deployment or CI/CD until the team removes that bootstrap account and uses a production server. Terraform sets `DJANGO_DEBUG=False`, supplies a generated secret key, and allows the `run.app` hostname; those settings do not fix the startup script. Set `django_allowed_hosts` when using a custom domain.
+Cloud Run services `configuration-service`, `payment-ingester`, and `messaging-ingester` receive public invoker access for browser or webhook traffic. The other services remain private. Set `django_allowed_hosts` when using a custom domain.
 
 ## Firebase, DNS, and queues
 
 - `enable_firebase = true` adds Firebase to the existing project and creates the `Ansera` web app plus a Hosting site. The site URL is available as the `firebase_hosting_url` Terraform output. Firebase Authentication providers and the frontend's existing Django JWT auth remain separate choices.
 - The Firebase Hosting trigger uses `infrastructure/firebase.json` and `infrastructure/cloudbuild-frontend.yaml`. It builds the Vite SPA and deploys it with Firebase CLI using the Cloud Build service account's Application Default Credentials. The build service account receives Firebase Hosting Admin when both Firebase and CI/CD are enabled.
 - Set `dns_domain` to a domain you control to create a public zone. Point your registrar at `dns_nameservers`; add desired `dns_records` after the target IP/hostname is known. This zone alone does not create a load balancer or Cloud Run custom domain.
-- The Pub/Sub subscriptions are **pull** subscriptions. Cloud Run instances scale to zero and will not poll while idle. After workers expose message endpoints, switch to authenticated push subscriptions or another event delivery mechanism. The Scheduler job stays paused until a notification consumer exists.
+- The payment and messaging Pub/Sub subscriptions are **pull** subscriptions. Cloud Run instances scale to zero and will not poll while idle; use a worker design that can consume them reliably. The notification Cloud Run Job is invoked directly by Cloud Scheduler, not from the notification Pub/Sub subscription.
 - Secret containers for third-party tokens intentionally have no versions. Add values with `gcloud secrets versions add SECRET_ID --data-file=FILE` using a protected local file, then configure the relevant app and runtime IAM. Avoid passing secrets in command arguments or Terraform variables.
 
 ## Vertex AI / Gemini integration

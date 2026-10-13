@@ -16,13 +16,13 @@ variable "bucket_name" {
 }
 
 variable "service_images" {
-  description = "Full immutable image references for services ready to deploy. Missing services are not created."
+  description = "Optional full image references for backend services. Services without an image use the Cloud Run hello placeholder until their Cloud Build trigger deploys an image."
   type        = map(string)
   default     = {}
   validation {
     condition = alltrue([
       for name, image in var.service_images :
-      contains(["configuration-service", "messaging-service", "processing-service", "messaging-ingester"], name) && length(trimspace(image)) > 0
+      contains(["configuration-service", "messaging-service", "processing-service", "messaging-ingester", "payment-ingester"], name) && length(trimspace(image)) > 0
     ])
     error_message = "Use a known backend service name and a nonempty full image reference."
   }
@@ -68,22 +68,10 @@ variable "enable_firebase" {
   default     = false
 }
 
-variable "github_owner" {
-  description = "Deprecated GitHub owner setting retained for existing tfvars; triggers use the 2nd gen repository connection below."
-  type        = string
-  default     = "michac789"
-}
-
-variable "github_repo" {
-  description = "Deprecated GitHub repository setting retained for existing tfvars; triggers use the 2nd gen repository connection below."
-  type        = string
-  default     = "cs5224-project"
-}
-
 variable "github_connection_name" {
   description = "Name of the GitHub host connection created in Cloud Build (2nd gen) after installing the Cloud Build GitHub App."
   type        = string
-  default     = ""
+  default     = "ansera"
 }
 
 variable "github_repository_name" {
@@ -95,7 +83,7 @@ variable "github_repository_name" {
 variable "github_repository_uri" {
   description = "HTTPS clone URL for the application repository."
   type        = string
-  default     = "https://github.com/michac789/cs5224-project.git"
+  default     = "https://github.com/CodeGang7890/cs5224-project.git"
 }
 
 variable "firebase_hosting_site_id" {
@@ -105,8 +93,9 @@ variable "firebase_hosting_site_id" {
 }
 
 variable "github_branch_regex" {
-  type    = string
-  default = "^main$"
+  description = "Branch regex used by Cloud Build triggers."
+  type        = string
+  default     = "^main$"
 }
 
 variable "enable_ci_cd" {
@@ -121,10 +110,22 @@ variable "ci_cd_services" {
   default     = []
   validation {
     condition = alltrue([
-      for name in var.ci_cd_services : contains(["configuration-service", "messaging-service", "processing-service", "messaging-ingester"], name)
+      for name in var.ci_cd_services : contains(["configuration-service", "messaging-service", "processing-service", "messaging-ingester", "payment-ingester"], name)
     ])
-    error_message = "CI/CD services must have a Dockerfile: configuration-service, messaging-service, processing-service, or messaging-ingester."
+    error_message = "CI/CD services must have a Dockerfile: configuration-service, messaging-service, processing-service, messaging-ingester, or payment-ingester."
   }
+}
+
+variable "notification_job_image" {
+  description = "Container image used by the notification Cloud Run Job before its Cloud Build trigger deploys the application image."
+  type        = string
+  default     = "us-docker.pkg.dev/cloudrun/container/hello"
+}
+
+variable "enable_notification_scheduler" {
+  description = "Unpause the hourly Cloud Scheduler trigger after the notification-job image and database connection are verified."
+  type        = bool
+  default     = false
 }
 
 variable "notification_schedule" {

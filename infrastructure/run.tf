@@ -1,12 +1,12 @@
 resource "google_service_account" "runtime" {
-  for_each     = local.service_names
+  for_each     = local.runtime_identities
   account_id   = substr(replace(each.key, "-service", "-svc"), 0, 30)
   display_name = "${each.key} runtime"
   depends_on   = [google_project_service.api]
 }
 
 resource "google_project_iam_member" "sql_client" {
-  for_each = var.enable_cloud_sql ? toset(["configuration-service", "processing-service"]) : toset([])
+  for_each = var.enable_cloud_sql ? toset(["configuration-service", "processing-service", "notification-job"]) : toset([])
   project  = var.project_id
   role     = "roles/cloudsql.client"
   member   = "serviceAccount:${google_service_account.runtime[each.key].email}"
@@ -80,7 +80,7 @@ resource "google_pubsub_subscription_iam_member" "notification_subscriber" {
 }
 
 resource "google_cloud_run_v2_service" "backend" {
-  for_each            = var.service_images
+  for_each            = local.service_names
   name                = each.key
   location            = var.region
   deletion_protection = false
@@ -105,7 +105,7 @@ resource "google_cloud_run_v2_service" "backend" {
     }
 
     containers {
-      image = each.value
+      image = lookup(var.service_images, each.key, "us-docker.pkg.dev/cloudrun/container/hello")
       ports { container_port = 8000 }
       resources {
         limits   = { cpu = "1", memory = "512Mi" }

@@ -1,6 +1,7 @@
 locals {
-  objects_bucket = var.bucket_name != "" ? var.bucket_name : "${var.project_id}-app-objects"
-  service_names  = toset(["configuration-service", "messaging-service", "processing-service", "payment-ingester", "messaging-ingester"])
+  objects_bucket     = var.bucket_name != "" ? var.bucket_name : "${var.project_id}-app-objects"
+  service_names      = toset(["configuration-service", "messaging-service", "processing-service", "payment-ingester", "messaging-ingester"])
+  runtime_identities = setunion(local.service_names, toset(["notification-job"]))
 }
 
 resource "google_artifact_registry_repository" "apps" {
@@ -33,19 +34,6 @@ resource "google_pubsub_subscription" "queue" {
   topic                      = google_pubsub_topic.queue[each.key].id
   ack_deadline_seconds       = 30
   message_retention_duration = "86400s"
-}
-
-resource "google_cloud_scheduler_job" "notification_tick" {
-  name      = "notification-tick"
-  region    = var.region
-  schedule  = var.notification_schedule
-  time_zone = "Etc/UTC"
-  paused    = true
-  pubsub_target {
-    topic_name = google_pubsub_topic.queue["notification-tick"].id
-    data       = base64encode(jsonencode({ type = "notification_tick" }))
-  }
-  depends_on = [google_project_service.api]
 }
 
 resource "google_secret_manager_secret" "app" {
