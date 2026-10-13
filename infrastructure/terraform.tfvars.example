@@ -1,6 +1,35 @@
-# Copy to terraform.tfvars and fill in tags as images get pushed.
-# Services left out run the placeholder "hello" image.
-image_tags = {
-  # "configuration-service" = "abc1234"
-  # "messaging-service"     = "abc1234"
-}
+project_id = "YOUR_GCP_PROJECT_ID"
+region     = "us-central1"
+
+# Only set image URLs for services that are ready to deploy.
+service_images = {}
+
+# Cloud SQL incurs ongoing charges. DNS requires a domain you own.
+enable_cloud_sql = false
+dns_domain       = ""
+
+# Firebase enrollment is permanent for the project. Enable when ready.
+enable_firebase         = false
+firebase_hosting_site_id = "cs5224-ansera"
+
+# Existing Cloud Build 2nd gen GitHub connection and repository.
+github_connection_name = "ansera"
+github_repository_name = "cs5224-project"
+github_repository_uri  = "https://github.com/CodeGang7890/cs5224-project.git"
+github_branch_regex    = "^main$"
+
+# Keep CI/CD disabled until the app services are production-ready.
+enable_ci_cd   = false
+ci_cd_services = [
+  "configuration-service",
+  "messaging-service",
+  "messaging-ingester",
+  "processing-service",
+]
+
+notification_schedule = "0 * * * *"
+enable_notification_scheduler = false
+notification_job_image       = "us-docker.pkg.dev/cloudrun/container/hello"
+enable_vertex_ai       = true
+vertex_ai_location     = "us-central1"
+vertex_ai_model        = "gemini-2.5-flash"

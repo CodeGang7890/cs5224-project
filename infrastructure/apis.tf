@@ -1,17 +1,18 @@
 locals {
-  apis = [
+  apis = toset(concat([
     "artifactregistry.googleapis.com",
+    "cloudbuild.googleapis.com",
     "iam.googleapis.com",
     "run.googleapis.com",
+    "cloudscheduler.googleapis.com",
+    "pubsub.googleapis.com",
+    "storage.googleapis.com",
     "secretmanager.googleapis.com",
-    "sqladmin.googleapis.com",
-  ]
+  ], var.enable_cloud_sql ? ["sqladmin.googleapis.com"] : [], var.dns_domain != "" ? ["dns.googleapis.com"] : [], var.enable_firebase ? ["firebase.googleapis.com", "firebasehosting.googleapis.com"] : [], var.enable_vertex_ai ? ["aiplatform.googleapis.com"] : []))
 }
 
-resource "google_project_service" "apis" {
-  for_each = toset(local.apis)
-
-  service = each.value
-  # Keep APIs enabled on destroy; disabling them can break other resources in the project.
+resource "google_project_service" "api" {
+  for_each           = local.apis
+  service            = each.key
   disable_on_destroy = false
 }
