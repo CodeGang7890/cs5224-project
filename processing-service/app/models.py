@@ -8,7 +8,7 @@ product_app.WeeklyAvailability). Django's table name is <app_label>_<model name>
 
 from datetime import date, datetime
 
-from sqlalchemy import BigInteger, Date, DateTime, Integer, String
+from sqlalchemy import JSON, BigInteger, Boolean, Date, DateTime, Integer, String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 # checkout_app.models.OrderStatus
@@ -36,6 +36,35 @@ class Base(DeclarativeBase):
     pass
 
 
+class BusinessConfiguration(Base):
+    """configuration_app.BusinessConfiguration: a business. Only its name and location are read for the invoice."""
+
+    __tablename__ = 'configuration_app_businessconfiguration'
+
+    id: Mapped[int] = mapped_column(BigId, primary_key=True)
+    business_name: Mapped[str] = mapped_column(String(150))
+    location: Mapped[str] = mapped_column(String(255))
+
+
+class ChatSession(Base):
+    """chat_app.ChatSession: a customer's chat. Only who the customer is is read for the invoice."""
+
+    __tablename__ = 'chat_app_chatsession'
+
+    id: Mapped[int] = mapped_column(BigId, primary_key=True)
+    phone_number: Mapped[str] = mapped_column(String(16))  # '' for a sandbox chat
+    display_name: Mapped[str] = mapped_column(String(150))
+
+
+class ServiceProvider(Base):
+    """product_app.ServiceProvider: who a service is booked with. Only its name is read for the invoice."""
+
+    __tablename__ = 'product_app_serviceprovider'
+
+    id: Mapped[int] = mapped_column(BigId, primary_key=True)
+    name: Mapped[str] = mapped_column(String(150))
+
+
 class OrderItem(Base):
     """checkout_app.OrderItem: an order of products. Its quantities aren't stored on the products:
     configuration-service derives on hold / sold / available from the orders' statuses."""
@@ -44,6 +73,9 @@ class OrderItem(Base):
 
     id: Mapped[int] = mapped_column(BigId, primary_key=True)
     business_id: Mapped[int] = mapped_column(BigInteger)
+    chat_session_id: Mapped[int | None] = mapped_column(BigInteger)
+    is_sandbox: Mapped[bool] = mapped_column(Boolean)
+    order_data: Mapped[dict] = mapped_column(JSON)  # {items: [{name, unit_price, quantity, ...}], details: {...}}
     order_status: Mapped[str] = mapped_column(String(32))
     payment_reference: Mapped[str] = mapped_column(String(32), index=True)
     updated_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -56,10 +88,13 @@ class ScheduleItem(Base):
 
     id: Mapped[int] = mapped_column(BigId, primary_key=True)
     business_id: Mapped[int] = mapped_column(BigInteger)
+    chat_session_id: Mapped[int | None] = mapped_column(BigInteger)
+    is_sandbox: Mapped[bool] = mapped_column(Boolean)
     service_provider_id: Mapped[int | None] = mapped_column(BigInteger)
     start_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     end_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     blocked_until: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    schedule_data: Mapped[dict] = mapped_column(JSON)
     order_status: Mapped[str] = mapped_column(String(32))
     payment_reference: Mapped[str] = mapped_column(String(32), index=True)
     updated_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
