@@ -58,6 +58,19 @@ class InvoiceTests(unittest.TestCase):
         self.assertEqual((built.booking.service, built.booking.provider), ('Portrait shoot', 'Mei Lin'))
         self.assertTrue(built.is_sandbox)
 
+    def test_the_customer_email_comes_from_the_email_detail(self):
+        order = self.session.get(OrderItem, 12)
+        for details, expected in [
+            ({'name': 'Daniel', 'email': 'daniel@example.com'}, 'daniel@example.com'),
+            ({'Email': ' daniel@example.com '}, 'daniel@example.com'),
+            ({'email': 'not an address'}, ''),
+            ({'email': 'a@b.com\r\nBcc: x@y.z'}, ''),
+            ({'pickup_time': '8:45am'}, ''),
+        ]:
+            with self.subTest(details=details):
+                order.order_data = {**ORDER_DATA, 'details': details}
+                self.assertEqual(invoice.build_invoice(self.session, order).customer_email, expected)
+
     def test_a_deleted_chat_and_provider_are_fine(self):
         order = self.session.get(OrderItem, 12)
         order.chat_session_id = None

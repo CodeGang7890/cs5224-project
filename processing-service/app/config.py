@@ -26,6 +26,16 @@ CONFIGURATION_SERVICE_URL = os.getenv('CONFIGURATION_SERVICE_URL', 'http://local
 INTERNAL_API_KEY = os.getenv('INTERNAL_API_KEY', 'dev-internal-api-key')
 WHATSAPP_SEND_TIMEOUT_SECONDS = 20
 
+# --- Email (Brevo) ---------------------------------------------------------------
+EMAIL_ENABLED = os.getenv('EMAIL_ENABLED', '').lower() in ('1', 'true', 'yes')
+EMAIL_FROM = os.getenv('EMAIL_FROM', '')
+EMAIL_FROM_NAME = os.getenv('EMAIL_FROM_NAME', 'Ansera')
+SMTP_HOST = os.getenv('SMTP_HOST', 'smtp-relay.brevo.com')
+SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
+SMTP_USERNAME = os.getenv('SMTP_USERNAME', '')
+SMTP_PASSWORD = os.getenv('SMTP_PASSWORD', '')
+SMTP_TIMEOUT_SECONDS = 20
+
 # --- Invoices (Google Cloud Storage) ---------------------------------------------------------
 # The bucket for the invoice PDFs (Terraform: cs5224-ansera-app-objects). Unset: invoices are made
 # but not uploaded (local development, the tests).

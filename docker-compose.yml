@@ -179,6 +179,14 @@ services:
       # Tells the customer on WhatsApp through configuration-service's endpoint (app/whatsapp_sender.py).
       CONFIGURATION_SERVICE_URL: http://configuration-service:8000/api
       INTERNAL_API_KEY: dev-internal-api-key # must equal configuration-service's
+      # Email: off unless EMAIL_ENABLED=true in the root .env
+      EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Ansera}
+      SMTP_HOST: ${SMTP_HOST:-smtp-relay.brevo.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       # Invoices are made but not uploaded while GCS_BUCKET is unset.
     depends_on:
       pubsub-init:
