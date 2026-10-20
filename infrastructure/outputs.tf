@@ -41,3 +41,21 @@ output "firebase_web_app_id" {
 output "firebase_hosting_url" {
   value = var.enable_firebase ? google_firebase_hosting_site.frontend[0].default_url : null
 }
+
+output "load_balancer_ip" {
+  description = "Static IP of the load balancer (reserved even while the load balancer is off). Point dns_domain's A record here."
+  value       = google_compute_global_address.lb.address
+}
+
+output "load_balancer_hostname" {
+  description = "Hostname the load balancer's certificate is issued for."
+  value       = var.enable_load_balancer ? local.lb_hostname : null
+}
+
+output "webhook_urls" {
+  description = "Webhook URLs to register with Meta (per business) and Xendit."
+  value = var.enable_load_balancer ? {
+    whatsapp = "https://${local.lb_hostname}/webhook/<business_id>"
+    xendit   = "https://${local.lb_hostname}/xendit/"
+  } : null
+}

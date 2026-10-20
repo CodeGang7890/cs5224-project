@@ -2,6 +2,7 @@ locals {
   apis = toset(concat([
     "artifactregistry.googleapis.com",
     "cloudbuild.googleapis.com",
+    "compute.googleapis.com",
     "iam.googleapis.com",
     "run.googleapis.com",
     "cloudscheduler.googleapis.com",

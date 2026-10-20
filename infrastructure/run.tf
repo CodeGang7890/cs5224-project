@@ -84,7 +84,13 @@ resource "google_cloud_run_v2_service" "backend" {
   name                = each.key
   location            = var.region
   deletion_protection = false
-  ingress             = "INGRESS_TRAFFIC_ALL"
+  # Services only Meta, Xendit and browsers call accept traffic from the load balancer alone while it is on.
+  # configuration-service stays open: the other services call its /api/internal/ on its run.app URL.
+  ingress = (
+    var.enable_load_balancer && contains(local.lb_only_services, each.key)
+    ? "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+    : "INGRESS_TRAFFIC_ALL"
+  )
 
   template {
     service_account                  = google_service_account.runtime[each.key].email
@@ -189,9 +195,10 @@ resource "google_cloud_run_v2_service" "backend" {
   depends_on = [google_project_service.api, google_secret_manager_secret_iam_member.configuration_secret, google_secret_manager_secret_iam_member.configuration_sql_password, google_secret_manager_secret_version.django]
 }
 
-# Only the public API endpoints accept unauthenticated webhook/browser calls.
+# Only the public API endpoints accept unauthenticated webhook/browser calls. messaging-service (the Chat Sandbox's
+# browser calls) joins them while the load balancer is on, which is then its only way in.
 resource "google_cloud_run_v2_service_iam_member" "public" {
-  for_each = { for k, v in google_cloud_run_v2_service.backend : k => v if contains(["configuration-service", "payment-ingester", "messaging-ingester"], k) }
+  for_each = { for k, v in google_cloud_run_v2_service.backend : k => v if contains(concat(["configuration-service", "payment-ingester", "messaging-ingester"], var.enable_load_balancer ? ["messaging-service"] : []), k) }
   project  = var.project_id
   location = var.region
   name     = each.value.name

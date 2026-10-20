@@ -181,3 +181,27 @@ variable "vertex_ai_demo_image" {
   type        = string
   default     = "us-docker.pkg.dev/cloudrun/container/hello"
 }
+
+variable "enable_load_balancer" {
+  description = "Create the external load balancer (and Cloud Armor) in front of Cloud Run. Turn on for demos only: it bills while it exists."
+  type        = bool
+  default     = false
+}
+
+variable "enable_cloud_armor" {
+  description = "Attach Cloud Armor policies to the load balancer's backends. Ignored while enable_load_balancer is false."
+  type        = bool
+  default     = true
+}
+
+variable "xendit_ip_ranges" {
+  description = "Xendit's callback IP ranges (see Xendit's docs). When set, only they may call the payment webhook."
+  type        = list(string)
+  default     = []
+}
+
+variable "rate_limit_per_minute" {
+  description = "Cloud Armor: requests per minute allowed from one client IP."
+  type        = number
+  default     = 100
+}
