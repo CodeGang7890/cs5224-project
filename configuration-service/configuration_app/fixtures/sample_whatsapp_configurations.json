@@ -31,21 +31,6 @@
   },
   {
     "model": "configuration_app.whatsappconfiguration",
-    "pk": 3,
-    "fields": {
-      "business": 3,
-      "phone_number_id": "100000000000003",
-      "access_token": "dev-access-token-3",
-      "app_secret": "dev-app-secret-3",
-      "display_phone_number": "+65 8960 5320",
-      "verified_name": "FitLab Personal Training",
-      "verify_token": "dev-verify-token-3",
-      "created_time": "2026-09-01T09:00:00+08:00",
-      "last_updated": "2026-09-01T09:00:00+08:00"
-    }
-  },
-  {
-    "model": "configuration_app.whatsappconfiguration",
     "pk": 4,
     "fields": {
       "business": 4,
