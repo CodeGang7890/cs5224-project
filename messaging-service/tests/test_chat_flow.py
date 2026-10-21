@@ -695,13 +695,18 @@ class OrderPlacementFlowTests(FlowApiMixin, ApiTestCase):
             },
         )
         self.assertEqual(self.stock(self.kopi), (7, 3))
+        # The Xendit payment (link) was created for the order and stored on it.
+        self.assertEqual(order.xendit_payment_id, f'pay_test_{order.pk}')
+        self.assertEqual(order.payment_link, f'https://pay.xendit.co/test/{order.pk}')
 
-        # The chat goes back to the start; the reply is the fixed confirmation, with the order number.
+        # The chat goes back to the start; the reply is the fixed confirmation, with the order
+        # number and the payment link.
         self.assertEqual((self.session.chat_state_id, self.session.chat_state_data), ('start', {'last_order_id': order.pk}))
         self.assertEqual(
             response.json()['message'],
             f'Thank you! Your order #{order.pk} with Kopi Café is confirmed.\n'
-            '- 3 × Kopi C, $1.80 each\nTotal: $5.40\n\nYour details:\n- Name: Alice\n- Email: alice@example.com',
+            '- 3 × Kopi C, $1.80 each\nTotal: $5.40\n\nYour details:\n- Name: Alice\n- Email: alice@example.com'
+            f'\n\nTo pay, use this link: https://pay.xendit.co/test/{order.pk}',
         )
         self.assertEqual(response.json()['debug']['order_id'], order.pk)
         self.assertEqual(self.calls(structured=False), [])  # no LLM reply

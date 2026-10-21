@@ -27,6 +27,12 @@ PAYMENT_REFERENCE_BITS = 128
 PAYMENT_REFERENCE_LENGTH = PAYMENT_REFERENCE_BITS // 4  # 32 hex characters
 PAYMENT_REFERENCE_PATTERN = rf'^[0-9a-f]{{{PAYMENT_REFERENCE_LENGTH}}}$'
 
+# The Xendit payment (the link the customer pays on Xendit's own page): payment-ingester creates it
+# right after the order / booking is confirmed and stores Xendit's payment id and the link. Xendit's
+# webhook result (payment-ingester → Pub/Sub → processing-service) is what sets order_status.
+XENDIT_PAYMENT_ID_MAX_LENGTH = 64
+PAYMENT_LINK_MAX_LENGTH = 500
+
 
 def new_payment_reference() -> str:
     """A random 128-bit payment reference: 32 lowercase hex characters.
@@ -83,6 +89,18 @@ class OrderItem(models.Model):
         default=OrderStatus.PENDING_PAYMENT,
     )
     payment_reference = payment_reference_field()
+    xendit_payment_id = models.CharField(
+        max_length=XENDIT_PAYMENT_ID_MAX_LENGTH,
+        blank=True,
+        null=True,
+        help_text='Xendit payment id of the payment the customer is to make (null until the link is created).',
+    )
+    payment_link = models.CharField(
+        max_length=PAYMENT_LINK_MAX_LENGTH,
+        blank=True,
+        null=True,
+        help_text='The Xendit payment link the customer pays with (null until it is created).',
+    )
     # Not auto_now_add, so fixtures and tests can set it (like ChatSession.created_time).
     created_time = models.DateTimeField(default=timezone.now, editable=False)
     updated_time = models.DateTimeField(auto_now=True)
@@ -171,6 +189,18 @@ class ScheduleItem(models.Model):
         default=OrderStatus.PENDING_PAYMENT,
     )
     payment_reference = payment_reference_field()
+    xendit_payment_id = models.CharField(
+        max_length=XENDIT_PAYMENT_ID_MAX_LENGTH,
+        blank=True,
+        null=True,
+        help_text='Xendit payment id of the payment the customer is to make (null until the link is created).',
+    )
+    payment_link = models.CharField(
+        max_length=PAYMENT_LINK_MAX_LENGTH,
+        blank=True,
+        null=True,
+        help_text='The Xendit payment link the customer pays with (null until it is created).',
+    )
     created_time = models.DateTimeField(default=timezone.now, editable=False)
     updated_time = models.DateTimeField(auto_now=True)
 

@@ -25,6 +25,7 @@ SANDBOX_KEYS = {'message', 'sent_by', 'message_time', 'messages', 'debug'}
 DEBUG_KEYS = {
     'before', 'after', 'route', 'steps', 'stop_reason', 'finished', 'confirmation', 'order_id', 'booking_id', 'missing',
     'issues', 'question_check', 'order_status', 'welcome_message', 'reply_kind', 'reply_system_prompt', 'tool_calls',
+    'payment_link', 'payment_error',
 }
 
 

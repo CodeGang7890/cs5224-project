@@ -45,7 +45,7 @@ from sqlalchemy.orm import sessionmaker
 from .. import llm
 from ..models import BusinessConfiguration, ChatSession
 from . import dates as timezone  # timezone.now(), like django.utils.timezone
-from . import order_flow, past_orders, prompts, router
+from . import order_flow, past_orders, payments, prompts, router
 from .constants import (
     SENT_BY_BUSINESS_AUTOMATED,
     SENT_BY_CUSTOMER,
@@ -128,6 +128,10 @@ def handle_customer_message(sessions: sessionmaker, session_id: int, message: st
         sessions=sessions,
     )
     order_flow.commit_turn(sessions, session_id, turn, now)
+    if turn.placed_order_id is not None or turn.placed_booking_id is not None:
+        # The customer confirmed: the confirmation message ends with the Xendit payment link
+        # (or a note if it could not be created).
+        payments.store_payment_for_placed(sessions, turn, business)
     chosen_service = turn.data.get('service', {}).get('service_id')
     check = (
         check_customer_question(sessions, session, business, message, history, products, services, chosen_service)
@@ -216,6 +220,8 @@ def handle_customer_message(sessions: sessionmaker, session_id: int, message: st
         'confirmation': turn.confirmation_status,
         'order_id': turn.placed_order_id,
         'booking_id': turn.placed_booking_id,
+        'payment_link': turn.payment_link,
+        'payment_error': turn.payment_error,
         'missing': turn.missing,
         'issues': turn.issues,
         'question_check': (
@@ -237,10 +243,24 @@ def template_reply(business, turn: order_flow.Turn, labels: dict[str, dict]) -> 
     """The fixed reply for where the turn ended, if it has one: (reply_kind, the message, the aside
     prompt's context, whether an aside goes before it). None: the LLM writes the reply."""
     if turn.placed_order_id is not None:
-        text = prompts.order_confirmed_message(business, turn.placed_order_id, turn.confirmation, labels['order'])
+        text = prompts.order_confirmed_message(
+            business,
+            turn.placed_order_id,
+            turn.confirmation,
+            labels['order'],
+            payment_link=turn.payment_link,
+            payment_note=prompts.PAYMENT_LINK_UNAVAILABLE_NOTE if turn.payment_error else None,
+        )
         return REPLY_ORDER_CONFIRMED, text, prompts.aside_after_order(turn.placed_order_id), False
     if turn.placed_booking_id is not None:
-        text = prompts.booking_confirmed_message(business, turn.placed_booking_id, turn.confirmation, labels['booking'])
+        text = prompts.booking_confirmed_message(
+            business,
+            turn.placed_booking_id,
+            turn.confirmation,
+            labels['booking'],
+            payment_link=turn.payment_link,
+            payment_note=prompts.PAYMENT_LINK_UNAVAILABLE_NOTE if turn.payment_error else None,
+        )
         return REPLY_BOOKING_CONFIRMED, text, prompts.aside_after_booking(turn.placed_booking_id), False
     if turn.step == STEP_CONFIRMATION:
         text = prompts.confirmation_request_message(turn.data, labels['order'])

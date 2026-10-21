@@ -27,8 +27,11 @@ class FakeMessage:
         self.nacked = True
 
 
-def event(payment_reference=REFERENCE, status='success') -> FakeMessage:
-    return FakeMessage(json.dumps({'payment_reference': payment_reference, 'status': status}).encode())
+def event(payment_reference=REFERENCE, status='success', amount=None) -> FakeMessage:
+    payload = {'payment_reference': payment_reference, 'status': status}
+    if amount is not None:
+        payload['amount'] = amount
+    return FakeMessage(json.dumps(payload).encode())
 
 
 class ParseTests(unittest.TestCase):
@@ -36,9 +39,29 @@ class ParseTests(unittest.TestCase):
         for status in ('success', 'fail'):
             self.assertEqual(parse(event(status=status).data), {'payment_reference': REFERENCE, 'status': status})
         self.assertEqual(parse(event(REFERENCE.upper()).data)['payment_reference'], REFERENCE)
+        self.assertEqual(
+            parse(event(status='success', amount=12.5).data),
+            {'payment_reference': REFERENCE, 'status': 'success', 'amount': 12.5},
+        )
+        self.assertEqual(
+            parse(event(status='success', amount=0).data),
+            {'payment_reference': REFERENCE, 'status': 'success', 'amount': 0.0},
+        )
 
     def test_anything_else_is_invalid(self):
-        bad = (b'not json', b'[1]', b'{"status": "success"}', event(status='paid').data, event('pay_1').data, event(42).data)
+        bad = (
+            b'not json',
+            b'[1]',
+            b'{"status": "success"}',
+            event(status='paid').data,
+            event('pay_1').data,
+            event(42).data,
+            event(amount=-1).data,
+            event(amount=True).data,
+            event(amount='12.50').data,
+            event(amount=float('nan')).data,
+            event(amount=float('inf')).data,
+        )
         for data in bad:
             with self.subTest(data=data), self.assertRaises(InvalidMessageError):
                 parse(data)
@@ -47,11 +70,11 @@ class ParseTests(unittest.TestCase):
 @patch('app.consumer.apply_payment')
 class HandleTests(unittest.TestCase):
     def test_runs_the_payment_flow_then_acks(self, apply_payment):
-        pulled = event(status='fail')
+        pulled = event(status='fail', amount=12.5)
         with self.assertLogs('app.consumer', level='INFO') as logs:
             handle(pulled, session_factory=MagicMock())
         self.assertIn(f'Payment {REFERENCE}: fail', logs.output[0])
-        self.assertEqual(apply_payment.call_args.args[1:], (REFERENCE, 'fail'))
+        self.assertEqual(apply_payment.call_args.args[1:], (REFERENCE, 'fail', 12.5))
         self.assertTrue(pulled.acked)
 
     def test_an_unknown_payment_reference_is_logged_and_acked(self, apply_payment):

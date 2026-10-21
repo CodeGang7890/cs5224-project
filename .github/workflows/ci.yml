@@ -119,7 +119,7 @@ jobs:
     strategy:
       fail-fast: false # report every service's result, not just the first failure
       matrix:
-        service: [messaging-ingester, messaging-service, processing-service, notification-job, mock_whatsapp]
+        service: [messaging-ingester, messaging-service, payment-ingester, processing-service, notification-job, mock_whatsapp]
         include:
           # Its EmulatorIntegrationTests publish to a real Pub/Sub emulator (skipped without one).
           - service: messaging-ingester

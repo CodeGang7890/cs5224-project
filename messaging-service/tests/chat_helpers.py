@@ -175,13 +175,26 @@ class DatabaseTestCase(unittest.TestCase):
 
 
 class ApiTestCase(DatabaseTestCase):
-    """DatabaseTestCase + `self.client` (the app, on this database) and `self.login(user)`."""
+    """DatabaseTestCase + `self.client` (the app, on this database) and `self.login(user)`.
+
+    payment-ingester's create-payment endpoint is not real in tests: `self.create_payment_stub`
+    stands in for it (a fake link per item id); tests that need a failure re-patch
+    `app.payment_client.create_payment` (or set the stub's side_effect to raise)."""
 
     def setUp(self):
         super().setUp()
         patcher = patch.object(config, 'JWT_SIGNING_KEY', TEST_SIGNING_KEY)
         patcher.start()
         self.addCleanup(patcher.stop)
+        self.create_payment_stub = MagicMock(
+            side_effect=lambda kind, item_id, amount, payment_reference, customer, description=None: {
+                'xendit_payment_id': f'pay_test_{item_id}',
+                'payment_url': f'https://pay.xendit.co/test/{item_id}',
+            }
+        )
+        payment_patcher = patch('app.payment_client.create_payment', self.create_payment_stub)
+        payment_patcher.start()
+        self.addCleanup(payment_patcher.stop)
         self.app = create_app()
         self.app.dependency_overrides[get_sessions] = lambda: self.sessions
         self.client = TestClient(self.app)

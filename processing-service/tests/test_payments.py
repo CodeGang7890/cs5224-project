@@ -8,12 +8,14 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.models import UNAVAILABLE_WEEK, Base, BusinessConfiguration, ChatSession, OrderItem, ScheduleItem, WeeklyAvailability
-from app.payments import PaymentNotFoundError, apply_payment
+from app.payments import PaymentEventError, PaymentNotFoundError, apply_payment
 from app.whatsapp_sender import SendError
 
 ORDER_REFERENCE = 'a' * 32
 BOOKING_REFERENCE = 'b' * 32
 CHAT_ORDER_REFERENCE = 'd' * 32
+ORDER_TOTAL = 3.60  # 2 × 1.80
+BOOKING_TOTAL = 180.00
 MONDAY = date(2026, 10, 12)
 # Monday 10:00–11:00 (Singapore) is H (the booking), 11:00–11:30 its buffer (H), the rest of the
 # morning open (O). Blocks are 15 minutes from Monday 00:00: 10:00 is block 40.
@@ -51,8 +53,8 @@ class PaymentFlowTests(unittest.TestCase):
 
     def test_a_paid_booking_takes_its_time_and_a_failed_order_frees_its_stock(self):
         with self.sessions() as session:
-            booking = apply_payment(session, BOOKING_REFERENCE, 'success')
-            order = apply_payment(session, ORDER_REFERENCE, 'fail')
+            booking = apply_payment(session, BOOKING_REFERENCE, 'success', BOOKING_TOTAL)
+            order = apply_payment(session, ORDER_REFERENCE, 'fail', ORDER_TOTAL)
         self.assertEqual((booking.kind, booking.new_status), ('booking', 'payment_received'))
         self.assertEqual((order.kind, order.new_status), ('order', 'payment_failed'))
         with self.sessions() as session:
@@ -65,7 +67,7 @@ class PaymentFlowTests(unittest.TestCase):
         with mock.patch('app.storage.upload_invoice', return_value='gs://bucket/x.pdf') as upload, \
                 mock.patch('app.storage.invoice_link', return_value='https://signed') as link, \
                 self.sessions() as session:
-            result = apply_payment(session, ORDER_REFERENCE, 'success')
+            result = apply_payment(session, ORDER_REFERENCE, 'success', ORDER_TOTAL)
         pdf, object_name = upload.call_args.args
         self.assertTrue(pdf.startswith(b'%PDF'))
         self.assertEqual(object_name, f'invoices/{ORDER_REFERENCE}.pdf')
@@ -74,23 +76,47 @@ class PaymentFlowTests(unittest.TestCase):
 
     def test_a_paid_booking_gets_its_invoice_uploaded(self):
         with mock.patch('app.storage.upload_invoice', return_value=None) as upload, self.sessions() as session:
-            result = apply_payment(session, BOOKING_REFERENCE, 'success')
+            result = apply_payment(session, BOOKING_REFERENCE, 'success', BOOKING_TOTAL)
         self.assertEqual(upload.call_args.args[1], f'invoices/{BOOKING_REFERENCE}.pdf')
         self.assertIsNone(result.invoice_link)  # nothing uploaded (no bucket): nothing to link
 
     def test_a_failed_payment_makes_no_invoice(self):
         with mock.patch('app.storage.upload_invoice') as upload, self.sessions() as session:
-            apply_payment(session, ORDER_REFERENCE, 'fail')
+            apply_payment(session, ORDER_REFERENCE, 'fail', ORDER_TOTAL)
         upload.assert_not_called()
+
+    def test_a_successful_payment_without_an_amount_is_rejected(self):
+        with self.sessions() as session, self.assertRaises(PaymentEventError):
+            apply_payment(session, ORDER_REFERENCE, 'success')
+        with self.sessions() as session:
+            self.assertEqual(session.get(OrderItem, 1).order_status, 'pending_payment')
+
+    def test_a_successful_payment_with_the_wrong_amount_is_rejected(self):
+        with self.sessions() as session, self.assertRaises(PaymentEventError):
+            apply_payment(session, ORDER_REFERENCE, 'success', 99.99)
+        with self.sessions() as session:
+            self.assertEqual(session.get(OrderItem, 1).order_status, 'pending_payment')
+
+    def test_a_failed_payment_with_the_wrong_amount_is_rejected(self):
+        with self.sessions() as session, self.assertRaises(PaymentEventError):
+            apply_payment(session, BOOKING_REFERENCE, 'fail', 99.99)
+        with self.sessions() as session:
+            self.assertEqual(session.get(ScheduleItem, 1).order_status, 'pending_payment')
+            self.assertEqual(session.get(WeeklyAvailability, 1).availability[36:48], 'OOOO' + 'HHHH' + 'HH' + 'OO')
+
+    def test_a_failed_payment_may_omit_its_amount(self):
+        with self.sessions() as session:
+            result = apply_payment(session, ORDER_REFERENCE, 'fail')
+        self.assertEqual(result.new_status, 'payment_failed')
 
     def test_a_repeated_event_makes_the_invoice_again_after_a_failed_upload(self):
         with mock.patch('app.storage.upload_invoice', side_effect=[RuntimeError('GCS down'), 'gs://b/x.pdf']) as upload:
             with self.sessions() as session, self.assertRaises(RuntimeError):
-                apply_payment(session, ORDER_REFERENCE, 'success')
+                apply_payment(session, ORDER_REFERENCE, 'success', ORDER_TOTAL)
             with self.sessions() as session:
                 self.assertEqual(session.get(OrderItem, 1).order_status, 'payment_received')  # the payment stood
             with self.sessions() as session:
-                result = apply_payment(session, ORDER_REFERENCE, 'success')  # Pub/Sub redelivers
+                result = apply_payment(session, ORDER_REFERENCE, 'success', ORDER_TOTAL)  # Pub/Sub redelivers
         self.assertFalse(result.changed)
         self.assertEqual(upload.call_count, 2)
         self.assertEqual(result.invoice_uri, 'gs://b/x.pdf')
@@ -99,7 +125,7 @@ class PaymentFlowTests(unittest.TestCase):
         with mock.patch('app.storage.upload_invoice', return_value='gs://b/x.pdf'), \
                 mock.patch('app.storage.invoice_link', return_value='https://signed/x.pdf'), \
                 mock.patch('app.whatsapp_sender.send_text', return_value='wamid.1') as send, self.sessions() as session:
-            apply_payment(session, CHAT_ORDER_REFERENCE, 'success')
+            apply_payment(session, CHAT_ORDER_REFERENCE, 'success', ORDER_TOTAL)
         business_id, to, text = send.call_args.args
         self.assertEqual((business_id, to), (1, '+6591234567'))
         self.assertIn('received your payment', text)
@@ -107,23 +133,23 @@ class PaymentFlowTests(unittest.TestCase):
 
     def test_the_customer_is_told_a_payment_failed(self):
         with mock.patch('app.whatsapp_sender.send_text', return_value='wamid.1') as send, self.sessions() as session:
-            apply_payment(session, CHAT_ORDER_REFERENCE, 'fail')
+            apply_payment(session, CHAT_ORDER_REFERENCE, 'fail', ORDER_TOTAL)
         self.assertIn("didn't go through", send.call_args.args[2])
 
     def test_a_sandbox_or_deleted_chat_is_not_messaged(self):
         with mock.patch('app.whatsapp_sender.send_text') as send, self.sessions() as session:
-            apply_payment(session, ORDER_REFERENCE, 'fail')
+            apply_payment(session, ORDER_REFERENCE, 'fail', ORDER_TOTAL)
         send.assert_not_called()
 
     def test_a_message_that_could_not_be_sent_yet_is_retried_with_the_event(self):
         down = SendError('configuration-service is down', retryable=True)
         with mock.patch('app.whatsapp_sender.send_text', side_effect=[down, 'wamid.1']) as send:
             with self.sessions() as session, self.assertRaises(SendError):
-                apply_payment(session, CHAT_ORDER_REFERENCE, 'fail')
+                apply_payment(session, CHAT_ORDER_REFERENCE, 'fail', ORDER_TOTAL)
             with self.sessions() as session:
                 self.assertEqual(session.get(OrderItem, 2).order_status, 'payment_failed')  # the payment stood
             with self.sessions() as session:
-                apply_payment(session, CHAT_ORDER_REFERENCE, 'fail')  # Pub/Sub redelivers
+                apply_payment(session, CHAT_ORDER_REFERENCE, 'fail', ORDER_TOTAL)  # Pub/Sub redelivers
         self.assertEqual(send.call_count, 2)
 
     def test_a_refused_message_does_not_fail_the_payment(self):

@@ -1,22 +1,24 @@
 """Pull-based Pub/Sub consumer: payment events published by payment-ingester.
 
 Topic `payment-events`, one message per payment event; the data is JSON
-`{payment_reference, status}`: the order's / booking's 128-bit payment reference (32 hex
-characters, from configuration-service) and `success` or `fail` (see payment-ingester/README.md).
+`{payment_reference, status, amount?}`: the order's / booking's 128-bit payment reference (32 hex
+characters, from configuration-service), `success` or `fail`, and the amount Xendit reports
+(used to check the event against the order's / booking's total).
 
 Each event goes through the payment flow (app/payments.py: updates the order / booking in
 PostgreSQL). The subscriber uses streaming pull: the client library keeps a connection open and
 calls `handle()` on its own threads, at most PUBSUB_MAX_MESSAGES at a time.
 
 - Applied → ack. Pub/Sub delivers at least once: a repeated event changes nothing.
-- No such payment reference, or the order / booking isn't waiting for this payment → logged as an
-  error and acked: redelivering it would never help.
+- No such payment reference, the amount doesn't match, or the order / booking isn't waiting for
+  this payment → logged as an error and acked: redelivering it would never help.
 - Not JSON, or not the contract's shape → logged and acked, for the same reason.
 - Anything else raised (e.g. the database is down) → nack, so Pub/Sub redelivers it.
 """
 
 import json
 import logging
+import math
 import re
 import time
 from collections.abc import Callable
@@ -39,7 +41,8 @@ class InvalidMessageError(ValueError):
 
 
 def parse(data: bytes) -> dict:
-    """The message's JSON, checked against the contract: a `payment_reference` and a known `status`."""
+    """The message's JSON, checked against the contract: a `payment_reference`, a known `status`,
+    and (when present) a non-negative numeric `amount`."""
     try:
         payload = json.loads(data)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -52,14 +55,19 @@ def parse(data: bytes) -> dict:
     payload['payment_reference'] = reference.lower()
     if payload.get('status') not in STATUSES:
         raise InvalidMessageError(f'status must be one of {", ".join(STATUSES)}, not {payload.get("status")!r}')
+    amount = payload.get('amount')
+    if amount is not None:
+        if isinstance(amount, bool) or not isinstance(amount, (int, float)) or not math.isfinite(amount) or amount < 0:
+            raise InvalidMessageError(f'amount must be a finite non-negative number, not {amount!r}')
+        payload['amount'] = float(amount)
     return payload
 
 
 def process(payload: dict, session_factory: Callable = get_session) -> None:
     """The work for one payment event: the payment flow, in its own session."""
-    logger.info('Payment %s: %s', payload['payment_reference'], payload['status'])
+    logger.info('Payment %s: %s (amount %s)', payload['payment_reference'], payload['status'], payload.get('amount'))
     with session_factory() as session:
-        apply_payment(session, payload['payment_reference'], payload['status'])
+        apply_payment(session, payload['payment_reference'], payload['status'], payload.get('amount'))
 
 
 def handle(message, session_factory: Callable = get_session) -> None:
