@@ -92,6 +92,14 @@ CONFIGURATION_SERVICE_URL = os.getenv('CONFIGURATION_SERVICE_URL', 'http://local
 INTERNAL_API_KEY = os.getenv('INTERNAL_API_KEY', 'dev-internal-api-key')  # must equal configuration-service's
 WHATSAPP_SEND_TIMEOUT_SECONDS = 20
 
+# --- Payment links (payment-ingester's create endpoint) ---------------------------------------
+# When the chat flow saves an order / booking, it asks payment-ingester (POST /payments,
+# X-Internal-Api-Key) for the Xendit payment link the customer pays with; the link goes to the
+# customer in the confirmation message, and Xendit's webhook (payment-ingester → Pub/Sub →
+# processing-service) updates the order / booking's status.
+PAYMENT_INGESTER_URL = os.getenv('PAYMENT_INGESTER_URL', 'http://localhost:8001')
+PAYMENT_CREATE_TIMEOUT_SECONDS = int(os.getenv('PAYMENT_CREATE_TIMEOUT_SECONDS', '30'))
+
 # --- CORS (the frontend calls the Chat Sandbox endpoint from the browser) ------------------
 CORS_ALLOWED_ORIGINS = [
     origin.strip() for origin in os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:5173').split(',') if origin.strip()

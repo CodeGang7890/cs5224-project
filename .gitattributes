@@ -1,0 +1,4 @@
+# Enforce LF line endings in the working tree: Docker's shell scripts break with CRLF
+# (the shebang becomes "#!/bin/sh\r" and the interpreter "is not found").
+* text=auto eol=lf
+*.sh text eol=lf

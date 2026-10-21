@@ -152,6 +152,10 @@ class Turn:
     # Set by commit_turn() once the order / booking is saved: the OrderItem's / ScheduleItem's pk.
     placed_order_id: int | None = None
     placed_booking_id: int | None = None
+    # Set after commit_turn() (payments.store_payment_for_placed): the Xendit payment link the
+    # customer pays with (None: no link was created; see payment_error).
+    payment_link: str | None = None
+    payment_error: str | None = None
 
     @property
     def confirmation_status(self) -> str | None:

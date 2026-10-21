@@ -28,9 +28,13 @@ export interface Order {
   /** Placed in a Chat Sandbox test chat. */
   is_sandbox: boolean
   order_status: OrderStatus
-  /** Random 128-bit reference (32 hex characters) the payment is made under; payment events come back with it. */
-  payment_reference: string
-  order_data: OrderData
+    /** Random 128-bit reference (32 hex characters) the payment is made under; payment events come back with it. */
+    payment_reference: string
+    /** Xendit's session / payment ID; null until the payment link is created. */
+    xendit_payment_id: string | null
+    /** The Xendit hosted payment link; null until it is created. */
+    payment_link: string | null
+    order_data: OrderData
   /** Decimal string, e.g. "9.10". */
   total: string
   created_time: string
@@ -81,9 +85,13 @@ export interface ScheduleItem {
   /** end_time + the service buffer: when the calendar is free again. */
   blocked_until: string
   order_status: OrderStatus
-  /** Random 128-bit reference (32 hex characters) the payment is made under; payment events come back with it. */
-  payment_reference: string
-  schedule_data: ScheduleData
+    /** Random 128-bit reference (32 hex characters) the payment is made under; payment events come back with it. */
+    payment_reference: string
+    /** Xendit's session / payment ID; null until the payment link is created. */
+    xendit_payment_id: string | null
+    /** The Xendit hosted payment link; null until it is created. */
+    payment_link: string | null
+    schedule_data: ScheduleData
   /** The service's price, e.g. "180.00". */
   total: string
   created_time: string

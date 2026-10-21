@@ -5,7 +5,7 @@ A **FastAPI** service, served by **Gunicorn**, on port **8003**. It pulls the **
 | Port | Service |
 | --- | --- |
 | 8000 | configuration-service |
-| 8001 | payment-ingester (reserved, coming soon) |
+| 8001 | payment-ingester |
 | 8002 | messaging-ingester |
 | **8003** | **processing-service** |
 | 8004 | messaging-service |
@@ -20,10 +20,10 @@ Swagger UI is at <http://localhost:8003/docs>, and the OpenAPI spec at `/openapi
 
 ## Pub/Sub consumer
 
-`app/consumer.py` is a **pull** subscriber (streaming pull) on its own subscription, `processing-service-payments`, to the topic `payment-events`. Each message's data is JSON `{payment_reference, status}` (32 hex characters; `success` / `fail`; see `payment-ingester/README.md`).
+`app/consumer.py` is a **pull** subscriber (streaming pull) on its own subscription, `processing-service-payments`, to the topic `payment-events`. Each message's data is JSON `{payment_reference, status, amount?}` (32 hex characters; `success` / `fail`; the amount Xendit reports; see `payment-ingester/README.md`).
 
 - **Valid:** it goes through the payment flow (below), then is acked. A repeated event changes nothing in the database (but see step 5).
-- **Unknown payment reference, or not pending payment** (e.g. already completed): logged as an error and acked.
+- **Unknown payment reference, amount mismatch, or not pending payment** (e.g. already completed): logged as an error and acked.
 - **Processing raised** (e.g. the database, Cloud Storage or configuration-service is down): nacked, so Pub/Sub redelivers it. The payment itself is already committed by then; the retry sees a repeated event and finishes the invoice and the message.
 - **Malformed:** logged as a warning and acked, so it isn't redelivered forever.
 
@@ -36,14 +36,15 @@ To try it end to end, publish dummy events with payment-ingester's script, then 
 In one transaction, with the row locked:
 
 1. Find the product order (`checkout_app_orderitem`) or booking (`checkout_app_scheduleitem`) with the payment reference. None: `PaymentNotFoundError`.
-2. Only `pending_payment` changes: `success` → `payment_received`, `fail` → `payment_failed`. Already in that status: nothing changes. Any other status: `PaymentStatusConflictError`.
-3. **Product orders:** nothing else is stored. configuration-service works out each product's on hold / sold / available quantities from the orders' statuses: payment received still holds them, and a failed payment holds nothing, so they're available again.
-4. **Bookings:** the provider's weekly availability letters are stored, and Django's signals don't run here, so `app/schedule.py` (a port of configuration-service's `checkout_app.schedule`) paints them. Paid: on hold (H) → booked (X) over the duration, and the buffer where open. Failed: back to available (O).
+2. Check the amount against the order / booking total. A successful payment must carry the exact total; a failed payment's amount, when present, must also match. A mismatch: `PaymentEventError`.
+3. Only `pending_payment` changes: `success` → `payment_received`, `fail` → `payment_failed`. Already in that status: nothing changes. Any other status: `PaymentStatusConflictError`. A failed payment is final (no retry).
+4. **Product orders:** nothing else is stored. configuration-service works out each product's on hold / sold / available quantities from the orders' statuses: payment received still holds them, and a failed payment holds nothing, so they're available again.
+5. **Bookings:** the provider's weekly availability letters are stored, and Django's signals don't run here, so `app/schedule.py` (a port of configuration-service's `checkout_app.schedule`) paints them. Paid: on hold (H) → booked (X) over the duration, and the buffer where open. Failed: back to available (O).
 
 Then, **after the commit** (so a failure here never undoes the payment, and no connection is held during the upload):
 
-5. **Invoice (payment received only).** `app/invoice.py` builds the invoice from the order / booking, its business, chat and provider (`build_invoice`), then draws the PDF (`render_pdf`, fpdf2). `app/storage.py` uploads it to `invoices/<payment_reference>.pdf` in the `GCS_BUCKET` bucket, so a repeated event just overwrites it, and makes a signed link valid for 7 days. Invoice numbers are `INV-O-000012` (order #12) and `INV-B-000028` (booking #28). Without `GCS_BUCKET` (local development, the tests) the PDF is made but not uploaded, and there is no link.
-6. **Tell the customer (received and failed).** `app/notifications.py` sends a WhatsApp message to the chat's phone number, with the invoice link when there is one. It goes through `app/whatsapp_sender.py`: configuration-service's `POST /api/internal/whatsapp/<business_id>/send/`, which holds the business's access token (the same call messaging-service makes). A chat without a phone number (a Chat Sandbox, or a deleted chat) isn't messaged.
+6. **Invoice (payment received only).** `app/invoice.py` builds the invoice from the order / booking, its business, chat and provider (`build_invoice`), then draws the PDF (`render_pdf`, fpdf2). `app/storage.py` uploads it to `invoices/<payment_reference>.pdf` in the `GCS_BUCKET` bucket, so a repeated event just overwrites it, and makes a signed link valid for 7 days. Invoice numbers are `INV-O-000012` (order #12) and `INV-B-000028` (booking #28). Without `GCS_BUCKET` (local development, the tests) the PDF is made but not uploaded, and there is no link.
+7. **Tell the customer (received and failed).** `app/notifications.py` sends a WhatsApp message to the chat's phone number, with the invoice link when there is one. It goes through `app/whatsapp_sender.py`: configuration-service's `POST /api/internal/whatsapp/<business_id>/send/`, which holds the business's access token (the same call messaging-service makes). A chat without a phone number (a Chat Sandbox, or a deleted chat) isn't messaged.
 
 Things to know about the message:
 

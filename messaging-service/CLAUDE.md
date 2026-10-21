@@ -39,6 +39,7 @@ The sibling services are `../configuration-service` (Django, port 8000) and `../
 - The chat flow's `OLLAMA_OPTIONS` / `STRUCTURED_OPTIONS` / `MAX_TOOL_ROUNDS` (copied from `chat_app/llm.py`; `/chat` sends no options, as before).
 - Database (env, like configuration-service's): `POSTGRES_DB` / `USER` / `PASSWORD` / `HOST` / `PORT` (default `localhost:5433`: compose's PostgreSQL from the host), `DATABASE_URL` overrides; `SCHEDULE_TIME_ZONE` (must equal Django's `DJANGO_SCHEDULE_TIME_ZONE`).
 - `JWT_SIGNING_KEY` (must equal configuration-service's; empty → every token 401), `JWT_ALGORITHM = 'HS256'`; `CORS_ALLOWED_ORIGINS` (default `http://localhost:5173`).
+- Payment links: `PAYMENT_INGESTER_URL` (default `http://localhost:8001`; docker-compose sets `http://payment-ingester:8001`) and `PAYMENT_CREATE_TIMEOUT_SECONDS` (30). The chat flow calls `POST /payments` on payment-ingester after an order / booking is saved.
 
 Keep every tunable setting here as a constant. Don't hard-code values in routes. `run.py` also accepts `PORT`, `HOST` and `RELOAD` (default `1`, auto-reload) from the environment for one-off overrides.
 
