@@ -41,3 +41,14 @@ output "firebase_web_app_id" {
 output "firebase_hosting_url" {
   value = var.enable_firebase ? google_firebase_hosting_site.frontend[0].default_url : null
 }
+
+output "meta_webhook_verify_token" {
+  description = "Verify token for our Meta app's webhook (App Dashboard → WhatsApp → Configuration): terraform output -raw meta_webhook_verify_token"
+  value       = random_password.meta_webhook_verify_token.result
+  sensitive   = true
+}
+
+output "meta_app_webhook_url" {
+  description = "Callback URL for our Meta app's webhook (App Dashboard → WhatsApp → Configuration)."
+  value       = "${local.messaging_ingester_public_url}/webhook"
+}

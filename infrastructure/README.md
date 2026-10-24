@@ -67,6 +67,19 @@ Cloud Run services `configuration-service`, `payment-ingester`, and `messaging-i
 - The payment and messaging Pub/Sub subscriptions are **pull** subscriptions. Cloud Run instances scale to zero and will not poll while idle; use a worker design that can consume them reliably. The notification Cloud Run Job is invoked directly by Cloud Scheduler, not from the notification Pub/Sub subscription.
 - Secret containers for third-party tokens intentionally have no versions. Add values with `gcloud secrets versions add SECRET_ID --data-file=FILE` using a protected local file, then configure the relevant app and runtime IAM. Avoid passing secrets in command arguments or Terraform variables.
 
+## WhatsApp Embedded Signup ("Connect with Facebook")
+
+Businesses connect WhatsApp only through our Meta app, and this is always on. Setup:
+
+1. **Meta App Dashboard** (our app):
+   - **Facebook Login for Business → Settings**: turn on Client OAuth login, Web OAuth login, Enforce HTTPS, Embedded Browser OAuth Login, Use Strict Mode for redirect URIs and Login with the JavaScript SDK. Add the frontend's domain (e.g. `cs5224-ansera.web.app`) to *Allowed domains for the JavaScript SDK* and `https://cs5224-ansera.web.app/` to *Valid OAuth redirect URIs*.
+   - **Facebook Login for Business → Configurations**: create one from the *WhatsApp Embedded Signup* template and note its configuration ID.
+2. **App Secret** (before the first apply; from a protected local file, not the command line): `gcloud secrets versions add meta-app-secret --data-file=…` (App settings → Basic → App secret). Terraform generates the webhook verify token itself.
+3. **`terraform.tfvars`**: `meta_app_id` (default: ours), `meta_embedded_signup_config_id`, and `messaging_ingester_public_url` only if it isn't the Cloud Run default URL. Apply. configuration-service gets `META_APP_ID`, `META_APP_SECRET`, `META_APP_WEBHOOK_VERIFY_TOKEN` and `MESSAGING_INGESTER_PUBLIC_URL`, and the frontend build gets `VITE_META_APP_ID` / `VITE_META_CONFIG_ID`. Without a configuration ID, the Connect with Facebook button does nothing.
+4. **Our app's webhook** (App Dashboard → WhatsApp → Configuration): Callback URL from `terraform output meta_app_webhook_url`, Verify token from `terraform output -raw meta_webhook_verify_token`; subscribe to `messages` and `account_update`. Each business's messages are redirected to its own `/webhook/<id>` automatically.
+
+The app works for Facebook accounts with a role on it while it's in development mode. Onboarding outside businesses needs Meta business verification, App Review and Tech Provider status.
+
 ## Vertex AI / Gemini integration
 
 Terraform enables `aiplatform.googleapis.com` by default and gives only the services named in `vertex_ai_services` the `roles/aiplatform.user` role. The default is `configuration-service`, which currently owns the customer chat flow. Vertex AI API enablement and IAM do not call the model or incur token charges by themselves. The default runtime settings are `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION=us-central1`, `GOOGLE_GENAI_USE_VERTEXAI=True`, `LLM_PROVIDER=vertex_ai`, and `LLM_MODEL=gemini-2.5-flash`. The location and model can be changed through Terraform variables. Check model availability and pricing for your chosen location before applying. No Gemini API key is needed on Cloud Run: the Google Gen AI SDK uses Application Default Credentials from the Cloud Run service account.

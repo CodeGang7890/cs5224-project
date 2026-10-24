@@ -164,6 +164,9 @@ resource "google_cloudbuild_trigger" "frontend_hosting" {
 
   substitutions = {
     _PROJECT_ID = var.project_id
+    # WhatsApp Embedded Signup ("Connect with Facebook"); no configuration ID: the button does nothing.
+    _META_APP_ID    = var.meta_app_id
+    _META_CONFIG_ID = var.meta_embedded_signup_config_id
   }
 
   depends_on = [google_project_service.api, google_project_iam_member.builder_log_writer, google_project_iam_member.builder_firebase_hosting_admin, google_project_iam_member.builder_service_usage_consumer]

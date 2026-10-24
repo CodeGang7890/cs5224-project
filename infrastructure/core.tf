@@ -37,7 +37,7 @@ resource "google_pubsub_subscription" "queue" {
 }
 
 resource "google_secret_manager_secret" "app" {
-  for_each  = toset(["django-secret-key", "llm-api-key", "whatsapp-token", "xendit-api-key"])
+  for_each  = toset(["django-secret-key", "llm-api-key", "whatsapp-token", "xendit-api-key", "meta-app-secret", "meta-webhook-verify-token"])
   secret_id = each.key
   replication {
     auto {}

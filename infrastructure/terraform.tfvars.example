@@ -37,3 +37,10 @@ vertex_ai_model        = "gemini-2.5-flash"
 # Standalone browser demo. Public access can allow untrusted model requests and charges.
 enable_vertex_ai_demo                 = false
 vertex_ai_demo_allow_unauthenticated = false
+
+# WhatsApp Embedded Signup ("Connect with Facebook"), always on. Before the first apply, add the
+# App Secret: gcloud secrets versions add meta-app-secret --data-file=… (Terraform generates the
+# webhook verify token: terraform output -raw meta_webhook_verify_token).
+meta_app_id                    = "1147422487864729"
+meta_embedded_signup_config_id = ""
+messaging_ingester_public_url  = ""

@@ -132,6 +132,29 @@ resource "google_cloud_run_v2_service" "backend" {
         }
       }
       dynamic "env" {
+        # WhatsApp webhook Callback URLs (shown to owners, and set by Embedded Signup), plus our Meta app.
+        for_each = each.key == "configuration-service" ? {
+          MESSAGING_INGESTER_PUBLIC_URL = local.messaging_ingester_public_url
+          META_APP_ID                   = var.meta_app_id
+        } : {}
+        content {
+          name  = env.key
+          value = env.value
+        }
+      }
+      dynamic "env" {
+        for_each = each.key == "configuration-service" ? local.meta_secrets : {}
+        content {
+          name = env.key
+          value_source {
+            secret_key_ref {
+              secret  = google_secret_manager_secret.app[env.value].secret_id
+              version = "latest"
+            }
+          }
+        }
+      }
+      dynamic "env" {
         for_each = each.key == "configuration-service" ? [1] : []
         content {
           name  = "DJANGO_ALLOWED_HOSTS"
@@ -186,7 +209,7 @@ resource "google_cloud_run_v2_service" "backend" {
   }
 
   lifecycle { ignore_changes = [template[0].containers[0].image] }
-  depends_on = [google_project_service.api, google_secret_manager_secret_iam_member.configuration_secret, google_secret_manager_secret_iam_member.configuration_sql_password, google_secret_manager_secret_version.django]
+  depends_on = [google_project_service.api, google_secret_manager_secret_iam_member.configuration_secret, google_secret_manager_secret_iam_member.configuration_sql_password, google_secret_manager_secret_version.django, google_secret_manager_secret_iam_member.configuration_meta, google_secret_manager_secret_version.meta_webhook_verify_token]
 }
 
 # Only the public API endpoints accept unauthenticated webhook/browser calls.
