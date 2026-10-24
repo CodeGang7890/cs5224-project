@@ -4,8 +4,8 @@
    were made 1 to 2 hours ago, [1 h, 2 h) before the hour (created_time in (hour − 2 h, hour − 1 h]).
 2. Appointment reminders: bookings starting 23 to 24 hours from now, [23 h, 24 h) after the hour
    (start_time in [hour + 23 h, hour + 24 h)), unless their payment failed (they hold no time).
-3. WhatsApp reconnect alerts, to the business's users: its WhatsApp access token (from Embedded
-   Signup, e.g. 60 days) expires in 7 days, in 1 day, or has just expired (the alert's point,
+3. WhatsApp reconnect alerts, to the business's users: its WhatsApp access token (from Embedded Signup,
+   e.g. 60 days) expires in 7 days, in 1 day, or has just expired (the alert's point,
    access_token_expires_time − 7 d / 1 d / 0, in (hour − 1 h, hour]). Only connections Meta still
    reports connected (a disconnected or banned one has a bigger problem, shown in the app).
    Reconnecting with Facebook gives a new token and expiry, so no more alerts for the old one.
@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 PAYMENT_REMINDER_AFTER = (timedelta(hours=1), timedelta(hours=2))  # [1 h, 2 h) after it was made
 APPOINTMENT_REMINDER_BEFORE = (timedelta(hours=23), timedelta(hours=24))  # [23 h, 24 h) before it starts
 # Reconnect alerts this long before the WhatsApp access token expires (0: once it has). The first matches
-# configuration-service's ACCESS_TOKEN_EXPIRY_WARNING (when the app starts warning too): keep them in sync.
+# configuration-service's ACCESS_TOKEN_EXPIRY_WARNING (when the app starts warning): change both together.
 RECONNECT_ALERTS_BEFORE = (timedelta(days=7), timedelta(days=1), timedelta(0))
 HOUR = timedelta(hours=1)
 
