@@ -44,3 +44,6 @@ vertex_ai_demo_allow_unauthenticated = false
 meta_app_id                    = "1147422487864729"
 meta_embedded_signup_config_id = ""
 messaging_ingester_public_url  = ""
+
+# Logging in with Google / Facebook comes with enable_firebase (identity.tf; enabling Identity Platform
+# can't be undone). The providers are set up in the console (README).

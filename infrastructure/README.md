@@ -61,11 +61,23 @@ Cloud Run services `configuration-service`, `payment-ingester`, and `messaging-i
 
 ## Firebase, DNS, and queues
 
-- `enable_firebase = true` adds Firebase to the existing project and creates the `Ansera` web app plus a Hosting site. The site URL is available as the `firebase_hosting_url` Terraform output. Firebase Authentication providers and the frontend's existing Django JWT auth remain separate choices.
+- `enable_firebase = true` adds Firebase to the existing project and creates the `Ansera` web app plus a Hosting site. The site URL is available as the `firebase_hosting_url` Terraform output. It also turns on Identity Platform, for logging in with Google / Facebook (below).
 - The Firebase Hosting trigger uses `infrastructure/firebase.json` and `infrastructure/cloudbuild-frontend.yaml`. It builds the Vite SPA and deploys it with Firebase CLI using the Cloud Build service account's Application Default Credentials. The build service account receives Firebase Hosting Admin when both Firebase and CI/CD are enabled.
 - Set `dns_domain` to a domain you control to create a public zone. Point your registrar at `dns_nameservers`; add desired `dns_records` after the target IP/hostname is known. This zone alone does not create a load balancer or Cloud Run custom domain.
 - The payment and messaging Pub/Sub subscriptions are **pull** subscriptions. Cloud Run instances scale to zero and will not poll while idle; use a worker design that can consume them reliably. The notification Cloud Run Job is invoked directly by Cloud Scheduler, not from the notification Pub/Sub subscription.
 - Secret containers for third-party tokens intentionally have no versions. Add values with `gcloud secrets versions add SECRET_ID --data-file=FILE` using a protected local file, then configure the relevant app and runtime IAM. Avoid passing secrets in command arguments or Terraform variables.
+
+## Logging in with Google / Facebook (Identity Platform)
+
+Owners can log in (or sign up) with Google or Facebook as well as a username and password (`identity.tf`). frontend-app runs the popup with the Firebase JS SDK, and configuration-service turns the ID token into its usual JWTs (`FIREBASE_PROJECT_ID`). With `enable_firebase`, Terraform enables Identity Platform (this can't be undone), sets the authorized domains, gives configuration-service `FIREBASE_PROJECT_ID`, and builds the frontend with the Firebase web app's config. The login popup uses the Hosting site's domain (`<site>.web.app`) as its auth domain, so **deploy the frontend before trying it**, even locally. The providers aren't in Terraform (so their secrets stay out of its state): each needs an OAuth client made by hand, entered in the console.
+
+1. **Redirect URI** for both providers: `terraform output identity_oauth_redirect_uri` (`https://cs5224-ansera.web.app/__/auth/handler`).
+2. **Google:** Google Auth Platform → Branding / Audience: set up the consent screen (**External**, so any Google account can log in; while it's in testing, add testers). Clients → Create client → Web application: authorized JavaScript origins `https://cs5224-ansera.web.app` and `http://localhost:5173`; the redirect URI above.
+3. **Facebook:** a Meta app with **Facebook Login** (a *Consumer* app is simplest; our WhatsApp app is a Business app, whose login is Facebook Login for Business). Facebook Login → Settings → Valid OAuth redirect URIs: the redirect URI above. Its `email` and `public_profile` permissions need no App Review; going Live needs the privacy policy URL (`https://cs5224-ansera.web.app/privacy.html`).
+4. **Identity Platform → Providers → Add a provider**: Google (its client ID and secret) and Facebook (its App ID and App Secret).
+5. For local development, copy `terraform output firebase_web_config` into the repository's `.env` (`FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`).
+
+Terraform owns the **authorized domains** (localhost and the Hosting site): add others in `identity.tf`, not in the console, or the next apply removes them.
 
 ## WhatsApp Embedded Signup ("Connect with Facebook")
 

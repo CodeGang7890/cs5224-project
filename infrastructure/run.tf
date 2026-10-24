@@ -132,10 +132,14 @@ resource "google_cloud_run_v2_service" "backend" {
         }
       }
       dynamic "env" {
-        # WhatsApp webhook Callback URLs (shown to owners, and set by Embedded Signup), plus our Meta app.
+        # WhatsApp webhook Callback URLs (set by Embedded Signup), our Meta app, the project whose Identity
+        # Platform signs Google / Facebook logins (identity.tf; empty: off), and Cloud Run's front end, which
+        # appends the client's IP to X-Forwarded-For (the login / sign-up rate limits count per client).
         for_each = each.key == "configuration-service" ? {
           MESSAGING_INGESTER_PUBLIC_URL = local.messaging_ingester_public_url
           META_APP_ID                   = var.meta_app_id
+          FIREBASE_PROJECT_ID           = var.enable_firebase ? var.project_id : ""
+          DJANGO_NUM_PROXIES            = "1"
         } : {}
         content {
           name  = env.key
