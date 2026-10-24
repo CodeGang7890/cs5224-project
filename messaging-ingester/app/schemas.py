@@ -11,6 +11,14 @@ class WebhookAck(BaseModel):
     published: int = Field(description='How many customer messages were published to Pub/Sub.', examples=[1])
 
 
+class AppWebhookAck(BaseModel):
+    published: int = Field(0, description='Always 0: our app\'s webhook publishes nothing.', examples=[0])
+    account_updates: int = Field(description='How many account_update events were handed to configuration-service.',
+                                 examples=[1])
+    changed: int = Field(description='How many connections they marked disconnected, banned or connected again.',
+                         examples=[1])
+
+
 class ErrorResponse(BaseModel):
     code: int = Field(examples=[503])
     status: str = Field(examples=['Service Unavailable'])

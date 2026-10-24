@@ -7,7 +7,9 @@ The ingester never sees a business's secrets. It asks configuration-service:
 Both answer `{valid, phone_number_id}`.
 
 Our Meta app's own (default) webhook, /webhook (Embedded Signup), has the same two checks against
-the app's verify token and App Secret: verify_app_token / verify_app_signature.
+the app's verify token and App Secret: verify_app_token / verify_app_signature. Its account_update
+events are then handed over with report_account_updates (configuration-service marks the connections
+disconnected or banned) → how many connections changed.
 """
 
 from dataclasses import dataclass
@@ -15,6 +17,7 @@ from dataclasses import dataclass
 import httpx
 
 from . import config
+from .parsing import AccountUpdate
 
 
 class BusinessNotConnectedError(Exception):
@@ -64,7 +67,22 @@ class ConfigurationServiceClient:
             headers[config.SIGNATURE_HEADER] = signature
         return self._post('/internal/whatsapp/app/verify-signature/', content=body, headers=headers)
 
+    def report_account_updates(self, updates: list[AccountUpdate]) -> int:
+        data = self._send('/internal/whatsapp/app/account-updates/', json={'updates': [u.to_dict() for u in updates]})
+        changed = data.get('changed')
+        if not isinstance(changed, int) or isinstance(changed, bool):
+            raise VerificationUnavailableError(f'Unexpected reply from configuration-service: {data!r:.200}')
+        return changed
+
     def _post(self, path: str, **kwargs) -> Verification:
+        data = self._send(path, **kwargs)
+        try:
+            return Verification(valid=data['valid'] is True, phone_number_id=data.get('phone_number_id'))
+        except (KeyError, TypeError) as exc:
+            raise VerificationUnavailableError(f'Unexpected reply from configuration-service: {data!r:.200}') from exc
+
+    def _send(self, path: str, **kwargs) -> dict:
+        """POSTs to configuration-service's internal API → its JSON object."""
         try:
             response = self._client.post(path, **kwargs)
         except httpx.HTTPError as exc:  # connection refused, DNS, timeout...
@@ -77,6 +95,8 @@ class ConfigurationServiceClient:
             )
         try:
             data = response.json()
-            return Verification(valid=data['valid'] is True, phone_number_id=data.get('phone_number_id'))
-        except (ValueError, KeyError, TypeError) as exc:
+        except ValueError as exc:
             raise VerificationUnavailableError(f'Unexpected reply from configuration-service: {response.text[:200]}') from exc
+        if not isinstance(data, dict):
+            raise VerificationUnavailableError(f'Unexpected reply from configuration-service: {response.text[:200]}')
+        return data

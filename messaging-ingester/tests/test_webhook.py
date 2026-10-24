@@ -4,6 +4,7 @@ import unittest
 from fastapi.testclient import TestClient
 
 from app import create_app
+from app.parsing import AccountUpdate
 from app.webhook import get_publisher, get_verifier
 
 from .helpers import (
@@ -15,6 +16,7 @@ from .helpers import (
     VERIFY_TOKEN,
     FakePublisher,
     FakeVerifier,
+    account_update,
     body,
     change,
     text_message,
@@ -223,20 +225,40 @@ class AppWebhookTests(WebhookTestCase):
         with self.assertLogs('app.webhook', 'ERROR'):
             self.assertEqual(self.post(webhook(change(field='account_update'))).status_code, 503)
 
-    def test_account_events_are_acknowledged_and_not_published(self):
-        payload = webhook(change(field='account_update'))
+    def test_account_updates_go_to_configuration_service(self):
+        payload = webhook(
+            account_update(ban_info={'waba_ban_state': 'DISABLE', 'waba_ban_date': 'April 17, 2025'}),
+            account_update('PARTNER_APP_UNINSTALLED', waba_info={'waba_id': '184943124712545', 'partner_app_id': '42'}),
+            change(field='security'),  # other fields: only logged
+        )
         with self.assertLogs('app.webhook', 'INFO') as logs:
             response = self.post(payload)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {'published': 0})
-        self.assertIn('account_update', logs.output[0])
-        self.assertEqual(self.verifier.calls, [('verify_app_signature', body(payload), VALID_SIGNATURE)])
+        self.assertEqual(response.json(), {'published': 0, 'account_updates': 2, 'changed': 2})
+        self.assertEqual(
+            self.verifier.reported,
+            [AccountUpdate('102290129340398', 'DISABLED_UPDATE', ban_state='DISABLE'),
+             AccountUpdate('184943124712545', 'PARTNER_APP_UNINSTALLED', partner_app_id='42')],
+        )
+        self.assertIn('security', '\n'.join(logs.output))
         self.assertEqual(self.publisher.calls, 0)
+
+    def test_without_account_updates_configuration_service_is_only_asked_about_the_signature(self):
+        payload = webhook(change(field='security'))
+        with self.assertLogs('app.webhook', 'INFO'):
+            response = self.post(payload)
+        self.assertEqual(response.json(), {'published': 0, 'account_updates': 0, 'changed': 0})
+        self.assertEqual(self.verifier.calls, [('verify_app_signature', body(payload), VALID_SIGNATURE)])
+
+    def test_account_updates_not_handed_over_is_503_so_meta_retries(self):
+        self.verifier.report_error = UNAVAILABLE
+        with self.assertLogs('app.webhook', 'ERROR'):
+            self.assertEqual(self.post(webhook(account_update())).status_code, 503)
 
     def test_stray_messages_are_logged_not_published(self):
         with self.assertLogs('app.webhook', 'WARNING') as logs:
             response = self.post(webhook(change(messages=[text_message()])))
-        self.assertEqual(response.json(), {'published': 0})
+        self.assertEqual(response.json()['published'], 0)
         self.assertIn(PHONE_NUMBER_ID, logs.output[0])
         self.assertEqual(self.publisher.calls, 0)
 

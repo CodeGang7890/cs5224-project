@@ -1,8 +1,8 @@
 import unittest
 
-from app.parsing import InboundMessage, parse_webhook, to_e164, to_iso_timestamp
+from app.parsing import AccountUpdate, InboundMessage, parse_account_updates, parse_webhook, to_e164, to_iso_timestamp
 
-from .helpers import BUSINESS_ID, PHONE_NUMBER_ID, change, text_message, webhook
+from .helpers import BUSINESS_ID, PHONE_NUMBER_ID, account_update, change, text_message, webhook
 
 
 def parse(payload):
@@ -128,3 +128,42 @@ class HelperTests(unittest.TestCase):
         for bad in (None, '', 'abc', '1.5', '9' * 30):
             with self.subTest(bad=bad):
                 self.assertIsNone(to_iso_timestamp(bad))
+
+
+class ParseAccountUpdatesTests(unittest.TestCase):
+    """Meta's account_update shapes (webhooks reference), from our app's /webhook."""
+
+    def test_the_account_is_the_entry_id_or_waba_info(self):
+        payload = webhook(
+            account_update(ban_info={'waba_ban_state': 'REINSTATE', 'waba_ban_date': 'April 17, 2025'}),
+            account_update('ACCOUNT_DELETED'),
+            account_update('PARTNER_APP_UNINSTALLED', waba_info={
+                'waba_id': '184943124712545', 'owner_business_id': '1284923862322270', 'partner_app_id': 869361281603019,
+            }),
+            account_update('PARTNER_REMOVED', waba_info={'waba_id': '980198427658004'},
+                           disconnection_info={'reason': 'PRIMARY_INACTIVITY', 'initiated_by': 'SYSTEM'}),
+        )
+        self.assertEqual(parse_account_updates(payload), [
+            AccountUpdate('102290129340398', 'DISABLED_UPDATE', ban_state='REINSTATE'),
+            AccountUpdate('102290129340398', 'ACCOUNT_DELETED'),
+            AccountUpdate('184943124712545', 'PARTNER_APP_UNINSTALLED', partner_app_id='869361281603019'),
+            AccountUpdate('980198427658004', 'PARTNER_REMOVED'),
+        ])
+
+    def test_other_fields_and_malformed_changes_are_skipped(self):
+        payload = webhook(
+            change(messages=[text_message()]),
+            account_update(''),
+            {'field': 'account_update', 'value': 'not a dict'},
+            account_update('ACCOUNT_DELETED', waba_info={'waba_id': 'abc'}),  # falls back to the entry id
+        )
+        payload['entry'].append({'id': 'not-a-number', 'changes': [account_update('ACCOUNT_DELETED')]})
+        with self.assertLogs('app.parsing', 'WARNING') as logs:
+            updates = parse_account_updates(payload)
+        self.assertEqual(updates, [AccountUpdate('102290129340398', 'ACCOUNT_DELETED')])
+        self.assertEqual(len(logs.output), 3)
+
+    def test_not_a_webhook(self):
+        for payload in (None, [], {'entry': 'x'}, {'entry': [None, {'changes': None}]}):
+            with self.subTest(payload=payload):
+                self.assertEqual(parse_account_updates(payload), [])

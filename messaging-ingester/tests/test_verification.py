@@ -3,6 +3,7 @@ import unittest
 
 import httpx
 
+from app.parsing import AccountUpdate
 from app.verification import (
     BusinessNotConnectedError,
     ConfigurationServiceClient,
@@ -120,3 +121,20 @@ class AppWebhookClientTests(ConfigurationServiceClientTests):
     def test_404_means_not_configured(self):
         with self.assertRaises(BusinessNotConnectedError):
             self.client(self.reply(404, {'detail': 'not configured'})).verify_app_token('tok')
+
+    def test_report_account_updates(self):
+        updates = [AccountUpdate('111', 'DISABLED_UPDATE', ban_state='DISABLE')]
+        self.assertEqual(self.client(self.reply(json_body={'changed': 1})).report_account_updates(updates), 1)
+        request = self.requests[0]
+        self.assertEqual(str(request.url), f'{BASE_URL}/internal/whatsapp/app/account-updates/')
+        self.assertEqual(
+            json.loads(request.content),
+            {'updates': [{'waba_id': '111', 'event': 'DISABLED_UPDATE', 'ban_state': 'DISABLE', 'partner_app_id': ''}]},
+        )
+        self.assertEqual(request.headers['X-Internal-Api-Key'], API_KEY)
+
+    def test_report_account_updates_failures(self):
+        for reply in (self.reply(500, {'detail': 'boom'}), self.reply(json_body={'changed': 'one'}),
+                      self.reply(json_body=['changed'])):
+            with self.subTest(), self.assertRaises(VerificationUnavailableError):
+                self.client(reply).report_account_updates([AccountUpdate('111', 'ACCOUNT_DELETED')])

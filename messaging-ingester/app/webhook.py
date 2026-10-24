@@ -5,9 +5,9 @@
 - POST: incoming events. The signature is checked, then each customer message is published.
 
 /webhook (no ID) is our Meta app's own Callback URL, which Embedded Signup needs (App Dashboard →
-WhatsApp → Configuration). It only gets account-level events (e.g. account_update); businesses'
-messages go to their own URLs. It checks the handshake and signature, logs the events and publishes
-nothing.
+WhatsApp → Configuration). It only gets account-level events; businesses' messages go to their own
+URLs. It checks the handshake and signature and publishes nothing: account_update events are handed to
+configuration-service (which marks the connections disconnected or banned), the rest only logged.
 
 The checks are done by configuration-service (verification.py); this service holds no secrets.
 Routes are plain `def`s: FastAPI runs them in a thread pool, so the blocking HTTP and Pub/Sub
@@ -23,9 +23,9 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Requ
 from fastapi.responses import PlainTextResponse
 
 from . import config
-from .parsing import parse_webhook
+from .parsing import parse_account_updates, parse_webhook
 from .publisher import Publisher, PublishError, PubSubPublisher
-from .schemas import ErrorResponse, ValidationErrorResponse, WebhookAck
+from .schemas import AppWebhookAck, ErrorResponse, ValidationErrorResponse, WebhookAck
 from .verification import BusinessNotConnectedError, ConfigurationServiceClient, VerificationUnavailableError
 
 logger = logging.getLogger(__name__)
@@ -194,9 +194,11 @@ def receive_app_webhook(
     verifier: Verifier,
     body: Annotated[bytes, Depends(raw_body)],
     signature: Annotated[str | None, Header(alias=config.SIGNATURE_HEADER)] = None,
-) -> WebhookAck:
-    """Checks the signature (our App Secret) and logs the events. Customer messages shouldn't arrive
-    here (each business's are overridden to its own URL); any that do are logged, not published."""
+) -> AppWebhookAck:
+    """Checks the signature (our App Secret), hands the account_update events to configuration-service
+    (which marks connections disconnected or banned; if it's unavailable → 503, so Meta retries) and logs
+    the rest. Customer messages shouldn't arrive here (each business's are overridden to its own URL);
+    any that do are logged, not published."""
     if not _check_app(lambda: verifier.verify_app_signature(body, signature)).valid:
         logger.warning('Rejected an app webhook: bad signature')
         raise HTTPException(status_code=401, detail='Missing or invalid signature.')
@@ -221,4 +223,9 @@ def receive_app_webhook(
                 )
             else:
                 logger.info('App webhook event %s for account %s', field, entry.get('id'))
-    return WebhookAck(published=0)
+
+    updates = parse_account_updates(payload)
+    changed = _check_app(lambda: verifier.report_account_updates(updates)) if updates else 0
+    if updates:
+        logger.info('Handed %d account_update event(s) to configuration-service: %d changed', len(updates), changed)
+    return AppWebhookAck(account_updates=len(updates), changed=changed)
