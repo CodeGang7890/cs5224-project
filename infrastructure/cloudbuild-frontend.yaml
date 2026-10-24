@@ -17,6 +17,8 @@ steps:
     entrypoint: bash
     args:
       - "-ceu"
-      - "npm install --global firebase-tools && firebase deploy --only hosting --project=${_PROJECT_ID} --config=firebase.json --non-interactive"
+      # Pinned: an unpinned install picks up new CLI releases, and 15.34.1 started checking the
+      # Hosting API through Service Usage (the build account also has Service Usage Consumer, build.tf).
+      - "npm install --global firebase-tools@15.34.0 && firebase deploy --only hosting --project=${_PROJECT_ID} --config=firebase.json --non-interactive"
 options:
   logging: CLOUD_LOGGING_ONLY

@@ -51,6 +51,15 @@ resource "google_project_iam_member" "builder_firebase_hosting_admin" {
   member  = "serviceAccount:${google_service_account.builder.email}"
 }
 
+# `firebase deploy` (firebase-tools 15.34.1+) checks that the Hosting API is enabled
+# (serviceusage.services.get), which Firebase Hosting Admin doesn't include.
+resource "google_project_iam_member" "builder_service_usage_consumer" {
+  count   = var.enable_ci_cd && var.enable_firebase ? 1 : 0
+  project = var.project_id
+  role    = "roles/serviceusage.serviceUsageConsumer"
+  member  = "serviceAccount:${google_service_account.builder.email}"
+}
+
 resource "google_cloudbuildv2_repository" "github" {
   count             = var.enable_ci_cd && var.github_connection_name != "" ? 1 : 0
   project           = var.project_id
@@ -157,5 +166,5 @@ resource "google_cloudbuild_trigger" "frontend_hosting" {
     _PROJECT_ID = var.project_id
   }
 
-  depends_on = [google_project_service.api, google_project_iam_member.builder_log_writer, google_project_iam_member.builder_firebase_hosting_admin]
+  depends_on = [google_project_service.api, google_project_iam_member.builder_log_writer, google_project_iam_member.builder_firebase_hosting_admin, google_project_iam_member.builder_service_usage_consumer]
 }
