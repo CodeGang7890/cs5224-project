@@ -37,3 +37,6 @@ vertex_ai_model        = "gemini-2.5-flash"
 # Standalone browser demo. Public access can allow untrusted model requests and charges.
 enable_vertex_ai_demo                 = false
 vertex_ai_demo_allow_unauthenticated = false
+
+# Email for the trial Cloud Run HTTP 4xx/5xx alert; blank creates incidents only.
+alert_notification_email = ""

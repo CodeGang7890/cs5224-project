@@ -181,3 +181,9 @@ variable "vertex_ai_demo_image" {
   type        = string
   default     = "us-docker.pkg.dev/cloudrun/container/hello"
 }
+
+variable "alert_notification_email" {
+  description = "Email address for Cloud Run HTTP error alert notifications. Leave blank to create incidents only in Cloud Monitoring."
+  type        = string
+  default     = ""
+}

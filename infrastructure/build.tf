@@ -154,7 +154,9 @@ resource "google_cloudbuild_trigger" "frontend_hosting" {
   }
 
   substitutions = {
-    _PROJECT_ID = var.project_id
+    _PROJECT_ID                = var.project_id
+    _CONFIGURATION_SERVICE_URL = "https://configuration-service-gq6jjn4afq-uc.a.run.app/api"
+    _MESSAGING_SERVICE_URL     = "https://messaging-service-gq6jjn4afq-uc.a.run.app/api"
   }
 
   depends_on = [google_project_service.api, google_project_iam_member.builder_log_writer, google_project_iam_member.builder_firebase_hosting_admin]
