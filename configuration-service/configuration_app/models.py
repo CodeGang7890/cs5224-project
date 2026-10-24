@@ -17,6 +17,7 @@ WHATSAPP_APP_SECRET_MAX_LENGTH = 128
 WHATSAPP_VERIFY_TOKEN_MAX_LENGTH = 64
 WHATSAPP_DISPLAY_PHONE_NUMBER_MAX_LENGTH = 32  # as Meta formats it, e.g. "+65 9123 4567"
 WHATSAPP_VERIFIED_NAME_MAX_LENGTH = 255
+WHATSAPP_STATUS_EVENT_MAX_LENGTH = 64  # Meta's account_update event names, e.g. "PARTNER_APP_UNINSTALLED"
 
 class BusinessConfiguration(models.Model):
     """A business (tenant) using Ansera Business Admin. Other apps' data hangs off this."""
@@ -59,6 +60,33 @@ def new_verify_token() -> str:
 class WhatsAppConnectionMethod(models.TextChoices):
     MANUAL = 'manual', 'Entered manually'  # the owner's own Meta app: its token, App Secret and webhook
     EMBEDDED_SIGNUP = 'embedded_signup', 'Embedded Signup'  # through our Meta app (embedded_signup.py)
+
+
+class WhatsAppConnectionStatus(models.TextChoices):
+    """What Meta last reported about the connection (account_update webhooks, account_updates.py)."""
+
+    CONNECTED = 'connected', 'Connected'
+    DISCONNECTED = 'disconnected', 'Disconnected'  # access removed, or the account / number is gone
+    BANNED = 'banned', 'Banned'  # Meta disabled the WhatsApp Business account
+
+
+# What to tell the owner, by the account_update event that set the status (status_event).
+STATUS_REASONS = {
+    'PARTNER_APP_UNINSTALLED': "Our app's access to your WhatsApp Business account was removed in Meta.",
+    'PARTNER_REMOVED': 'Your WhatsApp Business account is no longer shared with us in Meta.',
+    'ACCOUNT_DELETED': 'Your WhatsApp Business account was deleted.',
+    'ACCOUNT_OFFBOARDED': (
+        'Your number was taken off the WhatsApp Cloud API: it was registered again, or moved to another device.'
+    ),
+    'DISABLED_UPDATE': (
+        'Meta disabled your WhatsApp Business account for breaking its policies or terms. '
+        'You can request a review in WhatsApp Manager.'
+    ),
+}
+DEFAULT_STATUS_REASONS = {
+    WhatsAppConnectionStatus.DISCONNECTED.value: 'Meta reported that your WhatsApp Business account was disconnected.',
+    WhatsAppConnectionStatus.BANNED.value: 'Meta disabled your WhatsApp Business account.',
+}
 
 
 class WhatsAppConfiguration(models.Model):
@@ -138,6 +166,27 @@ class WhatsAppConfiguration(models.Model):
         editable=False,
         help_text='How the business connected: its own Meta app (manual) or Embedded Signup through ours.',
     )
+    # Set from Meta's account_update webhooks (our app's own webhook, Embedded Signup connections only);
+    # connecting again with Embedded Signup sets it back to connected.
+    status = models.CharField(
+        max_length=20,
+        choices=WhatsAppConnectionStatus.choices,
+        default=WhatsAppConnectionStatus.CONNECTED,
+        editable=False,
+        help_text='What Meta last reported: connected, disconnected (e.g. our app was removed) or banned.',
+    )
+    status_event = models.CharField(
+        max_length=WHATSAPP_STATUS_EVENT_MAX_LENGTH,
+        blank=True,
+        editable=False,
+        help_text="Meta's account_update event that set the status, e.g. PARTNER_APP_UNINSTALLED.",
+    )
+    status_updated_time = models.DateTimeField(
+        null=True,
+        blank=True,
+        editable=False,
+        help_text='When Meta reported it.',
+    )
     created_time = models.DateTimeField(auto_now_add=True)
     last_updated = models.DateTimeField(auto_now=True)
 
@@ -156,6 +205,10 @@ class WhatsAppConfiguration(models.Model):
                 condition=Q(connection_method__in=WhatsAppConnectionMethod.values),
                 name='whatsapp_configuration_connection_method_valid',
             ),
+            models.CheckConstraint(
+                condition=Q(status__in=WhatsAppConnectionStatus.values),
+                name='whatsapp_configuration_status_valid',
+            ),
             # Embedded Signup always gives the WABA (our app is subscribed to it).
             models.CheckConstraint(
                 condition=~Q(connection_method=WhatsAppConnectionMethod.EMBEDDED_SIGNUP) | ~Q(waba_id=''),
@@ -165,3 +218,10 @@ class WhatsAppConfiguration(models.Model):
 
     def __str__(self) -> str:
         return f'WhatsApp {self.phone_number_id} ({self.business})'
+
+    @property
+    def status_reason(self) -> str:
+        """Why it isn't connected, for the owner (empty while connected)."""
+        if self.status == WhatsAppConnectionStatus.CONNECTED:
+            return ''
+        return STATUS_REASONS.get(self.status_event) or DEFAULT_STATUS_REASONS[self.status]

@@ -15,6 +15,11 @@ urlpatterns = [
         name='whatsapp-app-verify-signature',
     ),
     path(
+        'whatsapp/app/account-updates/',
+        views.InternalWhatsAppAccountUpdatesView.as_view(),
+        name='whatsapp-app-account-updates',
+    ),
+    path(
         'whatsapp/<int:business_id>/verify-token/',
         views.InternalWhatsAppVerifyTokenView.as_view(),
         name='whatsapp-verify-token',

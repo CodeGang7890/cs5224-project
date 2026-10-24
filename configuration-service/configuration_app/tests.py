@@ -9,6 +9,7 @@ from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.db import IntegrityError, connection, transaction
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from auth_app.models import BusinessUser
@@ -23,6 +24,7 @@ from .models import (
     BusinessConfiguration,
     WhatsAppConfiguration,
     WhatsAppConnectionMethod,
+    WhatsAppConnectionStatus,
 )
 from .views import INTERNAL_API_KEY_HEADER, PHONE_NUMBER_TAKEN_MESSAGE, SIGNATURE_HEADER
 
@@ -293,9 +295,10 @@ class WhatsAppConfigurationAPITests(APITestCase):
         body = response.json()
         self.assertEqual(
             set(body),
-            {'phone_number_id', 'display_phone_number', 'verified_name', 'waba_id', 'connection_method',
-             'created_time', 'last_updated'},
+            {'phone_number_id', 'display_phone_number', 'verified_name', 'waba_id', 'connection_method', 'status',
+             'status_reason', 'status_updated_time', 'created_time', 'last_updated'},
         )
+        self.assertEqual((body['status'], body['status_reason'], body['status_updated_time']), ('connected', '', None))
         self.assertEqual(
             (body['phone_number_id'], body['display_phone_number'], body['connection_method']),
             (TEST_PHONE_NUMBER_ID, '+65 9123 4567', 'manual'),
@@ -847,6 +850,15 @@ class EmbeddedSignupAPITests(APITestCase):
         self.connect()
         self.assertEqual(self.saved().two_step_pin, '')
 
+    def test_reconnecting_clears_what_meta_reported(self):
+        create_whatsapp_config(
+            self.cafe, waba_id=SIGNUP_WABA_ID, connection_method='embedded_signup', status='disconnected',
+            status_event='PARTNER_APP_UNINSTALLED', status_updated_time=timezone.now(),
+        )
+        self.assertEqual(self.connect().status_code, 200)
+        config = self.saved()
+        self.assertEqual((config.status, config.status_event, config.status_updated_time), ('connected', '', None))
+
     def test_reconnecting_the_same_number_keeps_its_known_pin(self):
         self.connect()
         pin = self.saved().two_step_pin
@@ -860,6 +872,12 @@ class EmbeddedSignupModelTests(TestCase):
         cafe = BusinessConfiguration.objects.create(business_name='Café', location='Singapore')
         with self.assertRaises(IntegrityError), transaction.atomic():
             create_whatsapp_config(cafe, connection_method=WhatsAppConnectionMethod.EMBEDDED_SIGNUP)
+
+    def test_status_must_be_known(self):
+        cafe = BusinessConfiguration.objects.create(business_name='Café', location='Singapore')
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            create_whatsapp_config(cafe, status='suspended')
+        self.assertEqual(create_whatsapp_config(cafe).status, WhatsAppConnectionStatus.CONNECTED)
 
     def test_connection_method_must_be_known(self):
         cafe = BusinessConfiguration.objects.create(business_name='Café', location='Singapore')
@@ -905,3 +923,124 @@ class InternalWhatsAppAppWebhookAPITests(APITestCase):
             headers={SIGNATURE_HEADER: meta_signature(TEST_PAYLOAD)},
         )
         self.assertEqual(response.status_code, 404)
+
+
+@override_settings(INTERNAL_API_KEY=TEST_INTERNAL_KEY, META_APP_ID='1147422487864729')
+class InternalWhatsAppAccountUpdatesAPITests(APITestCase):
+    """Meta's account_update events (our app's webhook, forwarded by messaging-ingester) → connection status."""
+
+    url = reverse('internal:whatsapp-app-account-updates')
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.cafe = BusinessConfiguration.objects.create(business_name='Café', location='Singapore')
+        cls.florist = BusinessConfiguration.objects.create(business_name='Florist', location='Singapore')
+        cls.bakery = BusinessConfiguration.objects.create(business_name='Bakery', location='Singapore')
+        cls.cafe_user = BusinessUser.objects.create_user(username='cafe', password='123', business=cls.cafe)
+        cls.cafe_config = create_whatsapp_config(cls.cafe, waba_id='111', connection_method='embedded_signup')
+        cls.florist_config = create_whatsapp_config(
+            cls.florist, phone_number_id='222', waba_id='222', connection_method='embedded_signup'
+        )
+        cls.manual_config = create_whatsapp_config(cls.bakery, phone_number_id='333')  # no WABA: never matched
+
+    def report(self, *updates, key=TEST_INTERNAL_KEY):
+        return self.client.post(
+            self.url, {'updates': list(updates)}, format='json', headers={INTERNAL_API_KEY_HEADER: key}
+        )
+
+    def status(self, config=None):
+        config = WhatsAppConfiguration.objects.get(pk=(config or self.cafe_config).pk)
+        return config.status, config.status_event
+
+    def test_disconnecting_events(self):
+        for event in ('PARTNER_APP_UNINSTALLED', 'PARTNER_REMOVED', 'ACCOUNT_DELETED', 'ACCOUNT_OFFBOARDED'):
+            with self.subTest(event=event):
+                WhatsAppConfiguration.objects.update(status='connected', status_event='')
+                with self.assertLogs('configuration_app.account_updates', 'INFO'):
+                    response = self.report({'waba_id': '111', 'event': event})
+                self.assertEqual((response.status_code, response.json()), (200, {'changed': 1}))
+                self.assertEqual(self.status(), ('disconnected', event))
+                self.assertEqual(self.status(self.florist_config), ('connected', ''))
+                self.assertEqual(self.status(self.manual_config), ('connected', ''))
+
+    def test_our_app_uninstalled(self):
+        with self.assertLogs('configuration_app.account_updates', 'INFO'):
+            response = self.report(
+                {'waba_id': '111', 'event': 'PARTNER_APP_UNINSTALLED', 'partner_app_id': '999'},  # another app
+                {'waba_id': '222', 'event': 'PARTNER_APP_UNINSTALLED', 'partner_app_id': '1147422487864729'},
+            )
+        self.assertEqual(response.json(), {'changed': 1})
+        self.assertEqual(self.status(), ('connected', ''))
+        self.assertEqual(self.status(self.florist_config), ('disconnected', 'PARTNER_APP_UNINSTALLED'))
+        self.assertIsNotNone(WhatsAppConfiguration.objects.get(pk=self.florist_config.pk).status_updated_time)
+
+    def test_banned_and_reinstated(self):
+        banned = {'waba_id': '111', 'event': 'DISABLED_UPDATE', 'ban_state': 'DISABLE'}
+        with self.assertLogs('configuration_app.account_updates', 'INFO'):
+            self.report({**banned, 'ban_state': 'SCHEDULE_FOR_DISABLE'})  # only scheduled: nothing yet
+            self.assertEqual(self.status(), ('connected', ''))
+            self.assertEqual(self.report(banned).json(), {'changed': 1})
+            self.assertEqual(self.status(), ('banned', 'DISABLED_UPDATE'))
+            self.assertEqual(self.report({**banned, 'ban_state': 'REINSTATE'}).json(), {'changed': 1})
+        self.assertEqual(self.status()[0], 'connected')
+
+    def test_reinstating_does_not_reconnect_a_disconnected_account(self):
+        WhatsAppConfiguration.objects.filter(pk=self.cafe_config.pk).update(
+            status='disconnected', status_event='PARTNER_APP_UNINSTALLED'
+        )
+        with self.assertLogs('configuration_app.account_updates', 'INFO'):
+            response = self.report({'waba_id': '111', 'event': 'DISABLED_UPDATE', 'ban_state': 'REINSTATE'})
+        self.assertEqual(response.json(), {'changed': 0})
+        self.assertEqual(self.status(), ('disconnected', 'PARTNER_APP_UNINSTALLED'))
+
+    def test_reconnected_only_undoes_offboarding(self):
+        with self.assertLogs('configuration_app.account_updates', 'INFO'):
+            self.report({'waba_id': '111', 'event': 'ACCOUNT_OFFBOARDED'},
+                        {'waba_id': '222', 'event': 'PARTNER_APP_UNINSTALLED'})
+            response = self.report({'waba_id': '111', 'event': 'ACCOUNT_RECONNECTED'},
+                                   {'waba_id': '222', 'event': 'ACCOUNT_RECONNECTED'})
+        self.assertEqual(response.json(), {'changed': 1})
+        self.assertEqual(self.status()[0], 'connected')
+        self.assertEqual(self.status(self.florist_config)[0], 'disconnected')
+
+    def test_redelivered_and_other_events_change_nothing(self):
+        uninstalled = {'waba_id': '111', 'event': 'PARTNER_APP_UNINSTALLED'}
+        with self.assertLogs('configuration_app.account_updates', 'INFO'):
+            self.assertEqual(self.report(uninstalled).json(), {'changed': 1})
+            self.assertEqual(self.report(uninstalled).json(), {'changed': 0})  # Meta redelivered it
+            response = self.report(
+                {'waba_id': '222', 'event': 'ACCOUNT_VIOLATION'},
+                {'waba_id': '222', 'event': 'PARTNER_APP_INSTALLED'},
+                {'waba_id': '555', 'event': 'ACCOUNT_DELETED'},  # not connected here
+            )
+        self.assertEqual(response.json(), {'changed': 0})
+        self.assertEqual(self.status(self.florist_config), ('connected', ''))
+
+    def test_the_owner_sees_why(self):
+        with self.assertLogs('configuration_app.account_updates', 'INFO'):
+            self.report({'waba_id': '111', 'event': 'DISABLED_UPDATE', 'ban_state': 'DISABLE'})
+        self.client.force_authenticate(self.cafe_user)
+        body = self.client.get(reverse('configuration_app:whatsapp-configuration')).json()
+        self.assertEqual(body['status'], 'banned')
+        self.assertIn('Meta disabled your WhatsApp Business account', body['status_reason'])
+        self.assertIsNotNone(body['status_updated_time'])
+
+    def test_access_and_validation(self):
+        self.assertEqual(self.report({'waba_id': '111', 'event': 'ACCOUNT_DELETED'}, key='wrong').status_code, 403)
+        response = self.report({'waba_id': 'not-digits', 'event': ''})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self.status(), ('connected', ''))
+
+
+class ConnectionStatusModelTests(SimpleTestCase):
+    def test_status_reason(self):
+        for status, event, reason in (
+            ('connected', '', ''),
+            ('connected', 'DISABLED_UPDATE', ''),  # reinstated
+            ('disconnected', 'PARTNER_APP_UNINSTALLED', "Our app's access to your WhatsApp Business account was removed"),
+            ('banned', 'DISABLED_UPDATE', 'Meta disabled your WhatsApp Business account for breaking'),
+            ('disconnected', 'SOMETHING_NEW', 'Meta reported that your WhatsApp Business account was disconnected.'),
+        ):
+            with self.subTest(status=status, event=event):
+                config = WhatsAppConfiguration(status=status, status_event=event)
+                self.assertTrue(config.status_reason.startswith(reason) if reason else config.status_reason == '')

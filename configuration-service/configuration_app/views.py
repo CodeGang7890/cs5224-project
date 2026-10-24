@@ -13,9 +13,11 @@ from rest_framework.views import APIView
 
 from auth_app.business_scope import NO_BUSINESS_MESSAGE
 
-from . import embedded_signup, meta_api, whatsapp
+from . import account_updates, embedded_signup, meta_api, whatsapp
 from .models import WhatsAppConfiguration, WhatsAppConnectionMethod
 from .serializers import (
+    AccountUpdatesRequestSerializer,
+    AccountUpdatesResultSerializer,
     EmbeddedSignupSerializer,
     MetaUnavailable,
     RandomNumberSerializer,
@@ -366,3 +368,29 @@ class InternalWhatsAppAppVerifySignatureView(InternalWhatsAppAppView):
             raise NotFound('Our app webhook is not configured (META_APP_SECRET).')
         signature = request.headers.get(SIGNATURE_HEADER, '')
         return self.result(whatsapp.signature_matches(settings.META_APP_SECRET, request.body, signature))
+
+
+class InternalWhatsAppAccountUpdatesView(InternalWhatsAppAppView):
+    @extend_schema(
+        tags=['Internal'],
+        summary="Apply Meta's account_update events (internal)",
+        description=(
+            "For messaging-ingester: the account_update changes from our app's webhook (already checked "
+            'with META_APP_SECRET). Marks the WhatsApp Business account\'s connections disconnected (our app '
+            'uninstalled, unshared, account deleted or offboarded) or banned (DISABLED_UPDATE, DISABLE), or '
+            'connected again (REINSTATE, ACCOUNT_RECONNECTED); other events change nothing. Idempotent. '
+            f'Requires the `{INTERNAL_API_KEY_HEADER}` header.'
+        ),
+        parameters=[INTERNAL_API_KEY_PARAMETER],
+        request=AccountUpdatesRequestSerializer,
+        responses={200: AccountUpdatesResultSerializer, 400: OpenApiResponse(description='Invalid body.'),
+                   403: OpenApiResponse(description=f'Missing or wrong `{INTERNAL_API_KEY_HEADER}`.')},
+    )
+    def post(self, request: Request) -> Response:
+        serializer = AccountUpdatesRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        changed = sum(
+            account_updates.apply(account_updates.AccountUpdate(**update))
+            for update in serializer.validated_data['updates']
+        )
+        return Response(AccountUpdatesResultSerializer({'changed': changed}).data)

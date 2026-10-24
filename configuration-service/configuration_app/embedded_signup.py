@@ -26,7 +26,7 @@ from django.conf import settings
 from django.db import IntegrityError
 
 from . import meta_api
-from .models import BusinessConfiguration, WhatsAppConfiguration, WhatsAppConnectionMethod
+from .models import BusinessConfiguration, WhatsAppConfiguration, WhatsAppConnectionMethod, WhatsAppConnectionStatus
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +38,9 @@ SAVED_FIELDS = (
     'waba_id',
     'connection_method',
     'two_step_pin',
+    'status',
+    'status_event',
+    'status_updated_time',
     'display_phone_number',
     'verified_name',
 )
@@ -96,6 +99,8 @@ def connect(
     config.app_secret = app_secret
     config.waba_id = waba_id
     config.connection_method = WhatsAppConnectionMethod.EMBEDDED_SIGNUP
+    # Connected again (e.g. after Meta reported it disconnected): clear what Meta reported.
+    config.status, config.status_event, config.status_updated_time = WhatsAppConnectionStatus.CONNECTED, '', None
     if pin_set:
         config.two_step_pin = pin
     elif previous is None or previous['phone_number_id'] != phone_number_id:

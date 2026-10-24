@@ -227,14 +227,26 @@ Each business can connect one WhatsApp Business number, **with Facebook through 
 
 `WhatsAppConfiguration` keeps `phone_number_id`, the token, our App Secret (it signs the webhooks), the two-step PIN, the `waba_id`, `verify_token` and Meta's `display_phone_number` / `verified_name`. The token, App Secret and PIN are **encrypted at rest** (`configuration_app/crypto.py`, Fernet, key from `CONFIGURATION_ENCRYPTION_KEY`). They, the verify token and the webhook details are **never returned** to the browser. `connection_method` is `embedded_signup`, or `manual` for connections made earlier with a business's own Meta app (the sample data).
 
+**Status from Meta** (`configuration_app/account_updates.py`): Meta reports changes to a business's WhatsApp Business account with `account_update` webhooks to our app's webhook, which messaging-ingester forwards here. They set the connection's `status`, `status_event` and `status_updated_time` (Embedded Signup connections only, found by `waba_id`):
+
+| Meta's event | Status |
+| --- | --- |
+| `PARTNER_APP_UNINSTALLED` (our app's ID), `PARTNER_REMOVED`, `ACCOUNT_DELETED`, `ACCOUNT_OFFBOARDED` | `disconnected` |
+| `DISABLED_UPDATE` with ban state `DISABLE` | `banned` |
+| `DISABLED_UPDATE` with `REINSTATE` (if banned), `ACCOUNT_RECONNECTED` (if offboarded) | `connected` |
+| anything else (a scheduled ban, violations, restrictions, …) | unchanged, logged |
+
+The owner's API returns `status`, a `status_reason` to show them, and `status_updated_time`. Connecting again with Facebook sets it back to `connected`.
+
 | Method | URL | Auth | What it does |
 | --- | --- | --- | --- |
-| `GET` | `/api/configuration/whatsapp/` | login | Your business's connection: `phone_number_id`, `display_phone_number`, `verified_name`, `waba_id`, `connection_method`, times. 404 if not connected. |
+| `GET` | `/api/configuration/whatsapp/` | login | Your business's connection: `phone_number_id`, `display_phone_number`, `verified_name`, `waba_id`, `connection_method`, `status` (`connected` / `disconnected` / `banned`), `status_reason`, `status_updated_time`, times. 404 if not connected. |
 | `POST` | `/api/configuration/whatsapp/embedded-signup/` | login | Connect (201) or replace the connection (200) with `{code, waba_id, phone_number_id}` from the popup. 400 if Meta refused a step (`non_field_errors`, a message for the owner) or the number belongs to another business; 503 if Embedded Signup isn't configured or Meta can't be reached. |
 | `DELETE` | `/api/configuration/whatsapp/` | login | Disconnect (204). For Embedded Signup connections, our app is also unsubscribed from the WABA (best effort). |
 | `POST` | `/api/internal/whatsapp/<business_id>/verify-token/` | `X-Internal-Api-Key` header | **Service-to-service only** (messaging-ingester). `{verify_token}` → `{valid, phone_number_id}`: does the `hub.verify_token` Meta sent in its webhook handshake match the business's? |
 | `POST` | `/api/internal/whatsapp/<business_id>/verify-signature/` | `X-Internal-Api-Key` header | **Service-to-service only** (messaging-ingester). Forward the webhook unchanged: its **raw body** as the request body (`application/octet-stream`) and Meta's `X-Hub-Signature-256` header → `{valid, phone_number_id}`: is the webhook really from Meta? The body is never parsed, since the signature covers the exact bytes. `phone_number_id` (null unless valid) is for matching the payload's `metadata.phone_number_id`. |
 | `POST` | `/api/internal/whatsapp/app/verify-token/`, `…/app/verify-signature/` | `X-Internal-Api-Key` header | The same two checks for **our app's own webhook** (`<messaging-ingester>/webhook`), against `META_APP_WEBHOOK_VERIFY_TOKEN` / `META_APP_SECRET`. 404 while they aren't set. |
+| `POST` | `/api/internal/whatsapp/app/account-updates/` | `X-Internal-Api-Key` header | **Service-to-service only** (messaging-ingester). Meta's `account_update` events from our app's webhook, `{updates: [{waba_id, event, ban_state?, partner_app_id?}]}` → `{changed}`: sets the status of that WhatsApp Business account's connections (see below). Idempotent. |
 | `POST` | `/api/internal/whatsapp/<business_id>/send/` | `X-Internal-Api-Key` header | **Service-to-service only** (messaging-service). Sends a reply from the business's number with the stored token. |
 
 The internal endpoints **never return a secret**: they only answer yes/no, so a leaked `INTERNAL_API_KEY` lets the caller check tokens and signatures but not read them (the user chose this over an endpoint returning the secrets). Wrong or missing key → 403, business not connected → 404, invalid body → 400.

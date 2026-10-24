@@ -3,6 +3,7 @@ from rest_framework.exceptions import APIException
 
 from .models import (
     WHATSAPP_ID_MAX_LENGTH,
+    WHATSAPP_STATUS_EVENT_MAX_LENGTH,
     WHATSAPP_VERIFY_TOKEN_MAX_LENGTH,
     WhatsAppConfiguration,
     meta_id_validator,
@@ -22,7 +23,12 @@ class RandomNumberSerializer(serializers.Serializer):
 class WhatsAppConfigurationSerializer(serializers.ModelSerializer):
     """The owner's view of their WhatsApp connection, read only: businesses connect with Embedded
     Signup (EmbeddedSignupSerializer). The secrets (token, App Secret, two-step PIN) and the webhook
-    details (set up automatically) are never returned."""
+    details (set up automatically) are never returned. `status` is what Meta last reported (account_update
+    webhooks): `disconnected` or `banned` with a `status_reason` for the owner; reconnecting resets it."""
+
+    status_reason = serializers.CharField(
+        read_only=True, help_text="Why it isn't connected, for the owner; empty while `status` is `connected`."
+    )
 
     class Meta:
         model = WhatsAppConfiguration
@@ -32,6 +38,9 @@ class WhatsAppConfigurationSerializer(serializers.ModelSerializer):
             'verified_name',
             'waba_id',
             'connection_method',
+            'status',
+            'status_reason',
+            'status_updated_time',
             'created_time',
             'last_updated',
         )
@@ -75,6 +84,33 @@ class VerificationResultSerializer(serializers.Serializer):
             '`metadata.phone_number_id`), otherwise null.'
         ),
     )
+
+
+class AccountUpdateSerializer(serializers.Serializer):
+    """One account_update change from our app's webhook, as messaging-ingester extracts it."""
+
+    waba_id = serializers.CharField(
+        max_length=WHATSAPP_ID_MAX_LENGTH,
+        validators=[meta_id_validator],
+        help_text='The WhatsApp Business account: `value.waba_info.waba_id`, else the entry `id`.',
+    )
+    event = serializers.CharField(max_length=WHATSAPP_STATUS_EVENT_MAX_LENGTH, help_text='`value.event`.')
+    ban_state = serializers.CharField(
+        max_length=32, required=False, allow_blank=True, default='',
+        help_text='`value.ban_info.waba_ban_state` (DISABLED_UPDATE): DISABLE, REINSTATE or SCHEDULE_FOR_DISABLE.',
+    )
+    partner_app_id = serializers.CharField(
+        max_length=WHATSAPP_ID_MAX_LENGTH, required=False, allow_blank=True, default='',
+        help_text='`value.waba_info.partner_app_id` (PARTNER_APP_INSTALLED / UNINSTALLED).',
+    )
+
+
+class AccountUpdatesRequestSerializer(serializers.Serializer):
+    updates = AccountUpdateSerializer(many=True, max_length=100)
+
+
+class AccountUpdatesResultSerializer(serializers.Serializer):
+    changed = serializers.IntegerField(help_text='How many connections changed status.')
 
 
 WHATSAPP_TEXT_MAX_LENGTH = 4096  # WhatsApp's limit for a text message
