@@ -14,6 +14,7 @@ Terraform targets an **existing, billing-enabled GCP project**. All files in thi
 | Cloud Run | Five backend services are created with the hello placeholder image unless an image is set in `service_images`; Cloud Build replaces the image on matching pushes. Scale-to-zero, one instance maximum. |
 | Cloud Run Jobs | `notification-job` runs once and exits. It connects to Cloud SQL and is started hourly by Cloud Scheduler; its image is updated by a separate Cloud Build trigger. |
 | Vertex AI demo | Optional standalone `vertex-ai-demo` Cloud Run service with a dedicated runtime service account and a Cloud Build image/deploy trigger. Disabled by default. |
+| Cloud Logging / Monitoring | A logs-based metric counts Cloud Run HTTP 4xx/5xx responses, with an alert policy for 10 or more across the services in a five-minute aligned interval. An email channel is created when `alert_notification_email` is set. |
 | Cloud SQL | Optional small PostgreSQL 17 instance, database, user, and password secret. **Billed while running.** |
 | Cloud DNS | Optional public zone and records for a domain you own. **Billed even when idle.** |
 | Cloud Build | Backend build/deploy triggers and a Firebase Hosting frontend deployment trigger for a linked GitHub repository. |
@@ -56,6 +57,7 @@ The default Terraform state is **local** (`terraform.tfstate`, Git-ignored). It 
 5. When `enable_cloud_sql = true`, Terraform creates the `notification-job` Cloud Run Job with the Cloud Run hello placeholder and configures its Cloud SQL socket and database credentials. Its Cloud Build trigger builds `notification-job/Dockerfile` and updates the job image on changes under `notification-job/`.
 6. The scheduler remains paused by default. After the notification job image has been built and its database connection has been verified, set `enable_notification_scheduler = true` and apply. Cloud Scheduler then invokes the Cloud Run Jobs `:run` API hourly using a dedicated OAuth service account. The notification script currently logs draft reminders; it does not send WhatsApp messages yet.
 7. To deploy the separate browser demo, set `enable_vertex_ai_demo = true` in `terraform.tfvars` and apply. The service uses its own Vertex AI runtime identity. If CI/CD is enabled, push a change under `vertex-ai-demo/` to build, push, and deploy the container. Keep `vertex_ai_demo_allow_unauthenticated = false` for IAM-protected access; set it to `true` only when the public demo is needed. Public requests can incur Gemini usage charges.
+8. Cloud Run HTTP error alerting is configured for 10 or more 4xx/5xx request logs in a five-minute aligned interval, summed across services. Set `alert_notification_email` to a verified email destination to receive notifications; otherwise, Monitoring still opens incidents without sending an external notification. User-defined log-based metrics can incur monitoring charges.
 
 Cloud Run services `configuration-service`, `payment-ingester`, and `messaging-ingester` receive public invoker access for browser or webhook traffic. The other services remain private. Set `django_allowed_hosts` when using a custom domain.
 

@@ -7,6 +7,9 @@ steps:
     dir: frontend-app
     entrypoint: npm
     args: ["run", "build"]
+    env:
+      - "VITE_CONFIGURATION_SERVICE_URL=${_CONFIGURATION_SERVICE_URL}"
+      - "VITE_MESSAGING_SERVICE_URL=${_MESSAGING_SERVICE_URL}"
   - name: node:22
     entrypoint: bash
     args:

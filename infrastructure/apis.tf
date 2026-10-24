@@ -3,6 +3,8 @@ locals {
     "artifactregistry.googleapis.com",
     "cloudbuild.googleapis.com",
     "iam.googleapis.com",
+    "logging.googleapis.com",
+    "monitoring.googleapis.com",
     "run.googleapis.com",
     "cloudscheduler.googleapis.com",
     "pubsub.googleapis.com",
