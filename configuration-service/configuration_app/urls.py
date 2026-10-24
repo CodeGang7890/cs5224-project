@@ -8,4 +8,9 @@ app_name = 'configuration_app'
 urlpatterns = [
     path('random-number/', views.RandomNumberView.as_view(), name='random-number'),
     path('whatsapp/', views.WhatsAppConfigurationView.as_view(), name='whatsapp-configuration'),
+    path(
+        'whatsapp/embedded-signup/',
+        views.WhatsAppEmbeddedSignupView.as_view(),
+        name='whatsapp-embedded-signup',
+    ),
 ]

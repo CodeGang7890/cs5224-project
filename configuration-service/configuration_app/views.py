@@ -3,9 +3,9 @@ import random
 
 from django.conf import settings
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, extend_schema
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import permissions, status
-from rest_framework.exceptions import NotFound, PermissionDenied
+from rest_framework.exceptions import APIException, NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -13,9 +13,11 @@ from rest_framework.views import APIView
 
 from auth_app.business_scope import NO_BUSINESS_MESSAGE
 
-from . import meta_api, whatsapp
-from .models import WhatsAppConfiguration
+from . import embedded_signup, meta_api, whatsapp
+from .models import WhatsAppConfiguration, WhatsAppConnectionMethod
 from .serializers import (
+    EmbeddedSignupSerializer,
+    MetaUnavailable,
     RandomNumberSerializer,
     SendMessageRequestSerializer,
     SendMessageResponseSerializer,
@@ -27,7 +29,8 @@ from .serializers import (
 RANDOM_NUMBER_MIN = 1
 RANDOM_NUMBER_MAX = 10
 
-NO_WHATSAPP_CONFIGURATION_MESSAGE = 'Your business has not connected WhatsApp yet. Connect it with PUT.'
+PHONE_NUMBER_TAKEN_MESSAGE = 'This phone number ID is already connected to another business.'
+NO_WHATSAPP_CONFIGURATION_MESSAGE = 'Your business has not connected WhatsApp yet. Connect it with Facebook.'
 NO_BUSINESS_WHATSAPP_CONFIGURATION_MESSAGE = 'This business has not connected WhatsApp.'
 INTERNAL_API_KEY_HEADER = 'X-Internal-Api-Key'
 SIGNATURE_HEADER = 'X-Hub-Signature-256'  # Meta's webhook signature header, forwarded unchanged
@@ -68,9 +71,8 @@ class WhatsAppConfigurationView(APIView):
         tags=['WhatsApp'],
         summary="Get your business's WhatsApp connection",
         description=(
-            'The saved settings, without the secrets (they are never returned; a connection always '
-            "has both), plus the `webhook_url` and `verify_token` to enter in Meta's webhook "
-            'settings (WhatsApp → Configuration).'
+            'The connected number (as Meta verified it) and how it was connected. Connect with '
+            '`POST …/embedded-signup/`. The secrets and webhook details are never returned.'
         ),
         responses={
             200: WhatsAppConfigurationSerializer,
@@ -87,51 +89,6 @@ class WhatsAppConfigurationView(APIView):
 
     @extend_schema(
         tags=['WhatsApp'],
-        summary='Connect WhatsApp, or change the connection',
-        description=(
-            'Creates the connection (201) or updates it (200). Use the values from your Meta app: '
-            'the Phone Number ID (WhatsApp → API Setup, under the number), the App Secret (App '
-            'settings → Basic) and a permanent System User access token. '
-            '`access_token` and `app_secret` are required when creating; when updating, leave them '
-            'out or blank to keep the saved ones. A `verify_token` is generated on creation. '
-            'The credentials are checked with Meta (one Graph API call) before saving, which also '
-            'fills in the read-only `display_phone_number` and `verified_name`.'
-        ),
-        request=WhatsAppConfigurationSerializer,
-        responses={
-            200: WhatsAppConfigurationSerializer,
-            201: WhatsAppConfigurationSerializer,
-            400: OpenApiResponse(
-                description=(
-                    'Invalid fields, a missing secret, a phone number ID used by another business, or '
-                    'credentials Meta rejected (the error is under the field it is about).'
-                )
-            ),
-            403: OpenApiResponse(description='Your account is not linked to a business.'),
-            503: OpenApiResponse(description="Meta couldn't be reached to check the credentials; nothing was saved."),
-        },
-        examples=[
-            OpenApiExample(
-                'Connect',
-                value={
-                    'phone_number_id': '106540352242922',
-                    'access_token': 'EAAG...',
-                    'app_secret': '0123456789abcdef0123456789abcdef',
-                },
-                request_only=True,
-            ),
-        ],
-    )
-    def put(self, request: Request) -> Response:
-        business = get_user_business(request)
-        config = WhatsAppConfiguration.objects.filter(business=business).first()
-        serializer = WhatsAppConfigurationSerializer(config, data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save(business=business)
-        return Response(serializer.data, status=status.HTTP_200_OK if config else status.HTTP_201_CREATED)
-
-    @extend_schema(
-        tags=['WhatsApp'],
         summary='Disconnect WhatsApp',
         description='Deletes the saved settings. Messages to the webhook are then rejected.',
         responses={
@@ -142,10 +99,65 @@ class WhatsAppConfigurationView(APIView):
     )
     def delete(self, request: Request) -> Response:
         business = get_user_business(request)
-        deleted, _ = WhatsAppConfiguration.objects.filter(business=business).delete()
-        if not deleted:
+        config = WhatsAppConfiguration.objects.filter(business=business).first()
+        if config is None:
             raise NotFound(NO_WHATSAPP_CONFIGURATION_MESSAGE)
+        if config.connection_method == WhatsAppConnectionMethod.EMBEDDED_SIGNUP:
+            embedded_signup.unsubscribe(config.waba_id, config.access_token, config.app_secret)
+        config.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class EmbeddedSignupUnavailable(APIException):
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    default_detail = 'Connecting with Facebook is not set up on this server. Enter your WhatsApp details instead.'
+    default_code = 'embedded_signup_unavailable'
+
+
+class WhatsAppEmbeddedSignupView(APIView):
+    """Connects the business's WhatsApp from Meta's Embedded Signup popup (see embedded_signup.py)."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=['WhatsApp'],
+        summary='Connect WhatsApp with Facebook (Embedded Signup)',
+        description=(
+            "Send what Meta's Embedded Signup popup returned, straight away (the code expires after 30 "
+            'seconds). This exchanges the code for the business\'s token, checks and registers the number, '
+            'saves the connection (replacing any existing one) and sets up its webhook automatically, so '
+            'there is nothing to enter in Meta. 201 if new, 200 if it replaced a connection.'
+        ),
+        request=EmbeddedSignupSerializer,
+        responses={
+            200: WhatsAppConfigurationSerializer,
+            201: WhatsAppConfigurationSerializer,
+            400: OpenApiResponse(
+                description='Invalid fields, a number connected to another business, or Meta refused a step.'
+            ),
+            403: OpenApiResponse(description='Your account is not linked to a business.'),
+            503: OpenApiResponse(description="Embedded Signup isn't configured, or Meta couldn't be reached."),
+        },
+    )
+    def post(self, request: Request) -> Response:
+        business = get_user_business(request)
+        serializer = EmbeddedSignupSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        try:
+            config, created = embedded_signup.connect(business, data['code'], data['waba_id'], data['phone_number_id'])
+        except embedded_signup.EmbeddedSignupNotConfigured as exc:
+            raise EmbeddedSignupUnavailable() from exc
+        except embedded_signup.PhoneNumberTaken as exc:
+            raise ValidationError({'phone_number_id': [PHONE_NUMBER_TAKEN_MESSAGE]}) from exc
+        except meta_api.MetaSignupError as exc:
+            raise ValidationError({'non_field_errors': [str(exc)]}) from exc
+        except meta_api.MetaUnavailableError as exc:
+            raise MetaUnavailable() from exc
+        return Response(
+            WhatsAppConfigurationSerializer(config).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
 
 
 class HasInternalApiKey(permissions.BasePermission):
@@ -296,3 +308,61 @@ class InternalWhatsAppSendView(InternalWhatsAppView):
         except meta_api.MetaUnavailableError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         return Response(SendMessageResponseSerializer({'message_id': message_id}).data)
+
+
+
+class InternalWhatsAppAppView(APIView):
+    """Base for the checks of our Meta app's own (default) webhook, MESSAGING_INGESTER_PUBLIC_URL/webhook.
+
+    With Embedded Signup, Meta needs a callback URL on our app (App Dashboard → WhatsApp → Configuration)
+    for the account-level events that can't be overridden. Business messages still go to each
+    business's own URL. 404 while META_APP_SECRET / META_APP_WEBHOOK_VERIFY_TOKEN aren't set.
+    """
+
+    authentication_classes: list = []
+    permission_classes = [HasInternalApiKey]
+
+    @staticmethod
+    def result(valid: bool) -> Response:
+        return Response(VerificationResultSerializer({'valid': valid, 'phone_number_id': None}).data)
+
+
+class InternalWhatsAppAppVerifyTokenView(InternalWhatsAppAppView):
+    @extend_schema(
+        tags=['Internal'],
+        summary="Check our app webhook's verify token (internal)",
+        description=(
+            "For messaging-ingester: Meta's handshake for our app's default webhook. Compares "
+            f'`verify_token` with META_APP_WEBHOOK_VERIFY_TOKEN. Requires the `{INTERNAL_API_KEY_HEADER}` header.'
+        ),
+        parameters=[INTERNAL_API_KEY_PARAMETER],
+        request=VerifyTokenRequestSerializer,
+        responses={200: VerificationResultSerializer, **INTERNAL_ERROR_RESPONSES},
+    )
+    def post(self, request: Request) -> Response:
+        serializer = VerifyTokenRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        if not settings.META_APP_WEBHOOK_VERIFY_TOKEN:
+            raise NotFound('Our app webhook is not configured (META_APP_WEBHOOK_VERIFY_TOKEN).')
+        return self.result(
+            whatsapp.verify_token_matches(settings.META_APP_WEBHOOK_VERIFY_TOKEN, serializer.validated_data['verify_token'])
+        )
+
+
+class InternalWhatsAppAppVerifySignatureView(InternalWhatsAppAppView):
+    @extend_schema(
+        tags=['Internal'],
+        summary="Check our app webhook's signature (internal)",
+        description=(
+            'For messaging-ingester: forward the webhook unchanged (raw body + '
+            f'`{SIGNATURE_HEADER}`); checks it with META_APP_SECRET. Requires the `{INTERNAL_API_KEY_HEADER}` header.'
+        ),
+        parameters=[INTERNAL_API_KEY_PARAMETER],
+        request={'application/octet-stream': OpenApiTypes.BINARY},
+        responses={200: VerificationResultSerializer, **INTERNAL_ERROR_RESPONSES},
+    )
+    def post(self, request: Request) -> Response:
+        if not settings.META_APP_SECRET:
+            raise NotFound('Our app webhook is not configured (META_APP_SECRET).')
+        signature = request.headers.get(SIGNATURE_HEADER, '')
+        return self.result(whatsapp.signature_matches(settings.META_APP_SECRET, request.body, signature))

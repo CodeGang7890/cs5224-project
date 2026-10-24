@@ -19,14 +19,24 @@ service. send_text_message() sends a reply (the internal send endpoint, called b
     → {"messaging_product": "whatsapp", "contacts": [...], "messages": [{"id": "wamid.…"}]}
 
 Locally, META_GRAPH_API_URL can point at mock_whatsapp's fake Graph API.
+
+Embedded Signup (embedded_signup.py) uses our app's ID and App Secret (settings.META_APP_*):
+
+    GET  oauth/access_token?client_id=…&client_secret=…&code=…   → the business's token (exchange_code)
+    POST {phone_number_id}/register {"messaging_product": "whatsapp", "pin": "123456"}   (register_phone_number)
+    POST {waba_id}/subscribed_apps [{"override_callback_uri": …, "verify_token": …}]   (subscribe_app)
+    DELETE {waba_id}/subscribed_apps   (unsubscribe_app)
 """
 
 import hashlib
 import hmac
+import logging
 from dataclasses import dataclass
 
 import httpx
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 
 META_TIMEOUT_SECONDS = 10
 
@@ -60,6 +70,17 @@ class MetaUnavailableError(Exception):
 
 class MetaSendError(Exception):
     """Meta refused to send the message (e.g. a bad number, or the 24-hour window has closed)."""
+
+
+class MetaSignupError(Exception):
+    """Meta refused a step of Embedded Signup. The message is for the business owner."""
+
+
+# Graph API error codes worth retrying: Meta-side problems and rate limits.
+RETRYABLE_ERROR_CODES = (1, 2, 4, 17, 32, 613)
+# Registering a number that already has a different two-step verification PIN, i.e. it's registered.
+PIN_MISMATCH_ERROR_CODE = 133005
+EXPIRED_CODE_MESSAGE = 'The Facebook login expired or was already used. Please click Connect with Facebook again.'
 
 
 def appsecret_proof(access_token: str, app_secret: str) -> str:
@@ -157,3 +178,122 @@ def send_text_message(
     if response.status_code >= 500 or error.get('code') in (1, 2, 4, 17, 32, 613, 130429, 131048, 131056):
         raise MetaUnavailableError(f'Meta answered {response.status_code}: {error.get("message") or "no details"}')
     raise MetaSendError(f'Meta refused the message ({response.status_code}): {error.get("message") or "no details"}')
+
+
+# --- Embedded Signup ----------------------------------------------------------------------
+
+
+def _call(
+    method: str,
+    path: str,
+    *,
+    access_token: str | None = None,
+    app_secret: str | None = None,
+    params: dict | None = None,
+    json: dict | None = None,
+    transport: httpx.BaseTransport | None = None,
+) -> tuple[int, dict]:
+    """One Graph API call. Returns (status, JSON object); raises MetaUnavailableError if Meta can't be
+    reached, answers with a retryable error, or doesn't answer with a JSON object."""
+    params = dict(params or {})
+    headers = {}
+    if access_token:
+        headers['Authorization'] = f'Bearer {access_token}'
+        params['appsecret_proof'] = appsecret_proof(access_token, app_secret or '')
+    try:
+        with httpx.Client(timeout=META_TIMEOUT_SECONDS, transport=transport) as client:
+            response = client.request(
+                method, f'{settings.META_GRAPH_API_URL}/{path}', params=params, json=json, headers=headers
+            )
+    except httpx.HTTPError as exc:
+        raise MetaUnavailableError(f'Could not reach Meta: {exc}') from exc
+    try:
+        data = response.json()
+    except ValueError as exc:
+        raise MetaUnavailableError(f'Meta answered {response.status_code} without JSON.') from exc
+    if not isinstance(data, dict):
+        raise MetaUnavailableError(f'Unexpected answer from Meta ({response.status_code}).')
+    error = data.get('error') if isinstance(data.get('error'), dict) else {}
+    if response.status_code >= 500 or error.get('code') in RETRYABLE_ERROR_CODES:
+        raise MetaUnavailableError(f'Meta answered {response.status_code}: {error.get("message") or "no details"}')
+    return response.status_code, data
+
+
+def _error_message(data: dict) -> str:
+    error = data.get('error') if isinstance(data.get('error'), dict) else {}
+    return str(error.get('error_user_msg') or error.get('message') or 'no details')
+
+
+def exchange_code(code: str, transport: httpx.BaseTransport | None = None) -> str:
+    """Swaps the code from the Embedded Signup popup (valid for 30 seconds, single use) for the
+    business's token: a business integration system user token for our app."""
+    status, data = _call(
+        'GET',
+        'oauth/access_token',
+        params={'client_id': settings.META_APP_ID, 'client_secret': settings.META_APP_SECRET, 'code': code},
+        transport=transport,
+    )
+    token = data.get('access_token')
+    if status == 200 and isinstance(token, str) and token:
+        return token
+    logger.warning('Embedded Signup code exchange failed (%s): %s', status, _error_message(data))
+    raise MetaSignupError(EXPIRED_CODE_MESSAGE)
+
+
+def register_phone_number(
+    phone_number_id: str, access_token: str, app_secret: str, pin: str, transport: httpx.BaseTransport | None = None
+) -> bool:
+    """Registers the number for Cloud API, setting `pin` as its two-step verification PIN. Returns
+    False if it is already registered with another PIN (left as it is, so `pin` wasn't set)."""
+    status, data = _call(
+        'POST',
+        f'{phone_number_id}/register',
+        access_token=access_token,
+        app_secret=app_secret,
+        json={'messaging_product': 'whatsapp', 'pin': pin},
+        transport=transport,
+    )
+    if status == 200:
+        return True
+    error = data.get('error') if isinstance(data.get('error'), dict) else {}
+    if error.get('code') == PIN_MISMATCH_ERROR_CODE:
+        logger.info('Phone number %s is already registered (two-step PIN set); keeping it.', phone_number_id)
+        return False
+    raise MetaSignupError(f"Meta couldn't register your number for the WhatsApp Cloud API: {_error_message(data)}")
+
+
+def subscribe_app(
+    waba_id: str,
+    access_token: str,
+    app_secret: str,
+    override_callback_uri: str | None = None,
+    verify_token: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+) -> None:
+    """Subscribes our app to the WABA's webhooks. With `override_callback_uri`, its message webhooks go
+    there instead of the app's callback URL; Meta checks it with `verify_token` (the handshake)."""
+    body = None
+    if override_callback_uri:
+        body = {'override_callback_uri': override_callback_uri, 'verify_token': verify_token or ''}
+    status, data = _call(
+        'POST',
+        f'{waba_id}/subscribed_apps',
+        access_token=access_token,
+        app_secret=app_secret,
+        json=body,
+        transport=transport,
+    )
+    if status == 200 and data.get('success') is True:
+        return
+    raise MetaSignupError(f"Meta couldn't set up your WhatsApp webhook: {_error_message(data)}")
+
+
+def unsubscribe_app(
+    waba_id: str, access_token: str, app_secret: str, transport: httpx.BaseTransport | None = None
+) -> None:
+    """Stops our app's webhooks for the WABA (disconnecting). Raises MetaSignupError if Meta refuses."""
+    status, data = _call(
+        'DELETE', f'{waba_id}/subscribed_apps', access_token=access_token, app_secret=app_secret, transport=transport
+    )
+    if status != 200 or data.get('success') is not True:
+        raise MetaSignupError(f"Meta couldn't remove the webhook subscription: {_error_message(data)}")

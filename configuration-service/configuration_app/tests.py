@@ -22,8 +22,9 @@ from .models import (
     WHATSAPP_ID_MAX_LENGTH,
     BusinessConfiguration,
     WhatsAppConfiguration,
+    WhatsAppConnectionMethod,
 )
-from .views import INTERNAL_API_KEY_HEADER, SIGNATURE_HEADER
+from .views import INTERNAL_API_KEY_HEADER, PHONE_NUMBER_TAKEN_MESSAGE, SIGNATURE_HEADER
 
 
 class RandomNumberViewTests(TestCase):
@@ -228,7 +229,6 @@ VALID_WHATSAPP = {
     'access_token': TEST_ACCESS_TOKEN,
     'app_secret': TEST_APP_SECRET,
 }
-SECRET_REQUIRED = ['This field is required when connecting WhatsApp for the first time.']
 META_INFO = meta_api.PhoneNumberInfo(display_phone_number='+65 9123 4567', verified_name='Café Pte Ltd')
 
 
@@ -236,8 +236,9 @@ def create_whatsapp_config(business, **overrides) -> WhatsAppConfiguration:
     return WhatsAppConfiguration.objects.create(business=business, **{**VALID_WHATSAPP, **overrides})
 
 
-@override_settings(MESSAGING_INGESTER_PUBLIC_URL='https://ingester.example')
 class WhatsAppConfigurationAPITests(APITestCase):
+    """GET / DELETE /api/configuration/whatsapp/ (connecting is Embedded Signup's, below)."""
+
     url = reverse('configuration_app:whatsapp-configuration')
 
     @classmethod
@@ -250,268 +251,63 @@ class WhatsAppConfigurationAPITests(APITestCase):
         )
         cls.no_business_user = BusinessUser.objects.create_user(username='nobiz', password='123')
 
-    def setUp(self):
-        # Every save checks the credentials with Meta: fake it (tests never call the real Meta).
-        patcher = patch.object(meta_api, 'check_credentials', return_value=META_INFO)
-        self.meta = patcher.start()
-        self.addCleanup(patcher.stop)
-
-    def put(self, data, user=None):
-        self.client.force_authenticate(user or self.cafe_user)
-        return self.client.put(self.url, data, format='json')
-
-    def saved(self) -> WhatsAppConfiguration:
-        return WhatsAppConfiguration.objects.get(business=self.cafe)
-
-    # --- Access ---------------------------------------------------------------------------
-
     def test_requires_authentication(self):
-        for method in ('get', 'put', 'delete'):
+        for method in ('get', 'delete'):
             with self.subTest(method=method):
                 self.assertEqual(getattr(self.client, method)(self.url).status_code, 401)
 
     def test_user_without_business_gets_403(self):
         self.client.force_authenticate(self.no_business_user)
-        for method in ('get', 'put', 'delete'):
+        for method in ('get', 'delete'):
             with self.subTest(method=method):
-                response = getattr(self.client, method)(self.url, VALID_WHATSAPP, format='json')
-                self.assertEqual(response.status_code, 403)
-        self.assertFalse(WhatsAppConfiguration.objects.exists())
+                self.assertEqual(getattr(self.client, method)(self.url).status_code, 403)
 
     def test_other_methods_are_not_allowed(self):
         self.client.force_authenticate(self.cafe_user)
-        for method in ('post', 'patch'):
+        for method in ('post', 'put', 'patch'):
             with self.subTest(method=method):
                 response = getattr(self.client, method)(self.url, VALID_WHATSAPP, format='json')
                 self.assertEqual(response.status_code, 405)
+        self.assertFalse(WhatsAppConfiguration.objects.exists())
 
     def test_businesses_only_see_and_change_their_own(self):
         create_whatsapp_config(self.cafe)
         self.client.force_authenticate(self.florist_user)
         self.assertEqual(self.client.get(self.url).status_code, 404)
         self.assertEqual(self.client.delete(self.url).status_code, 404)
-        # Connecting the florist doesn't touch the café's connection.
-        self.assertEqual(self.put({**VALID_WHATSAPP, 'phone_number_id': '2'}, self.florist_user).status_code, 201)
-        self.assertEqual(self.saved().phone_number_id, TEST_PHONE_NUMBER_ID)
-        self.assertEqual(WhatsAppConfiguration.objects.count(), 2)
-
-    # --- GET ------------------------------------------------------------------------------
+        self.assertTrue(WhatsAppConfiguration.objects.filter(business=self.cafe).exists())
 
     def test_get_before_connecting_is_404(self):
         self.client.force_authenticate(self.cafe_user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 404)
-        self.assertEqual(response.json()['detail'], 'Your business has not connected WhatsApp yet. Connect it with PUT.')
+        self.assertEqual(
+            response.json()['detail'], 'Your business has not connected WhatsApp yet. Connect it with Facebook.'
+        )
 
     def test_get(self):
-        config = create_whatsapp_config(self.cafe)
+        create_whatsapp_config(self.cafe, display_phone_number='+65 9123 4567', verified_name='Café Pte Ltd')
         self.client.force_authenticate(self.cafe_user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
         body = response.json()
         self.assertEqual(
             set(body),
-            {'phone_number_id', 'display_phone_number', 'verified_name', 'webhook_url', 'verify_token',
+            {'phone_number_id', 'display_phone_number', 'verified_name', 'waba_id', 'connection_method',
              'created_time', 'last_updated'},
         )
-        self.assertEqual(body['phone_number_id'], TEST_PHONE_NUMBER_ID)
-        self.assertEqual(body['verify_token'], config.verify_token)
-        self.assertEqual(body['webhook_url'], f'https://ingester.example/webhook/{self.cafe.pk}')
-
-    def test_secrets_are_never_returned(self):
-        responses = [self.put(VALID_WHATSAPP), self.client.get(self.url), self.put({'phone_number_id': '9'})]
-        for response in responses:
-            body = response.content.decode()
-            self.assertNotIn('access_token', body)
-            self.assertNotIn('app_secret', body)
-            self.assertNotIn(TEST_ACCESS_TOKEN, body)
-            self.assertNotIn(TEST_APP_SECRET, body)
-
-    # --- PUT: connect ---------------------------------------------------------------------
-
-    def test_connect(self):
-        response = self.put(VALID_WHATSAPP)
-        self.assertEqual(response.status_code, 201)
-        body = response.json()
-        self.assertEqual(body['phone_number_id'], TEST_PHONE_NUMBER_ID)
-        self.assertEqual(body['webhook_url'], f'https://ingester.example/webhook/{self.cafe.pk}')
-        self.assertEqual(len(body['verify_token']), 43)
-
-        config = self.saved()
-        self.assertEqual(config.access_token, TEST_ACCESS_TOKEN)
-        self.assertEqual(config.app_secret, TEST_APP_SECRET)
-        self.assertEqual(config.verify_token, body['verify_token'])
-
-    def test_connect_requires_both_secrets(self):
-        for missing in ({'access_token'}, {'app_secret'}, {'access_token', 'app_secret'}):
-            for blank in (False, True):
-                with self.subTest(missing=missing, blank=blank):
-                    data = {k: v for k, v in VALID_WHATSAPP.items() if k not in missing}
-                    if blank:
-                        data.update({field: '  ' for field in missing})  # whitespace is trimmed to blank
-                    response = self.put(data)
-                    self.assertEqual(response.status_code, 400)
-                    self.assertEqual(response.json(), {field: SECRET_REQUIRED for field in missing})
-        self.assertFalse(WhatsAppConfiguration.objects.exists())
-
-    def test_connect_requires_the_phone_number_id(self):
-        secrets = {'access_token': TEST_ACCESS_TOKEN, 'app_secret': TEST_APP_SECRET}
-        for data in (secrets, {**secrets, 'phone_number_id': ''}):
-            with self.subTest(data=data):
-                response = self.put(data)
-                self.assertEqual(response.status_code, 400)
-                self.assertEqual(set(response.json()), {'phone_number_id'})
-
-    def test_secrets_are_trimmed(self):
-        self.put({**VALID_WHATSAPP, 'access_token': f'  {TEST_ACCESS_TOKEN}\n', 'app_secret': f' {TEST_APP_SECRET} '})
-        self.assertEqual(self.saved().access_token, TEST_ACCESS_TOKEN)
-        self.assertEqual(self.saved().app_secret, TEST_APP_SECRET)
-
-    def test_invalid_values(self):
-        cases = {
-            'phone_number_id': ['abc', '1065 4035', '-1', '1.5', '1' * (WHATSAPP_ID_MAX_LENGTH + 1)],
-            'access_token': ['has a space', 'x' * (WHATSAPP_ACCESS_TOKEN_MAX_LENGTH + 1)],
-            'app_secret': ['has a space', 'x' * (WHATSAPP_APP_SECRET_MAX_LENGTH + 1)],
-        }
-        for field, values in cases.items():
-            for value in values:
-                with self.subTest(field=field, value=value):
-                    response = self.put({**VALID_WHATSAPP, field: value})
-                    self.assertEqual(response.status_code, 400)
-                    self.assertEqual(set(response.json()), {field})
-        self.assertFalse(WhatsAppConfiguration.objects.exists())
-
-    def test_longest_valid_values(self):
-        response = self.put({
-            'phone_number_id': '1' * WHATSAPP_ID_MAX_LENGTH,
-            'access_token': 'x' * WHATSAPP_ACCESS_TOKEN_MAX_LENGTH,
-            'app_secret': 'y' * WHATSAPP_APP_SECRET_MAX_LENGTH,
-        })
-        self.assertEqual(response.status_code, 201)
-        self.assertEqual(self.saved().access_token, 'x' * WHATSAPP_ACCESS_TOKEN_MAX_LENGTH)
-
-    def test_read_only_and_unknown_fields_are_ignored(self):
-        response = self.put({
-            **VALID_WHATSAPP,
-            'verify_token': 'mine',
-            'webhook_url': 'https://evil.example',
-            'business': self.florist.pk,
-            'display_phone_number': '+6591234567',
-        })
-        self.assertEqual(response.status_code, 201)
-        body = response.json()
-        self.assertNotEqual(body['verify_token'], 'mine')
-        self.assertEqual(body['webhook_url'], f'https://ingester.example/webhook/{self.cafe.pk}')
-        self.assertEqual(self.saved().business, self.cafe)
-
-    def test_phone_number_id_must_be_unique_across_businesses(self):
-        create_whatsapp_config(self.florist)
-        response = self.put(VALID_WHATSAPP)
-        self.assertEqual(response.status_code, 400)
         self.assertEqual(
-            response.json(), {'phone_number_id': ['This phone number ID is already connected to another business.']}
+            (body['phone_number_id'], body['display_phone_number'], body['connection_method']),
+            (TEST_PHONE_NUMBER_ID, '+65 9123 4567', 'manual'),
         )
 
-    # --- PUT: update ----------------------------------------------------------------------
-
-    def test_update_keeps_secrets_when_left_out_or_blank(self):
-        original = create_whatsapp_config(self.cafe)
-        for secrets in ({}, {'access_token': '', 'app_secret': ''}, {'access_token': ' ', 'app_secret': None}):
-            with self.subTest(secrets=secrets):
-                data = {'phone_number_id': '999', **{k: v for k, v in secrets.items() if v is not None}}
-                response = self.put(data)
-                self.assertEqual(response.status_code, 200)
-                self.assertEqual(response.json()['phone_number_id'], '999')
-                config = self.saved()
-                self.assertEqual(config.access_token, TEST_ACCESS_TOKEN)
-                self.assertEqual(config.app_secret, TEST_APP_SECRET)
-                self.assertEqual(config.verify_token, original.verify_token)
-                self.assertEqual(config.created_time, original.created_time)
-        self.assertEqual(WhatsAppConfiguration.objects.count(), 1)
-
-    def test_update_replaces_one_secret(self):
-        create_whatsapp_config(self.cafe)
-        response = self.put({**VALID_WHATSAPP, 'access_token': 'NEWTOKEN', 'app_secret': ''})
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(self.saved().access_token, 'NEWTOKEN')
-        self.assertEqual(self.saved().app_secret, TEST_APP_SECRET)
-
-    def test_update_can_keep_its_own_phone_number_id(self):
-        create_whatsapp_config(self.cafe)
-        self.assertEqual(self.put(VALID_WHATSAPP).status_code, 200)
-
-    def test_update_still_validates(self):
-        create_whatsapp_config(self.cafe)
-        response = self.put({'phone_number_id': 'abc', 'access_token': 'has a space'})
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(set(response.json()), {'phone_number_id', 'access_token'})
-        self.assertEqual(self.saved().phone_number_id, TEST_PHONE_NUMBER_ID)
-
-    # --- Checked with Meta -----------------------------------------------------------------
-
-    def test_connect_checks_with_meta_and_stores_its_details(self):
-        response = self.put(VALID_WHATSAPP)
-        self.assertEqual(response.status_code, 201)
-        self.meta.assert_called_once_with(TEST_PHONE_NUMBER_ID, TEST_ACCESS_TOKEN, TEST_APP_SECRET)
-        self.assertEqual(response.json()['display_phone_number'], '+65 9123 4567')
-        self.assertEqual(response.json()['verified_name'], 'Café Pte Ltd')
-        self.assertEqual(self.saved().verified_name, 'Café Pte Ltd')
-
-    def test_update_checks_the_saved_secrets_with_the_new_phone_number_id(self):
-        create_whatsapp_config(self.cafe)
-        self.put({'phone_number_id': '999'})
-        self.meta.assert_called_once_with('999', TEST_ACCESS_TOKEN, TEST_APP_SECRET)
-
-    def test_update_checks_a_replaced_secret(self):
-        create_whatsapp_config(self.cafe)
-        self.put({'phone_number_id': TEST_PHONE_NUMBER_ID, 'app_secret': 'newsecret'})
-        self.meta.assert_called_once_with(TEST_PHONE_NUMBER_ID, TEST_ACCESS_TOKEN, 'newsecret')
-
-    def test_update_refreshes_metas_details(self):
-        create_whatsapp_config(self.cafe)
-        self.meta.return_value = meta_api.PhoneNumberInfo('+65 8000 0000', 'Renamed Café')
-        self.put(VALID_WHATSAPP)
-        self.assertEqual((self.saved().display_phone_number, self.saved().verified_name), ('+65 8000 0000', 'Renamed Café'))
-
-    def test_credentials_meta_rejects_are_400_under_their_field(self):
-        for field, message in (
-            ('access_token', meta_api.INVALID_TOKEN_MESSAGE),
-            ('app_secret', meta_api.INVALID_APP_SECRET_MESSAGE),
-            ('phone_number_id', meta_api.UNKNOWN_PHONE_NUMBER_ID_MESSAGE),
-        ):
-            with self.subTest(field=field):
-                self.meta.side_effect = meta_api.MetaCredentialsError(field, message)
-                response = self.put(VALID_WHATSAPP)
-                self.assertEqual(response.status_code, 400)
-                self.assertEqual(response.json(), {field: [message]})
-        self.assertFalse(WhatsAppConfiguration.objects.exists())
-
-    def test_rejected_update_changes_nothing(self):
-        create_whatsapp_config(self.cafe)
-        self.meta.side_effect = meta_api.MetaCredentialsError('access_token', meta_api.INVALID_TOKEN_MESSAGE)
-        response = self.put({'phone_number_id': '999', 'access_token': 'BADTOKEN'})
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual((self.saved().phone_number_id, self.saved().access_token), (TEST_PHONE_NUMBER_ID, TEST_ACCESS_TOKEN))
-
-    def test_meta_unreachable_is_503_and_nothing_is_saved(self):
-        self.meta.side_effect = meta_api.MetaUnavailableError('timeout')
-        response = self.put(VALID_WHATSAPP)
-        self.assertEqual(response.status_code, 503)
-        self.assertIn("Couldn't reach Meta", response.json()['detail'])
-        self.assertFalse(WhatsAppConfiguration.objects.exists())
-
-    def test_meta_is_not_asked_when_the_fields_are_invalid(self):
-        create_whatsapp_config(self.florist)  # owns TEST_PHONE_NUMBER_ID
-        for data in (
-            {**VALID_WHATSAPP, 'phone_number_id': 'abc'},
-            {'phone_number_id': '1', 'access_token': TEST_ACCESS_TOKEN},  # missing App Secret
-            VALID_WHATSAPP,  # Phone Number ID already used by the florist
-        ):
-            with self.subTest(data=data):
-                self.assertEqual(self.put(data).status_code, 400)
-        self.meta.assert_not_called()
-
-    # --- DELETE ---------------------------------------------------------------------------
+    def test_secrets_and_webhook_details_are_never_returned(self):
+        config = create_whatsapp_config(self.cafe, two_step_pin='482913')
+        self.client.force_authenticate(self.cafe_user)
+        body = self.client.get(self.url).content.decode()
+        for value in (TEST_ACCESS_TOKEN, TEST_APP_SECRET, '482913', config.verify_token, 'access_token',
+                      'app_secret', 'two_step_pin', 'verify_token', 'webhook'):
+            self.assertNotIn(value, body)
 
     def test_disconnect(self):
         create_whatsapp_config(self.cafe)
@@ -521,12 +317,6 @@ class WhatsAppConfigurationAPITests(APITestCase):
         self.assertEqual(self.client.get(self.url).status_code, 404)
         self.assertEqual(self.client.delete(self.url).status_code, 404)
         self.assertTrue(BusinessConfiguration.objects.filter(pk=self.cafe.pk).exists())
-
-    def test_reconnect_gets_a_new_verify_token(self):
-        first = self.put(VALID_WHATSAPP).json()['verify_token']
-        self.client.delete(self.url)
-        second = self.put(VALID_WHATSAPP).json()['verify_token']
-        self.assertNotEqual(first, second)
 
 
 class WhatsAppConfigurationModelTests(TestCase):
@@ -793,3 +583,325 @@ class SendTextMessageTests(SimpleTestCase):
                 self.send(status, body)
         with self.assertRaises(meta_api.MetaUnavailableError):
             self.send(error=httpx.ConnectError('down'))
+
+
+
+# --- WhatsApp Embedded Signup (embedded_signup.py, meta_api's signup calls) ----------------------
+
+PLATFORM_APP_SECRET = 'platform-app-secret-0123456789abcdef'
+SIGNUP_TOKEN = 'EAABusinessTokenFromSignup'
+SIGNUP_WABA_ID = '524126980791429'
+SIGNUP_PHONE_NUMBER_ID = '106540352242922'
+SIGNUP_REQUEST = {'code': 'AQBhlXsct-code', 'waba_id': SIGNUP_WABA_ID, 'phone_number_id': SIGNUP_PHONE_NUMBER_ID}
+
+
+@override_settings(
+    META_GRAPH_API_URL='https://graph.example/v26.0', META_APP_ID='1147422487864729', META_APP_SECRET=PLATFORM_APP_SECRET
+)
+class EmbeddedSignupMetaApiTests(SimpleTestCase):
+    def fake_meta(self, status=200, body=None):
+        self.requests = []
+
+        def handler(request):
+            self.requests.append(request)
+            return httpx.Response(status, json=body if body is not None else {'success': True})
+
+        return httpx.MockTransport(handler)
+
+    def last(self):
+        request = self.requests[-1]
+        url = urlsplit(str(request.url))
+        return request, url.path, parse_qs(url.query)
+
+    def test_exchange_code(self):
+        transport = self.fake_meta(body={'access_token': SIGNUP_TOKEN, 'token_type': 'bearer'})
+        self.assertEqual(meta_api.exchange_code('the-code', transport=transport), SIGNUP_TOKEN)
+        request, path, query = self.last()
+        self.assertEqual((request.method, path), ('GET', '/v26.0/oauth/access_token'))
+        self.assertEqual(
+            query, {'client_id': ['1147422487864729'], 'client_secret': [PLATFORM_APP_SECRET], 'code': ['the-code']}
+        )
+        self.assertNotIn('Authorization', request.headers)
+
+    def test_exchange_code_refused(self):
+        transport = self.fake_meta(400, {'error': {'message': 'This authorization code has expired.', 'code': 100}})
+        with self.assertRaisesMessage(meta_api.MetaSignupError, meta_api.EXPIRED_CODE_MESSAGE):
+            meta_api.exchange_code('old', transport=transport)
+
+    def test_exchange_code_meta_down(self):
+        with self.assertRaises(meta_api.MetaUnavailableError):
+            meta_api.exchange_code('code', transport=self.fake_meta(503, {'error': {'message': 'down'}}))
+
+    def test_register_phone_number(self):
+        pin_set = meta_api.register_phone_number(SIGNUP_PHONE_NUMBER_ID, SIGNUP_TOKEN, PLATFORM_APP_SECRET, '123456',
+                                                 transport=self.fake_meta())
+        self.assertTrue(pin_set)
+        request, path, query = self.last()
+        self.assertEqual((request.method, path), ('POST', f'/v26.0/{SIGNUP_PHONE_NUMBER_ID}/register'))
+        self.assertEqual(json.loads(request.content), {'messaging_product': 'whatsapp', 'pin': '123456'})
+        self.assertEqual(request.headers['Authorization'], f'Bearer {SIGNUP_TOKEN}')
+        self.assertEqual(query['appsecret_proof'], [meta_api.appsecret_proof(SIGNUP_TOKEN, PLATFORM_APP_SECRET)])
+
+    def test_register_already_registered_number_is_fine(self):
+        body = {'error': {'message': 'Two step verification PIN mismatch', 'code': meta_api.PIN_MISMATCH_ERROR_CODE}}
+        self.assertFalse(
+            meta_api.register_phone_number('1', SIGNUP_TOKEN, PLATFORM_APP_SECRET, '123456', transport=self.fake_meta(400, body))
+        )
+
+    def test_register_refused(self):
+        body = {'error': {'message': 'Phone number not verified', 'code': 133010}}
+        with self.assertRaisesMessage(meta_api.MetaSignupError, 'Phone number not verified'):
+            meta_api.register_phone_number('1', SIGNUP_TOKEN, PLATFORM_APP_SECRET, '123456',
+                                           transport=self.fake_meta(400, body))
+
+    def test_subscribe_app(self):
+        meta_api.subscribe_app(SIGNUP_WABA_ID, SIGNUP_TOKEN, PLATFORM_APP_SECRET, transport=self.fake_meta())
+        request, path, _ = self.last()
+        self.assertEqual((request.method, path), ('POST', f'/v26.0/{SIGNUP_WABA_ID}/subscribed_apps'))
+        self.assertEqual(request.content, b'')
+
+    def test_subscribe_app_with_override(self):
+        meta_api.subscribe_app(SIGNUP_WABA_ID, SIGNUP_TOKEN, PLATFORM_APP_SECRET,
+                               override_callback_uri='https://ingester.example/webhook/7', verify_token='vt',
+                               transport=self.fake_meta())
+        request, _, _ = self.last()
+        self.assertEqual(
+            json.loads(request.content), {'override_callback_uri': 'https://ingester.example/webhook/7', 'verify_token': 'vt'}
+        )
+
+    def test_subscribe_app_refused(self):
+        body = {'error': {'message': 'Callback verification failed', 'code': 2200}}
+        for status, response in ((400, body), (200, {'success': False})):
+            with self.subTest(status=status), self.assertRaises(meta_api.MetaSignupError):
+                meta_api.subscribe_app('1', SIGNUP_TOKEN, PLATFORM_APP_SECRET, transport=self.fake_meta(status, response))
+
+    def test_unsubscribe_app(self):
+        meta_api.unsubscribe_app(SIGNUP_WABA_ID, SIGNUP_TOKEN, PLATFORM_APP_SECRET, transport=self.fake_meta())
+        request, path, _ = self.last()
+        self.assertEqual((request.method, path), ('DELETE', f'/v26.0/{SIGNUP_WABA_ID}/subscribed_apps'))
+
+
+@override_settings(
+    MESSAGING_INGESTER_PUBLIC_URL='https://ingester.example', META_APP_ID='1147422487864729',
+    META_APP_SECRET=PLATFORM_APP_SECRET,
+)
+class EmbeddedSignupAPITests(APITestCase):
+    url = reverse('configuration_app:whatsapp-embedded-signup')
+    whatsapp_url = reverse('configuration_app:whatsapp-configuration')
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.cafe = BusinessConfiguration.objects.create(business_name='Café', location='Singapore')
+        cls.florist = BusinessConfiguration.objects.create(business_name='Florist', location='Singapore')
+        cls.cafe_user = BusinessUser.objects.create_user(username='cafe', password='123', business=cls.cafe)
+        cls.no_business_user = BusinessUser.objects.create_user(username='nobiz', password='123')
+
+    def setUp(self):
+        # Fake every Meta call (tests never call the real Meta).
+        self.meta = {}
+        for name, value in (
+            ('exchange_code', SIGNUP_TOKEN),
+            ('check_credentials', META_INFO),
+            ('register_phone_number', True),
+            ('subscribe_app', None),
+            ('unsubscribe_app', None),
+        ):
+            patcher = patch.object(meta_api, name, return_value=value)
+            self.meta[name] = patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def connect(self, data=None, user=None):
+        self.client.force_authenticate(user or self.cafe_user)
+        return self.client.post(self.url, data or SIGNUP_REQUEST, format='json')
+
+    def saved(self) -> WhatsAppConfiguration:
+        return WhatsAppConfiguration.objects.get(business=self.cafe)
+
+    def test_connects_and_sets_up_the_webhook(self):
+        response = self.connect()
+        self.assertEqual(response.status_code, 201)
+        config = self.saved()
+        self.assertEqual(
+            (config.phone_number_id, config.access_token, config.app_secret, config.waba_id, config.connection_method),
+            (SIGNUP_PHONE_NUMBER_ID, SIGNUP_TOKEN, PLATFORM_APP_SECRET, SIGNUP_WABA_ID, 'embedded_signup'),
+        )
+        self.assertEqual((config.display_phone_number, config.verified_name), ('+65 9123 4567', 'Café Pte Ltd'))
+        self.meta['exchange_code'].assert_called_once_with('AQBhlXsct-code')
+        self.meta['check_credentials'].assert_called_once_with(SIGNUP_PHONE_NUMBER_ID, SIGNUP_TOKEN, PLATFORM_APP_SECRET)
+        pin = self.meta['register_phone_number'].call_args.args[3]
+        self.assertRegex(pin, r'^\d{6}$')
+        plain, override = self.meta['subscribe_app'].call_args_list
+        self.assertEqual(plain.args, (SIGNUP_WABA_ID, SIGNUP_TOKEN, PLATFORM_APP_SECRET))
+        self.assertEqual(
+            override.kwargs,
+            {'override_callback_uri': f'https://ingester.example/webhook/{self.cafe.pk}', 'verify_token': config.verify_token},
+        )
+        body = response.json()
+        self.assertEqual((body['connection_method'], body['waba_id']), ('embedded_signup', SIGNUP_WABA_ID))
+        self.assertNotIn('access_token', body)
+        self.assertNotIn('app_secret', body)
+
+    def test_replaces_a_manual_connection_keeping_the_verify_token(self):
+        old = create_whatsapp_config(self.cafe, phone_number_id='999')
+        response = self.connect()
+        self.assertEqual(response.status_code, 200)
+        config = self.saved()
+        self.assertEqual((config.pk, config.verify_token), (old.pk, old.verify_token))
+        self.assertEqual((config.phone_number_id, config.connection_method), (SIGNUP_PHONE_NUMBER_ID, 'embedded_signup'))
+        self.meta['unsubscribe_app'].assert_not_called()
+
+    def test_reconnecting_with_another_waba_unsubscribes_the_old_one(self):
+        create_whatsapp_config(self.cafe, waba_id='111', connection_method='embedded_signup', access_token='old-token')
+        self.connect()
+        self.meta['unsubscribe_app'].assert_called_once_with('111', 'old-token', TEST_APP_SECRET)
+
+    def test_access(self):
+        self.assertEqual(self.client.post(self.url, SIGNUP_REQUEST, format='json').status_code, 401)
+        self.assertEqual(self.connect(user=self.no_business_user).status_code, 403)
+        self.meta['exchange_code'].assert_not_called()
+
+    @override_settings(META_APP_SECRET='')
+    def test_not_configured_is_503(self):
+        self.assertEqual(self.connect().status_code, 503)
+        self.meta['exchange_code'].assert_not_called()
+
+    def test_validates_the_request(self):
+        response = self.connect({'code': '', 'waba_id': '12a', 'phone_number_id': ''})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(set(response.json()), {'code', 'waba_id', 'phone_number_id'})
+        self.meta['exchange_code'].assert_not_called()
+
+    def test_meta_refusing_a_step_is_400_and_saves_nothing(self):
+        self.meta['exchange_code'].side_effect = meta_api.MetaSignupError(meta_api.EXPIRED_CODE_MESSAGE)
+        response = self.connect()
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(), {'non_field_errors': [meta_api.EXPIRED_CODE_MESSAGE]})
+        self.assertFalse(WhatsAppConfiguration.objects.exists())
+
+    def test_number_meta_does_not_give_access_to_is_400(self):
+        self.meta['check_credentials'].side_effect = meta_api.MetaCredentialsError('phone_number_id', 'Unknown number.')
+        response = self.connect()
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Unknown number.', response.json()['non_field_errors'][0])
+        self.meta['register_phone_number'].assert_not_called()
+
+    def test_meta_unavailable_is_503(self):
+        self.meta['register_phone_number'].side_effect = meta_api.MetaUnavailableError('timeout')
+        self.assertEqual(self.connect().status_code, 503)
+        self.assertFalse(WhatsAppConfiguration.objects.exists())
+
+    def test_number_of_another_business_is_400(self):
+        create_whatsapp_config(self.florist, phone_number_id=SIGNUP_PHONE_NUMBER_ID)
+        response = self.connect()
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(), {'phone_number_id': [PHONE_NUMBER_TAKEN_MESSAGE]})
+        self.meta['register_phone_number'].assert_not_called()
+        self.assertFalse(WhatsAppConfiguration.objects.filter(business=self.cafe).exists())
+
+    def test_webhook_failure_removes_a_new_connection(self):
+        self.meta['subscribe_app'].side_effect = [None, meta_api.MetaSignupError('Callback verification failed')]
+        response = self.connect()
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(WhatsAppConfiguration.objects.exists())
+
+    def test_webhook_failure_restores_the_previous_connection(self):
+        create_whatsapp_config(self.cafe, phone_number_id='999', display_phone_number='+65 8000 0000')
+        self.meta['subscribe_app'].side_effect = meta_api.MetaUnavailableError('timeout')
+        self.assertEqual(self.connect().status_code, 503)
+        config = self.saved()
+        self.assertEqual(
+            (config.phone_number_id, config.access_token, config.app_secret, config.connection_method, config.waba_id),
+            ('999', TEST_ACCESS_TOKEN, TEST_APP_SECRET, 'manual', ''),
+        )
+        self.assertEqual(config.display_phone_number, '+65 8000 0000')
+
+    def test_disconnecting_unsubscribes_embedded_signup_connections(self):
+        self.connect()
+        self.assertEqual(self.client.delete(self.whatsapp_url).status_code, 204)
+        self.meta['unsubscribe_app'].assert_called_once_with(SIGNUP_WABA_ID, SIGNUP_TOKEN, PLATFORM_APP_SECRET)
+        self.assertFalse(WhatsAppConfiguration.objects.exists())
+
+    def test_disconnecting_still_works_when_meta_refuses_to_unsubscribe(self):
+        self.connect()
+        self.meta['unsubscribe_app'].side_effect = meta_api.MetaUnavailableError('timeout')
+        self.assertEqual(self.client.delete(self.whatsapp_url).status_code, 204)
+        self.assertFalse(WhatsAppConfiguration.objects.exists())
+
+    def test_disconnecting_a_manual_connection_does_not_call_meta(self):
+        create_whatsapp_config(self.cafe)
+        self.client.force_authenticate(self.cafe_user)
+        self.assertEqual(self.client.delete(self.whatsapp_url).status_code, 204)
+        self.meta['unsubscribe_app'].assert_not_called()
+
+    def test_two_step_pin_is_saved_encrypted(self):
+        self.connect()
+        pin = self.meta['register_phone_number'].call_args.args[3]
+        config = self.saved()
+        self.assertEqual(config.two_step_pin, pin)
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT two_step_pin FROM configuration_app_whatsappconfiguration WHERE id = %s', [config.pk])
+            self.assertNotIn(pin, cursor.fetchone()[0])
+
+    def test_number_already_registered_with_an_unknown_pin(self):
+        self.meta['register_phone_number'].return_value = False
+        self.connect()
+        self.assertEqual(self.saved().two_step_pin, '')
+
+    def test_reconnecting_the_same_number_keeps_its_known_pin(self):
+        self.connect()
+        pin = self.saved().two_step_pin
+        self.meta['register_phone_number'].return_value = False  # registered with that PIN: Meta refuses a new one
+        self.assertEqual(self.connect().status_code, 200)
+        self.assertEqual(self.saved().two_step_pin, pin)
+
+
+class EmbeddedSignupModelTests(TestCase):
+    def test_embedded_signup_needs_a_waba_id(self):
+        cafe = BusinessConfiguration.objects.create(business_name='Café', location='Singapore')
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            create_whatsapp_config(cafe, connection_method=WhatsAppConnectionMethod.EMBEDDED_SIGNUP)
+
+    def test_connection_method_must_be_known(self):
+        cafe = BusinessConfiguration.objects.create(business_name='Café', location='Singapore')
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            create_whatsapp_config(cafe, connection_method='carrier_pigeon')
+
+
+@override_settings(
+    INTERNAL_API_KEY=TEST_INTERNAL_KEY, META_APP_SECRET=TEST_APP_SECRET, META_APP_WEBHOOK_VERIFY_TOKEN='app-verify-token'
+)
+class InternalWhatsAppAppWebhookAPITests(APITestCase):
+    """Our Meta app's default webhook (messaging-ingester's /webhook): handshake and signature checks."""
+
+    def post(self, name, key=TEST_INTERNAL_KEY, **kwargs):
+        headers = {INTERNAL_API_KEY_HEADER: key, **kwargs.pop('headers', {})}
+        return self.client.post(reverse(f'internal:whatsapp-app-{name}'), headers=headers, **kwargs)
+
+    def test_verify_token(self):
+        for token, valid in (('app-verify-token', True), ('wrong', False), ('', False)):
+            with self.subTest(token=token):
+                response = self.post('verify-token', data={'verify_token': token}, format='json')
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json(), {'valid': valid, 'phone_number_id': None})
+
+    def test_verify_signature(self):
+        for signature, valid in ((meta_signature(TEST_PAYLOAD), True), (meta_signature(TEST_PAYLOAD, 'other'), False)):
+            with self.subTest(valid=valid):
+                response = self.post(
+                    'verify-signature', data=TEST_PAYLOAD, content_type='application/octet-stream',
+                    headers={SIGNATURE_HEADER: signature},
+                )
+                self.assertEqual(response.json(), {'valid': valid, 'phone_number_id': None})
+
+    def test_requires_the_internal_api_key(self):
+        response = self.post('verify-token', key='wrong', data={'verify_token': 'app-verify-token'}, format='json')
+        self.assertEqual(response.status_code, 403)
+
+    @override_settings(META_APP_SECRET='', META_APP_WEBHOOK_VERIFY_TOKEN='')
+    def test_not_configured_is_404(self):
+        self.assertEqual(self.post('verify-token', data={'verify_token': 'x'}, format='json').status_code, 404)
+        response = self.post(
+            'verify-signature', data=TEST_PAYLOAD, content_type='application/octet-stream',
+            headers={SIGNATURE_HEADER: meta_signature(TEST_PAYLOAD)},
+        )
+        self.assertEqual(response.status_code, 404)

@@ -262,3 +262,13 @@ INTERNAL_API_KEY = os.getenv('INTERNAL_API_KEY', 'dev-internal-api-key' if DEBUG
 META_GRAPH_API_URL = os.getenv('META_GRAPH_API_URL', 'https://graph.facebook.com/v25.0').rstrip('/')
 
 MESSAGING_INGESTER_PUBLIC_URL = os.getenv('MESSAGING_INGESTER_PUBLIC_URL', 'http://localhost:8002').rstrip('/')
+
+# WhatsApp Embedded Signup (Meta's "Connect with Facebook" popup): businesses connect through OUR Meta
+# app, so its ID and App Secret are platform settings, not entered per business. The secret swaps the
+# popup's code for the business's token, signs webhooks, and is saved as each such connection's
+# app_secret. Both empty: Embedded Signup is off (503) and only the manual form works.
+META_APP_ID = os.getenv('META_APP_ID', '')
+META_APP_SECRET = os.getenv('META_APP_SECRET', '')
+# Verify token for our app's default webhook (App Dashboard → WhatsApp → Configuration, Callback URL
+# MESSAGING_INGESTER_PUBLIC_URL/webhook). Each business's messages go to its own /webhook/<id> instead.
+META_APP_WEBHOOK_VERIFY_TOKEN = os.getenv('META_APP_WEBHOOK_VERIFY_TOKEN', '')
