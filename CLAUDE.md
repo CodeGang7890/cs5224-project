@@ -46,6 +46,8 @@ Businesses connect WhatsApp only with **Embedded Signup** ("Connect with Faceboo
 
 Meta reports changes to a business's WhatsApp Business account (our app removed, the account deleted or offboarded, banned, reinstated) with `account_update` webhooks to our app's `/webhook`: messaging-ingester forwards them to configuration-service (`POST /api/internal/whatsapp/app/account-updates/`), which sets the connection's `status` (`connected` / `disconnected` / `banned`), and frontend-app's WhatsApp card shows it with the reason. Reconnecting with Facebook resets it.
 
+Embedded Signup tokens can expire (e.g. after 60 days, set by our Facebook Login for Business configuration): configuration-service saves `access_token_expires_time` (from Meta), the frontend warns the owner to reconnect from 7 days before (and once expired), and notification-job alerts the business's users 7 days and 1 day before and at expiry (logged for now). Reconnecting with Facebook renews the token. The 7 days are in both configuration-service (`ACCESS_TOKEN_EXPIRY_WARNING`) and notification-job (`RECONNECT_ALERTS_BEFORE`): change them together.
+
 ## Logins
 
 configuration-service issues the JWTs (SimpleJWT, HS256). messaging-service checks the access tokens itself (`app/auth.py`). Both must use the same `JWT_SIGNING_KEY`; docker-compose sets it.
