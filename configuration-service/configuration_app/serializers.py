@@ -1,3 +1,4 @@
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework.exceptions import APIException
 
@@ -5,6 +6,7 @@ from .models import (
     WHATSAPP_ID_MAX_LENGTH,
     WHATSAPP_STATUS_EVENT_MAX_LENGTH,
     WHATSAPP_VERIFY_TOKEN_MAX_LENGTH,
+    AccessTokenStatus,
     WhatsAppConfiguration,
     meta_id_validator,
 )
@@ -24,10 +26,16 @@ class WhatsAppConfigurationSerializer(serializers.ModelSerializer):
     """The owner's view of their WhatsApp connection, read only: businesses connect with Embedded
     Signup (EmbeddedSignupSerializer). The secrets (token, App Secret, two-step PIN) and the webhook
     details (set up automatically) are never returned. `status` is what Meta last reported (account_update
-    webhooks): `disconnected` or `banned` with a `status_reason` for the owner; reconnecting resets it."""
+    webhooks): `disconnected` or `banned` with a `status_reason` for the owner; reconnecting resets it.
+    `access_token_status` says whether the owner must reconnect (soon) to renew the token: `expiring_soon`
+    within ACCESS_TOKEN_EXPIRY_WARNING of `access_token_expires_time`."""
 
     status_reason = serializers.CharField(
         read_only=True, help_text="Why it isn't connected, for the owner; empty while `status` is `connected`."
+    )
+    access_token_status = serializers.SerializerMethodField(
+        help_text='`active`, `expiring_soon` (reconnect with Facebook before `access_token_expires_time`) '
+        "or `expired` (replies can't be sent until the business reconnects)."
     )
 
     class Meta:
@@ -41,10 +49,16 @@ class WhatsAppConfigurationSerializer(serializers.ModelSerializer):
             'status',
             'status_reason',
             'status_updated_time',
+            'access_token_expires_time',
+            'access_token_status',
             'created_time',
             'last_updated',
         )
         read_only_fields = fields
+
+    @extend_schema_field(serializers.ChoiceField(choices=AccessTokenStatus.choices))
+    def get_access_token_status(self, config: WhatsAppConfiguration) -> str:
+        return config.access_token_status()
 
 
 class EmbeddedSignupSerializer(serializers.Serializer):

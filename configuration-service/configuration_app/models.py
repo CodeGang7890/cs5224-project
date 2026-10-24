@@ -1,8 +1,10 @@
 import secrets
+from datetime import datetime, timedelta
 
 from django.core.validators import MaxLengthValidator, RegexValidator
 from django.db import models
 from django.db.models import Q
+from django.utils import timezone
 
 from .crypto import EncryptedTextField
 
@@ -17,6 +19,9 @@ WHATSAPP_APP_SECRET_MAX_LENGTH = 128
 WHATSAPP_VERIFY_TOKEN_MAX_LENGTH = 64
 WHATSAPP_DISPLAY_PHONE_NUMBER_MAX_LENGTH = 32  # as Meta formats it, e.g. "+65 9123 4567"
 WHATSAPP_VERIFIED_NAME_MAX_LENGTH = 255
+# How long before its access token expires the owner is warned to reconnect (notification-job's
+# alerts start then too: keep them in sync).
+ACCESS_TOKEN_EXPIRY_WARNING = timedelta(days=7)
 WHATSAPP_STATUS_EVENT_MAX_LENGTH = 64  # Meta's account_update event names, e.g. "PARTNER_APP_UNINSTALLED"
 
 class BusinessConfiguration(models.Model):
@@ -89,6 +94,12 @@ DEFAULT_STATUS_REASONS = {
 }
 
 
+class AccessTokenStatus(models.TextChoices):
+    ACTIVE = 'active', 'Active'  # doesn't expire within ACCESS_TOKEN_EXPIRY_WARNING (or never)
+    EXPIRING_SOON = 'expiring_soon', 'Expiring soon'  # reconnect before it lapses
+    EXPIRED = 'expired', 'Expired'  # Meta refuses it: replies can't be sent until the owner reconnects
+
+
 class WhatsAppConfiguration(models.Model):
     """A business's WhatsApp Business (Cloud API) connection, entered by the owner from their Meta app.
 
@@ -159,6 +170,14 @@ class WhatsAppConfiguration(models.Model):
         editable=False,
         help_text="The phone number's two-step verification PIN, set by Embedded Signup. Stored encrypted.",
     )
+    # When Meta stops accepting access_token (Embedded Signup tokens can expire, e.g. after 60 days,
+    # depending on our Facebook Login for Business configuration); reconnecting gives a new one.
+    access_token_expires_time = models.DateTimeField(
+        null=True,
+        blank=True,
+        editable=False,
+        help_text="When the access token expires, from Meta. Empty: it doesn't expire (or isn't known).",
+    )
     connection_method = models.CharField(
         max_length=20,
         choices=WhatsAppConnectionMethod.choices,
@@ -225,3 +244,15 @@ class WhatsAppConfiguration(models.Model):
         if self.status == WhatsAppConnectionStatus.CONNECTED:
             return ''
         return STATUS_REASONS.get(self.status_event) or DEFAULT_STATUS_REASONS[self.status]
+
+    def access_token_status(self, now: datetime | None = None) -> str:
+        """An AccessTokenStatus: whether the owner needs to reconnect (soon) to renew the token."""
+        expires = self.access_token_expires_time
+        if expires is None:
+            return AccessTokenStatus.ACTIVE
+        now = now or timezone.now()
+        if expires <= now:
+            return AccessTokenStatus.EXPIRED
+        if expires - now <= ACCESS_TOKEN_EXPIRY_WARNING:
+            return AccessTokenStatus.EXPIRING_SOON
+        return AccessTokenStatus.ACTIVE

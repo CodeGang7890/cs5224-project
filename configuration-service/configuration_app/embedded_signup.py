@@ -4,7 +4,8 @@ The frontend runs the popup (Facebook JS SDK, FB.login with our configuration ID
 returns: a single-use code (valid for 30 seconds), the business's WhatsApp Business account (WABA) ID and
 its phone number ID. connect() then, in this order:
 
-1. swaps the code for the business's token (a business integration system user token for our app);
+1. swaps the code for the business's token (a business integration system user token for our app)
+   and when it expires (reconnecting gives a new one: the owner is warned before it lapses);
 2. checks the number with that token (meta_api.check_credentials), which also gives the number and name;
 3. registers the number for Cloud API, with a random two-step verification PIN (kept encrypted, as it
    is needed to register the number again);
@@ -34,6 +35,7 @@ logger = logging.getLogger(__name__)
 SAVED_FIELDS = (
     'phone_number_id',
     'access_token',
+    'access_token_expires_time',
     'app_secret',
     'waba_id',
     'connection_method',
@@ -79,7 +81,8 @@ def connect(
         raise EmbeddedSignupNotConfigured
     app_secret = settings.META_APP_SECRET
 
-    token = meta_api.exchange_code(code)
+    business_token = meta_api.exchange_code(code)
+    token = business_token.access_token
     try:
         info = meta_api.check_credentials(phone_number_id, token, app_secret)
     except meta_api.MetaCredentialsError as exc:
@@ -96,6 +99,7 @@ def connect(
         config = WhatsAppConfiguration(business=business)
     config.phone_number_id = phone_number_id
     config.access_token = token
+    config.access_token_expires_time = business_token.expires_time
     config.app_secret = app_secret
     config.waba_id = waba_id
     config.connection_method = WhatsAppConnectionMethod.EMBEDDED_SIGNUP

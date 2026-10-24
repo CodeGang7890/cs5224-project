@@ -23,6 +23,7 @@ Locally, META_GRAPH_API_URL can point at mock_whatsapp's fake Graph API.
 Embedded Signup (embedded_signup.py) uses our app's ID and App Secret (settings.META_APP_*):
 
     GET  oauth/access_token?client_id=…&client_secret=…&code=…   → the business's token (exchange_code)
+    GET  debug_token?input_token=…&access_token=<app id>|<App Secret>   → when it expires (token_expiry)
     POST {phone_number_id}/register {"messaging_product": "whatsapp", "pin": "123456"}   (register_phone_number)
     POST {waba_id}/subscribed_apps [{"override_callback_uri": …, "verify_token": …}]   (subscribe_app)
     DELETE {waba_id}/subscribed_apps   (unsubscribe_app)
@@ -32,9 +33,11 @@ import hashlib
 import hmac
 import logging
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 
 import httpx
 from django.conf import settings
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +56,14 @@ UNKNOWN_PHONE_NUMBER_ID_MESSAGE = "Meta doesn't know this Phone Number ID, or th
 class PhoneNumberInfo:
     display_phone_number: str  # e.g. "+65 9123 4567"
     verified_name: str  # the business name Meta verified for the number
+
+
+@dataclass(frozen=True)
+class BusinessToken:
+    access_token: str
+    # When Meta stops accepting it; None if it never expires (or Meta didn't say). Whether a token
+    # expires (e.g. after 60 days) is set by our Facebook Login for Business configuration.
+    expires_time: datetime | None
 
 
 class MetaCredentialsError(Exception):
@@ -224,9 +235,10 @@ def _error_message(data: dict) -> str:
     return str(error.get('error_user_msg') or error.get('message') or 'no details')
 
 
-def exchange_code(code: str, transport: httpx.BaseTransport | None = None) -> str:
+def exchange_code(code: str, transport: httpx.BaseTransport | None = None) -> BusinessToken:
     """Swaps the code from the Embedded Signup popup (valid for 30 seconds, single use) for the
-    business's token: a business integration system user token for our app."""
+    business's token: a business integration system user token for our app, with when it expires
+    (Meta's `expires_in`, else asked with token_expiry; None if that fails: the connection still works)."""
     status, data = _call(
         'GET',
         'oauth/access_token',
@@ -234,10 +246,33 @@ def exchange_code(code: str, transport: httpx.BaseTransport | None = None) -> st
         transport=transport,
     )
     token = data.get('access_token')
-    if status == 200 and isinstance(token, str) and token:
-        return token
-    logger.warning('Embedded Signup code exchange failed (%s): %s', status, _error_message(data))
-    raise MetaSignupError(EXPIRED_CODE_MESSAGE)
+    if status != 200 or not isinstance(token, str) or not token:
+        logger.warning('Embedded Signup code exchange failed (%s): %s', status, _error_message(data))
+        raise MetaSignupError(EXPIRED_CODE_MESSAGE)
+    expires_in = data.get('expires_in')
+    if isinstance(expires_in, int) and not isinstance(expires_in, bool) and expires_in > 0:
+        return BusinessToken(token, timezone.now() + timedelta(seconds=expires_in))
+    try:
+        return BusinessToken(token, token_expiry(token, transport=transport))
+    except (MetaSignupError, MetaUnavailableError) as exc:
+        logger.warning("Couldn't find out when the Embedded Signup token expires: %s", exc)
+        return BusinessToken(token, None)
+
+
+def token_expiry(access_token: str, transport: httpx.BaseTransport | None = None) -> datetime | None:
+    """When Meta stops accepting `access_token` (debug_token's `expires_at`), or None if it never
+    expires (`expires_at` 0). Asked with our app's access token (`<app id>|<App Secret>`)."""
+    status, data = _call(
+        'GET',
+        'debug_token',
+        params={'input_token': access_token, 'access_token': f'{settings.META_APP_ID}|{settings.META_APP_SECRET}'},
+        transport=transport,
+    )
+    info = data.get('data') if isinstance(data.get('data'), dict) else {}
+    expires_at = info.get('expires_at')
+    if status != 200 or not isinstance(expires_at, int) or isinstance(expires_at, bool):
+        raise MetaSignupError(f"Meta couldn't describe the token: {_error_message(data)}")
+    return datetime.fromtimestamp(expires_at, UTC) if expires_at > 0 else None
 
 
 def register_phone_number(

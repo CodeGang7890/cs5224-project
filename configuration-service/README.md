@@ -219,7 +219,7 @@ All of these require you to be logged in.
 
 Each business can connect one WhatsApp Business number, **with Facebook through WhatsApp Embedded Signup** (`configuration_app/embedded_signup.py`). It goes through **our** Meta app (`META_APP_ID` / `META_APP_SECRET`); businesses don't create their own. The frontend runs Meta's popup and sends what it returns; this service does the rest:
 
-1. swaps the popup's code (valid for 30 seconds) for the business's token;
+1. swaps the popup's code (valid for 30 seconds) for the business's token, and finds out when it expires (Meta's `expires_in`, else `GET /debug_token`);
 2. checks the number with that token (`GET /{phone_number_id}`), which also gives the number and name Meta verified;
 3. registers the number for Cloud API, with a random two-step verification PIN;
 4. saves the connection;
@@ -238,9 +238,11 @@ Each business can connect one WhatsApp Business number, **with Facebook through 
 
 The owner's API returns `status`, a `status_reason` to show them, and `status_updated_time`. Connecting again with Facebook sets it back to `connected`.
 
+**Token expiry:** the business's token can expire (e.g. after 60 days, depending on our Facebook Login for Business configuration's token expiration). `access_token_expires_time` keeps when (empty: it doesn't, or isn't known), and the API's `access_token_status` is `active`, `expiring_soon` (within 7 days, `ACCESS_TOKEN_EXPIRY_WARNING`) or `expired` (replies fail until the owner reconnects). The frontend then warns the owner to reconnect with Facebook, which gives a new token and expiry, and notification-job alerts the business's users 7 days and 1 day before and at expiry.
+
 | Method | URL | Auth | What it does |
 | --- | --- | --- | --- |
-| `GET` | `/api/configuration/whatsapp/` | login | Your business's connection: `phone_number_id`, `display_phone_number`, `verified_name`, `waba_id`, `connection_method`, `status` (`connected` / `disconnected` / `banned`), `status_reason`, `status_updated_time`, times. 404 if not connected. |
+| `GET` | `/api/configuration/whatsapp/` | login | Your business's connection: `phone_number_id`, `display_phone_number`, `verified_name`, `waba_id`, `connection_method`, `status` (`connected` / `disconnected` / `banned`), `status_reason`, `status_updated_time`, `access_token_expires_time`, `access_token_status` (`active` / `expiring_soon` / `expired`), times. 404 if not connected. |
 | `POST` | `/api/configuration/whatsapp/embedded-signup/` | login | Connect (201) or replace the connection (200) with `{code, waba_id, phone_number_id}` from the popup. 400 if Meta refused a step (`non_field_errors`, a message for the owner) or the number belongs to another business; 503 if Embedded Signup isn't configured or Meta can't be reached. |
 | `DELETE` | `/api/configuration/whatsapp/` | login | Disconnect (204). For Embedded Signup connections, our app is also unsubscribed from the WABA (best effort). |
 | `POST` | `/api/internal/whatsapp/<business_id>/verify-token/` | `X-Internal-Api-Key` header | **Service-to-service only** (messaging-ingester). `{verify_token}` → `{valid, phone_number_id}`: does the `hub.verify_token` Meta sent in its webhook handshake match the business's? |

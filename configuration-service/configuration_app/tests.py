@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
 
@@ -21,6 +22,7 @@ from .models import (
     WHATSAPP_ACCESS_TOKEN_MAX_LENGTH,
     WHATSAPP_APP_SECRET_MAX_LENGTH,
     WHATSAPP_ID_MAX_LENGTH,
+    AccessTokenStatus,
     BusinessConfiguration,
     WhatsAppConfiguration,
     WhatsAppConnectionMethod,
@@ -296,21 +298,31 @@ class WhatsAppConfigurationAPITests(APITestCase):
         self.assertEqual(
             set(body),
             {'phone_number_id', 'display_phone_number', 'verified_name', 'waba_id', 'connection_method', 'status',
-             'status_reason', 'status_updated_time', 'created_time', 'last_updated'},
+             'status_reason', 'status_updated_time', 'access_token_expires_time', 'access_token_status',
+             'created_time', 'last_updated'},
         )
+        self.assertEqual((body['access_token_expires_time'], body['access_token_status']), (None, 'active'))
         self.assertEqual((body['status'], body['status_reason'], body['status_updated_time']), ('connected', '', None))
         self.assertEqual(
             (body['phone_number_id'], body['display_phone_number'], body['connection_method']),
             (TEST_PHONE_NUMBER_ID, '+65 9123 4567', 'manual'),
         )
 
+    def test_get_says_when_to_reconnect(self):
+        create_whatsapp_config(self.cafe, access_token_expires_time=timezone.now() + timedelta(days=3))
+        self.client.force_authenticate(self.cafe_user)
+        body = self.client.get(self.url).json()
+        self.assertEqual(body['access_token_status'], 'expiring_soon')
+        self.assertIsNotNone(body['access_token_expires_time'])
+
     def test_secrets_and_webhook_details_are_never_returned(self):
         config = create_whatsapp_config(self.cafe, two_step_pin='482913')
         self.client.force_authenticate(self.cafe_user)
-        body = self.client.get(self.url).content.decode()
-        for value in (TEST_ACCESS_TOKEN, TEST_APP_SECRET, '482913', config.verify_token, 'access_token',
-                      'app_secret', 'two_step_pin', 'verify_token', 'webhook'):
+        response = self.client.get(self.url)
+        body = response.content.decode()
+        for value in (TEST_ACCESS_TOKEN, TEST_APP_SECRET, '482913', config.verify_token, 'webhook'):
             self.assertNotIn(value, body)
+        self.assertFalse({'access_token', 'app_secret', 'two_step_pin', 'verify_token'} & set(response.json()))
 
     def test_disconnect(self):
         create_whatsapp_config(self.cafe)
@@ -595,6 +607,7 @@ PLATFORM_APP_SECRET = 'platform-app-secret-0123456789abcdef'
 SIGNUP_TOKEN = 'EAABusinessTokenFromSignup'
 SIGNUP_WABA_ID = '524126980791429'
 SIGNUP_PHONE_NUMBER_ID = '106540352242922'
+SIGNUP_TOKEN_EXPIRES = datetime(2026, 12, 23, 6, 0, tzinfo=UTC)
 SIGNUP_REQUEST = {'code': 'AQBhlXsct-code', 'waba_id': SIGNUP_WABA_ID, 'phone_number_id': SIGNUP_PHONE_NUMBER_ID}
 
 
@@ -616,15 +629,61 @@ class EmbeddedSignupMetaApiTests(SimpleTestCase):
         url = urlsplit(str(request.url))
         return request, url.path, parse_qs(url.query)
 
+    def fake_meta_routes(self, routes):
+        """Answers each Graph API path (after the version) with its (status, body)."""
+        self.requests = []
+
+        def handler(request):
+            self.requests.append(request)
+            status, body = routes[urlsplit(str(request.url)).path.split('/', 2)[2]]
+            return httpx.Response(status, json=body)
+
+        return httpx.MockTransport(handler)
+
     def test_exchange_code(self):
-        transport = self.fake_meta(body={'access_token': SIGNUP_TOKEN, 'token_type': 'bearer'})
-        self.assertEqual(meta_api.exchange_code('the-code', transport=transport), SIGNUP_TOKEN)
+        body = {'access_token': SIGNUP_TOKEN, 'token_type': 'bearer', 'expires_in': 5184000}  # 60 days
+        before = timezone.now()
+        token = meta_api.exchange_code('the-code', transport=self.fake_meta(body=body))
+        self.assertEqual(token.access_token, SIGNUP_TOKEN)
+        self.assertTrue(before + timedelta(days=60) <= token.expires_time <= timezone.now() + timedelta(days=60))
         request, path, query = self.last()
+        self.assertEqual(len(self.requests), 1)
         self.assertEqual((request.method, path), ('GET', '/v26.0/oauth/access_token'))
         self.assertEqual(
             query, {'client_id': ['1147422487864729'], 'client_secret': [PLATFORM_APP_SECRET], 'code': ['the-code']}
         )
         self.assertNotIn('Authorization', request.headers)
+
+    def test_exchange_code_without_expires_in_asks_meta_when_it_expires(self):
+        transport = self.fake_meta_routes({
+            'oauth/access_token': (200, {'access_token': SIGNUP_TOKEN, 'token_type': 'bearer'}),
+            'debug_token': (200, {'data': {'is_valid': True, 'type': 'SYSTEM_USER', 'expires_at': 1798761600}}),
+        })
+        token = meta_api.exchange_code('the-code', transport=transport)
+        self.assertEqual(token, meta_api.BusinessToken(SIGNUP_TOKEN, datetime(2027, 1, 1, tzinfo=UTC)))
+        request, path, query = self.last()
+        self.assertEqual((request.method, path), ('GET', '/v26.0/debug_token'))
+        self.assertEqual(
+            query, {'input_token': [SIGNUP_TOKEN], 'access_token': [f'1147422487864729|{PLATFORM_APP_SECRET}']}
+        )
+
+    def test_a_token_that_never_expires(self):
+        transport = self.fake_meta_routes({
+            'oauth/access_token': (200, {'access_token': SIGNUP_TOKEN}),
+            'debug_token': (200, {'data': {'is_valid': True, 'expires_at': 0}}),
+        })
+        self.assertIsNone(meta_api.exchange_code('the-code', transport=transport).expires_time)
+
+    def test_unknown_expiry_still_connects(self):
+        for debug_answer in ((400, {'error': {'message': 'Invalid OAuth access token.', 'code': 190}}),
+                             (503, {'error': {'message': 'down'}})):
+            with self.subTest(status=debug_answer[0]):
+                transport = self.fake_meta_routes({
+                    'oauth/access_token': (200, {'access_token': SIGNUP_TOKEN}), 'debug_token': debug_answer,
+                })
+                with self.assertLogs('configuration_app.meta_api', 'WARNING'):
+                    token = meta_api.exchange_code('the-code', transport=transport)
+                self.assertEqual(token, meta_api.BusinessToken(SIGNUP_TOKEN, None))
 
     def test_exchange_code_refused(self):
         transport = self.fake_meta(400, {'error': {'message': 'This authorization code has expired.', 'code': 100}})
@@ -703,7 +762,7 @@ class EmbeddedSignupAPITests(APITestCase):
         # Fake every Meta call (tests never call the real Meta).
         self.meta = {}
         for name, value in (
-            ('exchange_code', SIGNUP_TOKEN),
+            ('exchange_code', meta_api.BusinessToken(SIGNUP_TOKEN, SIGNUP_TOKEN_EXPIRES)),
             ('check_credentials', META_INFO),
             ('register_phone_number', True),
             ('subscribe_app', None),
@@ -729,6 +788,7 @@ class EmbeddedSignupAPITests(APITestCase):
             (SIGNUP_PHONE_NUMBER_ID, SIGNUP_TOKEN, PLATFORM_APP_SECRET, SIGNUP_WABA_ID, 'embedded_signup'),
         )
         self.assertEqual((config.display_phone_number, config.verified_name), ('+65 9123 4567', 'Café Pte Ltd'))
+        self.assertEqual(config.access_token_expires_time, SIGNUP_TOKEN_EXPIRES)
         self.meta['exchange_code'].assert_called_once_with('AQBhlXsct-code')
         self.meta['check_credentials'].assert_called_once_with(SIGNUP_PHONE_NUMBER_ID, SIGNUP_TOKEN, PLATFORM_APP_SECRET)
         pin = self.meta['register_phone_number'].call_args.args[3]
@@ -741,6 +801,7 @@ class EmbeddedSignupAPITests(APITestCase):
         )
         body = response.json()
         self.assertEqual((body['connection_method'], body['waba_id']), ('embedded_signup', SIGNUP_WABA_ID))
+        self.assertEqual(body['access_token_expires_time'], '2026-12-23T06:00:00Z')
         self.assertNotIn('access_token', body)
         self.assertNotIn('app_secret', body)
 
@@ -859,12 +920,49 @@ class EmbeddedSignupAPITests(APITestCase):
         config = self.saved()
         self.assertEqual((config.status, config.status_event, config.status_updated_time), ('connected', '', None))
 
+    def test_reconnecting_renews_the_token_and_its_expiry(self):
+        create_whatsapp_config(
+            self.cafe, phone_number_id=SIGNUP_PHONE_NUMBER_ID, waba_id=SIGNUP_WABA_ID, connection_method='embedded_signup',
+            access_token='old-token', access_token_expires_time=timezone.now() - timedelta(days=1),
+        )
+        self.assertEqual(self.connect().status_code, 200)
+        config = self.saved()
+        self.assertEqual((config.access_token, config.access_token_expires_time), (SIGNUP_TOKEN, SIGNUP_TOKEN_EXPIRES))
+        self.meta['unsubscribe_app'].assert_not_called()  # same WABA
+
+    def test_webhook_failure_restores_the_previous_expiry(self):
+        expires = timezone.now() + timedelta(days=2)
+        create_whatsapp_config(self.cafe, access_token_expires_time=expires)
+        self.meta['subscribe_app'].side_effect = meta_api.MetaUnavailableError('timeout')
+        self.assertEqual(self.connect().status_code, 503)
+        self.assertEqual(self.saved().access_token_expires_time, expires)
+
     def test_reconnecting_the_same_number_keeps_its_known_pin(self):
         self.connect()
         pin = self.saved().two_step_pin
         self.meta['register_phone_number'].return_value = False  # registered with that PIN: Meta refuses a new one
         self.assertEqual(self.connect().status_code, 200)
         self.assertEqual(self.saved().two_step_pin, pin)
+
+
+class AccessTokenStatusTests(SimpleTestCase):
+    NOW = datetime(2026, 10, 24, 12, 0, tzinfo=UTC)
+
+    def status(self, expires):
+        return WhatsAppConfiguration(access_token_expires_time=expires).access_token_status(now=self.NOW)
+
+    def test_statuses(self):
+        for expires, status in (
+            (None, AccessTokenStatus.ACTIVE),  # never expires (or unknown, e.g. manual connections)
+            (self.NOW + timedelta(days=30), AccessTokenStatus.ACTIVE),
+            (self.NOW + timedelta(days=7, seconds=1), AccessTokenStatus.ACTIVE),
+            (self.NOW + timedelta(days=7), AccessTokenStatus.EXPIRING_SOON),
+            (self.NOW + timedelta(minutes=1), AccessTokenStatus.EXPIRING_SOON),
+            (self.NOW, AccessTokenStatus.EXPIRED),
+            (self.NOW - timedelta(days=1), AccessTokenStatus.EXPIRED),
+        ):
+            with self.subTest(expires=expires):
+                self.assertEqual(self.status(expires), status)
 
 
 class EmbeddedSignupModelTests(TestCase):

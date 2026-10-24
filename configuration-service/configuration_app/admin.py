@@ -18,6 +18,7 @@ class WhatsAppConfigurationAdmin(admin.ModelAdmin):
         'verified_name',
         'connection_method',
         'status',
+        'access_token_expires_time',
         'last_updated',
     )
     search_fields = ('business__business_name', 'phone_number_id', 'display_phone_number', 'verified_name')
@@ -35,6 +36,7 @@ class WhatsAppConfigurationAdmin(admin.ModelAdmin):
         'status',
         'status_event',
         'status_updated_time',
+        'access_token_expires_time',
         'created_time',
         'last_updated',
     )
