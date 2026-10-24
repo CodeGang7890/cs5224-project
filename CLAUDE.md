@@ -44,6 +44,8 @@ Businesses connect WhatsApp only with **Embedded Signup** ("Connect with Faceboo
 
 `WhatsAppConfiguration.connection_method` is `embedded_signup` for these and `manual` for older connections made with a business's own Meta app (e.g. the sample fixtures, which `mock_whatsapp` uses locally; there's no API to create new ones). Either way, messages, signature checks and replies work the same.
 
+Meta reports changes to a business's WhatsApp Business account (our app removed, the account deleted or offboarded, banned, reinstated) with `account_update` webhooks to our app's `/webhook`: messaging-ingester forwards them to configuration-service (`POST /api/internal/whatsapp/app/account-updates/`), which sets the connection's `status` (`connected` / `disconnected` / `banned`), and frontend-app's WhatsApp card shows it with the reason. Reconnecting with Facebook resets it.
+
 ## Logins
 
 configuration-service issues the JWTs (SimpleJWT, HS256). messaging-service checks the access tokens itself (`app/auth.py`). Both must use the same `JWT_SIGNING_KEY`; docker-compose sets it.
