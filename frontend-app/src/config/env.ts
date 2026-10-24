@@ -5,5 +5,14 @@ export const env = {
   configurationServiceUrl: import.meta.env.VITE_CONFIGURATION_SERVICE_URL || 'http://localhost:8000/api',
   /** messaging-service API root (the chat flow: the Chat Sandbox's messages). */
   messagingServiceUrl: import.meta.env.VITE_MESSAGING_SERVICE_URL || 'http://localhost:8004/api',
+  /**
+   * Our Meta app, for WhatsApp Embedded Signup ("Connect with Facebook"). Without the app ID and the
+   * Facebook Login for Business configuration ID, only the manual WhatsApp form shows.
+   */
+  meta: {
+    appId: import.meta.env.VITE_META_APP_ID || '',
+    configId: import.meta.env.VITE_META_CONFIG_ID || '',
+    graphApiVersion: import.meta.env.VITE_META_GRAPH_API_VERSION || 'v26.0',
+  },
   isDev: import.meta.env.DEV,
 } as const

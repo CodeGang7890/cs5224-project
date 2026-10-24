@@ -3,11 +3,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ApiError } from '@/types/api'
 
 import {
+  connectWithEmbeddedSignup,
   deleteWhatsAppConfiguration,
   getWhatsAppConfiguration,
-  saveWhatsAppConfiguration,
 } from '../api/whatsapp-api'
-import type { WhatsAppConfiguration, WhatsAppConfigurationInput } from '../types'
+import type { EmbeddedSignupInput, WhatsAppConfiguration } from '../types'
 
 export const whatsAppKeys = {
   all: ['whatsapp-configuration'] as const,
@@ -23,11 +23,11 @@ export function useWhatsAppConfiguration(enabled = true) {
   })
 }
 
-/** Connects or updates (PUT) and puts the saved connection straight into the cache. */
-export function useSaveWhatsAppConfiguration() {
+/** Connects with Embedded Signup's results (POST) and puts the saved connection into the cache. */
+export function useConnectWithEmbeddedSignup() {
   const queryClient = useQueryClient()
-  return useMutation<WhatsAppConfiguration, ApiError, WhatsAppConfigurationInput>({
-    mutationFn: saveWhatsAppConfiguration,
+  return useMutation<WhatsAppConfiguration, ApiError, EmbeddedSignupInput>({
+    mutationFn: connectWithEmbeddedSignup,
     onSuccess: (saved) => queryClient.setQueryData(whatsAppKeys.detail(), saved),
   })
 }

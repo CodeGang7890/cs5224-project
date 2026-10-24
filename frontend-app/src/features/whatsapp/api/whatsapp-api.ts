@@ -1,7 +1,7 @@
 import { configurationApiClient } from '@/lib/api-client'
 import type { ApiError } from '@/types/api'
 
-import type { WhatsAppConfiguration, WhatsAppConfigurationInput } from '../types'
+import type { EmbeddedSignupInput, WhatsAppConfiguration } from '../types'
 
 // The backend always uses the logged-in user's business, so there's no ID in the URL.
 const PATH = '/configuration/whatsapp/'
@@ -17,9 +17,15 @@ export async function getWhatsAppConfiguration(): Promise<WhatsAppConfiguration 
   }
 }
 
-/** Connects WhatsApp, or updates the connection (blank secrets are kept). */
-export async function saveWhatsAppConfiguration(input: WhatsAppConfigurationInput): Promise<WhatsAppConfiguration> {
-  const { data } = await configurationApiClient.put<WhatsAppConfiguration>(PATH, input)
+// The backend makes several calls to Meta (exchange the code, check and register the number, set up
+// the webhook), so allow more than the client's default timeout.
+const EMBEDDED_SIGNUP_TIMEOUT_MS = 90_000
+
+/** Connects (or reconnects) with what the Embedded Signup popup returned. Send it at once: the code expires. */
+export async function connectWithEmbeddedSignup(input: EmbeddedSignupInput): Promise<WhatsAppConfiguration> {
+  const { data } = await configurationApiClient.post<WhatsAppConfiguration>(`${PATH}embedded-signup/`, input, {
+    timeout: EMBEDDED_SIGNUP_TIMEOUT_MS,
+  })
   return data
 }
 

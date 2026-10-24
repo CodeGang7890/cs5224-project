@@ -68,17 +68,14 @@ The top right shows **Log In** when you're logged out. When you're logged in, it
 
 ## Connecting WhatsApp
 
-The **WhatsApp** card on Home (login required; your account must belong to a business) connects your business's WhatsApp Business number, so customers' messages reach your assistant (through `messaging-ingester`). It uses `GET`/`PUT`/`DELETE /api/configuration/whatsapp/` on configuration-service.
+The **WhatsApp** card on Home (login required; your account must belong to a business) connects your business's WhatsApp Business number with **Connect with Facebook** (Meta's WhatsApp Embedded Signup), so customers' messages reach your assistant.
 
-1. From your Meta app, enter:
-   - **Phone Number ID**: WhatsApp → API Setup, the digits under your phone number (not the number itself).
-   - **Access token**: a permanent System User token (Business Settings → System users). The one on API Setup expires after 24 hours.
-   - **App Secret**: App settings → Basic.
-2. Click **Connect WhatsApp** and confirm.
-   The details are **checked with Meta** first ("Checking with Meta…"): a wrong Phone Number ID, an invalid or expired token, or an App Secret from another app is shown under that field, and nothing is saved.
-3. The card then shows the number Meta verified (e.g. "+65 9123 4567 · Kopi & Co. Café"), a **Callback URL** and a **Verify token**, with copy buttons. In Meta, open WhatsApp → Configuration → Webhook, paste both, click *Verify and save*, and subscribe to the **messages** field.
+1. Click **Connect with Facebook**, then **Continue to Facebook**.
+2. In Facebook's window: log in, choose or create your WhatsApp Business account, and add and verify your business phone number.
+3. When you finish, the card shows *Connecting…*, then the number Meta verified (e.g. "+65 9123 4567 · Kopi & Co. Café"). The webhook is set up automatically: there's nothing to enter in Meta.
 
-The access token and App Secret are stored encrypted and never shown again. Once connected, the details are shown locked. To change them, click **Edit**: the Phone Number ID becomes editable, and each saved secret (shown as dots) gets a **Replace** button, which opens an empty field for the new value (**Keep current** undoes it). Then **Save changes**; **Cancel** discards everything you typed. **Disconnect** deletes the saved settings; connecting again gives a new verify token. Every save and disconnect asks for confirmation.
+Once connected, **Reconnect with Facebook** replaces the connection and **Disconnect** removes it (both ask for confirmation). The button needs `VITE_META_APP_ID` and `VITE_META_CONFIG_ID`; until they're set it does nothing. Meta only allows the Facebook window on HTTPS domains set on our app, so it can't be completed on localhost.
+
 ## Connecting to configuration-service
 
 The Home tab calls `GET /api/configuration/random-number/` on the Django backend in `../configuration-service`. To see it working:
