@@ -8,7 +8,7 @@ from app.verification import (
     BusinessNotConnectedError,
     ConfigurationServiceClient,
     Verification,
-    VerificationUnavailableError,
+    ConfigurationServiceUnavailableError,
 )
 
 BASE_URL = 'http://configuration-service:8000/api'
@@ -81,13 +81,13 @@ class ConfigurationServiceClientTests(unittest.TestCase):
     def test_other_statuses_mean_unavailable(self):
         for status in (400, 401, 403, 405, 500, 502, 503):
             with self.subTest(status=status):
-                with self.assertRaises(VerificationUnavailableError):
+                with self.assertRaises(ConfigurationServiceUnavailableError):
                     self.client(self.reply(status, json_body={'detail': 'x'})).verify_signature(7, b'{}', 's')
 
     def test_unexpected_replies_mean_unavailable(self):
         for handler in (self.reply(text='not json'), self.reply(json_body={'ok': True}), self.reply(json_body=[1])):
             with self.subTest():
-                with self.assertRaises(VerificationUnavailableError):
+                with self.assertRaises(ConfigurationServiceUnavailableError):
                     self.client(handler).verify_token(7, 'x')
 
     def test_network_errors_mean_unavailable(self):
@@ -95,7 +95,7 @@ class ConfigurationServiceClientTests(unittest.TestCase):
             with self.subTest(error=type(error).__name__):
                 def handler(request, error=error):
                     raise error
-                with self.assertRaises(VerificationUnavailableError):
+                with self.assertRaises(ConfigurationServiceUnavailableError):
                     self.client(handler).verify_token(7, 'x')
 
 
@@ -136,5 +136,5 @@ class AppWebhookClientTests(ConfigurationServiceClientTests):
     def test_report_account_updates_failures(self):
         for reply in (self.reply(500, {'detail': 'boom'}), self.reply(json_body={'changed': 'one'}),
                       self.reply(json_body=['changed'])):
-            with self.subTest(), self.assertRaises(VerificationUnavailableError):
+            with self.subTest(), self.assertRaises(ConfigurationServiceUnavailableError):
                 self.client(reply).report_account_updates([AccountUpdate('111', 'ACCOUNT_DELETED')])

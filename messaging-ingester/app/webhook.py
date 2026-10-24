@@ -26,7 +26,7 @@ from . import config
 from .parsing import parse_account_updates, parse_webhook
 from .publisher import Publisher, PublishError, PubSubPublisher
 from .schemas import AppWebhookAck, ErrorResponse, ValidationErrorResponse, WebhookAck
-from .verification import BusinessNotConnectedError, ConfigurationServiceClient, VerificationUnavailableError
+from .verification import BusinessNotConnectedError, ConfigurationServiceClient, ConfigurationServiceUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -50,15 +50,15 @@ async def raw_body(request: Request) -> bytes:
 BusinessId = Annotated[int, Path(description='The business ID from the Callback URL.')]
 Verifier = Annotated[ConfigurationServiceClient, Depends(get_verifier)]
 
-
-def _check(call):
-    """Runs a verification call, mapping its failures to HTTP errors."""
+def _check(call, not_found: str = 'This business has not connected WhatsApp.'):
+    """Runs a configuration-service call, mapping its failures to HTTP errors: 404 `not_found`, or 503
+    (so Meta retries)."""
     try:
         return call()
     except BusinessNotConnectedError as exc:
-        raise HTTPException(status_code=404, detail='This business has not connected WhatsApp.') from exc
-    except VerificationUnavailableError as exc:
-        logger.error('Verification unavailable: %s', exc)
+        raise HTTPException(status_code=404, detail=not_found) from exc
+    except ConfigurationServiceUnavailableError as exc:
+        logger.error('configuration-service unavailable: %s', exc)
         raise HTTPException(status_code=503, detail='Could not verify the request right now; try again later.') from exc
 
 
@@ -139,19 +139,6 @@ def receive_webhook(
 
 # --- Our Meta app's default webhook (Embedded Signup) ---------------------------------------
 
-APP_NOT_CONFIGURED = 'Our app webhook is not configured.'
-
-
-def _check_app(call):
-    try:
-        return call()
-    except BusinessNotConnectedError as exc:
-        raise HTTPException(status_code=404, detail=APP_NOT_CONFIGURED) from exc
-    except VerificationUnavailableError as exc:
-        logger.error('Verification unavailable: %s', exc)
-        raise HTTPException(status_code=503, detail='Could not verify the request right now; try again later.') from exc
-
-
 @router.get(
     '/webhook',
     summary="Meta's handshake for our app's webhook",
@@ -159,7 +146,7 @@ def _check_app(call):
     responses={
         200: {'content': {'text/plain': {'example': '1158201444'}}, 'description': 'The `hub.challenge`, echoed.'},
         403: {'model': ErrorResponse, 'description': 'Wrong `hub.mode` or `hub.verify_token`.'},
-        404: {'model': ErrorResponse, 'description': APP_NOT_CONFIGURED},
+        404: {'model': ErrorResponse, 'description': 'Our app webhook is not configured.'},
         422: {'model': ValidationErrorResponse, 'description': 'Missing query parameters.'},
         503: {'model': ErrorResponse, 'description': 'configuration-service is unreachable.'},
     },
@@ -173,7 +160,7 @@ def verify_app_subscription(
     """When our Callback URL is saved in the App Dashboard: checks META_APP_WEBHOOK_VERIFY_TOKEN."""
     if mode != 'subscribe':
         raise HTTPException(status_code=403, detail='hub.mode must be "subscribe".')
-    if not _check_app(lambda: verifier.verify_app_token(verify_token)).valid:
+    if not _check(lambda: verifier.verify_app_token(verify_token), 'Our app webhook is not configured.').valid:
         logger.warning('App webhook verification failed: wrong verify token')
         raise HTTPException(status_code=403, detail='Wrong verify token.')
     logger.info('App webhook verified')
@@ -186,7 +173,7 @@ def verify_app_subscription(
     responses={
         400: {'model': ErrorResponse, 'description': 'The (correctly signed) body is not JSON.'},
         401: {'model': ErrorResponse, 'description': 'Missing or wrong `X-Hub-Signature-256`.'},
-        404: {'model': ErrorResponse, 'description': APP_NOT_CONFIGURED},
+        404: {'model': ErrorResponse, 'description': 'Our app webhook is not configured.'},
         503: {'model': ErrorResponse, 'description': 'configuration-service is unavailable; Meta retries.'},
     },
 )
@@ -199,7 +186,7 @@ def receive_app_webhook(
     (which marks connections disconnected or banned; if it's unavailable → 503, so Meta retries) and logs
     the rest. Customer messages shouldn't arrive here (each business's are overridden to its own URL);
     any that do are logged, not published."""
-    if not _check_app(lambda: verifier.verify_app_signature(body, signature)).valid:
+    if not _check(lambda: verifier.verify_app_signature(body, signature), 'Our app webhook is not configured.').valid:
         logger.warning('Rejected an app webhook: bad signature')
         raise HTTPException(status_code=401, detail='Missing or invalid signature.')
     try:
@@ -225,7 +212,7 @@ def receive_app_webhook(
                 logger.info('App webhook event %s for account %s', field, entry.get('id'))
 
     updates = parse_account_updates(payload)
-    changed = _check_app(lambda: verifier.report_account_updates(updates)) if updates else 0
+    changed = _check(lambda: verifier.report_account_updates(updates), 'Our app webhook is not configured.') if updates else 0
     if updates:
         logger.info('Handed %d account_update event(s) to configuration-service: %d changed', len(updates), changed)
     return AppWebhookAck(account_updates=len(updates), changed=changed)

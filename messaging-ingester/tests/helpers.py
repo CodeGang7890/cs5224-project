@@ -4,7 +4,7 @@ import json
 
 from app.parsing import AccountUpdate, InboundMessage
 from app.publisher import PublishError
-from app.verification import BusinessNotConnectedError, Verification, VerificationUnavailableError
+from app.verification import BusinessNotConnectedError, Verification, ConfigurationServiceUnavailableError
 
 BUSINESS_ID = 7
 PHONE_NUMBER_ID = '106540352242922'
@@ -104,4 +104,4 @@ class FakePublisher:
 
 
 NOT_CONNECTED = BusinessNotConnectedError('not connected')
-UNAVAILABLE = VerificationUnavailableError('configuration-service is down')
+UNAVAILABLE = ConfigurationServiceUnavailableError('configuration-service is down')

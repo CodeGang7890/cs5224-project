@@ -25,7 +25,7 @@ class BusinessNotConnectedError(Exception):
     app's own webhook: it isn't configured (no META_APP_SECRET / META_APP_WEBHOOK_VERIFY_TOKEN)."""
 
 
-class VerificationUnavailableError(Exception):
+class ConfigurationServiceUnavailableError(Exception):
     """configuration-service couldn't answer (down, timed out, wrong API key, unexpected reply)."""
 
 
@@ -33,6 +33,14 @@ class VerificationUnavailableError(Exception):
 class Verification:
     valid: bool
     phone_number_id: str | None  # the business's Phone Number ID, when valid
+
+def _forwarded(signature: str | None) -> dict:
+    """Headers for forwarding a webhook unchanged: the raw body, and Meta's signature header if it sent one."""
+    headers = {'Content-Type': 'application/octet-stream'}
+    if signature is not None:
+        headers[config.SIGNATURE_HEADER] = signature
+    return headers
+
 
 class ConfigurationServiceClient:
     def __init__(
@@ -53,25 +61,21 @@ class ConfigurationServiceClient:
         return self._post(f'/internal/whatsapp/{business_id}/verify-token/', json={'verify_token': verify_token})
 
     def verify_signature(self, business_id: int, body: bytes, signature: str | None) -> Verification:
-        headers = {'Content-Type': 'application/octet-stream'}
-        if signature is not None:
-            headers[config.SIGNATURE_HEADER] = signature
-        return self._post(f'/internal/whatsapp/{business_id}/verify-signature/', content=body, headers=headers)
+        return self._post(
+            f'/internal/whatsapp/{business_id}/verify-signature/', content=body, headers=_forwarded(signature)
+        )
 
     def verify_app_token(self, verify_token: str) -> Verification:
         return self._post('/internal/whatsapp/app/verify-token/', json={'verify_token': verify_token})
 
     def verify_app_signature(self, body: bytes, signature: str | None) -> Verification:
-        headers = {'Content-Type': 'application/octet-stream'}
-        if signature is not None:
-            headers[config.SIGNATURE_HEADER] = signature
-        return self._post('/internal/whatsapp/app/verify-signature/', content=body, headers=headers)
+        return self._post('/internal/whatsapp/app/verify-signature/', content=body, headers=_forwarded(signature))
 
     def report_account_updates(self, updates: list[AccountUpdate]) -> int:
         data = self._send('/internal/whatsapp/app/account-updates/', json={'updates': [u.to_dict() for u in updates]})
         changed = data.get('changed')
         if not isinstance(changed, int) or isinstance(changed, bool):
-            raise VerificationUnavailableError(f'Unexpected reply from configuration-service: {data!r:.200}')
+            raise ConfigurationServiceUnavailableError(f'Unexpected reply from configuration-service: {data!r:.200}')
         return changed
 
     def _post(self, path: str, **kwargs) -> Verification:
@@ -79,24 +83,24 @@ class ConfigurationServiceClient:
         try:
             return Verification(valid=data['valid'] is True, phone_number_id=data.get('phone_number_id'))
         except (KeyError, TypeError) as exc:
-            raise VerificationUnavailableError(f'Unexpected reply from configuration-service: {data!r:.200}') from exc
+            raise ConfigurationServiceUnavailableError(f'Unexpected reply from configuration-service: {data!r:.200}') from exc
 
     def _send(self, path: str, **kwargs) -> dict:
         """POSTs to configuration-service's internal API → its JSON object."""
         try:
             response = self._client.post(path, **kwargs)
         except httpx.HTTPError as exc:  # connection refused, DNS, timeout...
-            raise VerificationUnavailableError(f'Could not reach configuration-service: {exc}') from exc
+            raise ConfigurationServiceUnavailableError(f'Could not reach configuration-service: {exc}') from exc
         if response.status_code == 404:
             raise BusinessNotConnectedError('This business has not connected WhatsApp.')
         if response.status_code != 200:  # 403 (wrong INTERNAL_API_KEY), 400, 5xx...
-            raise VerificationUnavailableError(
+            raise ConfigurationServiceUnavailableError(
                 f'configuration-service answered {response.status_code} to {path}: {response.text[:200]}'
             )
         try:
             data = response.json()
         except ValueError as exc:
-            raise VerificationUnavailableError(f'Unexpected reply from configuration-service: {response.text[:200]}') from exc
+            raise ConfigurationServiceUnavailableError(f'Unexpected reply from configuration-service: {response.text[:200]}') from exc
         if not isinstance(data, dict):
-            raise VerificationUnavailableError(f'Unexpected reply from configuration-service: {response.text[:200]}')
+            raise ConfigurationServiceUnavailableError(f'Unexpected reply from configuration-service: {response.text[:200]}')
         return data
