@@ -5,6 +5,9 @@ The ingester never sees a business's secrets. It asks configuration-service:
 - verify-signature: is this webhook really from Meta? The raw body and Meta's X-Hub-Signature-256
   header are forwarded unchanged, because the signature covers the exact bytes.
 Both answer `{valid, phone_number_id}`.
+
+Our Meta app's own (default) webhook, /webhook (Embedded Signup), has the same two checks against
+the app's verify token and App Secret: verify_app_token / verify_app_signature.
 """
 
 from dataclasses import dataclass
@@ -15,7 +18,8 @@ from . import config
 
 
 class BusinessNotConnectedError(Exception):
-    """The business doesn't exist or hasn't connected WhatsApp (configuration-service said 404)."""
+    """The business doesn't exist or hasn't connected WhatsApp (configuration-service said 404). For our
+    app's own webhook: it isn't configured (no META_APP_SECRET / META_APP_WEBHOOK_VERIFY_TOKEN)."""
 
 
 class VerificationUnavailableError(Exception):
@@ -50,6 +54,15 @@ class ConfigurationServiceClient:
         if signature is not None:
             headers[config.SIGNATURE_HEADER] = signature
         return self._post(f'/internal/whatsapp/{business_id}/verify-signature/', content=body, headers=headers)
+
+    def verify_app_token(self, verify_token: str) -> Verification:
+        return self._post('/internal/whatsapp/app/verify-token/', json={'verify_token': verify_token})
+
+    def verify_app_signature(self, body: bytes, signature: str | None) -> Verification:
+        headers = {'Content-Type': 'application/octet-stream'}
+        if signature is not None:
+            headers[config.SIGNATURE_HEADER] = signature
+        return self._post('/internal/whatsapp/app/verify-signature/', content=body, headers=headers)
 
     def _post(self, path: str, **kwargs) -> Verification:
         try:

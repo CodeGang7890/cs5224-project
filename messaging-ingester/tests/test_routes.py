@@ -31,7 +31,7 @@ class APIDocsTests(unittest.TestCase):
 
     def test_openapi_lists_the_webhook(self):
         spec = self.client.get('/openapi.json').json()
-        self.assertEqual(set(spec['paths']), {'/', '/webhook/{business_id}'})
+        self.assertEqual(set(spec['paths']), {'/', '/webhook/{business_id}', '/webhook'})
         self.assertEqual(set(spec['paths']['/webhook/{business_id}']), {'get', 'post'})
         query = {p['name'] for p in spec['paths']['/webhook/{business_id}']['get']['parameters'] if p['in'] == 'query'}
         self.assertEqual(query, {'hub.mode', 'hub.verify_token', 'hub.challenge'})

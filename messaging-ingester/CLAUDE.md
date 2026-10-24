@@ -15,7 +15,8 @@ A **FastAPI** service (port **8002**) that receives Meta's WhatsApp Cloud API we
 
   Both answer `{valid, phone_number_id}`, with the `X-Internal-Api-Key` header (`INTERNAL_API_KEY`).
 
-- **One Callback URL per business:** `/webhook/{business_id}`.
+- **One Callback URL per business:** `/webhook/{business_id}`. Businesses connected with Embedded Signup get theirs too: configuration-service overrides their WhatsApp account's webhook to it.
+- **`/webhook` (no ID) is our Meta app's own Callback URL** (Embedded Signup needs one, App Dashboard → WhatsApp → Configuration): GET handshake / POST signature via `verify_app_token` / `verify_app_signature` (`/api/internal/whatsapp/app/…`, configuration-service's `META_APP_*`; 404 while unset). It only gets account-level events (logged, never published); stray customer messages there are logged as a missing override.
 - **Never re-serialize the body before the signature check.** `raw_body()` reads the bytes, `verification.verify_signature()` forwards them as-is, and only then is the body parsed with `json.loads`.
 - **Status codes are Meta's retry signal:** anything but 200 makes Meta retry.
   - 401 bad or missing signature (nothing published)

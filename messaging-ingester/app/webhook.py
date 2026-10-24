@@ -1,7 +1,13 @@
 """Meta's WhatsApp webhook: one Callback URL per business, /webhook/<business_id>.
 
-- GET: Meta's subscription handshake when the owner saves the webhook in Meta.
+- GET: Meta's subscription handshake when the owner saves the webhook in Meta (or, with Embedded
+  Signup, when configuration-service points the business's WhatsApp account at it).
 - POST: incoming events. The signature is checked, then each customer message is published.
+
+/webhook (no ID) is our Meta app's own Callback URL, which Embedded Signup needs (App Dashboard →
+WhatsApp → Configuration). It only gets account-level events (e.g. account_update); businesses'
+messages go to their own URLs. It checks the handshake and signature, logs the events and publishes
+nothing.
 
 The checks are done by configuration-service (verification.py); this service holds no secrets.
 Routes are plain `def`s: FastAPI runs them in a thread pool, so the blocking HTTP and Pub/Sub
@@ -128,3 +134,91 @@ def receive_webhook(
         logger.error('Publishing for business %s failed: %s', business_id, exc)
         raise HTTPException(status_code=503, detail='Could not publish the messages; try again later.') from exc
     return WebhookAck(published=len(result.messages))
+
+
+
+# --- Our Meta app's default webhook (Embedded Signup) ---------------------------------------
+
+APP_NOT_CONFIGURED = 'Our app webhook is not configured.'
+
+
+def _check_app(call):
+    try:
+        return call()
+    except BusinessNotConnectedError as exc:
+        raise HTTPException(status_code=404, detail=APP_NOT_CONFIGURED) from exc
+    except VerificationUnavailableError as exc:
+        logger.error('Verification unavailable: %s', exc)
+        raise HTTPException(status_code=503, detail='Could not verify the request right now; try again later.') from exc
+
+
+@router.get(
+    '/webhook',
+    summary="Meta's handshake for our app's webhook",
+    response_class=PlainTextResponse,
+    responses={
+        200: {'content': {'text/plain': {'example': '1158201444'}}, 'description': 'The `hub.challenge`, echoed.'},
+        403: {'model': ErrorResponse, 'description': 'Wrong `hub.mode` or `hub.verify_token`.'},
+        404: {'model': ErrorResponse, 'description': APP_NOT_CONFIGURED},
+        422: {'model': ValidationErrorResponse, 'description': 'Missing query parameters.'},
+        503: {'model': ErrorResponse, 'description': 'configuration-service is unreachable.'},
+    },
+)
+def verify_app_subscription(
+    verifier: Verifier,
+    mode: Annotated[str, Query(alias='hub.mode')],
+    verify_token: Annotated[str, Query(alias='hub.verify_token')],
+    challenge: Annotated[str, Query(alias='hub.challenge')],
+) -> PlainTextResponse:
+    """When our Callback URL is saved in the App Dashboard: checks META_APP_WEBHOOK_VERIFY_TOKEN."""
+    if mode != 'subscribe':
+        raise HTTPException(status_code=403, detail='hub.mode must be "subscribe".')
+    if not _check_app(lambda: verifier.verify_app_token(verify_token)).valid:
+        logger.warning('App webhook verification failed: wrong verify token')
+        raise HTTPException(status_code=403, detail='Wrong verify token.')
+    logger.info('App webhook verified')
+    return PlainTextResponse(challenge)
+
+
+@router.post(
+    '/webhook',
+    summary="Receive events for our app's webhook",
+    responses={
+        400: {'model': ErrorResponse, 'description': 'The (correctly signed) body is not JSON.'},
+        401: {'model': ErrorResponse, 'description': 'Missing or wrong `X-Hub-Signature-256`.'},
+        404: {'model': ErrorResponse, 'description': APP_NOT_CONFIGURED},
+        503: {'model': ErrorResponse, 'description': 'configuration-service is unavailable; Meta retries.'},
+    },
+)
+def receive_app_webhook(
+    verifier: Verifier,
+    body: Annotated[bytes, Depends(raw_body)],
+    signature: Annotated[str | None, Header(alias=config.SIGNATURE_HEADER)] = None,
+) -> WebhookAck:
+    """Checks the signature (our App Secret) and logs the events. Customer messages shouldn't arrive
+    here (each business's are overridden to its own URL); any that do are logged, not published."""
+    if not _check_app(lambda: verifier.verify_app_signature(body, signature)).valid:
+        logger.warning('Rejected an app webhook: bad signature')
+        raise HTTPException(status_code=401, detail='Missing or invalid signature.')
+    try:
+        payload = json.loads(body)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=400, detail='The body is not valid JSON.') from exc
+
+    entries = payload.get('entry') if isinstance(payload, dict) else None
+    for entry in entries if isinstance(entries, list) else []:
+        changes = entry.get('changes') if isinstance(entry, dict) else None
+        for item in changes if isinstance(changes, list) else []:
+            if not isinstance(item, dict):
+                continue
+            field = item.get('field')
+            value = item.get('value') if isinstance(item.get('value'), dict) else {}
+            if field == 'messages' and value.get('messages'):
+                metadata = value.get('metadata') if isinstance(value.get('metadata'), dict) else {}
+                logger.warning(
+                    'App webhook got messages for phone number %s (its webhook override is missing); not published',
+                    metadata.get('phone_number_id'),
+                )
+            else:
+                logger.info('App webhook event %s for account %s', field, entry.get('id'))
+    return WebhookAck(published=0)

@@ -63,6 +63,19 @@ class FakeVerifier:
         return Verification(valid=valid, phone_number_id=PHONE_NUMBER_ID if valid else None)
 
 
+    def verify_app_token(self, verify_token):
+        self.calls.append(('verify_app_token', verify_token))
+        if self.error:
+            raise self.error
+        return Verification(valid=verify_token == self.verify_token_value, phone_number_id=None)
+
+    def verify_app_signature(self, body, signature):
+        self.calls.append(('verify_app_signature', body, signature))
+        if self.error:
+            raise self.error
+        return Verification(valid=signature == self.signature_value, phone_number_id=None)
+
+
 class FakePublisher:
     def __init__(self, fail=False):
         self.fail = fail

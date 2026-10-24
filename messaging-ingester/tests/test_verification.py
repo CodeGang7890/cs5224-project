@@ -96,3 +96,27 @@ class ConfigurationServiceClientTests(unittest.TestCase):
                     raise error
                 with self.assertRaises(VerificationUnavailableError):
                     self.client(handler).verify_token(7, 'x')
+
+
+class AppWebhookClientTests(ConfigurationServiceClientTests):
+    """Our Meta app's own webhook checks (Embedded Signup)."""
+
+    def test_verify_app_token_request(self):
+        result = self.client(self.reply(json_body={'valid': True, 'phone_number_id': None})).verify_app_token('tok')
+        self.assertEqual(result, Verification(valid=True, phone_number_id=None))
+        request = self.requests[0]
+        self.assertEqual(str(request.url), f'{BASE_URL}/internal/whatsapp/app/verify-token/')
+        self.assertEqual(json.loads(request.content), {'verify_token': 'tok'})
+        self.assertEqual(request.headers['X-Internal-Api-Key'], API_KEY)
+
+    def test_verify_app_signature_forwards_the_exact_body_and_header(self):
+        raw = b'{"entry": [] }'
+        self.client(self.reply()).verify_app_signature(raw, 'sha256=abc')
+        request = self.requests[0]
+        self.assertEqual(str(request.url), f'{BASE_URL}/internal/whatsapp/app/verify-signature/')
+        self.assertEqual(request.content, raw)
+        self.assertEqual(request.headers['X-Hub-Signature-256'], 'sha256=abc')
+
+    def test_404_means_not_configured(self):
+        with self.assertRaises(BusinessNotConnectedError):
+            self.client(self.reply(404, {'detail': 'not configured'})).verify_app_token('tok')

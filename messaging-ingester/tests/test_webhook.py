@@ -186,3 +186,68 @@ class ReceiveWebhookTests(WebhookTestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+APP_URL = '/webhook'
+
+
+class AppWebhookTests(WebhookTestCase):
+    """/webhook: our Meta app's own Callback URL (Embedded Signup). Account events only; publishes nothing."""
+
+    def handshake(self, token=VERIFY_TOKEN, mode='subscribe'):
+        return self.client.get(APP_URL, params={'hub.mode': mode, 'hub.verify_token': token, 'hub.challenge': '42'})
+
+    def post(self, payload, signature=VALID_SIGNATURE):
+        headers = {'X-Hub-Signature-256': signature} if signature else {}
+        return self.client.post(APP_URL, content=payload if isinstance(payload, bytes) else body(payload), headers=headers)
+
+    def test_handshake_echoes_the_challenge(self):
+        with self.assertLogs('app.webhook', 'INFO'):
+            response = self.handshake()
+        self.assertEqual((response.status_code, response.text), (200, '42'))
+        self.assertEqual(self.verifier.calls, [('verify_app_token', VERIFY_TOKEN)])
+
+    def test_handshake_wrong_token_or_mode_is_403(self):
+        with self.assertLogs('app.webhook', 'WARNING'):
+            self.assertEqual(self.handshake(token='wrong').status_code, 403)
+        self.assertEqual(self.handshake(mode='unsubscribe').status_code, 403)
+
+    def test_not_configured_is_404(self):
+        self.verifier.error = NOT_CONNECTED
+        response = self.handshake()
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json()['message'], 'Our app webhook is not configured.')
+
+    def test_configuration_service_down_is_503(self):
+        self.verifier.error = UNAVAILABLE
+        with self.assertLogs('app.webhook', 'ERROR'):
+            self.assertEqual(self.post(webhook(change(field='account_update'))).status_code, 503)
+
+    def test_account_events_are_acknowledged_and_not_published(self):
+        payload = webhook(change(field='account_update'))
+        with self.assertLogs('app.webhook', 'INFO') as logs:
+            response = self.post(payload)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {'published': 0})
+        self.assertIn('account_update', logs.output[0])
+        self.assertEqual(self.verifier.calls, [('verify_app_signature', body(payload), VALID_SIGNATURE)])
+        self.assertEqual(self.publisher.calls, 0)
+
+    def test_stray_messages_are_logged_not_published(self):
+        with self.assertLogs('app.webhook', 'WARNING') as logs:
+            response = self.post(webhook(change(messages=[text_message()])))
+        self.assertEqual(response.json(), {'published': 0})
+        self.assertIn(PHONE_NUMBER_ID, logs.output[0])
+        self.assertEqual(self.publisher.calls, 0)
+
+    def test_bad_signature_is_401(self):
+        with self.assertLogs('app.webhook', 'WARNING'):
+            self.assertEqual(self.post(webhook(), signature='sha256=wrong').status_code, 401)
+
+    def test_signed_non_json_is_400(self):
+        self.assertEqual(self.post(b'not json').status_code, 400)
+
+    def test_business_urls_still_route_to_businesses(self):
+        with self.assertLogs('app.webhook', 'INFO'):
+            self.client.get(URL, params={'hub.mode': 'subscribe', 'hub.verify_token': VERIFY_TOKEN, 'hub.challenge': '1'})
+        self.assertEqual(self.verifier.calls, [('verify_token', BUSINESS_ID, VERIFY_TOKEN)])
