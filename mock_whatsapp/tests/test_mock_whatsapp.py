@@ -95,7 +95,7 @@ class GraphApiTests(MockTestCase):
     def send(self, body=None, token='dev-access-token-1', proof=None, phone_number_id='100000000000001'):
         params = {} if proof is None else {'appsecret_proof': proof}
         return self.client.post(
-            f'/v25.0/{phone_number_id}/messages', params=params, headers={'Authorization': f'Bearer {token}'},
+            f'/v26.0/{phone_number_id}/messages', params=params, headers={'Authorization': f'Bearer {token}'},
             json=body if body is not None else {
                 'messaging_product': 'whatsapp', 'recipient_type': 'individual', 'to': '6591234567',
                 'type': 'text', 'text': {'preview_url': False, 'body': 'Yes, we do!'},
@@ -134,7 +134,7 @@ class GraphApiTests(MockTestCase):
         self.assertEqual(db.messages('6591234567', '100000000000001'), [])
 
     def test_phone_number_details(self):
-        response = self.client.get('/v25.0/100000000000001', params={'fields': 'display_phone_number,verified_name'},
+        response = self.client.get('/v26.0/100000000000001', params={'fields': 'display_phone_number,verified_name'},
                                    headers={'Authorization': 'Bearer dev-access-token-1'})
         self.assertEqual(response.json(), {'display_phone_number': '+65 8832 3212', 'verified_name': 'Kopi & Co. Café', 'id': '100000000000001'})
 

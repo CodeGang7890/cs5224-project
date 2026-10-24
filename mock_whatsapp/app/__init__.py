@@ -3,7 +3,7 @@
 - As a customer (any phone number you pick), you chat with the sample businesses. Each message is
   sent to messaging-ingester's webhook exactly as Meta sends it (app/meta.py: the payload and its
   X-Hub-Signature-256 signature, with the business's App Secret).
-- The replies come back to the fake Graph API (app/graph_api.py: POST /v25.0/{phone_number_id}/messages,
+- The replies come back to the fake Graph API (app/graph_api.py: POST /v26.0/{phone_number_id}/messages,
   called by configuration-service's internal send endpoint), as they would to Meta, and show up in
   the chat.
 """
