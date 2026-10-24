@@ -20,6 +20,8 @@ Json = JSON().with_variant(JSONB(), 'postgresql')
 # checkout_app.models.OrderStatus
 PENDING_PAYMENT = 'pending_payment'
 PAYMENT_FAILED = 'payment_failed'
+# configuration_app.models.WhatsAppConnectionStatus
+CONNECTED = 'connected'
 
 
 class AwareDateTime(TypeDecorator):
@@ -51,6 +53,35 @@ class BusinessConfiguration(Base):
 
     def __repr__(self) -> str:
         return f'BusinessConfiguration(id={self.id}, business_name={self.business_name!r})'
+
+
+class BusinessUser(Base):
+    """auth_app.BusinessUser: a login of a business (its owner or staff), alerted about its WhatsApp."""
+
+    __tablename__ = 'auth_app_businessuser'
+
+    id: Mapped[int] = mapped_column(BigId, primary_key=True)
+    business_id: Mapped[int | None] = mapped_column(ForeignKey('configuration_app_businessconfiguration.id'))
+    username: Mapped[str] = mapped_column(String(150))
+    email: Mapped[str] = mapped_column(String(254))  # may be empty
+    is_active: Mapped[bool] = mapped_column(Boolean)
+
+
+class WhatsAppConfiguration(Base):
+    """configuration_app.WhatsAppConfiguration: a business's WhatsApp connection (no secrets mapped)."""
+
+    __tablename__ = 'configuration_app_whatsappconfiguration'
+
+    id: Mapped[int] = mapped_column(BigId, primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey('configuration_app_businessconfiguration.id'))
+    phone_number_id: Mapped[str] = mapped_column(String(32))
+    display_phone_number: Mapped[str] = mapped_column(String(32))  # e.g. "+65 9123 4567"; may be empty
+    # What Meta last reported (account_update): connected / disconnected / banned.
+    status: Mapped[str] = mapped_column(String(20))
+    # When Meta stops accepting its access token; None if it doesn't expire.
+    access_token_expires_time: Mapped[datetime | None] = mapped_column(AwareDateTime)
+
+    business: Mapped[BusinessConfiguration] = relationship()
 
 
 class ChatSession(Base):

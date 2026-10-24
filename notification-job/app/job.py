@@ -4,11 +4,16 @@
    were made 1 to 2 hours ago, [1 h, 2 h) before the hour (created_time in (hour − 2 h, hour − 1 h]).
 2. Appointment reminders: bookings starting 23 to 24 hours from now, [23 h, 24 h) after the hour
    (start_time in [hour + 23 h, hour + 24 h)), unless their payment failed (they hold no time).
+3. WhatsApp reconnect alerts, to the business's users: its WhatsApp access token (from Embedded
+   Signup, e.g. 60 days) expires in 7 days, in 1 day, or has just expired (the alert's point,
+   access_token_expires_time − 7 d / 1 d / 0, in (hour − 1 h, hour]). Only connections Meta still
+   reports connected (a disconnected or banned one has a bigger problem, shown in the app).
+   Reconnecting with Facebook gives a new token and expiry, so no more alerts for the old one.
 
 "The hour" is the run's time rounded down to the hour (9:11:30 pm → 9 pm), so the windows of
 consecutive hourly runs follow each other without gaps or overlaps: each item gets each reminder
 once. For now each reminder is only logged (the customer's phone number and a draft message):
-sending it (WhatsApp) is a TODO.
+sending it (WhatsApp) is a TODO. So is each alert (the users' email addresses and a draft message).
 """
 
 import logging
@@ -22,12 +27,24 @@ from sqlalchemy.orm import Session, selectinload
 
 from app import config
 from app.db import get_session
-from app.models import PAYMENT_FAILED, PENDING_PAYMENT, OrderItem, ScheduleItem
+from app.models import (
+    CONNECTED,
+    PAYMENT_FAILED,
+    PENDING_PAYMENT,
+    BusinessUser,
+    OrderItem,
+    ScheduleItem,
+    WhatsAppConfiguration,
+)
 
 logger = logging.getLogger(__name__)
 
 PAYMENT_REMINDER_AFTER = (timedelta(hours=1), timedelta(hours=2))  # [1 h, 2 h) after it was made
 APPOINTMENT_REMINDER_BEFORE = (timedelta(hours=23), timedelta(hours=24))  # [23 h, 24 h) before it starts
+# Reconnect alerts this long before the WhatsApp access token expires (0: once it has). The first matches
+# configuration-service's ACCESS_TOKEN_EXPIRY_WARNING (when the app starts warning too): keep them in sync.
+RECONNECT_ALERTS_BEFORE = (timedelta(days=7), timedelta(days=1), timedelta(0))
+HOUR = timedelta(hours=1)
 
 
 @dataclass(frozen=True)
@@ -39,10 +56,19 @@ class Reminder:
 
 
 @dataclass(frozen=True)
+class Alert:
+    kind: str  # 'whatsapp_reconnect'
+    business: str  # e.g. 'business #4 (Lumen & Lens)'
+    emails: list[str]  # the business's active users' addresses (empty: none has one)
+    message: str
+
+
+@dataclass(frozen=True)
 class RunResult:
     hour: datetime
     payment_reminders: list[Reminder]
     appointment_reminders: list[Reminder]
+    reconnect_alerts: list[Alert]
 
 
 def floor_to_hour(moment: datetime) -> datetime:
@@ -141,10 +167,64 @@ def appointment_reminders(session: Session, hour: datetime) -> list[Reminder]:
     return [appointment_reminder(booking) for booking in bookings]
 
 
+def reconnect_alert(config: WhatsAppConfiguration, emails: list[str], now: datetime) -> Alert:
+    business = config.business.business_name
+    number = config.display_phone_number or f'phone number ID {config.phone_number_id}'
+    if config.access_token_expires_time <= now:
+        message = (
+            f"Hi {business}, your WhatsApp connection ({number}) has expired, so your assistant can't reply to "
+            'customers on WhatsApp. Reconnect it with Facebook on the Home page of Ansera Business Admin.'
+        )
+    else:
+        message = (
+            f'Hi {business}, your WhatsApp connection ({number}) expires on {_when(config.access_token_expires_time)}. '
+            'Reconnect it with Facebook on the Home page of Ansera Business Admin before then, or your assistant '
+            "won't be able to reply to customers on WhatsApp."
+        )
+    return Alert('whatsapp_reconnect', f'business #{config.business_id} ({business})', emails, message)
+
+
+def reconnect_alerts(session: Session, hour: datetime) -> list[Alert]:
+    """Connected WhatsApp connections whose access token expires 7 days / 1 day after `hour`, or expired,
+    i.e. each alert point (the expiry minus 7 d / 1 d / 0) is in (hour − 1 h, hour]."""
+    configs = []
+    for before in RECONNECT_ALERTS_BEFORE:
+        configs += session.scalars(
+            select(WhatsAppConfiguration)
+            .where(
+                WhatsAppConfiguration.status == CONNECTED,
+                WhatsAppConfiguration.access_token_expires_time > hour + before - HOUR,
+                WhatsAppConfiguration.access_token_expires_time <= hour + before,
+            )
+            .options(selectinload(WhatsAppConfiguration.business))
+            .order_by(WhatsAppConfiguration.access_token_expires_time, WhatsAppConfiguration.id)
+        )
+    emails: dict[int, list[str]] = {}  # the business's active users' addresses
+    if configs:
+        users = session.execute(
+            select(BusinessUser.business_id, BusinessUser.email)
+            .where(
+                BusinessUser.business_id.in_({config.business_id for config in configs}),
+                BusinessUser.is_active,
+                BusinessUser.email != '',
+            )
+            .order_by(BusinessUser.id)
+        )
+        for business_id, email in users:
+            emails.setdefault(business_id, []).append(email)
+    return [reconnect_alert(config, emails.get(config.business_id, []), hour) for config in configs]
+
+
 def _log(reminder: Reminder) -> None:
     to = reminder.phone_number or 'no phone number (sandbox chat without one, or the chat was deleted)'
     # TODO: send it to the customer (WhatsApp API), e.g. through the outbound messages queue.
     logger.info('TODO: send %s reminder for %s to %s: %s', reminder.kind, reminder.item, to, reminder.message)
+
+
+def _log_alert(alert: Alert) -> None:
+    to = ', '.join(alert.emails) or "no email address (none of the business's users has one)"
+    # TODO: send it to the business's users (email), e.g. through an outbound notifications queue.
+    logger.warning('TODO: send %s alert for %s to %s: %s', alert.kind, alert.business, to, alert.message)
 
 
 def run(session_factory: Callable[[], Session] = get_session, now: datetime | None = None) -> RunResult:
@@ -152,9 +232,13 @@ def run(session_factory: Callable[[], Session] = get_session, now: datetime | No
     with session_factory() as session:
         payments = payment_reminders(session, hour)
         appointments = appointment_reminders(session, hour)
+        alerts = reconnect_alerts(session, hour)
     logger.info(
-        'Run for %s: %d payment reminders, %d appointment reminders', hour.isoformat(), len(payments), len(appointments)
+        'Run for %s: %d payment reminders, %d appointment reminders, %d WhatsApp reconnect alerts',
+        hour.isoformat(), len(payments), len(appointments), len(alerts),
     )
     for reminder in payments + appointments:
         _log(reminder)
-    return RunResult(hour, payments, appointments)
+    for alert in alerts:
+        _log_alert(alert)
+    return RunResult(hour, payments, appointments, alerts)

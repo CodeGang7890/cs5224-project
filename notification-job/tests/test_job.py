@@ -7,7 +7,15 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app import job
-from app.models import Base, BusinessConfiguration, ChatSession, OrderItem, ScheduleItem
+from app.models import (
+    Base,
+    BusinessConfiguration,
+    BusinessUser,
+    ChatSession,
+    OrderItem,
+    ScheduleItem,
+    WhatsAppConfiguration,
+)
 
 # A run at 9:11:30 pm Singapore time (13:11:30 UTC): "the hour" is 9 pm (13:00 UTC).
 NOW = datetime(2026, 10, 12, 13, 11, 30, tzinfo=UTC)
@@ -133,6 +141,87 @@ class AppointmentReminderTests(JobTestCase):
         booking = self.booking(HOUR + timedelta(hours=23))
         reminder, = self.run_job()[0].appointment_reminders
         self.assertIn(f'please pay with reference {booking:032x}', reminder.message)
+
+
+class ReconnectAlertTests(JobTestCase):
+    def setUp(self):
+        super().setUp()
+        with self.sessions.begin() as session:
+            session.add(BusinessConfiguration(id=2, business_name='Bloom', description='', location='Singapore'))
+            for user_id, business_id, email, active in (
+                (1, 1, 'owner@snap.example', True),
+                (2, 1, 'staff@snap.example', True),
+                (3, 1, '', True),  # no address
+                (4, 1, 'left@snap.example', False),  # deactivated
+                (5, 2, 'owner@bloom.example', True),
+            ):
+                session.add(BusinessUser(id=user_id, business_id=business_id, username=f'user{user_id}', email=email,
+                                         is_active=active))
+
+    def connection(self, expires, business=1, display_phone_number='+65 9123 4567', status='connected'):
+        with self.sessions.begin() as session:
+            session.add(WhatsAppConfiguration(
+                id=self.next_id, business_id=business, phone_number_id=f'10000000000000{self.next_id}',
+                display_phone_number=display_phone_number, status=status, access_token_expires_time=expires,
+            ))
+        self.next_id += 1
+
+    def test_7_days_1_day_and_at_expiry(self):
+        self.connection(HOUR + timedelta(days=7))  # exactly 7 days after the hour: included
+        self.connection(HOUR + timedelta(days=1) - timedelta(minutes=30), business=2)
+        self.connection(HOUR - timedelta(minutes=59))  # expired during the last hour
+        self.connection(HOUR + timedelta(days=7, seconds=1))  # the next run
+        self.connection(HOUR + timedelta(days=7) - timedelta(hours=1))  # the previous run alerted it
+        self.connection(HOUR - timedelta(hours=1))  # expired before: the previous run alerted it
+        self.connection(HOUR + timedelta(days=3))  # between the alerts
+        self.connection(None)  # never expires (e.g. manual connections)
+        self.assertEqual(
+            [alert.business for alert in self.run_job()[0].reconnect_alerts],
+            ['business #1 (Snap Studio)', 'business #2 (Bloom)', 'business #1 (Snap Studio)'],
+        )
+
+    def test_not_for_connections_meta_reported_disconnected_or_banned(self):
+        self.connection(HOUR + timedelta(days=7), status='disconnected')
+        self.connection(HOUR + timedelta(days=1), business=2, status='banned')
+        self.assertEqual(self.run_job()[0].reconnect_alerts, [])
+
+    def test_sent_to_the_business_s_active_users_with_an_email(self):
+        self.connection(HOUR + timedelta(days=1))
+        self.connection(HOUR + timedelta(days=7), business=2)
+        result, logs = self.run_job()
+        self.assertEqual(
+            [alert.emails for alert in result.reconnect_alerts],
+            [['owner@bloom.example'], ['owner@snap.example', 'staff@snap.example']],
+        )
+        self.assertIn(
+            'TODO: send whatsapp_reconnect alert for business #1 (Snap Studio) to owner@snap.example, staff@snap.example',
+            logs[-1],
+        )
+
+    def test_the_draft_messages(self):
+        self.connection(datetime(2026, 10, 13, 12, 30, tzinfo=UTC))  # 1 day ahead, 8:30pm SGT
+        self.connection(HOUR - timedelta(minutes=10), display_phone_number='')
+        expiring, expired = self.run_job()[0].reconnect_alerts
+        self.assertEqual(
+            expiring.message,
+            'Hi Snap Studio, your WhatsApp connection (+65 9123 4567) expires on Tue 13 Oct, 8:30pm. Reconnect it '
+            'with Facebook on the Home page of Ansera Business Admin before then, or your assistant won\'t be able '
+            'to reply to customers on WhatsApp.',
+        )
+        self.assertEqual(
+            expired.message,
+            "Hi Snap Studio, your WhatsApp connection (phone number ID 100000000000002) has expired, so your "
+            "assistant can't reply to customers on WhatsApp. Reconnect it with Facebook on the Home page of "
+            'Ansera Business Admin.',
+        )
+
+    def test_a_business_without_email_addresses(self):
+        self.connection(HOUR + timedelta(days=7), business=2)
+        with self.sessions.begin() as session:
+            session.get(BusinessUser, 5).email = ''
+        result, logs = self.run_job()
+        self.assertEqual(result.reconnect_alerts[0].emails, [])
+        self.assertIn('to no email address', logs[-1])
 
 
 if __name__ == '__main__':
