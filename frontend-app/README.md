@@ -49,6 +49,7 @@ the source mounted, so hot reload works; file watching uses polling (`CHOKIDAR_U
 | `npm run build` | Type-checks (`tsc -b`) and builds for production into `dist/` |
 | `npm run preview` | Serves the production build locally so you can check it |
 | `npm run lint` | Lints the code with oxlint |
+| `npm run format` | Formats the code with Prettier (its default style; `npm run format:check` only checks) |
 
 ## Pages
 
@@ -177,12 +178,14 @@ The **Orders** tab (login required) has two sub-tabs: **Products** (orders, `/or
 
 ## Authentication
 
-Users log in with their `configuration-service` username and password, e.g. `kopi_owner` / `123` from the sample data. The backend issues **JWTs** through SimpleJWT:
+Users log in with their `configuration-service` username and password (e.g. `kopi_owner` / `123` from the sample data), or with **Google or Facebook**, and new users can **sign up**. Either way, the backend issues **JWTs** through SimpleJWT:
 - **Access token:** valid for 15 minutes, sent as `Authorization: Bearer <token>`.
 - **Refresh token:** valid for 7 days. It's used to get new access tokens.
 
 How it works in the app:
-- **Log In** opens a username/password dialog (`POST /api/auth/token/`). After logging in, the app loads your profile from `GET /api/auth/me/`, including your business ID, and shows your username in the header.
+- **Log In** and **Sign Up** open the same dialog: *Continue with Google / Facebook*, or a username and password (`POST /api/auth/token/`), or the sign-up form (`POST /api/auth/signup/`: name, username, email, password). After logging in, the app loads your profile from `GET /api/auth/me/`, including your business ID, and shows your username in the header.
+- **Google / Facebook** go through Google Cloud Identity Platform (the Firebase JS SDK, `src/lib/firebase.ts`): the popup's ID token is exchanged for our JWTs (`POST /api/auth/firebase/`). The first time creates your account. It needs `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN` and `VITE_FIREBASE_PROJECT_ID` (`.env.example`); until they're set, the buttons do nothing.
+- **A new account sets up its business first:** until it has one, every login-only page (and Home) shows **Set up your business** (name, location, description; `PUT /api/configuration/business/`), then the page appears.
 - **You don't write any auth code per request.** Every Axios client made with `createApiClient` (in `src/lib/api-client.ts`):
   - attaches the access token automatically;
   - on a `401`, refreshes the tokens once and retries the request. Simultaneous requests share a single refresh.
@@ -269,7 +272,8 @@ frontend-app/
 │   │   ├── navigation.ts       # Route paths, top-nav tabs, sections' sub-tabs
 │   │   └── env.ts              # Typed access to environment variables
 │   ├── features/               # Feature modules, one folder per domain
-│   │   ├── auth/               # Login dialog, RequireAuth guard, useAuth / useCurrentUser hooks, auth API calls
+│   │   ├── auth/               # Login / sign-up dialog (+ Google / Facebook), RequireAuth guard, useAuth / useCurrentUser hooks, auth API calls
+│   │   ├── business/           # Your business: "Set up your business" after sign up, RequireBusiness guard
 │   │   ├── products/           # Product list + add/edit/delete dialogs (Catalog → Products)
 │   │   ├── faqs/               # FAQ list + add/edit/delete dialogs (Catalog → FAQs)
 │   │   ├── services/           # Services, service providers and their schedules (Catalog → Services)

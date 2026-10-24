@@ -1,10 +1,10 @@
-import type { ApiError } from '@/types/api'
+import type { ApiError } from "@/types/api";
 
 export interface FormErrors {
   /** Per-field messages, keyed by API field name. */
-  fields: Record<string, string>
+  fields: Record<string, string>;
   /** Errors not tied to one field (e.g. uniqueness, 403, network). */
-  form?: string
+  form?: string;
 }
 
 /**
@@ -12,17 +12,36 @@ export interface FormErrors {
  * `{ field: ["message", ...], non_field_errors: [...] }`; anything else becomes a form error.
  */
 export function getFormErrors(error: ApiError): FormErrors {
-  const data = error.data
-  if (error.status === 400 && data && typeof data === 'object' && !Array.isArray(data)) {
-    const fields: Record<string, string> = {}
-    let form: string | undefined
-    for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
-      const message = Array.isArray(value) ? value.map(String).join(' ') : String(value)
-      if (key === 'non_field_errors' || key === 'detail') form = message
-      else fields[key] = message
+  const data = error.data;
+  if (
+    error.status === 400 &&
+    data &&
+    typeof data === "object" &&
+    !Array.isArray(data)
+  ) {
+    const fields: Record<string, string> = {};
+    let form: string | undefined;
+    for (const [key, value] of Object.entries(
+      data as Record<string, unknown>,
+    )) {
+      const message = Array.isArray(value)
+        ? value.map(String).join(" ")
+        : String(value);
+      if (key === "non_field_errors" || key === "detail") form = message;
+      else fields[key] = message;
     }
-    return { fields, form }
+    return { fields, form };
   }
-  if (error.status === undefined) return { fields: {}, form: "Couldn't reach the server. Please try again." }
-  return { fields: {}, form: error.message }
+  if (error.status === undefined)
+    return {
+      fields: {},
+      form: "Couldn't reach the server. Please try again.",
+    };
+  return { fields: {}, form: error.message };
+}
+
+/** One line for an API error shown on its own (e.g. under a button): the form error, else a field's. */
+export function apiErrorMessage(error: ApiError): string {
+  const { form, fields } = getFormErrors(error);
+  return form || Object.values(fields)[0] || error.message;
 }
