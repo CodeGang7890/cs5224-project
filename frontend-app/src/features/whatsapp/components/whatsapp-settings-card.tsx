@@ -11,7 +11,9 @@ import { selectIsAuthenticated, useAuthStore } from '@/stores/auth-store'
 
 import { useDeleteWhatsAppConfiguration, useWhatsAppConfiguration } from '../hooks/use-whatsapp-configuration'
 import type { WhatsAppConfiguration } from '../types'
+import { formatExpiry } from '../expiry'
 import { ConnectWithFacebook } from './connect-with-facebook'
+import { ReconnectNotice } from './reconnect-alert'
 
 /**
  * Connects the business's WhatsApp Business number with Facebook (Meta's Embedded Signup), which also
@@ -36,6 +38,14 @@ export function WhatsAppSettingsCard() {
             {config && config.status !== 'connected' ? (
               <Badge variant="outline" className="border-destructive/50 text-destructive">
                 {config.status === 'banned' ? 'Banned' : 'Disconnected'}
+              </Badge>
+            ) : config?.access_token_status === 'expired' ? (
+              <Badge variant="outline" className="border-destructive/50 text-destructive">
+                Expired
+              </Badge>
+            ) : config?.access_token_status === 'expiring_soon' ? (
+              <Badge variant="outline" className="border-amber-500/50 text-amber-700 dark:text-amber-400">
+                Expires soon
               </Badge>
             ) : isConnected ? (
               <Badge variant="outline" className="border-emerald-500/50 text-emerald-700 dark:text-emerald-400">
@@ -87,14 +97,17 @@ export function WhatsAppSettingsCard() {
   )
 }
 
-/** The connected number (or what Meta reported about it), and Reconnect / Disconnect. */
+/** The connected number (or what Meta reported about it), its token's expiry, and Reconnect / Disconnect. */
 function Connection({ config }: { config: WhatsAppConfiguration }) {
   const viaFacebook = config.connection_method === 'embedded_signup'
+  const tokenActive = config.access_token_status === 'active'
   return (
     <div className="grid gap-4">
       <ConnectedNumber config={config} />
       {config.status !== 'connected' ? (
         <StatusAlert config={config} />
+      ) : !tokenActive ? (
+        <ReconnectNotice config={config} />
       ) : (
         <p className="flex items-start gap-2 text-sm">
           <CircleCheck className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
@@ -105,6 +118,12 @@ function Connection({ config }: { config: WhatsAppConfiguration }) {
       )}
       {viaFacebook && (
         <p className="text-muted-foreground text-xs">
+          {config.status === 'connected' && tokenActive && config.access_token_expires_time && (
+            <>
+              Facebook's access lasts until {formatExpiry(config.access_token_expires_time)}: we'll remind you a week
+              before, then reconnect to renew it.{' '}
+            </>
+          )}
           WhatsApp Business account {config.waba_id}. Meta charges for some conversations: add a payment method in{' '}
           <a
             href="https://business.facebook.com/wa/manage/home/"

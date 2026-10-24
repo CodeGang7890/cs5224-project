@@ -8,6 +8,12 @@ export type WhatsAppConnectionMethod = 'manual' | 'embedded_signup'
  */
 export type WhatsAppConnectionStatus = 'connected' | 'disconnected' | 'banned'
 
+/**
+ * Whether the owner must reconnect to renew the token: `expiring_soon` within a week of
+ * `access_token_expires_time`, `expired` once Meta refuses it (the assistant can't reply on WhatsApp).
+ */
+export type AccessTokenStatus = 'active' | 'expiring_soon' | 'expired'
+
 /** The business's WhatsApp connection. Secrets and webhook details are never returned. */
 export interface WhatsAppConfiguration {
   phone_number_id: string
@@ -27,6 +33,9 @@ export interface WhatsAppConfiguration {
   status_reason: string
   /** When Meta reported the status; null if it never has. */
   status_updated_time: string | null
+  /** When Meta's access token expires (Embedded Signup tokens can, e.g. after 60 days); null: it doesn't. */
+  access_token_expires_time: string | null
+  access_token_status: AccessTokenStatus
   created_time: string
   last_updated: string
 }

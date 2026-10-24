@@ -1,4 +1,5 @@
 // Public API of the WhatsApp feature (connecting the business's WhatsApp Business number with Facebook).
+export { WhatsAppReconnectAlert } from './components/reconnect-alert'
 export { WhatsAppSettingsCard } from './components/whatsapp-settings-card'
 export {
   useConnectWithEmbeddedSignup,
@@ -7,6 +8,7 @@ export {
   whatsAppKeys,
 } from './hooks/use-whatsapp-configuration'
 export type {
+  AccessTokenStatus,
   EmbeddedSignupInput,
   WhatsAppConfiguration,
   WhatsAppConnectionMethod,

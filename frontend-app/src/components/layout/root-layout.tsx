@@ -4,6 +4,7 @@ import { Link, NavLink, Outlet } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { APP_NAME } from '@/config/app'
 import { navItems, paths } from '@/config/navigation'
+import { WhatsAppReconnectAlert } from '@/features/whatsapp'
 import { cn } from '@/lib/utils'
 import { selectIsAuthenticated, useAuthStore } from '@/stores/auth-store'
 import { useThemeStore } from '@/stores/theme-store'
@@ -54,7 +55,8 @@ export function RootLayout() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8">
+      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-8">
+        <WhatsAppReconnectAlert />
         <Outlet />
       </main>
     </div>
