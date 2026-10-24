@@ -34,7 +34,6 @@ class WhatsAppConfigurationAdmin(admin.ModelAdmin):
         'connection_method',
         'waba_id',
         'status',
-        'status_event',
         'status_updated_time',
         'access_token_expires_time',
         'created_time',

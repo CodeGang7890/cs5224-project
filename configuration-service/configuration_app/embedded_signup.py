@@ -6,10 +6,11 @@ its phone number ID. connect() then, in this order:
 
 1. swaps the code for the business's token (a business integration system user token for our app)
    and when it expires (reconnecting gives a new one: the owner is warned before it lapses);
-2. checks the number with that token (meta_api.check_credentials), which also gives the number and name;
+2. checks the number with that token (meta_api.phone_number_info), which also gives the number and name;
 3. registers the number for Cloud API, with a random two-step verification PIN (kept encrypted, as it
    is needed to register the number again);
-4. saves the connection: the token, our App Secret (it signs the webhooks), the WABA ID, the PIN;
+4. saves the connection: the token, the WABA ID, the PIN (not our App Secret: the connection uses
+   settings.META_APP_SECRET, see WhatsAppConfiguration.effective_app_secret);
 5. subscribes our app to the WABA, overriding its message webhooks to the business's own Callback URL
    (MESSAGING_INGESTER_PUBLIC_URL/webhook/<business_id>) with its verify token. So messaging-ingester
    and the internal checks work exactly as for a manual connection. Meta checks the URL at once (the
@@ -41,7 +42,6 @@ SAVED_FIELDS = (
     'connection_method',
     'two_step_pin',
     'status',
-    'status_event',
     'status_updated_time',
     'display_phone_number',
     'verified_name',
@@ -83,10 +83,7 @@ def connect(
 
     business_token = meta_api.exchange_code(code)
     token = business_token.access_token
-    try:
-        info = meta_api.check_credentials(phone_number_id, token, app_secret)
-    except meta_api.MetaCredentialsError as exc:
-        raise meta_api.MetaSignupError(f"Meta didn't give us access to this phone number: {exc.message}") from exc
+    info = meta_api.phone_number_info(phone_number_id, token, app_secret)
     if WhatsAppConfiguration.objects.filter(phone_number_id=phone_number_id).exclude(business=business).exists():
         raise PhoneNumberTaken
     pin = new_pin()
@@ -100,11 +97,11 @@ def connect(
     config.phone_number_id = phone_number_id
     config.access_token = token
     config.access_token_expires_time = business_token.expires_time
-    config.app_secret = app_secret
+    config.app_secret = ''  # ours is used (effective_app_secret); a manual connection's own is dropped
     config.waba_id = waba_id
     config.connection_method = WhatsAppConnectionMethod.EMBEDDED_SIGNUP
     # Connected again (e.g. after Meta reported it disconnected): clear what Meta reported.
-    config.status, config.status_event, config.status_updated_time = WhatsAppConnectionStatus.CONNECTED, '', None
+    config.status, config.status_updated_time = WhatsAppConnectionStatus.CONNECTED, None
     if pin_set:
         config.two_step_pin = pin
     elif previous is None or previous['phone_number_id'] != phone_number_id:
@@ -137,14 +134,15 @@ def connect(
 
     if previous and previous['waba_id'] and previous['waba_id'] != waba_id:
         # Reconnected with another WhatsApp Business account: stop the old one's webhooks.
-        unsubscribe(previous['waba_id'], previous['access_token'], previous['app_secret'])
+        unsubscribe(previous['waba_id'], previous['access_token'])
     logger.info('Business %s connected WhatsApp %s through Embedded Signup', business.pk, phone_number_id)
     return config, created
 
 
-def unsubscribe(waba_id: str, access_token: str, app_secret: str) -> None:
-    """Best effort: stops our app's webhooks for a WABA we no longer use. Failures are only logged."""
+def unsubscribe(waba_id: str, access_token: str) -> None:
+    """Best effort: stops our app's webhooks for a WABA we no longer use (only Embedded Signup connections
+    have one, so it's our app's secret). Failures are only logged."""
     try:
-        meta_api.unsubscribe_app(waba_id, access_token, app_secret)
+        meta_api.unsubscribe_app(waba_id, access_token, settings.META_APP_SECRET)
     except (meta_api.MetaSignupError, meta_api.MetaUnavailableError) as exc:
         logger.warning('Could not unsubscribe from WABA %s: %s', waba_id, exc)

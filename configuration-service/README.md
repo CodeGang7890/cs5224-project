@@ -172,11 +172,22 @@ When a business is deleted:
 | `POST` | `/api/auth/token/verify/` | `{token}` → `{}` | Check that a token is valid (200) or not (401) |
 | `POST` | `/api/auth/logout/` | `{refresh}` → `{}` | Log out: revokes (blacklists) the refresh token |
 | `GET` | `/api/auth/me/` | → profile | Your profile: `id`, `username`, `email`, `first_name`, `last_name`, **`business`** (your `BusinessConfiguration` ID, or `null`), `business_name`, `is_staff`, `is_superuser`. Requires login. |
+| `POST` | `/api/auth/signup/` | `{username, email, password, first_name?, last_name?}` → `{access, refresh}` (201) | Sign up: creates an account (Django's password rules; username and email must be free) and logs it in. It has no business yet: create one with `PUT /api/configuration/business/`. |
+| `POST` | `/api/auth/firebase/` | `{id_token}` → `{access, refresh, created}` | Log in (or sign up) with **Google or Facebook**: the Identity Platform ID token from the frontend's popup. See below. 401 invalid token or disabled account, 503 not configured. |
+
+**Google / Facebook** (`auth_app/firebase.py`, `auth_app/accounts.py`): frontend-app signs in with the Firebase JS SDK (Google Cloud Identity Platform) and sends the ID token here. It's checked against Google's public keys for our project (`FIREBASE_PROJECT_ID`), then mapped to an account: the one its first login made (`BusinessUser.firebase_uid`), else a new account with no password and no business. It's never attached to an existing account, even with the same email. The response is the same JWT pair as a password login.
 
 - **Access token:** send it as `Authorization: Bearer <access>`. It's valid for **15 minutes**.
 - **Refresh token:** valid for **7 days**. It can be used only once, because each refresh returns a new one.
 - **Settings:** lifetimes and rotation are configured in `SIMPLE_JWT` in `config/settings.py`.
-- **Endpoint access:** the login, refresh, verify and logout endpoints are public; `me/` needs a login.
+- **Endpoint access:** the login, sign-up, Google / Facebook, refresh, verify and logout endpoints are public; `me/` needs a login.
+
+### Your business
+
+| Method | URL | What it does |
+| --- | --- | --- |
+| `GET` | `/api/configuration/business/` | Your business: `id`, `business_name`, `location`, `description`. 404 if your account has none yet. |
+| `PUT` | `/api/configuration/business/` | Without a business (a new account), creates it and links your account to it (201). Otherwise updates it (200). |
 
 ### Products and FAQs
 
@@ -219,30 +230,31 @@ All of these require you to be logged in.
 
 Each business can connect one WhatsApp Business number, **with Facebook through WhatsApp Embedded Signup** (`configuration_app/embedded_signup.py`). It goes through **our** Meta app (`META_APP_ID` / `META_APP_SECRET`); businesses don't create their own. The frontend runs Meta's popup and sends what it returns; this service does the rest:
 
-1. swaps the popup's code (valid for 30 seconds) for the business's token, and finds out when it expires (Meta's `expires_in`, else `GET /debug_token`);
+1. swaps the popup's code (valid for 30 seconds) for the business's token, and when it expires (Meta's `expires_in`; unknown if Meta doesn't say);
 2. checks the number with that token (`GET /{phone_number_id}`), which also gives the number and name Meta verified;
-3. registers the number for Cloud API, with a random two-step verification PIN;
+3. registers the number for Cloud API, with a random two-step verification PIN (saved encrypted: it's needed to register the number again);
 4. saves the connection;
 5. subscribes our app to the business's WhatsApp Business account (WABA) and overrides its message webhooks to the business's own Callback URL, `MESSAGING_INGESTER_PUBLIC_URL/webhook/<business_id>`, with its verify token. Meta checks that URL straight away (through messaging-ingester and the internal verify-token check), which is why the connection is saved first; if this step fails, it is undone.
 
-`WhatsAppConfiguration` keeps `phone_number_id`, the token, our App Secret (it signs the webhooks), the two-step PIN, the `waba_id`, `verify_token` and Meta's `display_phone_number` / `verified_name`. The token, App Secret and PIN are **encrypted at rest** (`configuration_app/crypto.py`, Fernet, key from `CONFIGURATION_ENCRYPTION_KEY`). They, the verify token and the webhook details are **never returned** to the browser. `connection_method` is `embedded_signup`, or `manual` for connections made earlier with a business's own Meta app (the sample data).
+`WhatsAppConfiguration` keeps `phone_number_id`, the token, the two-step PIN, the `waba_id`, `verify_token` and Meta's `display_phone_number` / `verified_name`. The token, PIN (and older manual connections' App Secret) are **encrypted at rest** (`configuration_app/crypto.py`, Fernet, key from `CONFIGURATION_ENCRYPTION_KEY`). They, the verify token and the webhook details are **never returned** to the browser. `connection_method` is `embedded_signup`, or `manual` for connections made earlier with a business's own Meta app (the sample data).
 
-**Status from Meta** (`configuration_app/account_updates.py`): Meta reports changes to a business's WhatsApp Business account with `account_update` webhooks to our app's webhook, which messaging-ingester forwards here. They set the connection's `status`, `status_event` and `status_updated_time` (Embedded Signup connections only, found by `waba_id`):
+**Status from Meta** (`configuration_app/account_updates.py`): Meta reports changes to a business's WhatsApp Business account with `account_update` webhooks to our app's webhook, which messaging-ingester forwards here. They set the connection's `status` and `status_updated_time` (Embedded Signup connections only, found by `waba_id`):
 
 | Meta's event | Status |
 | --- | --- |
 | `PARTNER_APP_UNINSTALLED` (our app's ID), `PARTNER_REMOVED`, `ACCOUNT_DELETED`, `ACCOUNT_OFFBOARDED` | `disconnected` |
 | `DISABLED_UPDATE` with ban state `DISABLE` | `banned` |
-| `DISABLED_UPDATE` with `REINSTATE` (if banned), `ACCOUNT_RECONNECTED` (if offboarded) | `connected` |
-| anything else (a scheduled ban, violations, restrictions, …) | unchanged, logged |
+| anything else (a scheduled ban, a reinstatement, violations, restrictions, …) | unchanged, logged |
 
-The owner's API returns `status`, a `status_reason` to show them, and `status_updated_time`. Connecting again with Facebook sets it back to `connected`.
+Nothing sets it back automatically: connecting again with Facebook does. The owner's API returns `status`, a `status_reason` to show them (one message per status) and `status_updated_time`.
 
-**Token expiry:** the business's token can expire (e.g. after 60 days, depending on our Facebook Login for Business configuration's token expiration). `access_token_expires_time` keeps when (empty: it doesn't, or isn't known), and the API's `access_token_status` is `active`, `expiring_soon` (within 7 days, `ACCESS_TOKEN_EXPIRY_WARNING`) or `expired` (replies fail until the owner reconnects). The frontend then warns the owner to reconnect with Facebook, which gives a new token and expiry, and notification-job alerts the business's users 7 days and 1 day before and at expiry.
+**Token expiry:** the business's token can expire (e.g. after 60 days, depending on our Facebook Login for Business configuration's token expiration). `access_token_expires_time` keeps when (empty: it doesn't, or isn't known). The API's **`health`** answers "does the owner need to do anything?": `ok`, `expiring_soon` (within 7 days, `ACCESS_TOKEN_EXPIRY_WARNING`, the same as notification-job's first alert), `expired` (replies fail until the owner reconnects), or what Meta reported, `disconnected` / `banned`, which comes first. The frontend warns the owner from it, reconnecting with Facebook gives a new token and expiry, and notification-job alerts the business's users before and at expiry.
+
+**App Secret:** Embedded Signup connections don't store a copy of our App Secret: their signatures and `appsecret_proof` use `META_APP_SECRET` directly (`WhatsAppConfiguration.effective_app_secret`), so rotating it needs no data change. Only older manual connections keep their own app's secret (a database constraint enforces both).
 
 | Method | URL | Auth | What it does |
 | --- | --- | --- | --- |
-| `GET` | `/api/configuration/whatsapp/` | login | Your business's connection: `phone_number_id`, `display_phone_number`, `verified_name`, `waba_id`, `connection_method`, `status` (`connected` / `disconnected` / `banned`), `status_reason`, `status_updated_time`, `access_token_expires_time`, `access_token_status` (`active` / `expiring_soon` / `expired`), times. 404 if not connected. |
+| `GET` | `/api/configuration/whatsapp/` | login | Your business's connection: `phone_number_id`, `display_phone_number`, `verified_name`, `waba_id`, `connection_method`, `status` (`connected` / `disconnected` / `banned`), `status_reason`, `status_updated_time`, `access_token_expires_time`, `health` (`ok` / `expiring_soon` / `expired` / `disconnected` / `banned`), times. 404 if not connected. |
 | `POST` | `/api/configuration/whatsapp/embedded-signup/` | login | Connect (201) or replace the connection (200) with `{code, waba_id, phone_number_id}` from the popup. 400 if Meta refused a step (`non_field_errors`, a message for the owner) or the number belongs to another business; 503 if Embedded Signup isn't configured or Meta can't be reached. |
 | `DELETE` | `/api/configuration/whatsapp/` | login | Disconnect (204). For Embedded Signup connections, our app is also unsubscribed from the WABA (best effort). |
 | `POST` | `/api/internal/whatsapp/<business_id>/verify-token/` | `X-Internal-Api-Key` header | **Service-to-service only** (messaging-ingester). `{verify_token}` → `{valid, phone_number_id}`: does the `hub.verify_token` Meta sent in its webhook handshake match the business's? |
@@ -408,7 +420,7 @@ Tests use a temporary database, so your `db.sqlite3` isn't touched.
 
 | File | Covers |
 | --- | --- |
-| `auth_app/test_api.py` | JWT login, refresh + rotation, verify, logout (blacklist), `/api/auth/me/`, CORS for the `Authorization` header |
+| `auth_app/test_api.py` | JWT login, refresh + rotation, verify, logout (blacklist), `/api/auth/me/`, CORS for the `Authorization` header; sign up (taken username / email, password rules); Google / Facebook login (new account, same account again, never attached to an existing account with the same email, disabled, invalid token, not configured, rate limits) and the ID token checks (issuer, provider; Google's check is mocked) |
 | `product_app/test_api.py` | Product and FAQ APIs: login required, business scoping and 403s, CRUD, read-only derived quantities, `total_quantity` changes (adding stock, lowering it only down to on hold + sold, re-checked against the latest orders), quantities derived from orders (one orders query per list), validation; list-by-business endpoints (200 / 400 unknown ID / 401 / 403 other business, pagination, read-only); service provider, week and service APIs (CRUD, scoping, the calendar with who booked, adding / closing slots over weeks, copying a week, only O ↔ U editable, booked weeks can't be deleted, free slots) |
 | `product_app/tests.py` | Product and FAQ model validation and database constraints (including the description and information limits); sample products and FAQs are valid; migration `0003` moves long descriptions into `information`; `ServiceProvider`, `WeeklyAvailability` (672 letters O / U / H / X, a Monday, one per provider and week) and `Service` (whole 15-minute blocks, many-to-many with providers) models; the migration from the old weekly templates |
 | `auth_app/tests.py` | `BusinessUser` model, Django Admin pages load |
@@ -457,14 +469,17 @@ DJANGO_SUPERUSER_PASSWORD=123 python manage.py createsuperuser --noinput --usern
 | `DJANGO_ALLOWED_HOSTS` | `localhost,127.0.0.1` | Comma-separated hostnames the server responds to. |
 | `DJANGO_CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Comma-separated origins allowed to call the API from a browser. The default is the `frontend-app` Vite dev server. |
 | `DJANGO_SCHEDULE_TIME_ZONE` | `Asia/Singapore` | Time zone of the service providers' weekly availability (their 15-minute blocks are local times). |
-| `CONFIGURATION_ENCRYPTION_KEY` | empty (uses `SECRET_KEY`) | Encrypts the stored WhatsApp access token and App Secret. Any secret string. Changing it (or `SECRET_KEY`, while this is empty) makes the stored secrets unreadable, so owners must re-enter them. |
+| `CONFIGURATION_ENCRYPTION_KEY` | empty (uses `SECRET_KEY`) | Encrypts the stored WhatsApp secrets (access token, two-step PIN, and older manual connections' App Secret). Any secret string. Changing it (or `SECRET_KEY`, while this is empty) makes the stored secrets unreadable, so businesses must reconnect WhatsApp. |
 | `INTERNAL_API_KEY` | `dev-internal-api-key` (only when `DEBUG` is on) | Shared key other services send in the `X-Internal-Api-Key` header to call `/api/internal/`. Empty disables the internal API. |
 | `JWT_SIGNING_KEY` | empty (uses `SECRET_KEY`) | Signs the login (JWT) access and refresh tokens. `messaging-service` checks the access tokens with the same key (its Chat Sandbox endpoint), so set it to the same value in both (docker-compose does). Changing it logs everyone out. |
-| `MESSAGING_INGESTER_PUBLIC_URL` | `http://localhost:8002` | Public URL of `messaging-ingester`. Owners see `<this>/webhook/<business id>` as their WhatsApp webhook Callback URL. |
-| `META_GRAPH_API_URL` | `https://graph.facebook.com/v25.0` | Meta's Graph API, used to connect WhatsApp and send replies (`configuration_app/meta_api.py`). Point it at a fake for testing without real Meta credentials. |
+| `MESSAGING_INGESTER_PUBLIC_URL` | `http://localhost:8002` | Public URL of `messaging-ingester`. Embedded Signup points each business's WhatsApp webhooks at `<this>/webhook/<business id>`. |
+| `META_GRAPH_API_URL` | `https://graph.facebook.com/v26.0` | Meta's Graph API, used to connect WhatsApp and send replies (`configuration_app/meta_api.py`). Point it at a fake for testing without real Meta credentials. |
 | `META_APP_ID` | *(empty)* | Our Meta app's ID, for WhatsApp Embedded Signup ("Connect with Facebook", `POST /api/configuration/whatsapp/embedded-signup/`). Empty: Embedded Signup answers 503. |
 | `META_APP_SECRET` | *(empty)* | Our Meta app's App Secret: exchanges Embedded Signup's code, and is saved as those connections' `app_secret` (it signs their webhooks). Empty: Embedded Signup answers 503. |
 | `META_APP_WEBHOOK_VERIFY_TOKEN` | *(empty)* | Verify token of our app's own webhook (`<messaging-ingester>/webhook`, set in the App Dashboard). |
+| `DJANGO_LOGIN_RATE` / `DJANGO_SIGNUP_RATE` | `30/minute` / `20/hour` | Rate limits per client IP for logging in (password and Google / Facebook) and for signing up (429 when exceeded). |
+| `DJANGO_NUM_PROXIES` | `0` | How many proxies append to `X-Forwarded-For`, to find the client's IP for the rate limits. `0` locally; `1` on Cloud Run (Terraform sets it). |
+| `FIREBASE_PROJECT_ID` | *(empty)* | The Google Cloud project whose Identity Platform signs the Google / Facebook logins (`POST /api/auth/firebase/`). Empty: that endpoint answers 503; passwords and sign up still work. |
 | `DJANGO_DB_ENGINE` | `sqlite` | `sqlite` (`db.sqlite3`, for running without Docker) or `postgresql` (used by `docker-compose.yml`). |
 | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT` | `configuration_service`, `postgres`, empty, `localhost`, `5432` | The PostgreSQL connection, when `DJANGO_DB_ENGINE=postgresql`. |
 

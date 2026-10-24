@@ -1,6 +1,7 @@
 import secrets
 from datetime import datetime, timedelta
 
+from django.conf import settings
 from django.core.validators import MaxLengthValidator, RegexValidator
 from django.db import models
 from django.db.models import Q
@@ -19,10 +20,10 @@ WHATSAPP_APP_SECRET_MAX_LENGTH = 128
 WHATSAPP_VERIFY_TOKEN_MAX_LENGTH = 64
 WHATSAPP_DISPLAY_PHONE_NUMBER_MAX_LENGTH = 32  # as Meta formats it, e.g. "+65 9123 4567"
 WHATSAPP_VERIFIED_NAME_MAX_LENGTH = 255
-# How long before its access token expires the owner is warned to reconnect (notification-job's
-# alerts start then too: keep them in sync).
+# How long before its access token expires the owner is warned to reconnect. notification-job's first
+# alert (RECONNECT_ALERTS_BEFORE) uses the same 7 days: change both together.
 ACCESS_TOKEN_EXPIRY_WARNING = timedelta(days=7)
-WHATSAPP_STATUS_EVENT_MAX_LENGTH = 64  # Meta's account_update event names, e.g. "PARTNER_APP_UNINSTALLED"
+PHONE_NUMBER_TAKEN_MESSAGE = 'This phone number ID is already connected to another business.'
 
 class BusinessConfiguration(models.Model):
     """A business (tenant) using Ansera Business Admin. Other apps' data hangs off this."""
@@ -63,8 +64,8 @@ def new_verify_token() -> str:
 
 
 class WhatsAppConnectionMethod(models.TextChoices):
-    MANUAL = 'manual', 'Entered manually'  # the owner's own Meta app: its token, App Secret and webhook
-    EMBEDDED_SIGNUP = 'embedded_signup', 'Embedded Signup'  # through our Meta app (embedded_signup.py)
+    MANUAL = 'manual'  # older connections made with the owner's own Meta app (e.g. the sample data)
+    EMBEDDED_SIGNUP = 'embedded_signup'  # through our Meta app (embedded_signup.py)
 
 
 class WhatsAppConnectionStatus(models.TextChoices):
@@ -75,43 +76,40 @@ class WhatsAppConnectionStatus(models.TextChoices):
     BANNED = 'banned', 'Banned'  # Meta disabled the WhatsApp Business account
 
 
-# What to tell the owner, by the account_update event that set the status (status_event).
+# What to tell the owner when Meta reports the connection isn't working (status_reason).
 STATUS_REASONS = {
-    'PARTNER_APP_UNINSTALLED': "Our app's access to your WhatsApp Business account was removed in Meta.",
-    'PARTNER_REMOVED': 'Your WhatsApp Business account is no longer shared with us in Meta.',
-    'ACCOUNT_DELETED': 'Your WhatsApp Business account was deleted.',
-    'ACCOUNT_OFFBOARDED': (
-        'Your number was taken off the WhatsApp Cloud API: it was registered again, or moved to another device.'
+    WhatsAppConnectionStatus.DISCONNECTED.value: (
+        'Meta reported that your WhatsApp Business account was disconnected from us (for example, our app was '
+        'removed in Meta, or the account or number was deleted or moved).'
     ),
-    'DISABLED_UPDATE': (
+    WhatsAppConnectionStatus.BANNED.value: (
         'Meta disabled your WhatsApp Business account for breaking its policies or terms. '
         'You can request a review in WhatsApp Manager.'
     ),
 }
-DEFAULT_STATUS_REASONS = {
-    WhatsAppConnectionStatus.DISCONNECTED.value: 'Meta reported that your WhatsApp Business account was disconnected.',
-    WhatsAppConnectionStatus.BANNED.value: 'Meta disabled your WhatsApp Business account.',
-}
 
 
-class AccessTokenStatus(models.TextChoices):
-    ACTIVE = 'active', 'Active'  # doesn't expire within ACCESS_TOKEN_EXPIRY_WARNING (or never)
-    EXPIRING_SOON = 'expiring_soon', 'Expiring soon'  # reconnect before it lapses
-    EXPIRED = 'expired', 'Expired'  # Meta refuses it: replies can't be sent until the owner reconnects
+class ConnectionHealth(models.TextChoices):
+    """One answer to "does the owner need to do something?", combining what Meta reported (`status`)
+    with the access token's expiry. What Meta reported comes first: a disconnected or banned connection
+    needs that fixed, whatever its token."""
+
+    OK = 'ok', 'OK'
+    EXPIRING_SOON = 'expiring_soon', 'Expiring soon'  # the token lapses within ACCESS_TOKEN_EXPIRY_WARNING
+    EXPIRED = 'expired', 'Expired'  # Meta refuses the token: replies fail until the owner reconnects
+    DISCONNECTED = 'disconnected', 'Disconnected'
+    BANNED = 'banned', 'Banned'
 
 
 class WhatsAppConfiguration(models.Model):
-    """A business's WhatsApp Business (Cloud API) connection, entered by the owner from their Meta app.
+    """A business's WhatsApp Business (Cloud API) connection, made with Embedded Signup (embedded_signup.py)
+    through our Meta app. Older `manual` rows (e.g. the sample fixtures) were made with a business's own
+    Meta app and keep that app's App Secret; there's no API to create them any more.
 
-    Only what's needed to receive and reply to messages (the user asked to keep it minimal): the
-    number's Phone Number ID, the app's App Secret and an access token (the WABA ID is only needed
-    for templates/account management). They're checked with Meta before saving, which also gives
-    the read-only `display_phone_number` and `verified_name` shown to the owner.
-
-    The messaging-ingester reads it (internal API) to verify Meta's webhook calls: `verify_token`
-    for the subscription handshake and `app_secret` for each payload's X-Hub-Signature-256.
-    `access_token` is for sending replies. Both secrets are encrypted at rest (crypto.py) and are
-    never returned by the owner-facing API.
+    The messaging-ingester asks this service (internal API) to verify Meta's webhook calls: `verify_token`
+    for the subscription handshake and `effective_app_secret` for each payload's X-Hub-Signature-256.
+    `access_token` is for sending replies. The secrets are encrypted at rest (crypto.py) and are never
+    returned by the owner-facing API. `display_phone_number` / `verified_name` come from Meta.
     """
 
     business = models.OneToOneField(
@@ -123,18 +121,21 @@ class WhatsAppConfiguration(models.Model):
         max_length=WHATSAPP_ID_MAX_LENGTH,
         unique=True,
         validators=[meta_id_validator],
-        error_messages={'unique': 'This phone number ID is already connected to another business.'},
+        error_messages={'unique': PHONE_NUMBER_TAKEN_MESSAGE},
         help_text='"Phone number ID" from Meta/Whatsapp API. Identifies the phone number in webhooks.',
     )
     access_token = EncryptedTextField(
         validators=[MaxLengthValidator(WHATSAPP_ACCESS_TOKEN_MAX_LENGTH), no_whitespace_validator],
         help_text='User\'s Meta/Whatsapp API access token, used to send messages on behalf of user. Stored encrypted.',
     )
+    # Only for manual connections (the business's own Meta app). Embedded Signup connections use our app's
+    # secret, settings.META_APP_SECRET, so it isn't copied into every row: see effective_app_secret.
     app_secret = EncryptedTextField(
+        blank=True,
         validators=[MaxLengthValidator(WHATSAPP_APP_SECRET_MAX_LENGTH), no_whitespace_validator],
-        help_text='The Meta app\'s App Secret, used to check webhook signatures. Stored encrypted.',
+        help_text="Manual connections only: their own Meta app's App Secret (signatures). Stored encrypted.",
     )
-    # Filled in from Meta when the credentials are checked (meta_api.check_credentials), read only.
+    # From Meta when the number is connected (meta_api.phone_number_info), read only.
     display_phone_number = models.CharField(
         max_length=WHATSAPP_DISPLAY_PHONE_NUMBER_MAX_LENGTH,
         blank=True,
@@ -194,12 +195,6 @@ class WhatsAppConfiguration(models.Model):
         editable=False,
         help_text='What Meta last reported: connected, disconnected (e.g. our app was removed) or banned.',
     )
-    status_event = models.CharField(
-        max_length=WHATSAPP_STATUS_EVENT_MAX_LENGTH,
-        blank=True,
-        editable=False,
-        help_text="Meta's account_update event that set the status, e.g. PARTNER_APP_UNINSTALLED.",
-    )
     status_updated_time = models.DateTimeField(
         null=True,
         blank=True,
@@ -217,8 +212,14 @@ class WhatsAppConfiguration(models.Model):
         # without validation (e.g. objects.create(), fixtures). NOT NULL alone still allows ''.
         constraints = [
             models.CheckConstraint(
-                condition=~Q(phone_number_id='') & ~Q(access_token='') & ~Q(app_secret='') & ~Q(verify_token=''),
-                name='whatsapp_configuration_all_fields_not_empty',
+                condition=~Q(phone_number_id='') & ~Q(access_token='') & ~Q(verify_token=''),
+                name='whatsapp_configuration_required_fields_not_empty',
+            ),
+            # Manual connections keep their own app's App Secret; Embedded Signup ones use ours (settings).
+            models.CheckConstraint(
+                condition=(Q(connection_method=WhatsAppConnectionMethod.MANUAL) & ~Q(app_secret=''))
+                | (Q(connection_method=WhatsAppConnectionMethod.EMBEDDED_SIGNUP) & Q(app_secret='')),
+                name='whatsapp_configuration_app_secret_only_for_manual',
             ),
             models.CheckConstraint(
                 condition=Q(connection_method__in=WhatsAppConnectionMethod.values),
@@ -243,16 +244,29 @@ class WhatsAppConfiguration(models.Model):
         """Why it isn't connected, for the owner (empty while connected)."""
         if self.status == WhatsAppConnectionStatus.CONNECTED:
             return ''
-        return STATUS_REASONS.get(self.status_event) or DEFAULT_STATUS_REASONS[self.status]
+        return STATUS_REASONS[self.status]
 
-    def access_token_status(self, now: datetime | None = None) -> str:
-        """An AccessTokenStatus: whether the owner needs to reconnect (soon) to renew the token."""
+    @property
+    def effective_app_secret(self) -> str:
+        """The App Secret that signs this connection's webhooks and its appsecret_proof: our app's for
+        Embedded Signup (so rotating META_APP_SECRET needs no data change), the stored one for manual."""
+        if self.connection_method == WhatsAppConnectionMethod.EMBEDDED_SIGNUP:
+            return settings.META_APP_SECRET
+        return self.app_secret
+
+    def health(self, now: datetime | None = None) -> str:
+        """A ConnectionHealth: what (if anything) the owner must do. What Meta reported first, then the
+        token's expiry (null: it doesn't expire, e.g. manual connections)."""
+        if self.status == WhatsAppConnectionStatus.DISCONNECTED:
+            return ConnectionHealth.DISCONNECTED
+        if self.status == WhatsAppConnectionStatus.BANNED:
+            return ConnectionHealth.BANNED
         expires = self.access_token_expires_time
         if expires is None:
-            return AccessTokenStatus.ACTIVE
+            return ConnectionHealth.OK
         now = now or timezone.now()
         if expires <= now:
-            return AccessTokenStatus.EXPIRED
+            return ConnectionHealth.EXPIRED
         if expires - now <= ACCESS_TOKEN_EXPIRY_WARNING:
-            return AccessTokenStatus.EXPIRING_SOON
-        return AccessTokenStatus.ACTIVE
+            return ConnectionHealth.EXPIRING_SOON
+        return ConnectionHealth.OK

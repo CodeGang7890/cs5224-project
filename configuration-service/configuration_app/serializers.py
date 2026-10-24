@@ -4,9 +4,9 @@ from rest_framework.exceptions import APIException
 
 from .models import (
     WHATSAPP_ID_MAX_LENGTH,
-    WHATSAPP_STATUS_EVENT_MAX_LENGTH,
     WHATSAPP_VERIFY_TOKEN_MAX_LENGTH,
-    AccessTokenStatus,
+    BusinessConfiguration,
+    ConnectionHealth,
     WhatsAppConfiguration,
     meta_id_validator,
 )
@@ -18,6 +18,15 @@ class MetaUnavailable(APIException):
     default_code = 'meta_unavailable'
 
 
+class BusinessConfigurationSerializer(serializers.ModelSerializer):
+    """The logged-in user's own business (its name, location and description)."""
+
+    class Meta:
+        model = BusinessConfiguration
+        fields = ('id', 'business_name', 'location', 'description')
+        read_only_fields = ('id',)
+
+
 class RandomNumberSerializer(serializers.Serializer):
     value = serializers.IntegerField(min_value=1, max_value=10)
 
@@ -27,15 +36,15 @@ class WhatsAppConfigurationSerializer(serializers.ModelSerializer):
     Signup (EmbeddedSignupSerializer). The secrets (token, App Secret, two-step PIN) and the webhook
     details (set up automatically) are never returned. `status` is what Meta last reported (account_update
     webhooks): `disconnected` or `banned` with a `status_reason` for the owner; reconnecting resets it.
-    `access_token_status` says whether the owner must reconnect (soon) to renew the token: `expiring_soon`
-    within ACCESS_TOKEN_EXPIRY_WARNING of `access_token_expires_time`."""
+    `health` combines that with the token's expiry into what (if anything) the owner must do."""
 
     status_reason = serializers.CharField(
         read_only=True, help_text="Why it isn't connected, for the owner; empty while `status` is `connected`."
     )
-    access_token_status = serializers.SerializerMethodField(
-        help_text='`active`, `expiring_soon` (reconnect with Facebook before `access_token_expires_time`) '
-        "or `expired` (replies can't be sent until the business reconnects)."
+    health = serializers.SerializerMethodField(
+        help_text='What the owner must do: nothing (`ok`); reconnect with Facebook before '
+        "`access_token_expires_time` (`expiring_soon`) or now (`expired`: replies can't be sent); or fix what "
+        'Meta reported (`disconnected` / `banned`, see `status_reason`).'
     )
 
     class Meta:
@@ -50,15 +59,15 @@ class WhatsAppConfigurationSerializer(serializers.ModelSerializer):
             'status_reason',
             'status_updated_time',
             'access_token_expires_time',
-            'access_token_status',
+            'health',
             'created_time',
             'last_updated',
         )
         read_only_fields = fields
 
-    @extend_schema_field(serializers.ChoiceField(choices=AccessTokenStatus.choices))
-    def get_access_token_status(self, config: WhatsAppConfiguration) -> str:
-        return config.access_token_status()
+    @extend_schema_field(serializers.ChoiceField(choices=ConnectionHealth.choices))
+    def get_health(self, config: WhatsAppConfiguration) -> str:
+        return config.health()
 
 
 class EmbeddedSignupSerializer(serializers.Serializer):
@@ -108,7 +117,7 @@ class AccountUpdateSerializer(serializers.Serializer):
         validators=[meta_id_validator],
         help_text='The WhatsApp Business account: `value.waba_info.waba_id`, else the entry `id`.',
     )
-    event = serializers.CharField(max_length=WHATSAPP_STATUS_EVENT_MAX_LENGTH, help_text='`value.event`.')
+    event = serializers.CharField(max_length=64, help_text='`value.event`, e.g. PARTNER_APP_UNINSTALLED.')
     ban_state = serializers.CharField(
         max_length=32, required=False, allow_blank=True, default='',
         help_text='`value.ban_info.waba_ban_state` (DISABLED_UPDATE): DISABLE, REINSTATE or SCHEDULE_FOR_DISABLE.',

@@ -2,6 +2,7 @@ import base64
 from datetime import datetime, timedelta
 from decimal import Decimal
 
+from django.core.cache import cache
 from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
@@ -436,6 +437,7 @@ class BusinessListAPITests(BusinessAPITestCase):
         self.assertEqual(len(second.data['results']), 6)
 
     def test_bearer_token_works(self):
+        cache.clear()  # the login rate limit counts in the cache, across the whole test run
         tokens = self.client.post(
             reverse('auth_app:token-obtain'), {'username': 'cafe', 'password': '123'}, format='json'
         ).data

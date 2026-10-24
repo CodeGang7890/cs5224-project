@@ -2,22 +2,24 @@ import hmac
 import random
 
 from django.conf import settings
+from django.db import transaction
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import permissions, status
-from rest_framework.exceptions import APIException, NotFound, PermissionDenied, ValidationError
+from rest_framework.exceptions import APIException, NotFound, ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from auth_app.business_scope import NO_BUSINESS_MESSAGE
+from auth_app.business_scope import get_user_business
 
 from . import account_updates, embedded_signup, meta_api, whatsapp
-from .models import WhatsAppConfiguration, WhatsAppConnectionMethod
+from .models import PHONE_NUMBER_TAKEN_MESSAGE, WhatsAppConfiguration, WhatsAppConnectionMethod
 from .serializers import (
     AccountUpdatesRequestSerializer,
     AccountUpdatesResultSerializer,
+    BusinessConfigurationSerializer,
     EmbeddedSignupSerializer,
     MetaUnavailable,
     RandomNumberSerializer,
@@ -31,7 +33,7 @@ from .serializers import (
 RANDOM_NUMBER_MIN = 1
 RANDOM_NUMBER_MAX = 10
 
-PHONE_NUMBER_TAKEN_MESSAGE = 'This phone number ID is already connected to another business.'
+NO_BUSINESS_YET_MESSAGE = 'Your account has no business yet. Create one first.'
 NO_WHATSAPP_CONFIGURATION_MESSAGE = 'Your business has not connected WhatsApp yet. Connect it with Facebook.'
 NO_BUSINESS_WHATSAPP_CONFIGURATION_MESSAGE = 'This business has not connected WhatsApp.'
 INTERNAL_API_KEY_HEADER = 'X-Internal-Api-Key'
@@ -57,11 +59,51 @@ class RandomNumberView(APIView):
         return Response(serializer.data)
 
 
-def get_user_business(request: Request):
-    """The logged-in user's business; 403 if the account isn't linked to one."""
-    if request.user.business_id is None:
-        raise PermissionDenied(NO_BUSINESS_MESSAGE)
-    return request.user.business
+class MyBusinessView(APIView):
+    """The logged-in user's own business. A new account (sign up, or a first Google / Facebook login) has
+    none: PUT creates it and links the account to it; after that, PUT updates it."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=['Business'],
+        summary='Get your business',
+        responses={
+            200: BusinessConfigurationSerializer,
+            404: OpenApiResponse(description='Your account has no business yet.'),
+        },
+    )
+    def get(self, request: Request) -> Response:
+        if request.user.business_id is None:
+            raise NotFound(NO_BUSINESS_YET_MESSAGE)
+        return Response(BusinessConfigurationSerializer(request.user.business).data)
+
+    @extend_schema(
+        tags=['Business'],
+        summary='Create or update your business',
+        description=(
+            "Without a business, creates one and links your account to it (201). Otherwise updates your business's "
+            'name, location and description (200).'
+        ),
+        request=BusinessConfigurationSerializer,
+        responses={
+            200: BusinessConfigurationSerializer,
+            201: BusinessConfigurationSerializer,
+            400: OpenApiResponse(description='Invalid fields.'),
+        },
+    )
+    def put(self, request: Request) -> Response:
+        with transaction.atomic():
+            # Locked, so two requests at once can't each create a business for the same account.
+            user = type(request.user).objects.select_for_update().get(pk=request.user.pk)
+            serializer = BusinessConfigurationSerializer(user.business, data=request.data)
+            serializer.is_valid(raise_exception=True)
+            created = user.business_id is None
+            business = serializer.save()
+            if created:
+                user.business = business
+                user.save(update_fields=['business'])
+        return Response(serializer.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
 
 class WhatsAppConfigurationView(APIView):
@@ -105,7 +147,7 @@ class WhatsAppConfigurationView(APIView):
         if config is None:
             raise NotFound(NO_WHATSAPP_CONFIGURATION_MESSAGE)
         if config.connection_method == WhatsAppConnectionMethod.EMBEDDED_SIGNUP:
-            embedded_signup.unsubscribe(config.waba_id, config.access_token, config.app_secret)
+            embedded_signup.unsubscribe(config.waba_id, config.access_token)
         config.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -267,7 +309,7 @@ class InternalWhatsAppVerifySignatureView(InternalWhatsAppView):
     def post(self, request: Request, business_id: int) -> Response:
         config = self.get_config(business_id)
         signature = request.headers.get(SIGNATURE_HEADER, '')
-        valid = whatsapp.signature_matches(config.app_secret, request.body, signature)
+        valid = whatsapp.signature_matches(config.effective_app_secret, request.body, signature)
         return self.result(valid, config)
 
 
@@ -302,7 +344,7 @@ class InternalWhatsAppSendView(InternalWhatsAppView):
         config = self.get_config(business_id)
         try:
             message_id = meta_api.send_text_message(
-                config.phone_number_id, config.access_token, config.app_secret,
+                config.phone_number_id, config.access_token, config.effective_app_secret,
                 serializer.validated_data['to'], serializer.validated_data['text'],
             )
         except meta_api.MetaSendError as exc:
@@ -377,8 +419,8 @@ class InternalWhatsAppAccountUpdatesView(InternalWhatsAppAppView):
         description=(
             "For messaging-ingester: the account_update changes from our app's webhook (already checked "
             'with META_APP_SECRET). Marks the WhatsApp Business account\'s connections disconnected (our app '
-            'uninstalled, unshared, account deleted or offboarded) or banned (DISABLED_UPDATE, DISABLE), or '
-            'connected again (REINSTATE, ACCOUNT_RECONNECTED); other events change nothing. Idempotent. '
+            'uninstalled, unshared, account deleted or offboarded) or banned (DISABLED_UPDATE, DISABLE); other '
+            'events change nothing (reconnecting with Facebook sets it back). Idempotent. '
             f'Requires the `{INTERNAL_API_KEY_HEADER}` header.'
         ),
         parameters=[INTERNAL_API_KEY_PARAMETER],
