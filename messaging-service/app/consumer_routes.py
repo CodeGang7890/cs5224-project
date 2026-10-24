@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Request
 
-from . import config
 from .schemas import ConsumerStatus
 
 router = APIRouter(tags=['consumer'])
