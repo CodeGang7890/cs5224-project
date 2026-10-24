@@ -1,5 +1,5 @@
-import { TabPage } from '@/components/common/tab-page'
-import { ServiceManager } from '@/features/services'
+import { TabPage } from "@/components/common/tab-page";
+import { ServiceManager } from "@/features/services";
 
 export function ServicePage() {
   return (
@@ -10,5 +10,5 @@ export function ServicePage() {
     >
       <ServiceManager />
     </TabPage>
-  )
+  );
 }

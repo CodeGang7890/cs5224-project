@@ -1,13 +1,13 @@
-import { CircleHelp } from 'lucide-react'
+import { CircleHelp } from "lucide-react";
 
-import { Button } from '@/components/ui/button'
+import { Button } from "@/components/ui/button";
 
-import { useOpenQuestionCount } from '../hooks/use-questions'
+import { useOpenQuestionCount } from "../hooks/use-questions";
 
 /** "N questions need your answer" banner; renders nothing when there are none. */
 export function OpenQuestionsAlert({ onView }: { onView: () => void }) {
-  const { data: count = 0 } = useOpenQuestionCount()
-  if (count === 0) return null
+  const { data: count = 0 } = useOpenQuestionCount();
+  if (count === 0) return null;
   return (
     <div
       role="alert"
@@ -16,12 +16,12 @@ export function OpenQuestionsAlert({ onView }: { onView: () => void }) {
       <span className="flex items-center gap-2">
         <CircleHelp className="size-4 text-amber-600 dark:text-amber-400" />
         {count === 1
-          ? '1 customer question needs your answer: the assistant couldn’t find it in your FAQs.'
+          ? "1 customer question needs your answer: the assistant couldn’t find it in your FAQs."
           : `${count} customer questions need your answer: the assistant couldn’t find them in your FAQs.`}
       </span>
       <Button size="sm" variant="outline" onClick={onView}>
-        Answer {count === 1 ? 'it' : 'them'}
+        Answer {count === 1 ? "it" : "them"}
       </Button>
     </div>
-  )
+  );
 }

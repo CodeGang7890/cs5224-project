@@ -1,4 +1,4 @@
-import type { Product, ProductInput } from './types'
+import type { Product, ProductInput } from "./types";
 
 // Mirrors configuration-service product_app/models.py. The backend validates too; this just
 // gives instant feedback.
@@ -8,35 +8,35 @@ export const PRODUCT_LIMITS = {
   informationMaxLength: 5000,
   priceMax: 99_999_999.99,
   quantityMax: 1_000_000,
-} as const
+} as const;
 
 /** Form state: number fields are kept as strings while the user types. */
 export interface ProductFormValues {
-  name: string
-  description: string
-  information: string
-  price: string
-  total_quantity: string
-  is_active: boolean
+  name: string;
+  description: string;
+  information: string;
+  price: string;
+  total_quantity: string;
+  is_active: boolean;
 }
 
 export const PRODUCT_FIELD_LABELS: Record<keyof ProductInput, string> = {
-  name: 'Name',
-  description: 'Description',
-  information: 'Information',
-  price: 'Price',
-  total_quantity: 'Total quantity',
-  is_active: 'Active',
-}
+  name: "Name",
+  description: "Description",
+  information: "Information",
+  price: "Price",
+  total_quantity: "Total quantity",
+  is_active: "Active",
+};
 
 export const emptyProductValues: ProductFormValues = {
-  name: '',
-  description: '',
-  information: '',
-  price: '',
-  total_quantity: '0',
+  name: "",
+  description: "",
+  information: "",
+  price: "",
+  total_quantity: "0",
   is_active: true,
-}
+};
 
 export function productToFormValues(product: Product): ProductFormValues {
   return {
@@ -46,10 +46,12 @@ export function productToFormValues(product: Product): ProductFormValues {
     price: product.price,
     total_quantity: String(product.total_quantity),
     is_active: product.is_active,
-  }
+  };
 }
 
-export function formValuesToProductInput(values: ProductFormValues): ProductInput {
+export function formValuesToProductInput(
+  values: ProductFormValues,
+): ProductInput {
   return {
     name: values.name.trim(),
     description: values.description.trim(),
@@ -57,19 +59,20 @@ export function formValuesToProductInput(values: ProductFormValues): ProductInpu
     price: Number(values.price).toFixed(2),
     total_quantity: Number(values.total_quantity),
     is_active: values.is_active,
-  }
+  };
 }
 
-const PRICE_PATTERN = /^\d+(\.\d{1,2})?$/
-const INTEGER_PATTERN = /^\d+$/
+const PRICE_PATTERN = /^\d+(\.\d{1,2})?$/;
+const INTEGER_PATTERN = /^\d+$/;
 
 function validateQuantity(value: string): string | undefined {
-  if (value.trim() === '') return 'Required.'
-  if (!INTEGER_PATTERN.test(value.trim())) return 'Must be a whole number of 0 or more.'
+  if (value.trim() === "") return "Required.";
+  if (!INTEGER_PATTERN.test(value.trim()))
+    return "Must be a whole number of 0 or more.";
   if (Number(value) > PRODUCT_LIMITS.quantityMax) {
-    return `Must be at most ${PRODUCT_LIMITS.quantityMax.toLocaleString()}.`
+    return `Must be at most ${PRODUCT_LIMITS.quantityMax.toLocaleString()}.`;
   }
-  return undefined
+  return undefined;
 }
 
 /**
@@ -77,7 +80,7 @@ function validateQuantity(value: string): string | undefined {
  * quantity available never goes negative). The backend checks it too.
  */
 export function minTotalQuantity(product: Product): number {
-  return product.quantity_on_hold + product.quantity_sold
+  return product.quantity_on_hold + product.quantity_sold;
 }
 
 /**
@@ -88,45 +91,53 @@ export function validateProduct(
   values: ProductFormValues,
   product?: Product,
 ): Partial<Record<keyof ProductInput, string>> {
-  const errors: Partial<Record<keyof ProductInput, string>> = {}
+  const errors: Partial<Record<keyof ProductInput, string>> = {};
 
-  const name = values.name.trim()
-  if (!name) errors.name = 'Name is required.'
+  const name = values.name.trim();
+  if (!name) errors.name = "Name is required.";
   else if (name.length > PRODUCT_LIMITS.nameMaxLength) {
-    errors.name = `Must be at most ${PRODUCT_LIMITS.nameMaxLength} characters.`
+    errors.name = `Must be at most ${PRODUCT_LIMITS.nameMaxLength} characters.`;
   }
 
   if (values.description.trim().length > PRODUCT_LIMITS.descriptionMaxLength) {
-    errors.description = `Must be at most ${PRODUCT_LIMITS.descriptionMaxLength.toLocaleString()} characters.`
+    errors.description = `Must be at most ${PRODUCT_LIMITS.descriptionMaxLength.toLocaleString()} characters.`;
   }
   if (values.information.trim().length > PRODUCT_LIMITS.informationMaxLength) {
-    errors.information = `Must be at most ${PRODUCT_LIMITS.informationMaxLength.toLocaleString()} characters.`
+    errors.information = `Must be at most ${PRODUCT_LIMITS.informationMaxLength.toLocaleString()} characters.`;
   }
 
-  const price = values.price.trim()
-  if (!price) errors.price = 'Price is required.'
-  else if (!PRICE_PATTERN.test(price)) errors.price = 'Enter a number of 0 or more, with up to 2 decimal places.'
+  const price = values.price.trim();
+  if (!price) errors.price = "Price is required.";
+  else if (!PRICE_PATTERN.test(price))
+    errors.price = "Enter a number of 0 or more, with up to 2 decimal places.";
   else if (Number(price) > PRODUCT_LIMITS.priceMax) {
-    errors.price = `Must be at most ${PRODUCT_LIMITS.priceMax.toLocaleString(undefined, { minimumFractionDigits: 2 })}.`
+    errors.price = `Must be at most ${PRODUCT_LIMITS.priceMax.toLocaleString(undefined, { minimumFractionDigits: 2 })}.`;
   }
 
-  const total = validateQuantity(values.total_quantity)
-  if (total) errors.total_quantity = total
-  else if (product && Number(values.total_quantity) < minTotalQuantity(product)) {
+  const total = validateQuantity(values.total_quantity);
+  if (total) errors.total_quantity = total;
+  else if (
+    product &&
+    Number(values.total_quantity) < minTotalQuantity(product)
+  ) {
     errors.total_quantity =
       `Must be at least ${minTotalQuantity(product).toLocaleString()} ` +
-      `(${product.quantity_on_hold.toLocaleString()} on hold and ${product.quantity_sold.toLocaleString()} sold in orders).`
+      `(${product.quantity_on_hold.toLocaleString()} on hold and ${product.quantity_sold.toLocaleString()} sold in orders).`;
   }
 
-  return errors
+  return errors;
 }
 
 /** Only the fields that differ from the saved product (for PATCH). */
-export function changedProductFields(original: Product, input: ProductInput): Partial<ProductInput> {
-  const changes: Partial<ProductInput> = {}
+export function changedProductFields(
+  original: Product,
+  input: ProductInput,
+): Partial<ProductInput> {
+  const changes: Partial<ProductInput> = {};
   for (const key of Object.keys(input) as (keyof ProductInput)[]) {
-    const before = key === 'price' ? Number(original.price).toFixed(2) : original[key]
-    if (before !== input[key]) Object.assign(changes, { [key]: input[key] })
+    const before =
+      key === "price" ? Number(original.price).toFixed(2) : original[key];
+    if (before !== input[key]) Object.assign(changes, { [key]: input[key] });
   }
-  return changes
+  return changes;
 }

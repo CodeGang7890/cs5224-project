@@ -1,1 +1,1 @@
-export const APP_NAME = 'Ansera Business Admin'
+export const APP_NAME = "Ansera Business Admin";

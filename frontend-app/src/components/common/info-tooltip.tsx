@@ -1,12 +1,16 @@
-import type { ReactNode } from 'react'
-import { Info } from 'lucide-react'
+import type { ReactNode } from "react";
+import { Info } from "lucide-react";
 
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface InfoTooltipProps {
   /** What the tooltip explains, for screen readers (e.g. "Description"). */
-  label: string
-  children: ReactNode
+  label: string;
+  children: ReactNode;
 }
 
 /** A small (i) button that shows an explanation on hover or keyboard focus. */
@@ -26,5 +30,5 @@ export function InfoTooltip({ label, children }: InfoTooltipProps) {
         {children}
       </TooltipContent>
     </Tooltip>
-  )
+  );
 }

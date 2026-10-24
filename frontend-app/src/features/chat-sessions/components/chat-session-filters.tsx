@@ -1,42 +1,51 @@
-import { useEffect, useRef, useState } from 'react'
-import { Search, X } from 'lucide-react'
+import { useEffect, useRef, useState } from "react";
+import { Search, X } from "lucide-react";
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { NativeSelect } from '@/components/ui/native-select'
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
 
-import { countActiveFilters, ORDERING_OPTIONS, type ChatFilterValues } from '../hooks/use-chat-session-params'
-import type { ChatStepOption } from '../hooks/use-chat-steps'
-import type { ChatSessionOrdering, SandboxFilter } from '../types'
+import {
+  countActiveFilters,
+  ORDERING_OPTIONS,
+  type ChatFilterValues,
+} from "../hooks/use-chat-session-params";
+import type { ChatStepOption } from "../hooks/use-chat-steps";
+import type { ChatSessionOrdering, SandboxFilter } from "../types";
 
 interface ChatSessionFiltersProps {
-  values: ChatFilterValues
-  steps: ChatStepOption[]
-  onChange: (changes: Partial<Omit<ChatFilterValues, 'page'>>) => void
-  onClear: () => void
+  values: ChatFilterValues;
+  steps: ChatStepOption[];
+  onChange: (changes: Partial<Omit<ChatFilterValues, "page">>) => void;
+  onClear: () => void;
 }
 
 /** Search, filters and sorting for the Chats tab. */
-export function ChatSessionFilters({ values, steps, onChange, onClear }: ChatSessionFiltersProps) {
+export function ChatSessionFilters({
+  values,
+  steps,
+  onChange,
+  onClear,
+}: ChatSessionFiltersProps) {
   // Search as you type, without a request per keystroke. The box keeps its own text while you
   // type, and follows the URL when the search changes elsewhere (e.g. "Clear filters", back button).
-  const [search, setSearch] = useState(values.search)
-  const [urlSearch, setUrlSearch] = useState(values.search)
+  const [search, setSearch] = useState(values.search);
+  const [urlSearch, setUrlSearch] = useState(values.search);
   if (values.search !== urlSearch) {
-    setUrlSearch(values.search)
-    setSearch(values.search)
+    setUrlSearch(values.search);
+    setSearch(values.search);
   }
-  const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  useEffect(() => () => clearTimeout(searchTimer.current), [])
+  const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(searchTimer.current), []);
 
   const onSearchChange = (text: string) => {
-    setSearch(text)
-    clearTimeout(searchTimer.current)
-    searchTimer.current = setTimeout(() => onChange({ search: text }), 300)
-  }
+    setSearch(text);
+    clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => onChange({ search: text }), 300);
+  };
 
-  const activeCount = countActiveFilters(values)
+  const activeCount = countActiveFilters(values);
 
   return (
     <div className="grid gap-3 rounded-xl border p-3">
@@ -55,7 +64,9 @@ export function ChatSessionFilters({ values, steps, onChange, onClear }: ChatSes
           <NativeSelect
             id="chat-ordering"
             value={values.ordering}
-            onChange={(event) => onChange({ ordering: event.target.value as ChatSessionOrdering })}
+            onChange={(event) =>
+              onChange({ ordering: event.target.value as ChatSessionOrdering })
+            }
           >
             {ORDERING_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -71,7 +82,9 @@ export function ChatSessionFilters({ values, steps, onChange, onClear }: ChatSes
           <NativeSelect
             id="chat-sandbox"
             value={values.sandbox}
-            onChange={(event) => onChange({ sandbox: event.target.value as SandboxFilter })}
+            onChange={(event) =>
+              onChange({ sandbox: event.target.value as SandboxFilter })
+            }
           >
             <option value="exclude">Customer chats</option>
             <option value="include">Customer + sandbox</option>
@@ -79,7 +92,11 @@ export function ChatSessionFilters({ values, steps, onChange, onClear }: ChatSes
           </NativeSelect>
         </Field>
         <Field label="Current step" id="chat-state">
-          <NativeSelect id="chat-state" value={values.state} onChange={(event) => onChange({ state: event.target.value })}>
+          <NativeSelect
+            id="chat-state"
+            value={values.state}
+            onChange={(event) => onChange({ state: event.target.value })}
+          >
             <option value="">Any step</option>
             {steps.map((step) => (
               <option key={step.value} value={step.value}>
@@ -92,23 +109,51 @@ export function ChatSessionFilters({ values, steps, onChange, onClear }: ChatSes
           <NativeSelect
             id="chat-messages"
             value={values.messages}
-            onChange={(event) => onChange({ messages: event.target.value as ChatFilterValues['messages'] })}
+            onChange={(event) =>
+              onChange({
+                messages: event.target.value as ChatFilterValues["messages"],
+              })
+            }
           >
             <option value="">Any</option>
             <option value="true">Has messages</option>
             <option value="false">No messages yet</option>
           </NativeSelect>
         </Field>
-        <DateField label="Last chat from" id="chat-last-from" value={values.lastFrom} max={values.lastTo} onChange={(lastFrom) => onChange({ lastFrom })} />
-        <DateField label="Last chat to" id="chat-last-to" value={values.lastTo} min={values.lastFrom} onChange={(lastTo) => onChange({ lastTo })} />
-        <DateField label="Started from" id="chat-created-from" value={values.createdFrom} max={values.createdTo} onChange={(createdFrom) => onChange({ createdFrom })} />
-        <DateField label="Started to" id="chat-created-to" value={values.createdTo} min={values.createdFrom} onChange={(createdTo) => onChange({ createdTo })} />
+        <DateField
+          label="Last chat from"
+          id="chat-last-from"
+          value={values.lastFrom}
+          max={values.lastTo}
+          onChange={(lastFrom) => onChange({ lastFrom })}
+        />
+        <DateField
+          label="Last chat to"
+          id="chat-last-to"
+          value={values.lastTo}
+          min={values.lastFrom}
+          onChange={(lastTo) => onChange({ lastTo })}
+        />
+        <DateField
+          label="Started from"
+          id="chat-created-from"
+          value={values.createdFrom}
+          max={values.createdTo}
+          onChange={(createdFrom) => onChange({ createdFrom })}
+        />
+        <DateField
+          label="Started to"
+          id="chat-created-to"
+          value={values.createdTo}
+          min={values.createdFrom}
+          onChange={(createdTo) => onChange({ createdTo })}
+        />
       </div>
 
       {activeCount > 0 && (
         <div className="flex items-center justify-between gap-2 text-sm">
           <span className="text-muted-foreground">
-            {activeCount} filter{activeCount === 1 ? '' : 's'} applied
+            {activeCount} filter{activeCount === 1 ? "" : "s"} applied
           </span>
           <Button variant="ghost" size="sm" onClick={onClear}>
             <X /> Clear filters
@@ -116,18 +161,28 @@ export function ChatSessionFilters({ values, steps, onChange, onClear }: ChatSes
         </div>
       )}
     </div>
-  )
+  );
 }
 
-function Field({ label, id, className, children }: { label: string; id: string; className?: string; children: React.ReactNode }) {
+function Field({
+  label,
+  id,
+  className,
+  children,
+}: {
+  label: string;
+  id: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className={`grid gap-1.5 ${className ?? ''}`}>
+    <div className={`grid gap-1.5 ${className ?? ""}`}>
       <Label htmlFor={id} className="text-muted-foreground text-xs">
         {label}
       </Label>
       {children}
     </div>
-  )
+  );
 }
 
 function DateField({
@@ -138,12 +193,12 @@ function DateField({
   max,
   onChange,
 }: {
-  label: string
-  id: string
-  value: string
-  min?: string
-  max?: string
-  onChange: (value: string) => void
+  label: string;
+  id: string;
+  value: string;
+  min?: string;
+  max?: string;
+  onChange: (value: string) => void;
 }) {
   return (
     <Field label={label} id={id}>
@@ -156,5 +211,5 @@ function DateField({
         onChange={(event) => onChange(event.target.value)}
       />
     </Field>
-  )
+  );
 }

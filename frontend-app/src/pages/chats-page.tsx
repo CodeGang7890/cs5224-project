@@ -1,10 +1,10 @@
-import { SectionLayout } from '@/components/layout/section-layout'
-import { chatsTabs, paths } from '@/config/navigation'
-import { useOpenQuestionCount } from '@/features/questions'
+import { SectionLayout } from "@/components/layout/section-layout";
+import { chatsTabs, paths } from "@/config/navigation";
+import { useOpenQuestionCount } from "@/features/questions";
 
 /** The Chats section: conversations, unanswered questions and the Chat Sandbox. */
 export function ChatsPage() {
-  const { data: openCount = 0 } = useOpenQuestionCount()
+  const { data: openCount = 0 } = useOpenQuestionCount();
   return (
     <SectionLayout
       title="Chats"
@@ -21,5 +21,5 @@ export function ChatsPage() {
         ),
       }}
     />
-  )
+  );
 }

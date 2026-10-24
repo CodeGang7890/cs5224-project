@@ -1,19 +1,19 @@
-import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 export interface AuthTokens {
-  access: string
-  refresh: string
+  access: string;
+  refresh: string;
 }
 
 interface AuthState {
-  accessToken: string | null
-  refreshToken: string | null
-  setTokens: (tokens: AuthTokens) => void
-  clearTokens: () => void
+  accessToken: string | null;
+  refreshToken: string | null;
+  setTokens: (tokens: AuthTokens) => void;
+  clearTokens: () => void;
 }
 
-const STORAGE_KEY = 'auth'
+const STORAGE_KEY = "auth";
 
 /**
  * JWT access/refresh tokens, persisted to localStorage so a login survives page reloads.
@@ -25,19 +25,21 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       accessToken: null,
       refreshToken: null,
-      setTokens: ({ access, refresh }) => set({ accessToken: access, refreshToken: refresh }),
+      setTokens: ({ access, refresh }) =>
+        set({ accessToken: access, refreshToken: refresh }),
       clearTokens: () => set({ accessToken: null, refreshToken: null }),
     }),
     { name: STORAGE_KEY },
   ),
-)
+);
 
 /** Logged in = we hold a refresh token (the access token may be expired and get refreshed). */
-export const selectIsAuthenticated = (state: AuthState) => state.refreshToken !== null
+export const selectIsAuthenticated = (state: AuthState) =>
+  state.refreshToken !== null;
 
 // Keep tabs in sync: logging in/out (or a token refresh) in one tab updates the others.
-if (typeof window !== 'undefined') {
-  window.addEventListener('storage', (event) => {
-    if (event.key === STORAGE_KEY) void useAuthStore.persist.rehydrate()
-  })
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (event) => {
+    if (event.key === STORAGE_KEY) void useAuthStore.persist.rehydrate();
+  });
 }

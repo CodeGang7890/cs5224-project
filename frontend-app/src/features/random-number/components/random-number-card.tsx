@@ -1,6 +1,6 @@
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw } from "lucide-react";
 
-import { Button } from '@/components/ui/button'
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardAction,
@@ -8,15 +8,16 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
-import { cn } from '@/lib/utils'
+} from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
-import { useRandomNumber } from '../hooks/use-random-number'
+import { useRandomNumber } from "../hooks/use-random-number";
 
 /** Sample connection to configuration-service: shows a random number from the backend. */
 export function RandomNumberCard() {
-  const { data, isPending, isError, error, refetch, isFetching } = useRandomNumber()
+  const { data, isPending, isError, error, refetch, isFetching } =
+    useRandomNumber();
 
   return (
     <Card className="max-w-sm">
@@ -31,7 +32,7 @@ export function RandomNumberCard() {
             disabled={isFetching}
             aria-label="Get a new number"
           >
-            <RefreshCw className={cn(isFetching && 'animate-spin')} />
+            <RefreshCw className={cn(isFetching && "animate-spin")} />
           </Button>
         </CardAction>
       </CardHeader>
@@ -47,5 +48,5 @@ export function RandomNumberCard() {
         )}
       </CardContent>
     </Card>
-  )
+  );
 }

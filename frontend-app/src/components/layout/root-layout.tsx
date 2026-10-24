@@ -1,22 +1,24 @@
-import { Moon, Sun } from 'lucide-react'
-import { Link, NavLink, Outlet } from 'react-router'
+import { Moon, Sun } from "lucide-react";
+import { Link, NavLink, Outlet } from "react-router";
 
-import { Button } from '@/components/ui/button'
-import { APP_NAME } from '@/config/app'
-import { navItems, paths } from '@/config/navigation'
-import { WhatsAppReconnectAlert } from '@/features/whatsapp'
-import { cn } from '@/lib/utils'
-import { selectIsAuthenticated, useAuthStore } from '@/stores/auth-store'
-import { useThemeStore } from '@/stores/theme-store'
+import { Button } from "@/components/ui/button";
+import { APP_NAME } from "@/config/app";
+import { navItems, paths } from "@/config/navigation";
+import { WhatsAppReconnectAlert } from "@/features/whatsapp";
+import { cn } from "@/lib/utils";
+import { selectIsAuthenticated, useAuthStore } from "@/stores/auth-store";
+import { useThemeStore } from "@/stores/theme-store";
 
-import { AuthControls } from './auth-controls'
+import { AuthControls } from "./auth-controls";
 
 export function RootLayout() {
-  const theme = useThemeStore((state) => state.theme)
-  const toggleTheme = useThemeStore((state) => state.toggleTheme)
-  const isAuthenticated = useAuthStore(selectIsAuthenticated)
+  const theme = useThemeStore((state) => state.theme);
+  const toggleTheme = useThemeStore((state) => state.toggleTheme);
+  const isAuthenticated = useAuthStore(selectIsAuthenticated);
   // Login-only tabs are hidden while logged out (their URLs still show the login guard).
-  const visibleItems = navItems.filter((item) => isAuthenticated || !item.requiresAuth)
+  const visibleItems = navItems.filter(
+    (item) => isAuthenticated || !item.requiresAuth,
+  );
 
   return (
     <div className="flex min-h-svh flex-col">
@@ -34,10 +36,10 @@ export function RootLayout() {
                 end={item.to === paths.home}
                 className={({ isActive }) =>
                   cn(
-                    'shrink-0 rounded-md px-3 py-1.5 text-sm transition-colors hover:text-foreground',
+                    "shrink-0 rounded-md px-3 py-1.5 text-sm transition-colors hover:text-foreground",
                     isActive
-                      ? 'bg-accent text-foreground font-medium'
-                      : 'text-muted-foreground',
+                      ? "bg-accent text-foreground font-medium"
+                      : "text-muted-foreground",
                   )
                 }
               >
@@ -47,8 +49,13 @@ export function RootLayout() {
           </nav>
 
           <div className="flex shrink-0 items-center gap-1">
-            <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle theme">
-              {theme === 'dark' ? <Sun /> : <Moon />}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleTheme}
+              aria-label="Toggle theme"
+            >
+              {theme === "dark" ? <Sun /> : <Moon />}
             </Button>
             <AuthControls />
           </div>
@@ -60,5 +67,5 @@ export function RootLayout() {
         <Outlet />
       </main>
     </div>
-  )
+  );
 }

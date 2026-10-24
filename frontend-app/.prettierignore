@@ -1,0 +1,6 @@
+# Prettier also skips what .gitignore lists (node_modules, dist, …).
+package-lock.json
+# Docs keep their own line breaks.
+*.md
+# Hand-written static pages (e.g. the privacy policy).
+public/
