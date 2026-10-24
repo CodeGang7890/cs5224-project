@@ -10,4 +10,5 @@ export type {
   EmbeddedSignupInput,
   WhatsAppConfiguration,
   WhatsAppConnectionMethod,
+  WhatsAppConnectionStatus,
 } from './types'

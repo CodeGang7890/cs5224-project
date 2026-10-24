@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CircleCheck, ExternalLink, MessageCircle, Phone, Unplug } from 'lucide-react'
+import { CircleAlert, CircleCheck, ExternalLink, MessageCircle, Phone, Unplug } from 'lucide-react'
 
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { Badge } from '@/components/ui/badge'
@@ -33,7 +33,11 @@ export function WhatsAppSettingsCard() {
         </CardDescription>
         {isAuthenticated && !isPending && !isError && (
           <CardAction>
-            {isConnected ? (
+            {config && config.status !== 'connected' ? (
+              <Badge variant="outline" className="border-destructive/50 text-destructive">
+                {config.status === 'banned' ? 'Banned' : 'Disconnected'}
+              </Badge>
+            ) : isConnected ? (
               <Badge variant="outline" className="border-emerald-500/50 text-emerald-700 dark:text-emerald-400">
                 Connected
               </Badge>
@@ -83,18 +87,22 @@ export function WhatsAppSettingsCard() {
   )
 }
 
-/** The connected number, and Reconnect / Disconnect. */
+/** The connected number (or what Meta reported about it), and Reconnect / Disconnect. */
 function Connection({ config }: { config: WhatsAppConfiguration }) {
   const viaFacebook = config.connection_method === 'embedded_signup'
   return (
     <div className="grid gap-4">
       <ConnectedNumber config={config} />
-      <p className="flex items-start gap-2 text-sm">
-        <CircleCheck className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-        {viaFacebook
-          ? "Connected with Facebook. Customers' messages reach your assistant automatically: there's nothing to set up in Meta."
-          : 'Connected with your own Meta app. Reconnect with Facebook to let us manage the connection for you.'}
-      </p>
+      {config.status !== 'connected' ? (
+        <StatusAlert config={config} />
+      ) : (
+        <p className="flex items-start gap-2 text-sm">
+          <CircleCheck className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+          {viaFacebook
+            ? "Connected with Facebook. Customers' messages reach your assistant automatically: there's nothing to set up in Meta."
+            : 'Connected with your own Meta app. Reconnect with Facebook to let us manage the connection for you.'}
+        </p>
+      )}
       {viaFacebook && (
         <p className="text-muted-foreground text-xs">
           WhatsApp Business account {config.waba_id}. Meta charges for some conversations: add a payment method in{' '}
@@ -113,6 +121,30 @@ function Connection({ config }: { config: WhatsAppConfiguration }) {
       <div className="flex flex-wrap items-start justify-between gap-2">
         <ConnectWithFacebook replacing />
         <DisconnectButton />
+      </div>
+    </div>
+  )
+}
+
+/** Meta reported the connection disconnected or banned: why, and what to do. */
+function StatusAlert({ config }: { config: WhatsAppConfiguration }) {
+  const since = config.status_updated_time
+    ? ` (${new Date(config.status_updated_time).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })})`
+    : ''
+  return (
+    <div role="alert" className="border-destructive/50 bg-destructive/10 flex items-start gap-2 rounded-xl border p-3 text-sm">
+      <CircleAlert className="text-destructive mt-0.5 size-4 shrink-0" />
+      <div className="grid gap-1">
+        <p className="font-medium">
+          {config.status === 'banned' ? 'Meta banned this WhatsApp account' : 'WhatsApp is disconnected'}
+          {since}
+        </p>
+        <p>{config.status_reason}</p>
+        <p className="text-muted-foreground">
+          {config.status === 'banned'
+            ? "Your assistant can't reply to customers on WhatsApp until Meta reinstates the account."
+            : "Customers' messages no longer reach your assistant. Reconnect with Facebook to fix it."}
+        </p>
       </div>
     </div>
   )

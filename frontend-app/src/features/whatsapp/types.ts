@@ -2,6 +2,12 @@
 
 export type WhatsAppConnectionMethod = 'manual' | 'embedded_signup'
 
+/**
+ * What Meta last reported (account_update webhooks): `disconnected` (e.g. our app was removed in Meta,
+ * or the account / number is gone) or `banned` (Meta disabled the account). Reconnecting resets it.
+ */
+export type WhatsAppConnectionStatus = 'connected' | 'disconnected' | 'banned'
+
 /** The business's WhatsApp connection. Secrets and webhook details are never returned. */
 export interface WhatsAppConfiguration {
   phone_number_id: string
@@ -16,6 +22,11 @@ export interface WhatsAppConfiguration {
    * automatically). `manual`: connected earlier with the owner's own Meta app (e.g. the sample data).
    */
   connection_method: WhatsAppConnectionMethod
+  status: WhatsAppConnectionStatus
+  /** Why it isn't connected, for the owner; empty while connected. */
+  status_reason: string
+  /** When Meta reported the status; null if it never has. */
+  status_updated_time: string | null
   created_time: string
   last_updated: string
 }
