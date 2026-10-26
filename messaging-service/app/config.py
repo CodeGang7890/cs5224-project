@@ -11,6 +11,11 @@ PORT = 8004
 # share the subscription's messages.
 WORKERS = int(os.getenv('WEB_CONCURRENCY', '2'))
 
+LLM_PROVIDERS = ('ollama', 'vertex_ai')
+LLM_PROVIDER = os.getenv('LLM_PROVIDER', 'ollama').strip().lower()
+if LLM_PROVIDER not in LLM_PROVIDERS:
+    raise ValueError(f'LLM_PROVIDER must be one of {", ".join(LLM_PROVIDERS)}, not {LLM_PROVIDER!r}.')
+
 # --- Ollama (local LLM server) ------------------------------------------------------------
 OLLAMA_PORT = 11434
 # In Docker, Ollama runs on the host: OLLAMA_HOST=http://host.docker.internal:11434.
@@ -18,6 +23,13 @@ OLLAMA_HOST = os.getenv('OLLAMA_HOST', f'http://localhost:{OLLAMA_PORT}')
 OLLAMA_MODEL = 'qwen2.5:7b-instruct-q4_K_M'
 # Local models can be slow, especially on the first request while the model loads.
 OLLAMA_TIMEOUT_SECONDS = 120
+
+# Vertex AI
+GOOGLE_CLOUD_PROJECT = os.getenv('GOOGLE_CLOUD_PROJECT', '')
+GOOGLE_CLOUD_LOCATION = os.getenv('GOOGLE_CLOUD_LOCATION', 'us-central1')
+VERTEX_AI_MODEL = 'gemini-2.5-flash'
+VERTEX_AI_TIMEOUT_SECONDS = 120
+LLM_MODEL = os.getenv('LLM_MODEL') or (VERTEX_AI_MODEL if LLM_PROVIDER == 'vertex_ai' else OLLAMA_MODEL)
 
 SYSTEM_PROMPT = (
     'You are a helpful assistant for Ansera Business Admin. '
@@ -59,6 +71,16 @@ OLLAMA_OPTIONS = {
 }
 # The extraction step (generate_structured) wants the most likely answer, not a creative one.
 STRUCTURED_OPTIONS = {**OLLAMA_OPTIONS, 'temperature': 0.0}
+
+VERTEX_AI_OPTIONS = {
+    'seed': OLLAMA_OPTIONS['seed'],
+    'temperature': OLLAMA_OPTIONS['temperature'],
+    'max_output_tokens': 1024,
+    'top_k': OLLAMA_OPTIONS['top_k'],
+    'top_p': OLLAMA_OPTIONS['top_p'],
+}
+VERTEX_AI_STRUCTURED_OPTIONS = {**VERTEX_AI_OPTIONS, 'temperature': 0.0}
+VERTEX_AI_THINKING_BUDGET: int | None = 0
 # How many rounds of tool calls the reply step may make before it must answer.
 MAX_TOOL_ROUNDS = 3
 

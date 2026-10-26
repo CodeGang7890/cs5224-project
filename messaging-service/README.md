@@ -81,6 +81,10 @@ These also come from environment variables (docker-compose sets them):
 
 | Variable | Default | What it is |
 | --- | --- | --- |
+| `LLM_PROVIDER` | `ollama` | `ollama` (a local Ollama server) or `vertex_ai` (Gemini on Vertex AI). Anything else stops the service at startup. |
+| `LLM_MODEL` | `OLLAMA_MODEL` / `VERTEX_AI_MODEL` | Overrides the chosen provider's model |
+| `GOOGLE_CLOUD_PROJECT` | empty | Vertex AI's project (required with `vertex_ai`; empty → `503`). It authenticates with Application Default Credentials: on Cloud Run the service account, which needs `roles/aiplatform.user`; locally `gcloud auth application-default login`. No API key. |
+| `GOOGLE_CLOUD_LOCATION` | `us-central1` | Vertex AI's region |
 | `OLLAMA_HOST` | `http://localhost:11434` | Ollama base URL (docker-compose: `http://host.docker.internal:11434`, Ollama on the host; see the root README, "Local LLM") |
 | `WEB_CONCURRENCY` | `2` | Gunicorn worker processes (`gunicorn.conf.py`) |
 | `PUBSUB_CONSUMER_ENABLED` | off | `true` to run the Pub/Sub consumer (off by default, so `python run.py` and the tests need no Pub/Sub) |
