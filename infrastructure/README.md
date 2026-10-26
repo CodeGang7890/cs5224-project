@@ -81,30 +81,9 @@ Terraform configures CORS on `configuration-service` for local Vite development 
 
 ## Vertex AI / Gemini integration
 
-Terraform enables `aiplatform.googleapis.com` by default and gives only the services named in `vertex_ai_services` the `roles/aiplatform.user` role. The default is `configuration-service`, which currently owns the customer chat flow. Vertex AI API enablement and IAM do not call the model or incur token charges by themselves. The default runtime settings are `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION=us-central1`, `GOOGLE_GENAI_USE_VERTEXAI=True`, `LLM_PROVIDER=vertex_ai`, and `LLM_MODEL=gemini-2.5-flash`. The location and model can be changed through Terraform variables. Check model availability and pricing for your chosen location before applying. No Gemini API key is needed on Cloud Run: the Google Gen AI SDK uses Application Default Credentials from the Cloud Run service account.
+Terraform enables `aiplatform.googleapis.com` and grants `roles/aiplatform.user` to the services in `vertex_ai_services`. The default is now `messaging-service`, which owns the chat workflow. Its runtime settings select `LLM_PROVIDER=vertex_ai`, `LLM_MODEL=gemini-3.5-flash-lite`, and `GOOGLE_CLOUD_LOCATION=global`. The global Gemini endpoint can reduce pay-as-you-go 429 errors by routing across available capacity; Cloud Run and Storage remain in `us-central1`. The global endpoint does not guarantee processing in a specific region, so set a regional `vertex_ai_location` if data residency is required. See Google's [429 guidance](https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429) and [Gemini quickstart](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/start/quickstart).
 
-The existing `configuration-service/chat_app/llm.py` has three Ollama-facing functions to preserve: `generate_structured()` extracts workflow data as JSON; `generate_chat_reply()` writes a reply and may request read-only product/FAQ tools; `generate_reply()` handles a one-off chat. The workflow already runs extraction and deterministic workflow checks in `flow.py`. Replace the provider adapter behind these functions, rather than rewriting workflow state handling. Keep `prompts.py`, schema validation, `Toolbox.run()` and the deterministic checks as application logic.
-
-In the Python app, add Google's supported `google-genai` package to `configuration-service/requirements.txt`, then initialize one client using the service identity:
-
-```python
-import os
-from google import genai
-from google.genai import types
-
-client = genai.Client(
-    vertexai=True,
-    project=os.environ["GOOGLE_CLOUD_PROJECT"],
-    location=os.environ["GOOGLE_CLOUD_LOCATION"],
-)
-model = os.getenv("LLM_MODEL", "gemini-2.5-flash")
-```
-
-For `generate_structured()`, pass the converted conversation history to `client.models.generate_content()`, mapping Ollama's `assistant` role to Gemini's `model` role. Pass the existing system prompt as `system_instruction`, the extraction schema as `response_schema`, `response_mime_type="application/json"`, and a low temperature. Parse the returned JSON and continue to run the app's existing schema and workflow checks; structured output does not replace server-side validation.
-
-For `generate_chat_reply()`, convert `Toolbox.specs` into Gemini function declarations. Handle returned function calls in your adapter: dispatch only names through the existing `Toolbox.run()` allowlist, append the function result in Gemini's function-response format, and ask the model to finish its reply. Keep the current tool-call round limit. The tools currently only read the current business's products and FAQs. If you later add tools that change stock, place orders, send messages, or call payment APIs, validate the requested action and any needed customer confirmation in backend code before executing it. [Vertex AI function-calling guide](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/multimodal/function-calling)
-
-For local Python development, use `gcloud auth application-default login` and set the same three `GOOGLE_*` environment variables. If running the app inside Docker Compose, the container also needs access to local ADC credentials; do not copy credentials into an image or commit them. You can keep Ollama as a selectable local provider while adding Vertex AI for deployed Cloud Run. The provider switch itself requires application edits, which are outside this `infrastructure/` folder.
+`messaging-service/app/llm_vertex.py` uses the Google Gen AI SDK with its Cloud Run service account. It provides structured extraction, reply generation, and read-only tool calls for the existing chat flow. A sandbox turn can make multiple sequential model requests, so its response time can exceed that of a single short prompt. The app currently converts a Vertex 429 to an HTTP 503. If capacity errors recur, add bounded exponential-backoff retries to that adapter. For local development, use `gcloud auth application-default login`; do not copy credentials into an image or commit them.
 
 See Google's [Gen AI SDK for Vertex AI](https://cloud.google.com/vertex-ai/generative-ai/docs/sdks/overview), [Gemini API pricing](https://cloud.google.com/vertex-ai/generative-ai/pricing), and [model list](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models).
 

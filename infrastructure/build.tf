@@ -23,6 +23,13 @@ resource "google_project_iam_member" "builder_log_writer" {
   member  = "serviceAccount:${google_service_account.builder.email}"
 }
 
+# Manual `gcloud builds submit` uploads source archives to this Cloud Build staging bucket.
+resource "google_storage_bucket_iam_member" "builder_build_source_reader" {
+  bucket = "${var.project_id}_cloudbuild"
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.builder.email}"
+}
+
 resource "google_service_account_iam_member" "builder_act_as" {
   for_each           = var.enable_ci_cd ? var.ci_cd_services : toset([])
   service_account_id = google_service_account.runtime[each.key].name

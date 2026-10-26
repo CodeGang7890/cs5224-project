@@ -36,7 +36,7 @@ class VertexTestCase(unittest.TestCase):
         self.client = MagicMock()
         for patcher in (
             patch.object(config, 'LLM_PROVIDER', 'vertex_ai'),
-            patch.object(config, 'LLM_MODEL', 'gemini-2.5-flash'),
+            patch.object(config, 'LLM_MODEL', 'gemini-3.5-flash-lite'),
             patch.object(llm_vertex, 'get_client', return_value=self.client),
         ):
             patcher.start()
@@ -51,23 +51,23 @@ class VertexTestCase(unittest.TestCase):
 
 
 class StructuredTests(VertexTestCase):
-    def test_returns_the_json_object_with_the_schema_and_temperature_0(self):
+    def test_returns_the_json_object_with_the_schema_and_minimal_thinking(self):
         self.respond(text_response('{"intents": ["order"]}'))
         history = [{'role': 'user', 'content': 'hi'}, {'role': 'assistant', 'content': 'Hello!'}, {'role': 'user', 'content': '2 kopi'}]
 
         self.assertEqual(llm.generate_structured('Route it.', history, SCHEMA), {'intents': ['order']})
 
         call = self.call()
-        self.assertEqual(call['model'], 'gemini-2.5-flash')
+        self.assertEqual(call['model'], 'gemini-3.5-flash-lite')
         self.assertEqual([(c.role, [p.text for p in c.parts]) for c in call['contents']],
                          [('user', ['hi']), ('model', ['Hello!']), ('user', ['2 kopi'])])
         generation = call['config']
         self.assertEqual(generation.system_instruction, 'Route it.')
         self.assertEqual(generation.response_mime_type, 'application/json')
         self.assertEqual(generation.response_json_schema, SCHEMA)
-        self.assertEqual(generation.temperature, 0.0)
-        self.assertEqual(generation.seed, config.VERTEX_AI_OPTIONS['seed'])
-        self.assertEqual(generation.thinking_config.thinking_budget, config.VERTEX_AI_THINKING_BUDGET)
+        self.assertIsNone(generation.temperature)
+        self.assertIsNone(generation.thinking_config.thinking_budget)
+        self.assertEqual(generation.thinking_config.thinking_level, config.VERTEX_AI_THINKING_LEVEL)
 
     def test_invalid_json_or_not_an_object_is_an_llm_error(self):
         for text, message in (('not json', 'valid JSON'), ('[1, 2]', 'JSON object'), ('', 'valid JSON')):
@@ -108,7 +108,20 @@ class ChatReplyTests(VertexTestCase):
         self.assertEqual([d.name for d in declarations], ['list_faqs', 'get_product_details'])
         self.assertIsNone(declarations[0].parameters_json_schema)  # no arguments
         self.assertEqual(declarations[1].parameters_json_schema['required'], ['product'])
-        self.assertEqual(self.call()['config'].temperature, config.VERTEX_AI_OPTIONS['temperature'])
+        self.assertIsNone(self.call()['config'].temperature)
+
+    def test_welcome_message_is_kept_as_context_without_ending_on_a_model_turn(self):
+        self.respond(text_response('We are open 9-5.'))
+        history = [
+            {'role': 'user', 'content': 'When do you open?'},
+            {'role': 'assistant', 'content': 'Welcome to Ansera!'},
+        ]
+
+        self.assertEqual(llm.generate_chat_reply('Answer the customer.', history), 'We are open 9-5.')
+
+        call = self.call()
+        self.assertEqual([content.role for content in call['contents']], ['user'])
+        self.assertIn('Welcome to Ansera!', call['config'].system_instruction)
 
     def test_tool_calls_are_run_and_their_results_sent_back(self):
         self.respond(call_response(('list_faqs', {})), text_response('We open 9-5.'))
