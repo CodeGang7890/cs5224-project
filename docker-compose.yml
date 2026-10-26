@@ -46,6 +46,7 @@ services:
       CONFIGURATION_ENCRYPTION_KEY: dev-whatsapp-encryption-key # encrypts the stored WhatsApp secrets
       INTERNAL_API_KEY: dev-internal-api-key # messaging-ingester sends it to /api/internal/
       JWT_SIGNING_KEY: &jwt-signing-key dev-jwt-signing-key-local-only-change-me # signs logins; messaging-service checks them
+      MESSAGING_SERVICE_URL: http://messaging-service:8004 # Chat Sandbox proxy target; local Docker needs no Cloud Run ID token
       MESSAGING_INGESTER_PUBLIC_URL: http://localhost:8002 # shown to owners as their webhook Callback URL
       # Meta's Graph API, used to check the WhatsApp details owners enter (override to point at a fake for testing).
       META_GRAPH_API_URL: ${META_GRAPH_API_URL:-https://graph.facebook.com/v25.0}
@@ -64,7 +65,6 @@ services:
     environment:
       # Called from the browser, not from inside Docker, so it's localhost rather than configuration-service.
       VITE_CONFIGURATION_SERVICE_URL: http://localhost:8000/api
-      VITE_MESSAGING_SERVICE_URL: http://localhost:8004/api # the Chat Sandbox's messages (the chat flow)
       # File change events don't cross into the container on WSL/Windows: poll (see vite.config.ts).
       CHOKIDAR_USEPOLLING: "true"
     volumes:

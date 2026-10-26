@@ -221,6 +221,12 @@ SIMPLE_JWT = {
     'SIGNING_KEY': os.getenv('JWT_SIGNING_KEY') or SECRET_KEY,
 }
 
+# Chat Sandbox requests go through this API to the private messaging service.
+MESSAGING_SERVICE_URL = os.getenv('MESSAGING_SERVICE_URL', 'http://localhost:8004').rstrip('/')
+MESSAGING_SERVICE_REQUIRE_ID_TOKEN = os.getenv(
+    'MESSAGING_SERVICE_REQUIRE_ID_TOKEN', 'False'
+).lower() in ('1', 'true', 'yes')
+
 
 # OpenAPI / Swagger docs (drf-spectacular)
 # https://drf-spectacular.readthedocs.io/en/latest/settings.html

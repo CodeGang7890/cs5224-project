@@ -34,6 +34,12 @@ variable "django_allowed_hosts" {
   default     = ".run.app"
 }
 
+variable "messaging_service_url" {
+  description = "Root Cloud Run URL of the private messaging-service, without /api or a trailing slash."
+  type        = string
+  default     = "https://messaging-service-gq6jjn4afq-uc.a.run.app"
+}
+
 variable "enable_cloud_sql" {
   description = "Cloud SQL is billed continuously; enable only when ready to pay."
   type        = bool
@@ -90,6 +96,12 @@ variable "firebase_hosting_site_id" {
   description = "Globally unique Firebase Hosting site ID; this determines the web.app/firebaseapp.com subdomains."
   type        = string
   default     = "cs5224-ansera"
+}
+
+variable "additional_browser_origins" {
+  description = "Additional exact browser origins allowed to call the backend APIs, for example a custom HTTPS frontend domain."
+  type        = list(string)
+  default     = []
 }
 
 variable "github_branch_regex" {

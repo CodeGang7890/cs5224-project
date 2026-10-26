@@ -1,3 +1,14 @@
+locals {
+  browser_cors_allowed_origins = join(",", distinct(concat(
+    ["http://localhost:5173", "http://127.0.0.1:5173"],
+    var.enable_firebase ? [
+      "https://${var.firebase_hosting_site_id}.web.app",
+      "https://${var.firebase_hosting_site_id}.firebaseapp.com",
+    ] : [],
+    var.additional_browser_origins,
+  )))
+}
+
 resource "google_service_account" "runtime" {
   for_each     = local.runtime_identities
   account_id   = substr(replace(each.key, "-service", "-svc"), 0, 30)
@@ -6,7 +17,7 @@ resource "google_service_account" "runtime" {
 }
 
 resource "google_project_iam_member" "sql_client" {
-  for_each = var.enable_cloud_sql ? toset(["configuration-service", "processing-service", "notification-job"]) : toset([])
+  for_each = var.enable_cloud_sql ? toset(["configuration-service", "messaging-service", "processing-service", "notification-job"]) : toset([])
   project  = var.project_id
   role     = "roles/cloudsql.client"
   member   = "serviceAccount:${google_service_account.runtime[each.key].email}"
@@ -36,11 +47,35 @@ resource "google_secret_manager_secret_version" "django" {
   secret_data = random_password.django.result
 }
 
+resource "random_password" "jwt" {
+  length  = 50
+  special = false
+}
+
+resource "google_secret_manager_secret_version" "jwt" {
+  secret      = google_secret_manager_secret.app["jwt-signing-key"].id
+  secret_data = random_password.jwt.result
+}
+
+resource "google_secret_manager_secret_iam_member" "jwt" {
+  for_each  = toset(["configuration-service", "messaging-service"])
+  secret_id = google_secret_manager_secret.app["jwt-signing-key"].id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.runtime[each.key].email}"
+}
+
 resource "google_secret_manager_secret_iam_member" "configuration_sql_password" {
   count     = var.enable_cloud_sql ? 1 : 0
   secret_id = google_secret_manager_secret.sql_password[0].id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.runtime["configuration-service"].email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "messaging_sql_password" {
+  count     = var.enable_cloud_sql ? 1 : 0
+  secret_id = google_secret_manager_secret.sql_password[0].id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.runtime["messaging-service"].email}"
 }
 
 resource "google_storage_bucket_iam_member" "messaging_object_user" {
@@ -95,7 +130,7 @@ resource "google_cloud_run_v2_service" "backend" {
     }
 
     dynamic "volumes" {
-      for_each = var.enable_cloud_sql && each.key == "configuration-service" ? [1] : []
+      for_each = var.enable_cloud_sql && contains(["configuration-service", "messaging-service"], each.key) ? [1] : []
       content {
         name = "cloudsql"
         cloud_sql_instance {
@@ -139,6 +174,35 @@ resource "google_cloud_run_v2_service" "backend" {
         }
       }
       dynamic "env" {
+        for_each = each.key == "configuration-service" ? {
+          MESSAGING_SERVICE_URL              = var.messaging_service_url
+          MESSAGING_SERVICE_REQUIRE_ID_TOKEN = "True"
+        } : {}
+        content {
+          name  = env.key
+          value = env.value
+        }
+      }
+      dynamic "env" {
+        for_each = contains(["configuration-service", "messaging-service"], each.key) ? [1] : []
+        content {
+          name = "JWT_SIGNING_KEY"
+          value_source {
+            secret_key_ref {
+              secret  = google_secret_manager_secret.app["jwt-signing-key"].secret_id
+              version = "latest"
+            }
+          }
+        }
+      }
+      dynamic "env" {
+        for_each = each.key == "configuration-service" ? [1] : []
+        content {
+          name  = "DJANGO_CORS_ALLOWED_ORIGINS"
+          value = local.browser_cors_allowed_origins
+        }
+      }
+      dynamic "env" {
         for_each = each.key == "configuration-service" ? [1] : []
         content {
           name = "DJANGO_SECRET_KEY"
@@ -151,20 +215,19 @@ resource "google_cloud_run_v2_service" "backend" {
         }
       }
       dynamic "env" {
-        for_each = var.enable_cloud_sql && each.key == "configuration-service" ? {
-          DJANGO_DB_ENGINE = "postgresql"
-          POSTGRES_DB      = "configuration_service"
-          POSTGRES_USER    = "app"
-          POSTGRES_HOST    = "/cloudsql/${google_sql_database_instance.main[0].connection_name}"
-          POSTGRES_PORT    = "5432"
-        } : {}
+        for_each = var.enable_cloud_sql && contains(["configuration-service", "messaging-service"], each.key) ? merge({
+          POSTGRES_DB   = "configuration_service"
+          POSTGRES_USER = "app"
+          POSTGRES_HOST = "/cloudsql/${google_sql_database_instance.main[0].connection_name}"
+          POSTGRES_PORT = "5432"
+        }, each.key == "configuration-service" ? { DJANGO_DB_ENGINE = "postgresql" } : {}) : {}
         content {
           name  = env.key
           value = env.value
         }
       }
       dynamic "env" {
-        for_each = each.key == "configuration-service" && var.enable_cloud_sql ? [1] : []
+        for_each = contains(["configuration-service", "messaging-service"], each.key) && var.enable_cloud_sql ? [1] : []
         content {
           name = "POSTGRES_PASSWORD"
           value_source {
@@ -176,7 +239,7 @@ resource "google_cloud_run_v2_service" "backend" {
         }
       }
       dynamic "volume_mounts" {
-        for_each = var.enable_cloud_sql && each.key == "configuration-service" ? [1] : []
+        for_each = var.enable_cloud_sql && contains(["configuration-service", "messaging-service"], each.key) ? [1] : []
         content {
           name       = "cloudsql"
           mount_path = "/cloudsql"
@@ -186,7 +249,15 @@ resource "google_cloud_run_v2_service" "backend" {
   }
 
   lifecycle { ignore_changes = [template[0].containers[0].image] }
-  depends_on = [google_project_service.api, google_secret_manager_secret_iam_member.configuration_secret, google_secret_manager_secret_iam_member.configuration_sql_password, google_secret_manager_secret_version.django]
+  depends_on = [google_project_service.api, google_secret_manager_secret_iam_member.configuration_secret, google_secret_manager_secret_iam_member.configuration_sql_password, google_secret_manager_secret_iam_member.messaging_sql_password, google_secret_manager_secret_iam_member.jwt, google_secret_manager_secret_version.django, google_secret_manager_secret_version.jwt]
+}
+
+resource "google_cloud_run_v2_service_iam_member" "configuration_calls_messaging" {
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_service.backend["messaging-service"].name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.runtime["configuration-service"].email}"
 }
 
 # Only the public API endpoints accept unauthenticated webhook/browser calls.

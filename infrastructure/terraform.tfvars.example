@@ -3,6 +3,7 @@ region     = "us-central1"
 
 # Only set image URLs for services that are ready to deploy.
 service_images = {}
+messaging_service_url = "https://messaging-service-gq6jjn4afq-uc.a.run.app"
 
 # Cloud SQL incurs ongoing charges. DNS requires a domain you own.
 enable_cloud_sql = false
@@ -11,6 +12,8 @@ dns_domain       = ""
 # Firebase enrollment is permanent for the project. Enable when ready.
 enable_firebase         = false
 firebase_hosting_site_id = "cs5224-ansera"
+# Add a custom frontend origin here if you use one; the Firebase Hosting domains are included automatically.
+additional_browser_origins = []
 
 # Existing Cloud Build 2nd gen GitHub connection and repository.
 github_connection_name = "ansera"

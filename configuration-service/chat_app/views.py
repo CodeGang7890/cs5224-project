@@ -1,13 +1,21 @@
+import logging
+
+import httpx
+from google.auth.exceptions import GoogleAuthError
+from google.auth.transport.requests import Request as GoogleAuthRequest
+from google.oauth2.id_token import fetch_id_token
+from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, extend_schema
-from rest_framework import generics, status
+from rest_framework import generics, serializers, status
 from rest_framework.exceptions import APIException, NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from auth_app.business_scope import NO_BUSINESS_MESSAGE, OTHER_BUSINESS_MESSAGE
 from config.pagination import DetailedPageNumberPagination
@@ -24,6 +32,9 @@ from .serializers import (
     AnswerQuestionSerializer,
     UnansweredQuestionSerializer,
 )
+from .validators import CHAT_MESSAGE_MAX_LENGTH
+
+logger = logging.getLogger(__name__)
 
 NOT_SANDBOX_MESSAGE = 'This is a real customer chat session; only sandbox chat sessions can be used here.'
 
@@ -308,6 +319,65 @@ class SandboxChatSessionDetailView(APIView):
     def delete(self, request: Request, pk: int) -> Response:
         get_own_sandbox_session(request, pk).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class SandboxMessageSerializer(serializers.Serializer):
+    message = serializers.CharField(max_length=CHAT_MESSAGE_MAX_LENGTH)
+
+
+class SandboxMessageProxyView(APIView):
+    """Authenticate the browser, then forward one sandbox turn to private messaging-service."""
+
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=['Sandbox chat sessions'],
+        summary='Send a sandbox message and return the assistant reply',
+        request=SandboxMessageSerializer,
+        responses={200: OpenApiResponse(description='Reply, messages, and debug details from messaging-service.')},
+    )
+    def post(self, request: Request, pk: int) -> Response:
+        get_own_sandbox_session(request, pk)
+        serializer = SandboxMessageSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        service_url = settings.MESSAGING_SERVICE_URL
+        if not service_url:
+            logger.error('MESSAGING_SERVICE_URL is not configured')
+            return Response({'detail': 'Chat service is unavailable.'}, status=503)
+
+        headers = {'Authorization': request.headers['Authorization']}
+        if settings.MESSAGING_SERVICE_REQUIRE_ID_TOKEN:
+            try:
+                token = fetch_id_token(GoogleAuthRequest(), service_url)
+            except (GoogleAuthError, OSError):
+                logger.exception('Could not obtain a Cloud Run ID token for messaging-service')
+                return Response({'detail': 'Chat service is unavailable.'}, status=503)
+            headers['X-Serverless-Authorization'] = f'Bearer {token}'
+
+        try:
+            upstream = httpx.post(
+                f'{service_url}/api/chat/sandbox-sessions/{pk}/messages/',
+                json=serializer.validated_data,
+                headers=headers,
+                timeout=250,
+            )
+        except httpx.TimeoutException:
+            logger.warning('messaging-service timed out for sandbox session %s', pk)
+            return Response({'detail': 'Chat service timed out.'}, status=504)
+        except httpx.RequestError:
+            logger.exception('Could not reach messaging-service')
+            return Response({'detail': 'Chat service is unavailable.'}, status=503)
+
+        try:
+            payload = upstream.json()
+        except ValueError:
+            payload = None
+        if not isinstance(payload, dict) or not 200 <= upstream.status_code < 600:
+            logger.error('Invalid messaging-service response: HTTP %s', upstream.status_code)
+            return Response({'detail': 'Chat service returned an invalid response.'}, status=502)
+        return Response(payload, status=upstream.status_code)
 
 
 NO_QUESTION_MESSAGE = 'No question with this ID.'

@@ -9,7 +9,7 @@ steps:
     args:
       - "-ceu"
       - |
-        for name in VITE_CONFIGURATION_SERVICE_URL VITE_MESSAGING_SERVICE_URL; do
+        for name in VITE_CONFIGURATION_SERVICE_URL; do
           value="$${!name}"
           case "$$value" in
             https://*) ;;
@@ -18,7 +18,7 @@ steps:
           echo "Building with $$name=$$value"
         done
         npm run build
-        for name in VITE_CONFIGURATION_SERVICE_URL VITE_MESSAGING_SERVICE_URL; do
+        for name in VITE_CONFIGURATION_SERVICE_URL; do
           value="$${!name}"
           grep -R -F -q -- "$$value" dist/assets || {
             echo "$$name was not embedded in the frontend bundle" >&2
@@ -27,7 +27,6 @@ steps:
         done
     env:
       - "VITE_CONFIGURATION_SERVICE_URL=${_CONFIGURATION_SERVICE_URL}"
-      - "VITE_MESSAGING_SERVICE_URL=${_MESSAGING_SERVICE_URL}"
   - name: node:22
     entrypoint: bash
     args:
