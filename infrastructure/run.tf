@@ -64,6 +64,35 @@ resource "google_secret_manager_secret_iam_member" "jwt" {
   member    = "serviceAccount:${google_service_account.runtime[each.key].email}"
 }
 
+resource "random_password" "internal_api" {
+  length  = 48
+  special = false
+}
+
+resource "google_secret_manager_secret_version" "internal_api" {
+  secret      = google_secret_manager_secret.app["internal-api-key"].id
+  secret_data = random_password.internal_api.result
+}
+
+resource "google_secret_manager_secret_iam_member" "internal_api" {
+  for_each  = toset(["configuration-service", "messaging-service", "messaging-ingester", "payment-ingester"])
+  secret_id = google_secret_manager_secret.app["internal-api-key"].id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.runtime[each.key].email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "payment_xendit_api" {
+  secret_id = google_secret_manager_secret.app["xendit-api-key"].id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.runtime["payment-ingester"].email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "payment_xendit_webhook" {
+  secret_id = "projects/${var.project_id}/secrets/xendit-webhook-key"
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.runtime["payment-ingester"].email}"
+}
+
 resource "google_secret_manager_secret_iam_member" "configuration_sql_password" {
   count     = var.enable_cloud_sql ? 1 : 0
   secret_id = google_secret_manager_secret.sql_password[0].id
@@ -145,6 +174,53 @@ resource "google_cloud_run_v2_service" "backend" {
       resources {
         limits   = { cpu = "1", memory = "512Mi" }
         cpu_idle = true
+      }
+      dynamic "env" {
+        for_each = each.key == "payment-ingester" ? {
+          GCP_PROJECT_ID = var.project_id
+          PUBSUB_TOPIC   = google_pubsub_topic.queue["payment-queue"].name
+          } : each.key == "processing-service" ? {
+          GCP_PROJECT_ID      = var.project_id
+          PUBSUB_TOPIC        = google_pubsub_topic.queue["payment-queue"].name
+          PUBSUB_SUBSCRIPTION = google_pubsub_subscription.queue["payment-queue"].name
+          } : each.key == "messaging-ingester" ? {
+          CONFIGURATION_SERVICE_URL = "https://configuration-service-gq6jjn4afq-uc.a.run.app/api"
+          GCP_PROJECT_ID            = var.project_id
+          PUBSUB_TOPIC              = google_pubsub_topic.queue["messaging-queue"].name
+          } : each.key == "messaging-service" ? {
+          PAYMENT_INGESTER_URL = var.payment_ingester_url
+        } : {}
+        content {
+          name  = env.key
+          value = env.value
+        }
+      }
+      dynamic "env" {
+        for_each = contains(["configuration-service", "messaging-service", "messaging-ingester", "payment-ingester"], each.key) ? [1] : []
+        content {
+          name = "INTERNAL_API_KEY"
+          value_source {
+            secret_key_ref {
+              secret  = google_secret_manager_secret.app["internal-api-key"].secret_id
+              version = "latest"
+            }
+          }
+        }
+      }
+      dynamic "env" {
+        for_each = each.key == "payment-ingester" ? {
+          XENDIT_SECRET_KEY     = google_secret_manager_secret.app["xendit-api-key"].secret_id
+          XENDIT_WEBHOOK_SECRET = "xendit-webhook-key"
+        } : {}
+        content {
+          name = env.key
+          value_source {
+            secret_key_ref {
+              secret  = env.value
+              version = "latest"
+            }
+          }
+        }
       }
       dynamic "env" {
         for_each = each.key == "configuration-service" ? [1] : []
@@ -249,7 +325,7 @@ resource "google_cloud_run_v2_service" "backend" {
   }
 
   lifecycle { ignore_changes = [template[0].containers[0].image] }
-  depends_on = [google_project_service.api, google_secret_manager_secret_iam_member.configuration_secret, google_secret_manager_secret_iam_member.configuration_sql_password, google_secret_manager_secret_iam_member.messaging_sql_password, google_secret_manager_secret_iam_member.jwt, google_secret_manager_secret_version.django, google_secret_manager_secret_version.jwt]
+  depends_on = [google_project_service.api, google_secret_manager_secret_iam_member.configuration_secret, google_secret_manager_secret_iam_member.configuration_sql_password, google_secret_manager_secret_iam_member.messaging_sql_password, google_secret_manager_secret_iam_member.jwt, google_secret_manager_secret_version.django, google_secret_manager_secret_version.jwt, google_secret_manager_secret_version.internal_api, google_secret_manager_secret_iam_member.internal_api, google_secret_manager_secret_iam_member.payment_xendit_api, google_secret_manager_secret_iam_member.payment_xendit_webhook]
 }
 
 resource "google_cloud_run_v2_service_iam_member" "configuration_calls_messaging" {

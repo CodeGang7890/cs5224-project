@@ -28,6 +28,7 @@ ci_cd_services = [
   "messaging-service",
   "messaging-ingester",
   "processing-service",
+  "payment-ingester",
 ]
 
 notification_schedule = "0 * * * *"

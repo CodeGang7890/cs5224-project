@@ -40,6 +40,12 @@ variable "messaging_service_url" {
   default     = "https://messaging-service-gq6jjn4afq-uc.a.run.app"
 }
 
+variable "payment_ingester_url" {
+  description = "Cloud Run URL used by messaging-service to create Xendit payment links."
+  type        = string
+  default     = "https://payment-ingester-gq6jjn4afq-uc.a.run.app"
+}
+
 variable "enable_cloud_sql" {
   description = "Cloud SQL is billed continuously; enable only when ready to pay."
   type        = bool
