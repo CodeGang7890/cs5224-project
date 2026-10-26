@@ -449,6 +449,8 @@ DJANGO_SUPERUSER_PASSWORD=123 python manage.py createsuperuser --noinput --usern
 | `CONFIGURATION_ENCRYPTION_KEY` | empty (uses `SECRET_KEY`) | Encrypts the stored WhatsApp access token and App Secret. Any secret string. Changing it (or `SECRET_KEY`, while this is empty) makes the stored secrets unreadable, so owners must re-enter them. |
 | `INTERNAL_API_KEY` | `dev-internal-api-key` (only when `DEBUG` is on) | Shared key other services send in the `X-Internal-Api-Key` header to call `/api/internal/`. Empty disables the internal API. |
 | `JWT_SIGNING_KEY` | empty (uses `SECRET_KEY`) | Signs the login (JWT) access and refresh tokens. `messaging-service` checks the access tokens with the same key (its Chat Sandbox endpoint), so set it to the same value in both (docker-compose does). Changing it logs everyone out. |
+| `MESSAGING_SERVICE_URL` | `http://localhost:8004` | Root URL of the messaging-service, used by the Chat Sandbox proxy. |
+| `MESSAGING_SERVICE_REQUIRE_ID_TOKEN` | `False` | Set `True` on Cloud Run to send a service ID token when invoking private messaging-service. Local Docker uses `False`. |
 | `MESSAGING_INGESTER_PUBLIC_URL` | `http://localhost:8002` | Public URL of `messaging-ingester`. Owners see `<this>/webhook/<business id>` as their WhatsApp webhook Callback URL. |
 | `META_GRAPH_API_URL` | `https://graph.facebook.com/v25.0` | Meta's Graph API, used to check the WhatsApp details owners enter (`configuration_app/meta_api.py`). Point it at a fake for testing without real Meta credentials. |
 | `DJANGO_DB_ENGINE` | `sqlite` | `sqlite` (`db.sqlite3`, for running without Docker) or `postgresql` (used by `docker-compose.yml`). |

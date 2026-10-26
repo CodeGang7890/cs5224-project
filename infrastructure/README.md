@@ -61,6 +61,8 @@ The default Terraform state is **local** (`terraform.tfstate`, Git-ignored). It 
 
 Cloud Run services `configuration-service`, `payment-ingester`, and `messaging-ingester` receive public invoker access for browser or webhook traffic. The other services remain private. Set `django_allowed_hosts` when using a custom domain.
 
+Terraform configures CORS on `configuration-service` for local Vite development and, when Firebase is enabled, both Hosting domains. Add custom frontend origins with `additional_browser_origins` and apply Terraform; changing the frontend build alone does not update backend CORS. The browser sends Chat Sandbox messages to `configuration-service`, which authenticates the user and forwards them to private `messaging-service`. Terraform gives the configuration runtime account Cloud Run Invoker permission, sets `MESSAGING_SERVICE_URL` and `MESSAGING_SERVICE_REQUIRE_ID_TOKEN`, and provides both services the same JWT signing secret. Applying the new JWT secret invalidates existing logins; users must sign in again. Set `messaging_service_url` if the private service's URL differs from this project's default. Messaging-service also receives the Cloud SQL socket and app database credentials when Cloud SQL is enabled.
+
 ## Firebase, DNS, and queues
 
 - `enable_firebase = true` adds Firebase to the existing project and creates the `Ansera` web app plus a Hosting site. The site URL is available as the `firebase_hosting_url` Terraform output. Firebase Authentication providers and the frontend's existing Django JWT auth remain separate choices.
