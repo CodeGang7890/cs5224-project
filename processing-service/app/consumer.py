@@ -50,32 +50,19 @@ def parse(data: bytes) -> dict:
     if not isinstance(payload, dict):
         raise InvalidMessageError('not a JSON object')
     
-    # Xendit wraps essential event details inside the "data" key
-    event_data = payload.get('data', {})
-    if not event_data:
-        raise InvalidMessageError('Xendit payload is missing the "data" object')
-
-    reference = event_data.get('reference_id')
+    reference = payload.get('payment_reference')
     if not isinstance(reference, str) or not PAYMENT_REFERENCE.match(reference.lower()):
         raise InvalidMessageError(f'payment_reference must be 32 hex characters, not {reference!r}')
+    payload['payment_reference'] = reference.lower()
 
-    # Map Xendit "COMPLETED" status to our internal "success" status
-    x_status = event_data.get('status')
-    internal_status = 'success' if x_status == 'COMPLETED' else 'fail'
-    
-    amount = event_data.get('amount')
-    new_payload = {
-        'payment_reference': reference.lower(),
-        'status': internal_status,
-        'amount': amount
-    }
-
+    if payload.get('status') not in STATUSES:
+        raise InvalidMessageError(f'status must be one of {", ".join(STATUSES)}, not {payload.get("status")!r}')
+    amount = payload.get('amount')
     if amount is not None:
         if isinstance(amount, bool) or not isinstance(amount, (int, float)) or not math.isfinite(amount) or amount < 0:
             raise InvalidMessageError(f'amount must be a finite non-negative number, not {amount!r}')
-        new_payload['amount'] = float(amount)
-
-    return new_payload
+        payload['amount'] = float(amount)
+    return payload
 
 
 def process(payload: dict, session_factory: Callable = get_session) -> None:
