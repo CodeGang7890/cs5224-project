@@ -69,6 +69,12 @@ def generate_structured(system_prompt: str, history: list[dict], schema: dict) -
 def generate_chat_reply(system_prompt: str, history: list[dict], toolbox=None) -> str:
     """The assistant's next chat message. It may first call the toolbox's (read-only) tools."""
     contents = _contents(history)
+    if contents and contents[-1].role == 'model':
+        # Gemini 3.5 Flash-Lite requires the final input turn to be from the user. This happens
+        # when the business's welcome message was sent immediately before the generated reply.
+        sent_message = '\n'.join(part.text for part in contents[-1].parts if part.text)
+        system_prompt += f'\n\nThe assistant already sent this message to the customer: {sent_message}'
+        contents.pop()
     tools = _tools(toolbox.specs) if toolbox else None
     for _ in range(config.MAX_TOOL_ROUNDS):
         response = _generate(system_prompt, contents, options=config.VERTEX_AI_OPTIONS, tools=tools)
@@ -140,8 +146,8 @@ def _text(response) -> str:
 
 def _generate(system_prompt: str, contents: list[types.Content], options: dict, **config_fields):
     """Calls the model, mapping failures to the LLMError types."""
-    if config.VERTEX_AI_THINKING_BUDGET is not None:
-        config_fields['thinking_config'] = types.ThinkingConfig(thinking_budget=config.VERTEX_AI_THINKING_BUDGET)
+    if config.LLM_MODEL.startswith('gemini-3'):
+        config_fields['thinking_config'] = types.ThinkingConfig(thinking_level=config.VERTEX_AI_THINKING_LEVEL)
     generation_config = types.GenerateContentConfig(system_instruction=system_prompt, **options, **config_fields)
     try:
         return get_client().models.generate_content(model=config.LLM_MODEL, contents=contents, config=generation_config)

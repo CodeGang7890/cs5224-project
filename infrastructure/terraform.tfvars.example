@@ -35,8 +35,9 @@ notification_schedule = "0 * * * *"
 enable_notification_scheduler = false
 notification_job_image       = "us-docker.pkg.dev/cloudrun/container/hello"
 enable_vertex_ai       = true
-vertex_ai_location     = "us-central1"
-vertex_ai_model        = "gemini-2.5-flash"
+vertex_ai_services      = ["messaging-service"]
+vertex_ai_location     = "global"
+vertex_ai_model        = "gemini-3.5-flash-lite"
 
 # Standalone browser demo. Public access can allow untrusted model requests and charges.
 enable_vertex_ai_demo                 = false

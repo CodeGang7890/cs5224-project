@@ -26,8 +26,8 @@ OLLAMA_TIMEOUT_SECONDS = 120
 
 # Vertex AI
 GOOGLE_CLOUD_PROJECT = os.getenv('GOOGLE_CLOUD_PROJECT', '')
-GOOGLE_CLOUD_LOCATION = os.getenv('GOOGLE_CLOUD_LOCATION', 'us-central1')
-VERTEX_AI_MODEL = 'gemini-2.5-flash'
+GOOGLE_CLOUD_LOCATION = os.getenv('GOOGLE_CLOUD_LOCATION', 'global')
+VERTEX_AI_MODEL = 'gemini-3.5-flash-lite'
 VERTEX_AI_TIMEOUT_SECONDS = 120
 LLM_MODEL = os.getenv('LLM_MODEL') or (VERTEX_AI_MODEL if LLM_PROVIDER == 'vertex_ai' else OLLAMA_MODEL)
 
@@ -73,14 +73,10 @@ OLLAMA_OPTIONS = {
 STRUCTURED_OPTIONS = {**OLLAMA_OPTIONS, 'temperature': 0.0}
 
 VERTEX_AI_OPTIONS = {
-    'seed': OLLAMA_OPTIONS['seed'],
-    'temperature': OLLAMA_OPTIONS['temperature'],
     'max_output_tokens': 1024,
-    'top_k': OLLAMA_OPTIONS['top_k'],
-    'top_p': OLLAMA_OPTIONS['top_p'],
 }
-VERTEX_AI_STRUCTURED_OPTIONS = {**VERTEX_AI_OPTIONS, 'temperature': 0.0}
-VERTEX_AI_THINKING_BUDGET: int | None = 0
+VERTEX_AI_STRUCTURED_OPTIONS = VERTEX_AI_OPTIONS
+VERTEX_AI_THINKING_LEVEL = 'MINIMAL'
 # How many rounds of tool calls the reply step may make before it must answer.
 MAX_TOOL_ROUNDS = 3
 

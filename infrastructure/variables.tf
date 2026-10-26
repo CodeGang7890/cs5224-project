@@ -159,9 +159,9 @@ variable "enable_vertex_ai" {
 }
 
 variable "vertex_ai_services" {
-  description = "Backend runtime service accounts that can call Vertex AI. Start with configuration-service, which currently owns the chat workflow."
+  description = "Backend runtime service accounts that can call Vertex AI. The chat workflow now runs in messaging-service."
   type        = set(string)
-  default     = ["configuration-service"]
+  default     = ["messaging-service"]
   validation {
     condition = alltrue([
       for name in var.vertex_ai_services : contains(["configuration-service", "messaging-service", "processing-service", "payment-ingester", "messaging-ingester"], name)
@@ -171,15 +171,15 @@ variable "vertex_ai_services" {
 }
 
 variable "vertex_ai_location" {
-  description = "Vertex AI inference location. Choose a location supported by the selected model."
+  description = "Vertex AI inference location. Gemini 3.5 Flash-Lite supports the global endpoint; choose a supported region if data residency is required."
   type        = string
-  default     = "us-central1"
+  default     = "global"
 }
 
 variable "vertex_ai_model" {
-  description = "Gemini model ID used by application code after the Ollama adapter is replaced."
+  description = "Gemini model ID used by Vertex AI-enabled services."
   type        = string
-  default     = "gemini-2.5-flash"
+  default     = "gemini-3.5-flash-lite"
 }
 
 variable "enable_vertex_ai_demo" {
