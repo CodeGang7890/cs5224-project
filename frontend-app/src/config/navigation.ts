@@ -11,6 +11,8 @@ export const paths = {
   productOrders: '/orders/products',
   serviceOrders: '/orders/services',
   payment: '/orders/payment',
+  paymentSuccess: '/payment/success',
+  paymentFailed: '/payment/failed',
   chats: '/chats',
   conversations: '/chats/conversations',
   questions: '/chats/questions',

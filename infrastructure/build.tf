@@ -23,6 +23,13 @@ resource "google_project_iam_member" "builder_log_writer" {
   member  = "serviceAccount:${google_service_account.builder.email}"
 }
 
+# Manual `gcloud builds submit` uploads source archives to this Cloud Build staging bucket.
+resource "google_storage_bucket_iam_member" "builder_build_source_reader" {
+  bucket = "${var.project_id}_cloudbuild"
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.builder.email}"
+}
+
 resource "google_service_account_iam_member" "builder_act_as" {
   for_each           = var.enable_ci_cd ? var.ci_cd_services : toset([])
   service_account_id = google_service_account.runtime[each.key].name
@@ -48,6 +55,15 @@ resource "google_project_iam_member" "builder_firebase_hosting_admin" {
   count   = var.enable_ci_cd && var.enable_firebase ? 1 : 0
   project = var.project_id
   role    = "roles/firebasehosting.admin"
+  member  = "serviceAccount:${google_service_account.builder.email}"
+}
+
+# `firebase deploy` (firebase-tools 15.34.1+) checks that the Hosting API is enabled
+# (serviceusage.services.get), which Firebase Hosting Admin doesn't include.
+resource "google_project_iam_member" "builder_service_usage_consumer" {
+  count   = var.enable_ci_cd && var.enable_firebase ? 1 : 0
+  project = var.project_id
+  role    = "roles/serviceusage.serviceUsageConsumer"
   member  = "serviceAccount:${google_service_account.builder.email}"
 }
 
@@ -154,8 +170,9 @@ resource "google_cloudbuild_trigger" "frontend_hosting" {
   }
 
   substitutions = {
-    _PROJECT_ID = var.project_id
+    _PROJECT_ID                = var.project_id
+    _CONFIGURATION_SERVICE_URL = "https://configuration-service-gq6jjn4afq-uc.a.run.app/api"
   }
 
-  depends_on = [google_project_service.api, google_project_iam_member.builder_log_writer, google_project_iam_member.builder_firebase_hosting_admin]
+  depends_on = [google_project_service.api, google_project_iam_member.builder_log_writer, google_project_iam_member.builder_firebase_hosting_admin, google_project_iam_member.builder_service_usage_consumer]
 }

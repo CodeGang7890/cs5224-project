@@ -218,6 +218,8 @@ class OrderItem(Base):
     order_data: Mapped[dict] = mapped_column(Json)
     order_status: Mapped[str] = mapped_column(String(32))
     payment_reference: Mapped[str] = mapped_column(String(32), index=True)
+    xendit_payment_id: Mapped[str | None] = mapped_column(String(64))
+    payment_link: Mapped[str | None] = mapped_column(String(500))
     created_time: Mapped[datetime] = mapped_column(AwareDateTime)
     updated_time: Mapped[datetime] = mapped_column(AwareDateTime)
 
@@ -245,6 +247,8 @@ class ScheduleItem(Base):
     schedule_data: Mapped[dict] = mapped_column(Json)
     order_status: Mapped[str] = mapped_column(String(32))
     payment_reference: Mapped[str] = mapped_column(String(32), index=True)
+    xendit_payment_id: Mapped[str | None] = mapped_column(String(64))
+    payment_link: Mapped[str | None] = mapped_column(String(500))
     created_time: Mapped[datetime] = mapped_column(AwareDateTime)
     updated_time: Mapped[datetime] = mapped_column(AwareDateTime)
 

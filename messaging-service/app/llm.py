@@ -25,6 +25,13 @@ class LLMTimeoutError(LLMError):
     """Ollama didn't answer within OLLAMA_TIMEOUT_SECONDS."""
 
 
+def _vertex_ai():
+    if config.LLM_PROVIDER != 'vertex_ai':
+        return None
+    from . import llm_vertex
+    return llm_vertex
+
+
 _client: Client | None = None
 
 
@@ -38,6 +45,8 @@ def get_client() -> Client:
 
 def generate_reply(prompt: str) -> str:
     """One-off chat: sends SYSTEM_PROMPT + the user's prompt, returns the model's reply."""
+    if vertex_ai := _vertex_ai():
+        return vertex_ai.generate_reply(prompt)
     messages = [
         {'role': 'system', 'content': config.SYSTEM_PROMPT},
         {'role': 'user', 'content': prompt},
@@ -50,6 +59,8 @@ def generate_structured(system_prompt: str, history: list[dict], schema: dict) -
 
     `history` is the chat as `{role: user|assistant, content}` messages, oldest first.
     """
+    if vertex_ai := _vertex_ai():
+        return vertex_ai.generate_structured(system_prompt, history, schema)
     messages = [{'role': 'system', 'content': system_prompt}, *history]
     message = _chat(messages, format=schema, options=config.STRUCTURED_OPTIONS)
     try:
@@ -63,6 +74,8 @@ def generate_structured(system_prompt: str, history: list[dict], schema: dict) -
 
 def generate_chat_reply(system_prompt: str, history: list[dict], toolbox=None) -> str:
     """The assistant's next chat message. It may first call the toolbox's (read-only) tools."""
+    if vertex_ai := _vertex_ai():
+        return vertex_ai.generate_chat_reply(system_prompt, history, toolbox)
     messages = [{'role': 'system', 'content': system_prompt}, *history]
     for _ in range(config.MAX_TOOL_ROUNDS):
         message = _chat(messages, tools=toolbox.specs if toolbox else None)
@@ -88,7 +101,7 @@ def _chat(messages: list, **kwargs):
     if kwargs['options'] is None:
         del kwargs['options']
     try:
-        response = get_client().chat(model=config.OLLAMA_MODEL, messages=messages, **kwargs)
+        response = get_client().chat(model=config.LLM_MODEL, messages=messages, **kwargs)
     except ConnectionError as exc:  # raised by ollama when the server can't be reached
         raise LLMUnavailableError(f'Could not connect to Ollama at {config.OLLAMA_HOST}.') from exc
     except httpx.TimeoutException as exc:

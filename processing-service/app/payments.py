@@ -1,31 +1,37 @@
 """
 The payment flow: what a payment event does to the order or booking it's for.
 
-A draft (the user asked; to be filled in). For one event `{payment_reference, status}`, in one
-transaction:
+For one event `{payment_reference, status, amount?}`, in one transaction:
 1. Find the product order (OrderItem) or booking (ScheduleItem) with that payment reference, and
    lock its row; none → PaymentNotFoundError.
-2. Update its status: success → payment_received, fail → payment_failed. Only a pending payment
+2. Check the amount against the order's / booking's total: a successful payment must carry the
+   exact total; a failed payment's amount (when present) must match it too. A mismatch → an error
+   that is acked (redelivering it would never help).
+3. Update its status: success → payment_received, fail → payment_failed. Only a pending payment
    changes; the same event again (Pub/Sub delivers at least once) changes nothing; anything else
-   (e.g. a completed order) → PaymentStatusConflictError.
-3. What else changes:
+   (e.g. a completed or already failed order) → PaymentStatusConflictError (a failed payment is
+   final: no retry).
+4. What else changes:
    - a product order: nothing stored. configuration-service derives each product's on hold /
      sold / available quantities from the orders' statuses (checkout_app.stock): payment_received
      still holds the quantities (sold once completed), payment_failed holds nothing, so they're
      available again.
    - a booking: its provider's weekly availabilities are stored letters, written by Django
      signals that don't run here, so schedule.py paints them: paid → X (taken), failed → O (free).
-4. For a payment that was received: the invoice (app/invoice.py) is rendered and
+5. For a payment that was received: the invoice (app/invoice.py) is rendered and
    uploaded (app/storage.py). It also runs for a repeated event, so if the upload failed (the
    consumer nacks, Pub/Sub redelivers) the retry makes the invoice. The object name is fixed, so
    doing it twice just overwrites it.
-5. The customer is told (app/notifications.py): on WhatsApp for received and failed payments, with the
-   invoice link when there is one. Also by email, when set, with the invoice PDF attached.
+6. The customer is told (app/notifications.py): on WhatsApp for received and failed payments, with the
+   invoice link when there is one; by email for received ones, with the invoice PDF attached. One
+   channel failing doesn't stop the other. A message that couldn't be sent but could be later raises,
+   so the event is redelivered and a refusal is only logged.
 """
 
 import logging
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -37,6 +43,7 @@ logger = logging.getLogger(__name__)
 
 SUCCESS, FAIL = 'success', 'fail'
 STATUS_AFTER = {SUCCESS: PAYMENT_RECEIVED, FAIL: PAYMENT_FAILED}
+TWO_DECIMALS = Decimal('0.01')
 
 
 class PaymentEventError(Exception):
@@ -92,17 +99,29 @@ def finish(session: Session, result: PaymentResult) -> PaymentResult:
     return result
 
 
-def apply_payment(session: Session, payment_reference: str, status: str) -> PaymentResult:
+def _amount(value: float | None) -> Decimal | None:
+    """The event's amount as a Decimal. `str` first, so 3.60 is not 3.59999…."""
+    return None if value is None else Decimal(str(value))
+
+
+def apply_payment(session: Session, payment_reference: str, status: str, amount: float | None = None) -> PaymentResult:
     """Applies one payment event and commits it, then makes the invoice and tells the customer."""
     with session.begin():
         item = find_item(session, payment_reference)
         kind = 'order' if isinstance(item, OrderItem) else 'booking'
+        expected = invoice.build_invoice(session, item).total
+        paid = _amount(amount)
+        if paid is None:
+            if status == SUCCESS:
+                raise PaymentEventError(f'Payment {payment_reference}: a successful payment must carry its amount')
+        elif paid != expected:
+            raise PaymentEventError(f'Payment {payment_reference}: amount {paid} does not match the {kind} total {expected}')
         new_status = STATUS_AFTER[status]
         result = PaymentResult(kind, item.id, item.order_status, new_status)
         if item.order_status == new_status:
             logger.info('Payment %s: %s #%s is already %s (a repeated event)', payment_reference, kind, item.id, new_status)
         elif item.order_status != PENDING_PAYMENT:
-            # TODO: e.g. a successful retry after a failed payment: re-hold the stock / time if it's still free.
+            # A failed payment is final: there is no retry by design.
             raise PaymentStatusConflictError(
                 f'Payment {payment_reference} ({status}): {kind} #{item.id} is {item.order_status}, not {PENDING_PAYMENT}'
             )

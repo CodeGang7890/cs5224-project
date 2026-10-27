@@ -63,7 +63,7 @@ function toApiError(error: unknown): ApiError {
  * - attaches `Authorization: Bearer <access token>` when logged in,
  * - on a 401, refreshes the tokens once and retries the request (logging out if that fails),
  * - normalises every error to `ApiError`.
- * Create one client per backend service (see below) and use it in feature `api/` files.
+ * Use the shared client in feature `api/` files.
  */
 export function createApiClient(baseURL: string): AxiosInstance {
   const client = axios.create({
@@ -113,9 +113,3 @@ export function createApiClient(baseURL: string): AxiosInstance {
 
 /** Client for configuration-service (Django). Paths are relative to its `/api` root. */
 export const configurationApiClient = createApiClient(env.configurationServiceUrl)
-
-/**
- * Client for messaging-service (FastAPI): the chat flow (the Chat Sandbox's messages). Paths are
- * relative to its `/api` root. It takes the same access token (refreshed via configuration-service).
- */
-export const messagingApiClient = createApiClient(env.messagingServiceUrl)

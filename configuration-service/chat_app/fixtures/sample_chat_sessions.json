@@ -235,32 +235,6 @@
   },
   {
     "model": "chat_app.chatsession",
-    "pk": 6,
-    "fields": {
-      "business": 3,
-      "phone_number": "+6590001111",
-      "display_name": "Daniel Koh",
-      "created_time": "2026-09-03T19:00:00+08:00",
-      "last_chat_time": "2026-09-03T19:10:00+08:00",
-      "chat_message_json": [
-        {
-          "message": "How much is the 10-session PT package?",
-          "sent_by": "customer",
-          "message_time": "2026-09-03T19:00:00+08:00"
-        },
-        {
-          "message": "Hi Daniel, the 10-Session PT Package is $850.00. Would you like to book a trial session first?",
-          "sent_by": "business-manual",
-          "message_time": "2026-09-03T19:10:00+08:00"
-        }
-      ],
-      "chat_state_id": "start",
-      "chat_state_data": {},
-      "is_sandbox": false
-    }
-  },
-  {
-    "model": "chat_app.chatsession",
     "pk": 7,
     "fields": {
       "business": 1,

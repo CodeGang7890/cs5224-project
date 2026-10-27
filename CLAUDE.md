@@ -7,7 +7,7 @@ Guidance for Claude Code that applies to every service. Each service also has it
 | Service | What | Port |
 | --- | --- | --- |
 | `configuration-service` | Django REST API: businesses, products, services, chats, orders, bookings. **Owns the database schema.** | 8000 |
-| `payment-ingester` | Not built yet (port reserved); for now a script publishing dummy payment events | 8001 |
+| `payment-ingester` | FastAPI + Gunicorn: creates Xendit Payment Sessions for the chat flow and receives Xendit webhooks → Pub/Sub | 8001 |
 | `messaging-ingester` | FastAPI: WhatsApp webhooks → Pub/Sub (no database) | 8002 |
 | `processing-service` | FastAPI + Gunicorn: pulls payment events, updates orders / bookings | 8003 |
 | `messaging-service` | FastAPI + Gunicorn: the chat flow (LLM): the Chat Sandbox's API, and answering the WhatsApp messages it pulls from Pub/Sub; one-off `/chat` | 8004 |

@@ -14,6 +14,7 @@ import { HomePage } from '@/pages/home-page'
 import { NotFoundPage } from '@/pages/not-found-page'
 import { OrdersPage } from '@/pages/orders-page'
 import { PaymentPage } from '@/pages/payment-page'
+import { PaymentFailedPage, PaymentSuccessPage } from '@/pages/payment-status-page'
 import { ProductOrdersPage } from '@/pages/product-orders-page'
 import { ProductPage } from '@/pages/product-page'
 import { QuestionsPage } from '@/pages/questions-page'
@@ -34,6 +35,9 @@ export const routes: RouteObject[] = [
       { index: true, element: <HomePage /> },
       // Old URLs, from before the sections had sub-tabs.
       ...legacyRedirects.map(({ from, to }) => ({ path: from, element: <RedirectKeepingSearch to={to} /> })),
+      // Public payment result pages (the customer is redirected here by Xendit).
+      { path: paths.paymentSuccess, element: <PaymentSuccessPage /> },
+      { path: paths.paymentFailed, element: <PaymentFailedPage /> },
       // Login required: shows a "you need to be logged in" message instead when logged out.
       {
         element: <RequireAuth />,

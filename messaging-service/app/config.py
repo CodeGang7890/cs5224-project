@@ -11,6 +11,11 @@ PORT = 8004
 # share the subscription's messages.
 WORKERS = int(os.getenv('WEB_CONCURRENCY', '2'))
 
+LLM_PROVIDERS = ('ollama', 'vertex_ai')
+LLM_PROVIDER = os.getenv('LLM_PROVIDER', 'ollama').strip().lower()
+if LLM_PROVIDER not in LLM_PROVIDERS:
+    raise ValueError(f'LLM_PROVIDER must be one of {", ".join(LLM_PROVIDERS)}, not {LLM_PROVIDER!r}.')
+
 # --- Ollama (local LLM server) ------------------------------------------------------------
 OLLAMA_PORT = 11434
 # In Docker, Ollama runs on the host: OLLAMA_HOST=http://host.docker.internal:11434.
@@ -18,6 +23,13 @@ OLLAMA_HOST = os.getenv('OLLAMA_HOST', f'http://localhost:{OLLAMA_PORT}')
 OLLAMA_MODEL = 'qwen2.5:7b-instruct-q4_K_M'
 # Local models can be slow, especially on the first request while the model loads.
 OLLAMA_TIMEOUT_SECONDS = 120
+
+# Vertex AI
+GOOGLE_CLOUD_PROJECT = os.getenv('GOOGLE_CLOUD_PROJECT', '')
+GOOGLE_CLOUD_LOCATION = os.getenv('GOOGLE_CLOUD_LOCATION', 'global')
+VERTEX_AI_MODEL = 'gemini-3.5-flash-lite'
+VERTEX_AI_TIMEOUT_SECONDS = 120
+LLM_MODEL = os.getenv('LLM_MODEL') or (VERTEX_AI_MODEL if LLM_PROVIDER == 'vertex_ai' else OLLAMA_MODEL)
 
 SYSTEM_PROMPT = (
     'You are a helpful assistant for Ansera Business Admin. '
@@ -59,6 +71,12 @@ OLLAMA_OPTIONS = {
 }
 # The extraction step (generate_structured) wants the most likely answer, not a creative one.
 STRUCTURED_OPTIONS = {**OLLAMA_OPTIONS, 'temperature': 0.0}
+
+VERTEX_AI_OPTIONS = {
+    'max_output_tokens': 1024,
+}
+VERTEX_AI_STRUCTURED_OPTIONS = VERTEX_AI_OPTIONS
+VERTEX_AI_THINKING_LEVEL = 'MINIMAL'
 # How many rounds of tool calls the reply step may make before it must answer.
 MAX_TOOL_ROUNDS = 3
 
@@ -91,6 +109,14 @@ JWT_ALGORITHM = 'HS256'
 CONFIGURATION_SERVICE_URL = os.getenv('CONFIGURATION_SERVICE_URL', 'http://localhost:8000/api').rstrip('/')
 INTERNAL_API_KEY = os.getenv('INTERNAL_API_KEY', 'dev-internal-api-key')  # must equal configuration-service's
 WHATSAPP_SEND_TIMEOUT_SECONDS = 20
+
+# --- Payment links (payment-ingester's create endpoint) ---------------------------------------
+# When the chat flow saves an order / booking, it asks payment-ingester (POST /payments,
+# X-Internal-Api-Key) for the Xendit payment link the customer pays with; the link goes to the
+# customer in the confirmation message, and Xendit's webhook (payment-ingester → Pub/Sub →
+# processing-service) updates the order / booking's status.
+PAYMENT_INGESTER_URL = os.getenv('PAYMENT_INGESTER_URL', 'http://localhost:8001')
+PAYMENT_CREATE_TIMEOUT_SECONDS = int(os.getenv('PAYMENT_CREATE_TIMEOUT_SECONDS', '30'))
 
 # --- CORS (the frontend calls the Chat Sandbox endpoint from the browser) ------------------
 CORS_ALLOWED_ORIGINS = [

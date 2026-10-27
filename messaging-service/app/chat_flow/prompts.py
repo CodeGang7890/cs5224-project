@@ -704,12 +704,29 @@ def confirmation_request_message(data: dict, labels: dict) -> str:
     )
 
 
-def order_confirmed_message(business, order_id: int, data: dict, labels: dict) -> str:
-    """What the chat sends once the order is saved (never before)."""
-    return (
+def order_confirmed_message(
+    business, order_id: int, data: dict, labels: dict, payment_link: str | None = None,
+    payment_note: str | None = None,
+) -> str:
+    """What the chat sends once the order is saved (never before). Ends with the Xendit payment
+    link the customer pays with, or the note if no link could be created."""
+    text = (
         f'Thank you! Your order #{order_id} with {business.business_name} is confirmed.\n'
         + format_order_lines(data, labels)
     )
+    if payment_link:
+        text += f'\n\nTo pay, use this link: {payment_link}'
+    elif payment_note:
+        text += f'\n\n{payment_note}'
+    return text
+
+
+# What the confirmation message says when no Xendit payment link could be created (payment-ingester
+# down, Xendit refused, or no customer name / email collected): the order stays pending payment.
+PAYMENT_LINK_UNAVAILABLE_NOTE = (
+    "Sorry, we couldn't set up your payment link right now. Please let us know in this chat "
+    'if you would like to pay.'
+)
 
 
 # --- Booking: fixed templates for the times offered, the summary and the confirmation --------
@@ -772,12 +789,21 @@ def booking_request_message(data: dict, labels: dict) -> str:
     )
 
 
-def booking_confirmed_message(business, booking_id: int, data: dict, labels: dict) -> str:
-    """What the chat sends once the booking is saved (never before)."""
-    return (
+def booking_confirmed_message(
+    business, booking_id: int, data: dict, labels: dict, payment_link: str | None = None,
+    payment_note: str | None = None,
+) -> str:
+    """What the chat sends once the booking is saved (never before). Ends with the Xendit payment
+    link the customer pays with, or the note if no link could be created."""
+    text = (
         f'Thank you! Your booking #{booking_id} with {business.business_name} is confirmed.\n'
         + format_booking_lines(data, labels)
     )
+    if payment_link:
+        text += f'\n\nTo pay, use this link: {payment_link}'
+    elif payment_note:
+        text += f'\n\n{payment_note}'
+    return text
 
 
 # Contexts for build_aside_prompt: what the fixed message around the aside says.
@@ -798,14 +824,16 @@ ASIDE_BEFORE_SLOT_OPTIONS = (
 def aside_after_order(order_id: int) -> str:
     return (
         f"The customer's order #{order_id} has just been saved, and right before your reply they were automatically "
-        'sent its confirmation.'
+        'sent its confirmation, which ends with the payment link (or a note if the link could not be set up). '
+        'Never mention the payment, the link or paying.'
     )
 
 
 def aside_after_booking(booking_id: int) -> str:
     return (
         f"The customer's booking #{booking_id} has just been saved, and right before your reply they were "
-        'automatically sent its confirmation.'
+        'automatically sent its confirmation, which ends with the payment link (or a note if the link could '
+        'not be set up). Never mention the payment, the link or paying.'
     )
 
 

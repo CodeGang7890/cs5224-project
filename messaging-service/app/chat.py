@@ -30,4 +30,4 @@ def chat(body: ChatRequest) -> ChatResponse:
         raise HTTPException(status_code=504, detail=str(exc)) from exc
     except llm.LLMError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return ChatResponse(reply=reply, model=config.OLLAMA_MODEL)
+    return ChatResponse(reply=reply, model=config.LLM_MODEL)
