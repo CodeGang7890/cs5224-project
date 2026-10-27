@@ -23,6 +23,13 @@ resource "google_project_iam_member" "builder_log_writer" {
   member  = "serviceAccount:${google_service_account.builder.email}"
 }
 
+# Manual `gcloud builds submit` uploads source archives to this Cloud Build staging bucket.
+resource "google_storage_bucket_iam_member" "builder_build_source_reader" {
+  bucket = "${var.project_id}_cloudbuild"
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.builder.email}"
+}
+
 resource "google_service_account_iam_member" "builder_act_as" {
   for_each           = var.enable_ci_cd ? var.ci_cd_services : toset([])
   service_account_id = google_service_account.runtime[each.key].name
@@ -171,6 +178,7 @@ resource "google_cloudbuild_trigger" "frontend_hosting" {
     # do nothing.
     _FIREBASE_API_KEY     = try(data.google_firebase_web_app_config.frontend[0].api_key, "")
     _FIREBASE_AUTH_DOMAIN = local.identity_auth_domain
+    _CONFIGURATION_SERVICE_URL = "https://configuration-service-gq6jjn4afq-uc.a.run.app/api"
   }
 
   depends_on = [google_project_service.api, google_project_iam_member.builder_log_writer, google_project_iam_member.builder_firebase_hosting_admin, google_project_iam_member.builder_service_usage_consumer]

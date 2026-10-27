@@ -34,6 +34,18 @@ variable "django_allowed_hosts" {
   default     = ".run.app"
 }
 
+variable "messaging_service_url" {
+  description = "Root Cloud Run URL of the private messaging-service, without /api or a trailing slash."
+  type        = string
+  default     = "https://messaging-service-gq6jjn4afq-uc.a.run.app"
+}
+
+variable "payment_ingester_url" {
+  description = "Cloud Run URL used by messaging-service to create Xendit payment links."
+  type        = string
+  default     = "https://payment-ingester-gq6jjn4afq-uc.a.run.app"
+}
+
 variable "enable_cloud_sql" {
   description = "Cloud SQL is billed continuously; enable only when ready to pay."
   type        = bool
@@ -92,6 +104,12 @@ variable "firebase_hosting_site_id" {
   default     = "cs5224-ansera"
 }
 
+variable "additional_browser_origins" {
+  description = "Additional exact browser origins allowed to call the backend APIs, for example a custom HTTPS frontend domain."
+  type        = list(string)
+  default     = []
+}
+
 variable "github_branch_regex" {
   description = "Branch regex used by Cloud Build triggers."
   type        = string
@@ -141,9 +159,9 @@ variable "enable_vertex_ai" {
 }
 
 variable "vertex_ai_services" {
-  description = "Backend runtime service accounts that can call Vertex AI. Start with configuration-service, which currently owns the chat workflow."
+  description = "Backend runtime service accounts that can call Vertex AI. The chat workflow now runs in messaging-service."
   type        = set(string)
-  default     = ["configuration-service"]
+  default     = ["messaging-service"]
   validation {
     condition = alltrue([
       for name in var.vertex_ai_services : contains(["configuration-service", "messaging-service", "processing-service", "payment-ingester", "messaging-ingester"], name)
@@ -153,15 +171,15 @@ variable "vertex_ai_services" {
 }
 
 variable "vertex_ai_location" {
-  description = "Vertex AI inference location. Choose a location supported by the selected model."
+  description = "Vertex AI inference location. Gemini 3.5 Flash-Lite supports the global endpoint; choose a supported region if data residency is required."
   type        = string
-  default     = "us-central1"
+  default     = "global"
 }
 
 variable "vertex_ai_model" {
-  description = "Gemini model ID used by application code after the Ollama adapter is replaced."
+  description = "Gemini model ID used by Vertex AI-enabled services."
   type        = string
-  default     = "gemini-2.5-flash"
+  default     = "gemini-3.5-flash-lite"
 }
 
 variable "enable_vertex_ai_demo" {
@@ -196,6 +214,12 @@ variable "meta_embedded_signup_config_id" {
 
 variable "messaging_ingester_public_url" {
   description = "Public URL of messaging-ingester (webhook Callback URLs). Empty: its Cloud Run default URL."
+  type        = string
+  default     = ""
+}
+
+variable "alert_notification_email" {
+  description = "Email address for Cloud Run HTTP error alert notifications. Leave blank to create incidents only in Cloud Monitoring."
   type        = string
   default     = ""
 }

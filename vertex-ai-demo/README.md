@@ -15,8 +15,8 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 gcloud auth application-default login
 $env:GOOGLE_CLOUD_PROJECT = "YOUR_PROJECT_ID"
-$env:GOOGLE_CLOUD_LOCATION = "us-central1"
-$env:LLM_MODEL = "gemini-2.5-flash"
+$env:GOOGLE_CLOUD_LOCATION = "global"
+$env:LLM_MODEL = "gemini-3.5-flash-lite"
 python app.py
 ```
 

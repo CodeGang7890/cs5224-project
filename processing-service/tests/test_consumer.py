@@ -28,9 +28,14 @@ class FakeMessage:
 
 
 def event(payment_reference=REFERENCE, status='success', amount=None) -> FakeMessage:
-    payload = {'payment_reference': payment_reference, 'status': status}
-    if amount is not None:
-        payload['amount'] = amount
+    # Always use the real Xendit nested structure to ensure tests validate production parsing logic
+    payload = {
+        'data': {
+            'reference_id': payment_reference,
+            'status': 'COMPLETED' if status in ('success', 'COMPLETED') else 'EXPIRED',
+            'amount': amount
+        }
+    }
     return FakeMessage(json.dumps(payload).encode())
 
 

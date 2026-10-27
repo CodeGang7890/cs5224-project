@@ -147,8 +147,8 @@ def main() -> None:
     if not project:
         raise SystemExit("Set GOOGLE_CLOUD_PROJECT to your Google Cloud project ID.")
 
-    location = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
-    model = os.environ.get("LLM_MODEL", "gemini-2.5-flash")
+    location = os.environ.get("GOOGLE_CLOUD_LOCATION", "global")
+    model = os.environ.get("LLM_MODEL", "gemini-3.5-flash-lite")
     client = genai.Client(vertexai=True, project=project, location=location)
     result = handle_message(client, model, args.message, args.rules)
     print(json.dumps(result, indent=2, ensure_ascii=False))

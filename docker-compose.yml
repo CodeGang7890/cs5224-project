@@ -46,6 +46,7 @@ services:
       CONFIGURATION_ENCRYPTION_KEY: dev-whatsapp-encryption-key # encrypts the stored WhatsApp secrets
       INTERNAL_API_KEY: dev-internal-api-key # messaging-ingester sends it to /api/internal/
       JWT_SIGNING_KEY: &jwt-signing-key dev-jwt-signing-key-local-only-change-me # signs logins; messaging-service checks them
+      MESSAGING_SERVICE_URL: http://messaging-service:8004 # Chat Sandbox proxy target; local Docker needs no Cloud Run ID token
       MESSAGING_INGESTER_PUBLIC_URL: http://localhost:8002 # shown to owners as their webhook Callback URL
       # Meta's Graph API, used to connect WhatsApp and send replies (override to point at a fake for testing).
       META_GRAPH_API_URL: ${META_GRAPH_API_URL:-https://graph.facebook.com/v26.0}
