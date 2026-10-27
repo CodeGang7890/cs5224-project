@@ -72,7 +72,6 @@ services:
     environment:
       # Called from the browser, not from inside Docker, so it's localhost rather than configuration-service.
       VITE_CONFIGURATION_SERVICE_URL: http://localhost:8000/api
-      VITE_MESSAGING_SERVICE_URL: http://localhost:8004/api # the Chat Sandbox's messages (the chat flow)
       # WhatsApp Embedded Signup ("Connect with Facebook" button; from .env, empty: it does nothing).
       VITE_META_APP_ID: ${META_APP_ID:-}
       VITE_META_CONFIG_ID: ${META_CONFIG_ID:-}

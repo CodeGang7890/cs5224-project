@@ -230,9 +230,6 @@ resource "google_cloud_run_v2_service" "backend" {
           PUBSUB_SUBSCRIPTION       = google_pubsub_subscription.queue["messaging-queue"].name
           PUBSUB_MAX_MESSAGES       = "5"
           WEB_CONCURRENCY           = "2"
-          } : each.key == "configuration-service" ? {
-          MESSAGING_INGESTER_PUBLIC_URL = "https://messaging-ingester-gq6jjn4afq-uc.a.run.app"
-          META_GRAPH_API_URL            = "https://graph.facebook.com/v25.0"
         } : {}
         content {
           name  = env.key
@@ -408,8 +405,8 @@ resource "google_cloud_run_v2_service" "backend" {
   }
 
   lifecycle { ignore_changes = [template[0].containers[0].image] }
-
-depends_on = [google_project_service.api, google_secret_manager_secret_iam_member.configuration_secret, google_secret_manager_secret_iam_member.configuration_encryption, google_secret_manager_secret_iam_member.configuration_sql_password, google_secret_manager_secret_iam_member.messaging_sql_password, google_secret_manager_secret_iam_member.processing_sql_password, google_secret_manager_secret_iam_member.jwt, google_secret_manager_secret_version.django, google_secret_manager_secret_version.jwt, google_secret_manager_secret_version.internal_api, google_secret_manager_secret_iam_member.internal_api, google_secret_manager_secret_iam_member.configuration_meta, google_secret_manager_secret_version.meta_webhook_verify_token, google_secret_manager_secret_iam_member.payment_xendit_api, google_secret_manager_secret_iam_member.payment_xendit_webhook, google_storage_bucket_iam_member.processing_object_user, google_service_account_iam_member.processing_invoice_signer]
+  depends_on = [google_project_service.api, google_secret_manager_secret_iam_member.configuration_secret, google_secret_manager_secret_iam_member.configuration_encryption, google_secret_manager_secret_iam_member.configuration_sql_password, google_secret_manager_secret_iam_member.messaging_sql_password, google_secret_manager_secret_iam_member.processing_sql_password, google_secret_manager_secret_iam_member.jwt, google_secret_manager_secret_version.django, google_secret_manager_secret_version.jwt, google_secret_manager_secret_version.internal_api, google_secret_manager_secret_iam_member.internal_api, google_secret_manager_secret_iam_member.configuration_meta, google_secret_manager_secret_version.meta_webhook_verify_token, google_secret_manager_secret_iam_member.payment_xendit_api, google_secret_manager_secret_iam_member.payment_xendit_webhook, google_storage_bucket_iam_member.processing_object_user, google_service_account_iam_member.processing_invoice_signer]
+}
 
 resource "google_cloud_run_v2_service_iam_member" "configuration_calls_messaging" {
   project  = var.project_id

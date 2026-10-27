@@ -154,7 +154,7 @@ Copy this structure for new CRUD features.
 
 - Must start with `VITE_`. Read them through `env` in `@/config/env`, not `import.meta.env` directly.
 - When adding one, update `.env.example`, `src/vite-env.d.ts` and `src/config/env.ts`.
-- Current: `VITE_CONFIGURATION_SERVICE_URL` (configuration-service API root; default `http://localhost:8000/api`), `VITE_MESSAGING_SERVICE_URL` (messaging-service API root; default `http://localhost:8004/api`), `VITE_META_APP_ID` / `VITE_META_CONFIG_ID` / `VITE_META_GRAPH_API_VERSION` (`env.meta`: WhatsApp Embedded Signup; default version `v26.0`; empty IDs: the Connect with Facebook button does nothing), and `VITE_FIREBASE_API_KEY` / `VITE_FIREBASE_AUTH_DOMAIN` / `VITE_FIREBASE_PROJECT_ID` (`env.firebase`: logging in with Google / Facebook; empty: those buttons do nothing).
+- Current: `VITE_CONFIGURATION_SERVICE_URL` (configuration-service API root; default `http://localhost:8000/api`; every API call goes through it, so there's no messaging-service URL), `VITE_META_APP_ID` / `VITE_META_CONFIG_ID` / `VITE_META_GRAPH_API_VERSION` (`env.meta`: WhatsApp Embedded Signup; default version `v26.0`; empty IDs: the Connect with Facebook button does nothing), and `VITE_FIREBASE_API_KEY` / `VITE_FIREBASE_AUTH_DOMAIN` / `VITE_FIREBASE_PROJECT_ID` (`env.firebase`: logging in with Google / Facebook; empty: those buttons do nothing).
 
 ## Commands
 
