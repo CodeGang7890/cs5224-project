@@ -44,12 +44,12 @@ In one transaction, with the row locked:
 Then, **after the commit** (so a failure here never undoes the payment, and no connection is held during the upload):
 
 6. **Invoice (payment received only).** `app/invoice.py` builds the invoice from the order / booking, its business, chat and provider (`build_invoice`), then draws the PDF (`render_pdf`, fpdf2). `app/storage.py` uploads it to `invoices/<payment_reference>.pdf` in the `GCS_BUCKET` bucket, so a repeated event just overwrites it, and makes a signed link valid for 7 days. Invoice numbers are `INV-O-000012` (order #12) and `INV-B-000028` (booking #28). Without `GCS_BUCKET` (local development, the tests) the PDF is made but not uploaded, and there is no link.
-7. **Tell the customer (received and failed).** `app/notifications.py` sends a WhatsApp message to the chat's phone number, with the invoice link when there is one. It goes through `app/whatsapp_sender.py`: configuration-service's `POST /api/internal/whatsapp/<business_id>/send/`, which holds the business's access token (the same call messaging-service makes). A chat without a phone number (a Chat Sandbox, or a deleted chat) isn't messaged.
+7. **Tell the customer.** `app/notifications.py` tries two channels, and one failing doesn't stop the other. **WhatsApp** (received and failed): it sends a message to the chat's phone number, with the invoice link when there is one. It goes through `app/whatsapp_sender.py`: configuration-service's `POST /api/internal/whatsapp/<business_id>/send/`, which holds the business's access token (the same call messaging-service makes). A chat without a phone number (a Chat Sandbox, or a deleted chat) isn't messaged. **Email** (received only): the invoice PDF is attached to an email sent to the `email` detail the customer gave in the chat (see below). A Chat Sandbox customer, or an order with no email, isn't emailed.
 
 Things to know about the message:
 
-- **A repeated event sends it again.** Nothing stored says it was sent (the schema is configuration-service's), and a customer who gets a message twice is better off than one who never gets it.
-- **Temporary failure** (configuration-service or Meta can't be reached): raises, so the event is redelivered. **A refusal** (Meta says no, or the business hasn't connected WhatsApp): logged as an error, and the payment still stands.
+- **A repeated event sends them again.** Nothing stored says it was sent (the schema is configuration-service's), and a customer who gets a message twice is better off than one who never gets it.
+- **Temporary failure** (configuration-service, Meta or the mail relay can't be reached): raises once both channels have been tried, so the event is redelivered. **A refusal** (Meta says no, or the business hasn't connected WhatsApp): logged as an error, and the payment still stands.
 - **The 24-hour window:** free-form WhatsApp text only works within 24 hours of the customer's last message. A customer who pays later than that gets a Meta refusal (logged). Reaching them then needs an approved message template, which isn't built.
 - **Signed links need a service account.** Your own `gcloud auth application-default login` can't sign, so locally the invoice is uploaded but the message has no link. On Cloud Run the runtime service account needs `roles/iam.serviceAccountTokenCreator` on itself.
 
@@ -66,6 +66,10 @@ Things to know about the message:
 | `DATABASE_URL` | unset | A full SQLAlchemy URL; overrides the above |
 | `SCHEDULE_TIME_ZONE` | `Asia/Singapore` | Must equal configuration-service's `DJANGO_SCHEDULE_TIME_ZONE` |
 | `GCS_BUCKET` | unset | The bucket for the invoice PDFs (`cs5224-ansera-app-objects`). Unset: invoices aren't uploaded |
+| `EMAIL_ENABLED` | off | `true` turns email on. Off, `send_email()` only logs what it would send |
+| `EMAIL_FROM` / `EMAIL_FROM_NAME` | unset / `Ansera` | The sender, which the provider must have verified |
+| `SMTP_HOST` / `SMTP_PORT` | `smtp-relay.brevo.com` / `587` | Connects, then upgrades to TLS (STARTTLS), which is what port 587 expects. Cloud Run blocks port 25 |
+| `SMTP_USERNAME` / `SMTP_PASSWORD` | unset | The provider's SMTP login and key (not the account password). In production the key goes in Secret Manager |
 | `INVOICE_CURRENCY` | `SGD` | Shown on the invoice and in the message |
 | `CONFIGURATION_SERVICE_URL` | `http://localhost:8000/api` | docker-compose: `http://configuration-service:8000/api` |
 | `INTERNAL_API_KEY` | `dev-internal-api-key` | Must equal configuration-service's |
@@ -100,6 +104,21 @@ python -m unittest -v
 
 `tests/test_schema.py` (2 tests) is skipped unless `SCHEMA_DATABASE_URL` points at a database migrated by configuration-service; CI's `schema` job runs it.
 
+## Email
+
+`send_email(subject, content, recipient, attachments=[...])` sends through an SMTP relay (Brevo) with Python's built-in `smtplib`.
+
+- **Off by default.** Without `EMAIL_ENABLED=true` it returns `False` and only logs, so development and the tests never email anyone. docker-compose reads the settings from the root `.env`.
+- **A failure says whether to retry** (`EmailError.retryable`): the relay couldn't be reached, or answered with a temporary error (yes), or the login or address was refused, or the settings are incomplete (no). A caller handling a Pub/Sub event can raise only the first kind, so the event is redelivered.
+
+**The invoice email.** After a payment is received, the customer gets "Payment received: your order with <business>" from `EMAIL_FROM_NAME` (default "Ansera"), with `INV-O-000012.pdf` attached. The PDF is attached rather than linked, so it works without Cloud Storage, locally and in production, and never expires. The address comes from the order's `email` detail (`Invoice.customer_email`); one that doesn't look like an address is ignored. Failed payments aren't emailed.
+
+To try sending an email:
+
+```bash
+python scripts/send_test_email.py name@mail.com
+```
+
 ## Trying the invoice and the storage
 
 ```bash
@@ -124,13 +143,14 @@ processing-service/
 │   ├── invoice.py    # the invoice: its data from the rows, and the PDF (fpdf2)
 │   ├── storage.py    # invoice PDFs in Cloud Storage, and their signed links
 │   ├── notifications.py   # the customer's WhatsApp message
+│   ├── email_sender.py    # send_email() through an SMTP relay (Brevo)
 │   ├── whatsapp_sender.py # configuration-service's internal send endpoint
 │   ├── schedule.py   # painting a booking into its provider's weeks
 │   ├── models.py     # SQLAlchemy models of configuration-service's tables
 │   ├── db.py         # engine and sessions (lazy)
 │   ├── schemas.py
 │   └── errors.py     # JSON error bodies (as in messaging-ingester)
-├── scripts/          # preview_invoice.py (PDFs to look at), check_storage.py (a real upload)
+├── scripts/          # preview_invoice.py (PDFs to look at), check_storage.py (a real upload), send_test_email.py (a real email)
 ├── tests/          # test_routes.py, test_consumer.py (fake Pub/Sub clients), test_payments.py (SQLite, fake storage and sender),
 │                   # test_invoice.py, test_storage.py, test_notifications.py, test_whatsapp_sender.py, test_schema.py
 ├── gunicorn.conf.py
