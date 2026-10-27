@@ -2,7 +2,7 @@
 
 /** How the answer is sent to the customer in the chat (questions.ANSWER_MESSAGE_PREFIX). */
 export function answerMessage(question: string, answer: string): string {
-  return `Regarding your previous question about "${question}": ${answer}`
+  return `Regarding your previous question about "${question}": ${answer}`;
 }
 
 export const QUESTION_LIMITS = {
@@ -10,4 +10,4 @@ export const QUESTION_LIMITS = {
   questionMaxLength: 300,
   /** So the chat message (prefix + question + answer) fits in 4,096 characters (ANSWER_MAX_LENGTH). */
   answerMaxLength: 3753,
-} as const
+} as const;

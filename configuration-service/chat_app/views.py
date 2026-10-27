@@ -17,7 +17,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
-from auth_app.business_scope import NO_BUSINESS_MESSAGE, OTHER_BUSINESS_MESSAGE
+from auth_app.business_scope import OTHER_BUSINESS_MESSAGE, get_user_business
 from config.pagination import DetailedPageNumberPagination
 
 from . import questions
@@ -50,13 +50,6 @@ class NotSandboxSession(APIException):
     status_code = status.HTTP_400_BAD_REQUEST
     default_detail = NOT_SANDBOX_MESSAGE
     default_code = 'not_sandbox'
-
-
-def get_user_business(request: Request):
-    """The logged-in user's business; 403 if the account isn't linked to one."""
-    if request.user.business_id is None:
-        raise PermissionDenied(NO_BUSINESS_MESSAGE)
-    return request.user.business
 
 
 class ChatConfigurationView(APIView):

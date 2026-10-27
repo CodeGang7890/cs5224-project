@@ -1,20 +1,20 @@
-import type { ReactNode } from 'react'
-import { QueryClientProvider } from '@tanstack/react-query'
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
+import type { ReactNode } from "react";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 
-import { useResetQueriesOnAuthChange } from '@/features/auth'
-import { useApplyTheme } from '@/hooks/use-apply-theme'
-import { queryClient } from '@/lib/query-client'
+import { useResetQueriesOnAuthChange } from "@/features/auth";
+import { useApplyTheme } from "@/hooks/use-apply-theme";
+import { queryClient } from "@/lib/query-client";
 
 /** App-wide side effects that need the providers above them (e.g. the QueryClient). */
 function GlobalEffects() {
-  useResetQueriesOnAuthChange()
-  return null
+  useResetQueriesOnAuthChange();
+  return null;
 }
 
 /** App-wide context providers. Wrap new global providers (auth, toasts, …) here. */
 export function AppProviders({ children }: { children: ReactNode }) {
-  useApplyTheme()
+  useApplyTheme();
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -23,5 +23,5 @@ export function AppProviders({ children }: { children: ReactNode }) {
       {/* Devtools render only in development builds. */}
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>
-  )
+  );
 }

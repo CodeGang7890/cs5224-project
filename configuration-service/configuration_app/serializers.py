@@ -1,111 +1,92 @@
-from django.conf import settings
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework.exceptions import APIException
 
-from . import meta_api
-
 from .models import (
-    WHATSAPP_ACCESS_TOKEN_MAX_LENGTH,
-    WHATSAPP_APP_SECRET_MAX_LENGTH,
+    WHATSAPP_ID_MAX_LENGTH,
     WHATSAPP_VERIFY_TOKEN_MAX_LENGTH,
+    BusinessConfiguration,
+    ConnectionHealth,
     WhatsAppConfiguration,
-    no_whitespace_validator,
+    meta_id_validator,
 )
-
-SECRET_REQUIRED_MESSAGE = 'This field is required when connecting WhatsApp for the first time.'
 
 
 class MetaUnavailable(APIException):
     status_code = 503
-    default_detail = "Couldn't reach Meta to check these details. Nothing was saved; please try again."
+    default_detail = "Couldn't reach Meta. Nothing was saved; please try again."
     default_code = 'meta_unavailable'
+
+
+class BusinessConfigurationSerializer(serializers.ModelSerializer):
+    """The logged-in user's own business (its name, location and description)."""
+
+    class Meta:
+        model = BusinessConfiguration
+        fields = ('id', 'business_name', 'location', 'description')
+        read_only_fields = ('id',)
 
 
 class RandomNumberSerializer(serializers.Serializer):
     value = serializers.IntegerField(min_value=1, max_value=10)
 
 
-def webhook_url(business_id: int) -> str:
-    """The Callback URL a business enters in Meta's webhook settings."""
-    return f'{settings.MESSAGING_INGESTER_PUBLIC_URL}/webhook/{business_id}'
-
-
 class WhatsAppConfigurationSerializer(serializers.ModelSerializer):
-    """The owner's view of their WhatsApp connection. Secrets are write-only.
+    """The owner's view of their WhatsApp connection, read only: businesses connect with Embedded
+    Signup (EmbeddedSignupSerializer). The secrets (token, App Secret, two-step PIN) and the webhook
+    details (set up automatically) are never returned. `status` is what Meta last reported (account_update
+    webhooks): `disconnected` or `banned` with a `status_reason` for the owner; reconnecting resets it.
+    `health` combines that with the token's expiry into what (if anything) the owner must do."""
 
-    `access_token` and `app_secret` are required when creating. When updating, leaving them out
-    or blank keeps the saved value, so the owner doesn't have to re-enter them for every change.
-    Every save is checked with Meta first (`_check_with_meta`).
-    """
-
-    access_token = serializers.CharField(
-        write_only=True,
-        required=False,
-        allow_blank=True,
-        trim_whitespace=True,
-        max_length=WHATSAPP_ACCESS_TOKEN_MAX_LENGTH,
-        validators=[no_whitespace_validator],
-        help_text='User\'s Meta/Whatsapp API access token, used to send messages on behalf of user. Write-only; blank on update keeps the saved one.',
+    status_reason = serializers.CharField(
+        read_only=True, help_text="Why it isn't connected, for the owner; empty while `status` is `connected`."
     )
-    app_secret = serializers.CharField(
-        write_only=True,
-        required=False,
-        allow_blank=True,
-        trim_whitespace=True,
-        max_length=WHATSAPP_APP_SECRET_MAX_LENGTH,
-        validators=[no_whitespace_validator],
-        help_text="The Meta app's App Secret. Write-only; blank on update keeps the saved one.",
-    )
-    webhook_url = serializers.SerializerMethodField(
-        help_text="Callback URL to enter in Meta's webhook settings by user.",
+    health = serializers.SerializerMethodField(
+        help_text='What the owner must do: nothing (`ok`); reconnect with Facebook before '
+        "`access_token_expires_time` (`expiring_soon`) or now (`expired`: replies can't be sent); or fix what "
+        'Meta reported (`disconnected` / `banned`, see `status_reason`).'
     )
 
     class Meta:
         model = WhatsAppConfiguration
         fields = (
             'phone_number_id',
-            'access_token',
-            'app_secret',
             'display_phone_number',
             'verified_name',
-            'webhook_url',
-            'verify_token',
+            'waba_id',
+            'connection_method',
+            'status',
+            'status_reason',
+            'status_updated_time',
+            'access_token_expires_time',
+            'health',
             'created_time',
             'last_updated',
         )
-        read_only_fields = ('display_phone_number', 'verified_name', 'verify_token', 'created_time', 'last_updated')
+        read_only_fields = fields
 
-    def get_webhook_url(self, obj: WhatsAppConfiguration) -> str:
-        return webhook_url(obj.business_id)
+    @extend_schema_field(serializers.ChoiceField(choices=ConnectionHealth.choices))
+    def get_health(self, config: WhatsAppConfiguration) -> str:
+        return config.health()
 
-    def validate(self, attrs):
-        missing = {}
-        for field in ('access_token', 'app_secret'):
-            if attrs.get(field):
-                continue
-            attrs.pop(field, None)  # blank or missing: keep the saved value
-            if self.instance is None:
-                missing[field] = [SECRET_REQUIRED_MESSAGE]
-        if missing:
-            raise serializers.ValidationError(missing)
-        attrs.update(self._check_with_meta(attrs))
-        return attrs
 
-    def _check_with_meta(self, attrs) -> dict:
-        """Checks the credentials with Meta (new values, or the saved ones being kept), so wrong or
-        expired ones are rejected now rather than failing later on webhooks or replies. Runs only
-        after every field passed its own checks. Returns Meta's read-only details to save.
-        """
-        def value(field):
-            return attrs[field] if field in attrs else getattr(self.instance, field)
+class EmbeddedSignupSerializer(serializers.Serializer):
+    """What Meta's Embedded Signup popup gives the frontend (FB.login's code and the FINISH event's IDs)."""
 
-        try:
-            info = meta_api.check_credentials(value('phone_number_id'), value('access_token'), value('app_secret'))
-        except meta_api.MetaCredentialsError as exc:
-            raise serializers.ValidationError({exc.field: [exc.message]}) from exc
-        except meta_api.MetaUnavailableError as exc:
-            raise MetaUnavailable() from exc
-        return {'display_phone_number': info.display_phone_number, 'verified_name': info.verified_name}
+    code = serializers.CharField(
+        max_length=2000,
+        help_text="The code from FB.login's authResponse. Single use, valid for 30 seconds: send it at once.",
+    )
+    waba_id = serializers.CharField(
+        max_length=WHATSAPP_ID_MAX_LENGTH,
+        validators=[meta_id_validator],
+        help_text='`data.waba_id` of the WA_EMBEDDED_SIGNUP FINISH message event.',
+    )
+    phone_number_id = serializers.CharField(
+        max_length=WHATSAPP_ID_MAX_LENGTH,
+        validators=[meta_id_validator],
+        help_text='`data.phone_number_id` of the WA_EMBEDDED_SIGNUP FINISH message event.',
+    )
 
 
 class VerifyTokenRequestSerializer(serializers.Serializer):
@@ -126,6 +107,33 @@ class VerificationResultSerializer(serializers.Serializer):
             '`metadata.phone_number_id`), otherwise null.'
         ),
     )
+
+
+class AccountUpdateSerializer(serializers.Serializer):
+    """One account_update change from our app's webhook, as messaging-ingester extracts it."""
+
+    waba_id = serializers.CharField(
+        max_length=WHATSAPP_ID_MAX_LENGTH,
+        validators=[meta_id_validator],
+        help_text='The WhatsApp Business account: `value.waba_info.waba_id`, else the entry `id`.',
+    )
+    event = serializers.CharField(max_length=64, help_text='`value.event`, e.g. PARTNER_APP_UNINSTALLED.')
+    ban_state = serializers.CharField(
+        max_length=32, required=False, allow_blank=True, default='',
+        help_text='`value.ban_info.waba_ban_state` (DISABLED_UPDATE): DISABLE, REINSTATE or SCHEDULE_FOR_DISABLE.',
+    )
+    partner_app_id = serializers.CharField(
+        max_length=WHATSAPP_ID_MAX_LENGTH, required=False, allow_blank=True, default='',
+        help_text='`value.waba_info.partner_app_id` (PARTNER_APP_INSTALLED / UNINSTALLED).',
+    )
+
+
+class AccountUpdatesRequestSerializer(serializers.Serializer):
+    updates = AccountUpdateSerializer(many=True, max_length=100)
+
+
+class AccountUpdatesResultSerializer(serializers.Serializer):
+    changed = serializers.IntegerField(help_text='How many connections changed status.')
 
 
 WHATSAPP_TEXT_MAX_LENGTH = 4096  # WhatsApp's limit for a text message

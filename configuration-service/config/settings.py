@@ -201,6 +201,16 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.IsAuthenticated'],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
+    # Rate limits per client IP for the public login and sign-up endpoints (auth_app.views:
+    # ScopedRateThrottle), against password guessing and mass sign-ups. Counted in the cache (per
+    # process with the default local-memory cache, so each Cloud Run instance counts on its own).
+    'DEFAULT_THROTTLE_RATES': {
+        'login': os.getenv('DJANGO_LOGIN_RATE', '30/minute'),
+        'signup': os.getenv('DJANGO_SIGNUP_RATE', '20/hour'),
+    },
+    # How many proxies in front of us append to X-Forwarded-For, to find the client's IP: 0 (local)
+    # uses the connection's address; Cloud Run needs 1 (its front end adds the client's IP last).
+    'NUM_PROXIES': int(os.getenv('DJANGO_NUM_PROXIES', '0')),
 }
 
 
@@ -263,8 +273,24 @@ CONFIGURATION_ENCRYPTION_KEY = os.getenv('CONFIGURATION_ENCRYPTION_KEY', '')
 # Empty disables the internal API (every call gets 403). The fallback is for local development only.
 INTERNAL_API_KEY = os.getenv('INTERNAL_API_KEY', 'dev-internal-api-key' if DEBUG else '')
 
-# Public URL of messaging-ingester, used to show each business its webhook Callback URL.
-# Meta's Graph API (WhatsApp Cloud API), used to check the credentials owners enter. Tests mock it.
-META_GRAPH_API_URL = os.getenv('META_GRAPH_API_URL', 'https://graph.facebook.com/v25.0').rstrip('/')
+# Meta's Graph API (WhatsApp Cloud API): connecting numbers and sending replies (meta_api.py). Tests mock it.
+META_GRAPH_API_URL = os.getenv('META_GRAPH_API_URL', 'https://graph.facebook.com/v26.0').rstrip('/')
 
+# Public URL of messaging-ingester: Embedded Signup points each business's WhatsApp webhooks at
+# <this>/webhook/<business_id>.
 MESSAGING_INGESTER_PUBLIC_URL = os.getenv('MESSAGING_INGESTER_PUBLIC_URL', 'http://localhost:8002').rstrip('/')
+
+# WhatsApp Embedded Signup (Meta's "Connect with Facebook" popup): businesses connect through OUR Meta
+# app, so its ID and App Secret are platform settings, not entered per business. The secret swaps the
+# popup's code for the business's token and signs those connections' webhooks and appsecret_proof (it
+# isn't copied into each connection, so rotating it needs no data change). Both empty: Embedded Signup
+# is off (503).
+META_APP_ID = os.getenv('META_APP_ID', '')
+META_APP_SECRET = os.getenv('META_APP_SECRET', '')
+# Verify token for our app's default webhook (App Dashboard → WhatsApp → Configuration, Callback URL
+# MESSAGING_INGESTER_PUBLIC_URL/webhook). Each business's messages go to its own /webhook/<id> instead.
+META_APP_WEBHOOK_VERIFY_TOKEN = os.getenv('META_APP_WEBHOOK_VERIFY_TOKEN', '')
+
+# Logging in with Google / Facebook (auth_app/firebase.py): the Google Cloud project whose Identity
+# Platform (Firebase Authentication) signs the ID tokens frontend-app sends. Empty: off (503).
+FIREBASE_PROJECT_ID = os.getenv('FIREBASE_PROJECT_ID', '')

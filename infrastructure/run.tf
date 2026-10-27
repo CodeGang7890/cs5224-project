@@ -299,6 +299,33 @@ resource "google_cloud_run_v2_service" "backend" {
         }
       }
       dynamic "env" {
+        # WhatsApp webhook Callback URLs (set by Embedded Signup), our Meta app, the project whose Identity
+        # Platform signs Google / Facebook logins (identity.tf; empty: off), and Cloud Run's front end, which
+        # appends the client's IP to X-Forwarded-For (the login / sign-up rate limits count per client).
+        for_each = each.key == "configuration-service" ? {
+          MESSAGING_INGESTER_PUBLIC_URL = local.messaging_ingester_public_url
+          META_APP_ID                   = var.meta_app_id
+          FIREBASE_PROJECT_ID           = var.enable_firebase ? var.project_id : ""
+          DJANGO_NUM_PROXIES            = "1"
+        } : {}
+        content {
+          name  = env.key
+          value = env.value
+        }
+      }
+      dynamic "env" {
+        for_each = each.key == "configuration-service" ? local.meta_secrets : {}
+        content {
+          name = env.key
+          value_source {
+            secret_key_ref {
+              secret  = google_secret_manager_secret.app[env.value].secret_id
+              version = "latest"
+            }
+          }
+        }
+      }
+      dynamic "env" {
         for_each = each.key == "configuration-service" ? [1] : []
         content {
           name  = "DJANGO_ALLOWED_HOSTS"
@@ -381,8 +408,8 @@ resource "google_cloud_run_v2_service" "backend" {
   }
 
   lifecycle { ignore_changes = [template[0].containers[0].image] }
-  depends_on = [google_project_service.api, google_secret_manager_secret_iam_member.configuration_secret, google_secret_manager_secret_iam_member.configuration_encryption, google_secret_manager_secret_iam_member.configuration_sql_password, google_secret_manager_secret_iam_member.messaging_sql_password, google_secret_manager_secret_iam_member.processing_sql_password, google_secret_manager_secret_iam_member.jwt, google_secret_manager_secret_version.django, google_secret_manager_secret_version.jwt, google_secret_manager_secret_version.internal_api, google_secret_manager_secret_iam_member.internal_api, google_secret_manager_secret_iam_member.payment_xendit_api, google_secret_manager_secret_iam_member.payment_xendit_webhook, google_storage_bucket_iam_member.processing_object_user, google_service_account_iam_member.processing_invoice_signer]
-}
+
+depends_on = [google_project_service.api, google_secret_manager_secret_iam_member.configuration_secret, google_secret_manager_secret_iam_member.configuration_encryption, google_secret_manager_secret_iam_member.configuration_sql_password, google_secret_manager_secret_iam_member.messaging_sql_password, google_secret_manager_secret_iam_member.processing_sql_password, google_secret_manager_secret_iam_member.jwt, google_secret_manager_secret_version.django, google_secret_manager_secret_version.jwt, google_secret_manager_secret_version.internal_api, google_secret_manager_secret_iam_member.internal_api, google_secret_manager_secret_iam_member.configuration_meta, google_secret_manager_secret_version.meta_webhook_verify_token, google_secret_manager_secret_iam_member.payment_xendit_api, google_secret_manager_secret_iam_member.payment_xendit_webhook, google_storage_bucket_iam_member.processing_object_user, google_service_account_iam_member.processing_invoice_signer]
 
 resource "google_cloud_run_v2_service_iam_member" "configuration_calls_messaging" {
   project  = var.project_id

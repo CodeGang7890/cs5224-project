@@ -200,6 +200,24 @@ variable "vertex_ai_demo_image" {
   default     = "us-docker.pkg.dev/cloudrun/container/hello"
 }
 
+variable "meta_app_id" {
+  description = "Our Meta app's ID (App Dashboard), for WhatsApp Embedded Signup."
+  type        = string
+  default     = "1147422487864729"
+}
+
+variable "meta_embedded_signup_config_id" {
+  description = "Facebook Login for Business configuration ID of the WhatsApp Embedded Signup configuration (frontend build). Empty: the Connect with Facebook button does nothing."
+  type        = string
+  default     = ""
+}
+
+variable "messaging_ingester_public_url" {
+  description = "Public URL of messaging-ingester (webhook Callback URLs). Empty: its Cloud Run default URL."
+  type        = string
+  default     = ""
+}
+
 variable "alert_notification_email" {
   description = "Email address for Cloud Run HTTP error alert notifications. Leave blank to create incidents only in Cloud Monitoring."
   type        = string

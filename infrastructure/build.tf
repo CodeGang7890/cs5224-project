@@ -170,7 +170,14 @@ resource "google_cloudbuild_trigger" "frontend_hosting" {
   }
 
   substitutions = {
-    _PROJECT_ID                = var.project_id
+    _PROJECT_ID = var.project_id
+    # WhatsApp Embedded Signup ("Connect with Facebook"); no configuration ID: the button does nothing.
+    _META_APP_ID    = var.meta_app_id
+    _META_CONFIG_ID = var.meta_embedded_signup_config_id
+    # Logging in with Google / Facebook (identity.tf): the Firebase web app's config; empty: the buttons
+    # do nothing.
+    _FIREBASE_API_KEY     = try(data.google_firebase_web_app_config.frontend[0].api_key, "")
+    _FIREBASE_AUTH_DOMAIN = local.identity_auth_domain
     _CONFIGURATION_SERVICE_URL = "https://configuration-service-gq6jjn4afq-uc.a.run.app/api"
   }
 

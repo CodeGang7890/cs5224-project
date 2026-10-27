@@ -23,6 +23,19 @@ NO_BUSINESS_MESSAGE = 'Your account is not linked to a business.'
 OTHER_BUSINESS_MESSAGE = 'You do not have access to this business.'
 
 
+def get_user_business_id(request) -> int:
+    """The logged-in user's business ID; 403 if the account isn't linked to one (plain API views)."""
+    if request.user.business_id is None:
+        raise PermissionDenied(NO_BUSINESS_MESSAGE)
+    return request.user.business_id
+
+
+def get_user_business(request) -> BusinessConfiguration:
+    """The logged-in user's business; 403 if the account isn't linked to one (plain API views)."""
+    get_user_business_id(request)
+    return request.user.business
+
+
 class IsBusinessMember(permissions.BasePermission):
     """Authenticated user who can only touch objects of their own business."""
 

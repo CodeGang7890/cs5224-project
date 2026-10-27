@@ -1,22 +1,28 @@
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
-import { Button } from '@/components/ui/button'
+import { Button } from "@/components/ui/button";
 
 interface PaginationControlsProps {
-  page: number
-  pageSize: number
-  count: number
-  onPageChange: (page: number) => void
-  disabled?: boolean
+  page: number;
+  pageSize: number;
+  count: number;
+  onPageChange: (page: number) => void;
+  disabled?: boolean;
 }
 
 /** "1–20 of 45" + previous/next buttons. Renders nothing when everything fits on one page. */
-export function PaginationControls({ page, pageSize, count, onPageChange, disabled }: PaginationControlsProps) {
-  const pageCount = Math.max(1, Math.ceil(count / pageSize))
-  if (pageCount <= 1) return null
+export function PaginationControls({
+  page,
+  pageSize,
+  count,
+  onPageChange,
+  disabled,
+}: PaginationControlsProps) {
+  const pageCount = Math.max(1, Math.ceil(count / pageSize));
+  if (pageCount <= 1) return null;
 
-  const first = (page - 1) * pageSize + 1
-  const last = Math.min(page * pageSize, count)
+  const first = (page - 1) * pageSize + 1;
+  const last = Math.min(page * pageSize, count);
 
   return (
     <div className="flex items-center justify-between gap-4 text-sm">
@@ -45,5 +51,5 @@ export function PaginationControls({ page, pageSize, count, onPageChange, disabl
         </Button>
       </div>
     </div>
-  )
+  );
 }

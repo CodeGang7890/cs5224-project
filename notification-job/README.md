@@ -6,6 +6,7 @@ Each run takes **the hour**: the time rounded down (9:11:30 pm → 9 pm). Then:
 
 1. **Payment reminders:** orders and bookings still **pending payment** that were made **1 to 2 hours before the hour** (at least 1 hour old, under 2).
 2. **Appointment reminders:** bookings starting **23 to 24 hours after the hour** (about a day ahead), unless their payment failed (they hold no time). A booking still pending payment is also asked to pay.
+3. **WhatsApp reconnect alerts:** a business's WhatsApp connection (Embedded Signup) whose access token expires **in 7 days**, **in 1 day**, or **has just expired** (each alert at the first run after that point), while Meta still reports it connected. The alert goes to the business's active users with an email address, asking them to reconnect with Facebook on the Home page; reconnecting gives a new token and expiry. Like the reminders, it's only logged for now (sending it, e.g. by email, is a TODO).
 
 Consecutive hourly runs' windows follow each other without gaps or overlaps, so each order / booking gets each reminder once. For each, the job logs the customer's phone number (from the chat the order / booking was placed in; none for a sandbox chat without one, or a deleted chat) and a draft message:
 
@@ -60,7 +61,7 @@ python run.py
 python -m unittest -v
 ```
 
-`tests/test_job.py` covers both reminders (the windows' edges, the statuses, the messages, a chat without a phone number) on in-memory SQLite, so it needs no PostgreSQL. `tests/test_schema.py` checks the models against a Django-migrated PostgreSQL when `SCHEMA_DATABASE_URL` is set (CI's `schema` job).
+`tests/test_job.py` covers the reminders and the reconnect alerts (the windows' edges, the statuses, the messages, a chat without a phone number, the users alerted) on in-memory SQLite, so it needs no PostgreSQL. `tests/test_schema.py` checks the models against a Django-migrated PostgreSQL when `SCHEMA_DATABASE_URL` is set (CI's `schema` job).
 
 ## Project structure
 
@@ -70,7 +71,7 @@ notification-job/
 │   ├── config.py   # settings (environment variables)
 │   ├── db.py       # SQLAlchemy engine and sessions (lazy)
 │   ├── models.py   # read-only models of configuration-service's tables
-│   └── job.py      # run(): the payment and appointment reminders
+│   └── job.py      # run(): the payment and appointment reminders, WhatsApp reconnect alerts
 ├── tests/          # test_job.py, test_schema.py
 ├── run.py          # entry point: run once, exit code
 ├── cron.sh         # Docker: runs run.py on CRON_SCHEDULE (supercronic)

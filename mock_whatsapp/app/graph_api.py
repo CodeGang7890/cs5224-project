@@ -1,9 +1,9 @@
 """A fake of Meta's Graph API (WhatsApp Cloud API), for configuration-service to call instead of
-Meta: point its META_GRAPH_API_URL at http://<this host>:9000/v25.0.
+Meta: point its META_GRAPH_API_URL at http://<this host>:9000/v26.0.
 
-- POST /v25.0/{phone_number_id}/messages: send a message to a customer (configuration-service's
+- POST /v26.0/{phone_number_id}/messages: send a message to a customer (configuration-service's
   internal send endpoint, i.e. the replies). Stored in the chat, as received by the customer.
-- GET /v25.0/{phone_number_id}?fields=display_phone_number,verified_name: the credentials check
+- GET /v26.0/{phone_number_id}?fields=display_phone_number,verified_name: the credentials check
   configuration-service runs when an owner connects WhatsApp in the frontend.
 
 Like Meta, both need `Authorization: Bearer <the business's access token>`, and a given

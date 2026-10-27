@@ -11,4 +11,6 @@ urlpatterns = [
     path('token/verify/', views.VerifyView.as_view(), name='token-verify'),
     path('logout/', views.LogoutView.as_view(), name='logout'),
     path('me/', views.MeView.as_view(), name='me'),
+    path('signup/', views.SignUpView.as_view(), name='signup'),
+    path('firebase/', views.FirebaseLoginView.as_view(), name='firebase-login'),
 ]

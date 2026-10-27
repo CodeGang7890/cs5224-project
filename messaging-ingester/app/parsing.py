@@ -130,3 +130,63 @@ def _parse_message(item: dict, business_id: int, phone_number_id: str, names: di
         text=text if isinstance(text, str) else None,
         timestamp=timestamp,
     )
+
+
+# --- Our app's webhook: account_update ------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class AccountUpdate:
+    """One account_update change (our app's /webhook), as forwarded to configuration-service, which
+    marks the WhatsApp Business account's connections disconnected / banned. Meta sends e.g.
+
+        {"entry": [{"id": "<WABA ID>", "changes": [{"field": "account_update", "value": {
+            "event": "DISABLED_UPDATE", "ban_info": {"waba_ban_state": "DISABLE", "waba_ban_date": "…"}}}]}]}
+
+    For partner events (PARTNER_APP_UNINSTALLED, PARTNER_REMOVED) the account is value.waba_info.waba_id
+    (the entry id is then another ID), with waba_info.partner_app_id for the app ones."""
+
+    waba_id: str
+    event: str
+    ban_state: str = ''
+    partner_app_id: str = ''
+
+    def to_dict(self) -> dict:
+        return {
+            'waba_id': self.waba_id,
+            'event': self.event,
+            'ban_state': self.ban_state,
+            'partner_app_id': self.partner_app_id,
+        }
+
+
+def _id(value) -> str | None:
+    """Meta's numeric IDs, sent as strings (or, rarely, numbers)."""
+    value = str(value) if isinstance(value, int) and not isinstance(value, bool) else value
+    return value if isinstance(value, str) and value.isdigit() else None
+
+
+def parse_account_updates(payload) -> list[AccountUpdate]:
+    """The account_update changes of a webhook. Malformed ones are logged and skipped."""
+    updates = []
+    for entry in _list(_dict(payload).get('entry')):
+        for item in _list(_dict(entry).get('changes')):
+            if _dict(item).get('field') != 'account_update':
+                continue
+            value = _dict(_dict(item).get('value'))
+            waba_info = _dict(value.get('waba_info'))
+            event = value.get('event')
+            waba_id = _id(waba_info.get('waba_id')) or _id(_dict(entry).get('id'))
+            if not isinstance(event, str) or not event or waba_id is None:
+                logger.warning('Skipping an account_update with an unexpected shape')
+                continue
+            ban_state = _dict(value.get('ban_info')).get('waba_ban_state')
+            updates.append(
+                AccountUpdate(
+                    waba_id=waba_id,
+                    event=event,
+                    ban_state=ban_state if isinstance(ban_state, str) else '',
+                    partner_app_id=_id(waba_info.get('partner_app_id')) or '',
+                )
+            )
+    return updates

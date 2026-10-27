@@ -26,6 +26,11 @@ steps:
           }
         done
     env:
+      - "VITE_META_APP_ID=${_META_APP_ID}"
+      - "VITE_META_CONFIG_ID=${_META_CONFIG_ID}"
+      - "VITE_FIREBASE_API_KEY=${_FIREBASE_API_KEY}"
+      - "VITE_FIREBASE_AUTH_DOMAIN=${_FIREBASE_AUTH_DOMAIN}"
+      - "VITE_FIREBASE_PROJECT_ID=${_PROJECT_ID}"
       - "VITE_CONFIGURATION_SERVICE_URL=${_CONFIGURATION_SERVICE_URL}"
   - name: node:22
     entrypoint: bash
@@ -40,5 +45,11 @@ steps:
       # Pinned: an unpinned install picks up new CLI releases, and 15.34.1 started checking the
       # Hosting API through Service Usage (the build account also has Service Usage Consumer, build.tf).
       - "npm install --global firebase-tools@15.34.0 && firebase deploy --only hosting --project=${_PROJECT_ID} --config=firebase.json --non-interactive"
+# Defaults, so builds work before the trigger passes them (infrastructure/build.tf).
+substitutions:
+  _META_APP_ID: ""
+  _META_CONFIG_ID: ""
+  _FIREBASE_API_KEY: ""
+  _FIREBASE_AUTH_DOMAIN: ""
 options:
   logging: CLOUD_LOGGING_ONLY

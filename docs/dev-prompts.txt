@@ -1439,3 +1439,8 @@ Date & Time (GMT+8): 2026-10-24 17:48:31
 AI Model Used: claude-opus-5-5
 Original Prompt:
 Okay, sure do the fix that's required. dont commit and push yet.
+
+Date & Time (GMT+8): 2026-10-24 22:41:14
+AI Model Used: claude-opus-5-5
+Original Prompt:
+Handle business token expiry. Business tokens may expire after about 60 days. Save the expiry, warn the owner to reconnect, and alert before it lapses.

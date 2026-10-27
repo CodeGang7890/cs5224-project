@@ -1,14 +1,14 @@
-import path from 'node:path'
-import tailwindcss from '@tailwindcss/vite'
-import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import path from "node:path";
+import tailwindcss from "@tailwindcss/vite";
+import react from "@vitejs/plugin-react";
+import { defineConfig } from "vite";
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
-      '@': path.resolve(import.meta.dirname, './src'),
+      "@": path.resolve(import.meta.dirname, "./src"),
     },
   },
   server: {
@@ -16,4 +16,4 @@ export default defineConfig({
     // poll instead. docker-compose.yml sets CHOKIDAR_USEPOLLING; `npm run dev` on the host doesn't.
     watch: { usePolling: Boolean(process.env.CHOKIDAR_USEPOLLING) },
   },
-})
+});

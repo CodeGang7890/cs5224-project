@@ -41,3 +41,28 @@ output "firebase_web_app_id" {
 output "firebase_hosting_url" {
   value = var.enable_firebase ? google_firebase_hosting_site.frontend[0].default_url : null
 }
+
+output "meta_webhook_verify_token" {
+  description = "Verify token for our Meta app's webhook (App Dashboard → WhatsApp → Configuration): terraform output -raw meta_webhook_verify_token"
+  value       = random_password.meta_webhook_verify_token.result
+  sensitive   = true
+}
+
+output "meta_app_webhook_url" {
+  description = "Callback URL for our Meta app's webhook (App Dashboard → WhatsApp → Configuration)."
+  value       = "${local.messaging_ingester_public_url}/webhook"
+}
+
+output "firebase_web_config" {
+  description = "frontend-app's VITE_FIREBASE_API_KEY / _AUTH_DOMAIN / _PROJECT_ID, for logging in with Google / Facebook (e.g. in a local .env)."
+  value = var.enable_firebase ? {
+    VITE_FIREBASE_API_KEY     = try(data.google_firebase_web_app_config.frontend[0].api_key, "")
+    VITE_FIREBASE_AUTH_DOMAIN = local.identity_auth_domain
+    VITE_FIREBASE_PROJECT_ID  = var.project_id
+  } : null
+}
+
+output "identity_oauth_redirect_uri" {
+  description = "Redirect URI to allow in the Google OAuth client and the Meta app's Facebook Login settings."
+  value       = "https://${local.identity_auth_domain}/__/auth/handler"
+}

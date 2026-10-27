@@ -8,4 +8,5 @@ psycopg[binary]>=3.2,<4
 cryptography>=46,<47
 # Calls Meta's Graph API (configuration_app/meta_api.py).
 httpx>=0.28,<0.29
-google-auth[requests]>=2.0,<3
+# Checks Identity Platform's (Firebase Authentication) ID tokens: logging in with Google / Facebook.
+google-auth[requests]>=2.40,<3

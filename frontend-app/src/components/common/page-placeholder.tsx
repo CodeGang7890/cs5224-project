@@ -1,4 +1,4 @@
-import { APP_NAME } from '@/config/app'
+import { APP_NAME } from "@/config/app";
 
 /** Simple page body with a heading, used for pages whose content isn't built yet. */
 export function PagePlaceholder({ title }: { title: string }) {
@@ -9,5 +9,5 @@ export function PagePlaceholder({ title }: { title: string }) {
       <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
       <p className="text-muted-foreground">{title} content coming soon.</p>
     </section>
-  )
+  );
 }

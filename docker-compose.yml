@@ -48,8 +48,15 @@ services:
       JWT_SIGNING_KEY: &jwt-signing-key dev-jwt-signing-key-local-only-change-me # signs logins; messaging-service checks them
       MESSAGING_SERVICE_URL: http://messaging-service:8004 # Chat Sandbox proxy target; local Docker needs no Cloud Run ID token
       MESSAGING_INGESTER_PUBLIC_URL: http://localhost:8002 # shown to owners as their webhook Callback URL
-      # Meta's Graph API, used to check the WhatsApp details owners enter (override to point at a fake for testing).
-      META_GRAPH_API_URL: ${META_GRAPH_API_URL:-https://graph.facebook.com/v25.0}
+      # Meta's Graph API, used to connect WhatsApp and send replies (override to point at a fake for testing).
+      META_GRAPH_API_URL: ${META_GRAPH_API_URL:-https://graph.facebook.com/v26.0}
+      # WhatsApp Embedded Signup (from .env; empty: connecting returns 503). Meta only runs the popup on
+      # HTTPS domains set on our app, so locally it's for trying the backend with a deployed frontend.
+      META_APP_ID: ${META_APP_ID:-}
+      META_APP_SECRET: ${META_APP_SECRET:-}
+      META_APP_WEBHOOK_VERIFY_TOKEN: ${META_APP_WEBHOOK_VERIFY_TOKEN:-}
+      # Logging in with Google / Facebook (Identity Platform; from .env, empty: off).
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
     extra_hosts:
       - "host.docker.internal:host-gateway" # for Linux; Docker Desktop has it already
     depends_on:
@@ -65,6 +72,14 @@ services:
     environment:
       # Called from the browser, not from inside Docker, so it's localhost rather than configuration-service.
       VITE_CONFIGURATION_SERVICE_URL: http://localhost:8000/api
+      VITE_MESSAGING_SERVICE_URL: http://localhost:8004/api # the Chat Sandbox's messages (the chat flow)
+      # WhatsApp Embedded Signup ("Connect with Facebook" button; from .env, empty: it does nothing).
+      VITE_META_APP_ID: ${META_APP_ID:-}
+      VITE_META_CONFIG_ID: ${META_CONFIG_ID:-}
+      # Logging in with Google / Facebook (from .env; empty: the buttons do nothing).
+      VITE_FIREBASE_API_KEY: ${FIREBASE_API_KEY:-}
+      VITE_FIREBASE_AUTH_DOMAIN: ${FIREBASE_AUTH_DOMAIN:-}
+      VITE_FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
       # File change events don't cross into the container on WSL/Windows: poll (see vite.config.ts).
       CHOKIDAR_USEPOLLING: "true"
     volumes:

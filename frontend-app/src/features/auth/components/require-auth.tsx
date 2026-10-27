@@ -1,12 +1,18 @@
-import type { ReactNode } from 'react'
-import { LockKeyhole } from 'lucide-react'
-import { Outlet } from 'react-router'
+import type { ReactNode } from "react";
+import { LockKeyhole } from "lucide-react";
+import { Outlet } from "react-router";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { APP_NAME } from '@/config/app'
-import { selectIsAuthenticated, useAuthStore } from '@/stores/auth-store'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { APP_NAME } from "@/config/app";
+import { selectIsAuthenticated, useAuthStore } from "@/stores/auth-store";
 
-import { LoginDialog } from './login-dialog'
+import { AuthDialog } from "./auth-dialog";
 
 /**
  * Login guard. Renders its content only when the user is logged in; otherwise shows a
@@ -22,10 +28,10 @@ import { LoginDialog } from './login-dialog'
  *      <RequireAuth><WorkflowPage /></RequireAuth>
  */
 export function RequireAuth({ children }: { children?: ReactNode }) {
-  const isAuthenticated = useAuthStore(selectIsAuthenticated)
+  const isAuthenticated = useAuthStore(selectIsAuthenticated);
 
-  if (!isAuthenticated) return <LoginRequired />
-  return children ?? <Outlet />
+  if (!isAuthenticated) return <LoginRequired />;
+  return children ?? <Outlet />;
 }
 
 function LoginRequired() {
@@ -38,12 +44,15 @@ function LoginRequired() {
             <LockKeyhole className="text-muted-foreground size-6" />
           </div>
           <CardTitle>Log in required</CardTitle>
-          <CardDescription>You need to be logged in to access this page.</CardDescription>
+          <CardDescription>
+            You need to be logged in to access this page. New here? Sign up.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="flex justify-center">
-          <LoginDialog />
+        <CardContent className="flex justify-center gap-2">
+          <AuthDialog mode="signup" />
+          <AuthDialog />
         </CardContent>
       </Card>
     </section>
-  )
+  );
 }

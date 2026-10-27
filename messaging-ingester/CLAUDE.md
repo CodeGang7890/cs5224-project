@@ -15,7 +15,8 @@ A **FastAPI** service (port **8002**) that receives Meta's WhatsApp Cloud API we
 
   Both answer `{valid, phone_number_id}`, with the `X-Internal-Api-Key` header (`INTERNAL_API_KEY`).
 
-- **One Callback URL per business:** `/webhook/{business_id}`.
+- **One Callback URL per business:** `/webhook/{business_id}`. Businesses connected with Embedded Signup get theirs too: configuration-service overrides their WhatsApp account's webhook to it.
+- **`/webhook` (no ID) is our Meta app's own Callback URL** (Embedded Signup needs one, App Dashboard → WhatsApp → Configuration): GET handshake / POST signature via `verify_app_token` / `verify_app_signature` (`/api/internal/whatsapp/app/…`, configuration-service's `META_APP_*`; 404 while unset). It only gets account-level events, never published: **`account_update`** changes (`parsing.parse_account_updates` → `AccountUpdate(waba_id (waba_info.waba_id, else the entry id), event, ban_state, partner_app_id)`) go to configuration-service with `report_account_updates` (`POST /api/internal/whatsapp/app/account-updates/` → `{changed}`; it marks connections disconnected / banned; unavailable → 503 so Meta retries), the rest are logged; stray customer messages there are logged as a missing override. Answer: `AppWebhookAck {published: 0, account_updates, changed}`.
 - **Never re-serialize the body before the signature check.** `raw_body()` reads the bytes, `verification.verify_signature()` forwards them as-is, and only then is the body parsed with `json.loads`.
 - **Status codes are Meta's retry signal:** anything but 200 makes Meta retry.
   - 401 bad or missing signature (nothing published)
@@ -42,7 +43,7 @@ Routes are plain `def`s (blocking HTTP and Pub/Sub calls run in FastAPI's thread
 
 - `app/config.py`: settings. Constants plus env (`CONFIGURATION_SERVICE_URL`, `INTERNAL_API_KEY`, `GCP_PROJECT_ID`, `PUBSUB_TOPIC`; the library reads `PUBSUB_EMULATOR_HOST`).
 - `app/webhook.py`: the routes. Dependencies `get_verifier()` / `get_publisher()` (`lru_cache` singletons) are swapped in tests with `app.dependency_overrides`.
-- `app/verification.py`: 200 → `Verification`; 404 → `BusinessNotConnectedError`; any other status, bad JSON or `httpx.HTTPError` → `VerificationUnavailableError`.
+- `app/verification.py`: 200 → `Verification`; 404 → `BusinessNotConnectedError`; any other status, bad JSON or `httpx.HTTPError` → `ConfigurationServiceUnavailableError`.
 - `app/parsing.py`: `parse_webhook(payload, business_id, phone_number_id)` → `ParseResult(messages, skipped)`.
 - `app/publisher.py`: `Publisher` protocol, `PubSubPublisher`, `ensure_emulator_resources()`.
 - `scripts/pull_debug.py`: pull + ack from `whatsapp-inbound-debug` (emulator).
