@@ -42,7 +42,9 @@ def event(payment_reference=REFERENCE, status='success', amount=None) -> FakeMes
 class ParseTests(unittest.TestCase):
     def test_a_payment_event(self):
         for status in ('success', 'fail'):
-            self.assertEqual(parse(event(status=status).data), {'payment_reference': REFERENCE, 'status': status})
+            self.assertEqual(
+                parse(event(status=status).data), {'payment_reference': REFERENCE, 'status': status, 'amount': None},
+            )
         self.assertEqual(parse(event(REFERENCE.upper()).data)['payment_reference'], REFERENCE)
         self.assertEqual(
             parse(event(status='success', amount=12.5).data),
@@ -58,7 +60,7 @@ class ParseTests(unittest.TestCase):
             b'not json',
             b'[1]',
             b'{"status": "success"}',
-            event(status='paid').data,
+            b'{"data": {}}',
             event('pay_1').data,
             event(42).data,
             event(amount=-1).data,
