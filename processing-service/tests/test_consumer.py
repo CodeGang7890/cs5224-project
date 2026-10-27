@@ -1,5 +1,8 @@
 import json
 import os
+from pathlib import Path
+import subprocess
+import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -28,18 +31,24 @@ class FakeMessage:
 
 
 def event(payment_reference=REFERENCE, status='success', amount=None) -> FakeMessage:
-    # Always use the real Xendit nested structure to ensure tests validate production parsing logic
     payload = {
-        'data': {
-            'reference_id': payment_reference,
-            'status': 'COMPLETED' if status in ('success', 'COMPLETED') else 'EXPIRED',
-            'amount': amount
-        }
+        'payment_reference': payment_reference,
+        'status': status,
+        'amount': amount,
     }
     return FakeMessage(json.dumps(payload).encode())
 
 
 class ParseTests(unittest.TestCase):
+    def test_nested_xendit_payloads_are_still_accepted(self):
+        for status, expected in (
+            ('COMPLETED', 'success'), ('SUCCEEDED', 'success'),
+            ('EXPIRED', 'fail'), ('FAILED', 'fail'), ('CANCELED', 'fail'),
+        ):
+            with self.subTest(status=status):
+                data = json.dumps({'data': {'reference_id': REFERENCE, 'status': status, 'amount': 5.5}}).encode()
+                self.assertEqual(parse(data), {'payment_reference': REFERENCE, 'status': expected, 'amount': 5.5})
+
     def test_a_payment_event(self):
         for status in ('success', 'fail'):
             self.assertEqual(
@@ -61,8 +70,14 @@ class ParseTests(unittest.TestCase):
             b'[1]',
             b'{"status": "success"}',
             b'{"data": {}}',
+            b'{"data": null}',
+            b'{"data": [1]}',
+            b'{"data": "invalid"}',
             event('pay_1').data,
             event(42).data,
+            event(status='PENDING').data,
+            event(status=None).data,
+            event(status=[]).data,
             event(amount=-1).data,
             event(amount=True).data,
             event(amount='12.50').data,
@@ -73,9 +88,60 @@ class ParseTests(unittest.TestCase):
             with self.subTest(data=data), self.assertRaises(InvalidMessageError):
                 parse(data)
 
+    def test_unknown_xendit_status_is_rejected_instead_of_becoming_a_failed_payment(self):
+        for status in (None, 'PENDING', 'ACTIVE', 'unknown', []):
+            with self.subTest(status=status), self.assertRaises(InvalidMessageError):
+                parse(json.dumps({'data': {'reference_id': REFERENCE, 'status': status}}).encode())
+
+    def test_nested_xendit_amount_is_validated(self):
+        for amount in (-1, True, '5.50', float('nan'), float('inf')):
+            with self.subTest(amount=amount), self.assertRaises(InvalidMessageError):
+                parse(json.dumps({'data': {
+                    'reference_id': REFERENCE, 'status': 'COMPLETED', 'amount': amount,
+                }}).encode())
+
 
 @patch('app.consumer.apply_payment')
 class HandleTests(unittest.TestCase):
+    def test_completed_xendit_webhook_through_the_actual_ingester_publisher(self, apply_payment):
+        # A separate interpreter avoids colliding with both services' "app" packages.
+        # Pub/Sub is mocked; parsing and serialization use the real producer code.
+        webhook = {
+            'event': 'payment_session.completed',
+            'created': '2026-10-27T12:28:30.091Z',
+            'api_version': 'v1',
+            'data': {
+                'reference_id': '127017c92ec1d69189ab08917543192f',
+                'status': 'COMPLETED',
+                'amount': 5.5,
+                'currency': 'SGD',
+                'payment_id': 'py-9eba653d-83cd-8504-bad4-8a536099a1b4',
+                'payment_session_id': 'ps-6ae0988c6e3e5e546730ab94',
+            },
+        }
+        script = '''
+import json
+import sys
+from unittest.mock import MagicMock
+from app.xendit_webhook import parse_webhook
+from app.publisher import PubSubPublisher
+client = MagicMock()
+PubSubPublisher(project_id='test-project', topic='payment-queue', client=client).publish(
+    [parse_webhook(json.load(sys.stdin))]
+)
+sys.stdout.buffer.write(client.publish.call_args.kwargs['data'])
+'''
+        published = subprocess.run(
+            [sys.executable, '-c', script],
+            cwd=Path(__file__).resolve().parents[2] / 'payment-ingester',
+            input=json.dumps(webhook).encode(), capture_output=True, check=True, timeout=30,
+        )
+        pulled = FakeMessage(published.stdout)
+        handle(pulled, session_factory=MagicMock())
+        self.assertEqual(apply_payment.call_args.args[1:], (webhook['data']['reference_id'], 'success', 5.5))
+        self.assertTrue(pulled.acked)
+        self.assertFalse(pulled.nacked)
+
     def test_runs_the_payment_flow_then_acks(self, apply_payment):
         pulled = event(status='fail', amount=12.5)
         with self.assertLogs('app.consumer', level='INFO') as logs:

@@ -50,23 +50,33 @@ def parse(data: bytes) -> dict:
     if not isinstance(payload, dict):
         raise InvalidMessageError('not a JSON object')
     
-    # Xendit wraps essential event details inside the "data" key
-    event_data = payload.get('data', {})
-    if not event_data:
-        raise InvalidMessageError('Xendit payload is missing the "data" object')
+    # payment-ingester publishes a normalized event, not the original webhook.
+    # Keep accepting nested Xendit payloads for existing queue producers.
+    if 'payment_reference' in payload:
+        reference = payload.get('payment_reference')
+        status = payload.get('status')
+        amount = payload.get('amount')
+    else:
+        event_data = payload.get('data')
+        if not isinstance(event_data, dict) or not event_data:
+            raise InvalidMessageError('Missing payment_reference or valid Xendit "data" object')
+        reference = event_data.get('reference_id')
+        xendit_status = event_data.get('status')
+        if xendit_status in ('COMPLETED', 'SUCCEEDED'):
+            status = 'success'
+        elif xendit_status in ('EXPIRED', 'FAILED', 'CANCELED'):
+            status = 'fail'
+        else:
+            raise InvalidMessageError(f'Unsupported Xendit payment status: {xendit_status!r}')
+        amount = event_data.get('amount')
 
-    reference = event_data.get('reference_id')
     if not isinstance(reference, str) or not PAYMENT_REFERENCE.match(reference.lower()):
         raise InvalidMessageError(f'payment_reference must be 32 hex characters, not {reference!r}')
-
-    # Map Xendit "COMPLETED" status to our internal "success" status
-    x_status = event_data.get('status')
-    internal_status = 'success' if x_status == 'COMPLETED' else 'fail'
-    
-    amount = event_data.get('amount')
+    if status not in STATUSES:
+        raise InvalidMessageError(f'status must be one of {", ".join(STATUSES)}, not {status!r}')
     new_payload = {
         'payment_reference': reference.lower(),
-        'status': internal_status,
+        'status': status,
         'amount': amount
     }
 

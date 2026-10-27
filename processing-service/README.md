@@ -22,6 +22,8 @@ Swagger UI is at <http://localhost:8003/docs>, and the OpenAPI spec at `/openapi
 
 `app/consumer.py` is a **pull** subscriber (streaming pull) on its own subscription, `processing-service-payments`, to the topic `payment-events`. Each message's data is JSON `{payment_reference, status, amount?}` (32 hex characters; `success` / `fail`; the amount Xendit reports; see `payment-ingester/README.md`).
 
+`payment-ingester` converts the Xendit webhook into this flat event before publishing it. The consumer also accepts nested Xendit `data` payloads with `reference_id`, `status`, and `amount`: `COMPLETED` / `SUCCEEDED` map to `success`, and `EXPIRED` / `FAILED` / `CANCELED` map to `fail`. Unknown or missing statuses are rejected rather than treated as failed payments. In GCP, Terraform configures the topic as `payment-queue` and the subscription as `payment-queue-worker`.
+
 - **Valid:** it goes through the payment flow (below), then is acked. A repeated event changes nothing in the database (but see step 5).
 - **Unknown payment reference, amount mismatch, or not pending payment** (e.g. already completed): logged as an error and acked.
 - **Processing raised** (e.g. the database, Cloud Storage or configuration-service is down): nacked, so Pub/Sub redelivers it. The payment itself is already committed by then; the retry sees a repeated event and finishes the invoice and the message.
