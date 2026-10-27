@@ -54,16 +54,8 @@ export async function deleteSandboxSession(id: number): Promise<void> {
  * Sends a message as the pretend customer and returns the assistant's reply (with debug info).
  * The chat flow runs in messaging-service; everything else about chats stays in configuration-service.
  */
-<<<<<<< HEAD
-export async function sendSandboxMessage(
-  id: number,
-  message: string,
-): Promise<SandboxMessageReply> {
-  const { data } = await messagingApiClient.post<SandboxMessageReply>(
-=======
 export async function sendSandboxMessage(id: number, message: string): Promise<SandboxMessageReply> {
   const { data } = await configurationApiClient.post<SandboxMessageReply>(
->>>>>>> f07e0b7c38c4283eab5962e3c707241fb4de180a
     `/chat/sandbox-sessions/${id}/messages/`,
     { message },
     { timeout: SEND_MESSAGE_TIMEOUT_MS },
