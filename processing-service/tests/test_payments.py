@@ -8,6 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.models import UNAVAILABLE_WEEK, Base, BusinessConfiguration, ChatSession, OrderItem, ScheduleItem, WeeklyAvailability
+from app.email_sender import EmailError
 from app.payments import PaymentEventError, PaymentNotFoundError, apply_payment
 from app.whatsapp_sender import SendError
 
@@ -22,7 +23,7 @@ MONDAY = date(2026, 10, 12)
 LETTERS = UNAVAILABLE_WEEK[:36] + 'OOOO' + 'HHHH' + 'HH' + 'OO' + UNAVAILABLE_WEEK[48:]
 ORDER_DATA = {
     'items': [{'product_id': 1, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 2}],
-    'details': {'name': 'Daniel Ong'},
+    'details': {'name': 'Daniel Ong', 'email': 'daniel@example.com'},
 }
 SCHEDULE_DATA = {
     'service': {'service_id': 1, 'name': 'Portrait shoot', 'price': '180.00', 'duration_minutes': 60, 'buffer_minutes': 30},
@@ -32,8 +33,12 @@ SCHEDULE_DATA = {
 
 class PaymentFlowTests(unittest.TestCase):
     def setUp(self):
+        # not a real email
+        patcher = mock.patch('app.email_sender.send_email', return_value=True)
+        self.send_email = patcher.start()
+        self.addCleanup(patcher.stop)
         engine = create_engine('sqlite://')
-        Base.metadata.create_all(engine)  # tests only: configuration-service owns the real schema
+        Base.metadata.create_all(engine)
         self.sessions = sessionmaker(engine)
         now = datetime(2026, 10, 1, tzinfo=UTC)
         with self.sessions.begin() as session:
@@ -130,6 +135,34 @@ class PaymentFlowTests(unittest.TestCase):
         self.assertEqual((business_id, to), (1, '+6591234567'))
         self.assertIn('received your payment', text)
         self.assertIn('https://signed/x.pdf', text)
+
+    def test_the_invoice_is_emailed_attached_to_the_customer(self):
+        with mock.patch('app.whatsapp_sender.send_text', return_value='wamid.1'), self.sessions() as session:
+            apply_payment(session, CHAT_ORDER_REFERENCE, 'success', ORDER_TOTAL)
+        subject, text, to = self.send_email.call_args.args
+        [attachment] = self.send_email.call_args.kwargs['attachments']
+        self.assertEqual(to, 'daniel@example.com')
+        self.assertEqual(subject, 'Payment received: your order with Kopi & Toast')
+        self.assertIn('INV-O-000002', text)
+        self.assertEqual(attachment.filename, 'INV-O-000002.pdf')
+        self.assertTrue(attachment.data.startswith(b'%PDF'))
+
+    def test_a_failed_payment_sends_no_email(self):
+        with mock.patch('app.whatsapp_sender.send_text', return_value='wamid.1'), self.sessions() as session:
+            apply_payment(session, CHAT_ORDER_REFERENCE, 'fail')
+        self.send_email.assert_not_called()
+
+    def test_an_email_that_could_not_be_sent_yet_is_retried_with_the_event(self):
+        self.send_email.side_effect = [EmailError('relay down', retryable=True), True]
+        with mock.patch('app.whatsapp_sender.send_text', return_value='wamid.1') as send_text:
+            with self.sessions() as session, self.assertRaises(EmailError):
+                apply_payment(session, CHAT_ORDER_REFERENCE, 'success', ORDER_TOTAL)
+            self.assertEqual(send_text.call_count, 1)  # WhatsApp wasn't held up by the email
+            with self.sessions() as session:
+                self.assertEqual(session.get(OrderItem, 2).order_status, 'payment_received')  # the payment stood
+            with self.sessions() as session:
+                apply_payment(session, CHAT_ORDER_REFERENCE, 'success', ORDER_TOTAL)  # Pub/Sub redelivers
+        self.assertEqual(self.send_email.call_count, 2)
 
     def test_the_customer_is_told_a_payment_failed(self):
         with mock.patch('app.whatsapp_sender.send_text', return_value='wamid.1') as send, self.sessions() as session:

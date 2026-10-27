@@ -9,6 +9,7 @@ Two steps, so each can be tested on its own:
 
 """
 
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -58,10 +59,14 @@ class Invoice:
     currency: str
     booking: Booking | None = None
     is_sandbox: bool = False
+    customer_email: str = ''  # from the chat's `email` detail, '' if none or it doesn't look like an address
 
     @property
     def total(self) -> Decimal:
         return sum((line.amount for line in self.lines), Decimal('0.00'))
+
+
+EMAIL_ADDRESS = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')  # roughly an address; the mail server has the final say
 
 
 def invoice_number(kind: str, item_id: int) -> str:
@@ -103,6 +108,8 @@ def build_invoice(session: Session, item: OrderItem | ScheduleItem, issued_at: d
         booking = Booking(name, provider.name if provider else '', aware(item.start_time), aware(item.end_time))
         lines = (InvoiceLine(name, 1, Decimal(str(service.get('price', '0.00')))),)
 
+    email = next((str(value).strip() for key, value in details.items() if key.lower() == 'email'), '')
+
     return Invoice(
         number=invoice_number(kind, item.id),
         kind=kind,
@@ -117,6 +124,7 @@ def build_invoice(session: Session, item: OrderItem | ScheduleItem, issued_at: d
         currency=config.INVOICE_CURRENCY,
         booking=booking,
         is_sandbox=item.is_sandbox,
+        customer_email=email if EMAIL_ADDRESS.match(email) else '',
     )
 
 # Generating the pdf

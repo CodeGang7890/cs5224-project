@@ -22,8 +22,9 @@ For one event `{payment_reference, status, amount?}`, in one transaction:
    uploaded (app/storage.py). It also runs for a repeated event, so if the upload failed (the
    consumer nacks, Pub/Sub redelivers) the retry makes the invoice. The object name is fixed, so
    doing it twice just overwrites it.
-6. For received and failed payments, the customer is told on WhatsApp (app/notifications.py),
-   with the invoice link when there is one. A message that couldn't be sent but could be later raises,
+6. The customer is told (app/notifications.py): on WhatsApp for received and failed payments, with the
+   invoice link when there is one; by email for received ones, with the invoice PDF attached. One
+   channel failing doesn't stop the other. A message that couldn't be sent but could be later raises,
    so the event is redelivered and a refusal is only logged.
 """
 
@@ -83,16 +84,18 @@ def find_item(session: Session, payment_reference: str) -> OrderItem | ScheduleI
 
 
 def finish(session: Session, result: PaymentResult) -> PaymentResult:
-    """Makes and uploads the invoice, then tells the customer."""
+    """Makes and uploads the invoice, then tells the customer (WhatsApp, and email with the PDF attached)."""
     item = session.get(OrderItem if result.kind == 'order' else ScheduleItem, result.id)
     document = invoice.build_invoice(session, item)
     business_id = item.business_id
     session.rollback()  # no connection held during the upload and the message
+    pdf = None
     if result.new_status == PAYMENT_RECEIVED:
+        pdf = invoice.render_pdf(document)
         name = invoice.object_name(document.payment_reference)
-        uri = storage.upload_invoice(invoice.render_pdf(document), name)
+        uri = storage.upload_invoice(pdf, name)
         result = replace(result, invoice_uri=uri, invoice_link=storage.invoice_link(name) if uri else None)
-    notifications.notify_customer(business_id, document, result.new_status, result.invoice_link)
+    notifications.notify_customer(business_id, document, result.new_status, result.invoice_link, pdf)
     return result
 
 
