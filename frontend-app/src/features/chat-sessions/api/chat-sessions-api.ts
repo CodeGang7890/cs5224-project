@@ -1,4 +1,4 @@
-import { configurationApiClient, messagingApiClient } from "@/lib/api-client";
+import { configurationApiClient } from "@/lib/api-client";
 import type { DetailedPaginated, Paginated } from "@/types/api";
 
 import type {

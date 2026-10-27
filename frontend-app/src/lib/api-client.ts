@@ -126,9 +126,3 @@ export function createApiClient(baseURL: string): AxiosInstance {
 export const configurationApiClient = createApiClient(
   env.configurationServiceUrl,
 );
-
-/**
- * Client for messaging-service (FastAPI): the chat flow (the Chat Sandbox's messages). Paths are
- * relative to its `/api` root. It takes the same access token (refreshed via configuration-service).
- */
-export const messagingApiClient = createApiClient(env.messagingServiceUrl);
