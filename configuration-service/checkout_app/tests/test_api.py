@@ -71,7 +71,8 @@ class OrderListAPITests(OrderAPITestCase):
         self.assertEqual(
             set(paid),
             {
-                'id', 'business', 'chat_session', 'is_sandbox', 'order_status', 'payment_reference', 'order_data', 'total',
+                'id', 'business', 'chat_session', 'is_sandbox', 'order_status', 
+                'payment_reference', 'order_data', 'total', 'xendit_payment_id', 'payment_link',
                 'created_time', 'updated_time',
             },
         )
@@ -211,11 +212,14 @@ class ScheduleAPITests(APITestCase):
         body = self.client.get(SCHEDULE_LIST_URL).json()
         self.assertEqual(body['total_pages'], 1)
         first = body['results'][0]
-        self.assertEqual(set(first), {
-            'id', 'business', 'chat_session', 'is_sandbox', 'service', 'service_provider', 'service_provider_name',
-            'start_time', 'end_time', 'blocked_until', 'order_status', 'payment_reference', 'schedule_data', 'total',
-            'created_time', 'updated_time',
-        })
+        self.assertEqual(
+            set(first),
+            {
+                'id', 'business', 'chat_session', 'is_sandbox', 'service', 'service_provider', 'service_provider_name',
+                'start_time', 'end_time', 'blocked_until', 'order_status', 'payment_reference', 'schedule_data', 'total',
+                'created_time', 'updated_time', 'xendit_payment_id', 'payment_link',
+            },
+        )
         self.assertEqual(first['payment_reference'], self.late.payment_reference)
         self.assertEqual((first['service_provider_name'], first['total'], first['order_status']), ('Raj', '250.00', 'payment_received'))
         self.assertEqual(first['schedule_data']['service']['name'], 'Family')
