@@ -37,6 +37,12 @@ resource "google_secret_manager_secret_iam_member" "configuration_secret" {
   member    = "serviceAccount:${google_service_account.runtime["configuration-service"].email}"
 }
 
+resource "google_secret_manager_secret_iam_member" "configuration_encryption" {
+  secret_id = "projects/${var.project_id}/secrets/configuration-encryption-key"
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.runtime["configuration-service"].email}"
+}
+
 resource "random_password" "django" {
   length  = 50
   special = false
@@ -75,7 +81,7 @@ resource "google_secret_manager_secret_version" "internal_api" {
 }
 
 resource "google_secret_manager_secret_iam_member" "internal_api" {
-  for_each  = toset(["configuration-service", "messaging-service", "messaging-ingester", "payment-ingester"])
+  for_each  = toset(["configuration-service", "messaging-service", "messaging-ingester", "payment-ingester", "processing-service"])
   secret_id = google_secret_manager_secret.app["internal-api-key"].id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.runtime[each.key].email}"
@@ -107,10 +113,29 @@ resource "google_secret_manager_secret_iam_member" "messaging_sql_password" {
   member    = "serviceAccount:${google_service_account.runtime["messaging-service"].email}"
 }
 
+resource "google_secret_manager_secret_iam_member" "processing_sql_password" {
+  count     = var.enable_cloud_sql ? 1 : 0
+  secret_id = google_secret_manager_secret.sql_password[0].id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.runtime["processing-service"].email}"
+}
+
 resource "google_storage_bucket_iam_member" "messaging_object_user" {
   bucket = google_storage_bucket.objects.name
   role   = "roles/storage.objectUser"
   member = "serviceAccount:${google_service_account.runtime["messaging-service"].email}"
+}
+
+resource "google_storage_bucket_iam_member" "processing_object_user" {
+  bucket = google_storage_bucket.objects.name
+  role   = "roles/storage.objectUser"
+  member = "serviceAccount:${google_service_account.runtime["processing-service"].email}"
+}
+
+resource "google_service_account_iam_member" "processing_invoice_signer" {
+  service_account_id = google_service_account.runtime["processing-service"].name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${google_service_account.runtime["processing-service"].email}"
 }
 
 resource "google_pubsub_topic_iam_member" "payment_publisher" {
@@ -154,12 +179,13 @@ resource "google_cloud_run_v2_service" "backend" {
     service_account                  = google_service_account.runtime[each.key].email
     max_instance_request_concurrency = 10
     scaling {
-      min_instance_count = 0
+      # Pull subscribers run outside HTTP requests and need a live instance.
+      min_instance_count = contains(["messaging-service", "processing-service"], each.key) ? 1 : 0
       max_instance_count = 1
     }
 
     dynamic "volumes" {
-      for_each = var.enable_cloud_sql && contains(["configuration-service", "messaging-service"], each.key) ? [1] : []
+      for_each = var.enable_cloud_sql && contains(["configuration-service", "messaging-service", "processing-service"], each.key) ? [1] : []
       content {
         name = "cloudsql"
         cloud_sql_instance {
@@ -173,22 +199,40 @@ resource "google_cloud_run_v2_service" "backend" {
       ports { container_port = 8000 }
       resources {
         limits   = { cpu = "1", memory = "512Mi" }
-        cpu_idle = true
+        cpu_idle = !contains(["messaging-service", "processing-service"], each.key)
       }
       dynamic "env" {
         for_each = each.key == "payment-ingester" ? {
           GCP_PROJECT_ID = var.project_id
           PUBSUB_TOPIC   = google_pubsub_topic.queue["payment-queue"].name
           } : each.key == "processing-service" ? {
-          GCP_PROJECT_ID      = var.project_id
-          PUBSUB_TOPIC        = google_pubsub_topic.queue["payment-queue"].name
-          PUBSUB_SUBSCRIPTION = google_pubsub_subscription.queue["payment-queue"].name
+          GCP_PROJECT_ID            = var.project_id
+          PUBSUB_TOPIC              = google_pubsub_topic.queue["payment-queue"].name
+          PUBSUB_SUBSCRIPTION       = google_pubsub_subscription.queue["payment-queue"].name
+          CONFIGURATION_SERVICE_URL = "https://configuration-service-gq6jjn4afq-uc.a.run.app/api"
+          SCHEDULE_TIME_ZONE        = "Asia/Singapore"
+          PUBSUB_CONSUMER_ENABLED   = "true"
+          PUBSUB_MAX_MESSAGES       = "5"
+          WEB_CONCURRENCY           = "2"
+          GCS_BUCKET                = google_storage_bucket.objects.name
+          INVOICE_CURRENCY          = "SGD"
           } : each.key == "messaging-ingester" ? {
           CONFIGURATION_SERVICE_URL = "https://configuration-service-gq6jjn4afq-uc.a.run.app/api"
           GCP_PROJECT_ID            = var.project_id
           PUBSUB_TOPIC              = google_pubsub_topic.queue["messaging-queue"].name
           } : each.key == "messaging-service" ? {
-          PAYMENT_INGESTER_URL = var.payment_ingester_url
+          PAYMENT_INGESTER_URL      = var.payment_ingester_url
+          CONFIGURATION_SERVICE_URL = "https://configuration-service-gq6jjn4afq-uc.a.run.app/api"
+          CORS_ALLOWED_ORIGINS      = "https://${var.firebase_hosting_site_id}.web.app,https://${var.firebase_hosting_site_id}.firebaseapp.com"
+          PUBSUB_CONSUMER_ENABLED   = "true"
+          GCP_PROJECT_ID            = var.project_id
+          PUBSUB_TOPIC              = google_pubsub_topic.queue["messaging-queue"].name
+          PUBSUB_SUBSCRIPTION       = google_pubsub_subscription.queue["messaging-queue"].name
+          PUBSUB_MAX_MESSAGES       = "5"
+          WEB_CONCURRENCY           = "2"
+          } : each.key == "configuration-service" ? {
+          MESSAGING_INGESTER_PUBLIC_URL = "https://messaging-ingester-gq6jjn4afq-uc.a.run.app"
+          META_GRAPH_API_URL            = "https://graph.facebook.com/v25.0"
         } : {}
         content {
           name  = env.key
@@ -196,7 +240,7 @@ resource "google_cloud_run_v2_service" "backend" {
         }
       }
       dynamic "env" {
-        for_each = contains(["configuration-service", "messaging-service", "messaging-ingester", "payment-ingester"], each.key) ? [1] : []
+        for_each = contains(["configuration-service", "messaging-service", "messaging-ingester", "payment-ingester", "processing-service"], each.key) ? [1] : []
         content {
           name = "INTERNAL_API_KEY"
           value_source {
@@ -227,6 +271,18 @@ resource "google_cloud_run_v2_service" "backend" {
         content {
           name  = "DJANGO_DEBUG"
           value = "False"
+        }
+      }
+      dynamic "env" {
+        for_each = each.key == "configuration-service" ? [1] : []
+        content {
+          name = "CONFIGURATION_ENCRYPTION_KEY"
+          value_source {
+            secret_key_ref {
+              secret  = "configuration-encryption-key"
+              version = "latest"
+            }
+          }
         }
       }
       dynamic "env" {
@@ -291,7 +347,7 @@ resource "google_cloud_run_v2_service" "backend" {
         }
       }
       dynamic "env" {
-        for_each = var.enable_cloud_sql && contains(["configuration-service", "messaging-service"], each.key) ? merge({
+        for_each = var.enable_cloud_sql && contains(["configuration-service", "messaging-service", "processing-service"], each.key) ? merge({
           POSTGRES_DB   = "configuration_service"
           POSTGRES_USER = "app"
           POSTGRES_HOST = "/cloudsql/${google_sql_database_instance.main[0].connection_name}"
@@ -303,7 +359,7 @@ resource "google_cloud_run_v2_service" "backend" {
         }
       }
       dynamic "env" {
-        for_each = contains(["configuration-service", "messaging-service"], each.key) && var.enable_cloud_sql ? [1] : []
+        for_each = contains(["configuration-service", "messaging-service", "processing-service"], each.key) && var.enable_cloud_sql ? [1] : []
         content {
           name = "POSTGRES_PASSWORD"
           value_source {
@@ -315,7 +371,7 @@ resource "google_cloud_run_v2_service" "backend" {
         }
       }
       dynamic "volume_mounts" {
-        for_each = var.enable_cloud_sql && contains(["configuration-service", "messaging-service"], each.key) ? [1] : []
+        for_each = var.enable_cloud_sql && contains(["configuration-service", "messaging-service", "processing-service"], each.key) ? [1] : []
         content {
           name       = "cloudsql"
           mount_path = "/cloudsql"
@@ -325,7 +381,7 @@ resource "google_cloud_run_v2_service" "backend" {
   }
 
   lifecycle { ignore_changes = [template[0].containers[0].image] }
-  depends_on = [google_project_service.api, google_secret_manager_secret_iam_member.configuration_secret, google_secret_manager_secret_iam_member.configuration_sql_password, google_secret_manager_secret_iam_member.messaging_sql_password, google_secret_manager_secret_iam_member.jwt, google_secret_manager_secret_version.django, google_secret_manager_secret_version.jwt, google_secret_manager_secret_version.internal_api, google_secret_manager_secret_iam_member.internal_api, google_secret_manager_secret_iam_member.payment_xendit_api, google_secret_manager_secret_iam_member.payment_xendit_webhook]
+  depends_on = [google_project_service.api, google_secret_manager_secret_iam_member.configuration_secret, google_secret_manager_secret_iam_member.configuration_encryption, google_secret_manager_secret_iam_member.configuration_sql_password, google_secret_manager_secret_iam_member.messaging_sql_password, google_secret_manager_secret_iam_member.processing_sql_password, google_secret_manager_secret_iam_member.jwt, google_secret_manager_secret_version.django, google_secret_manager_secret_version.jwt, google_secret_manager_secret_version.internal_api, google_secret_manager_secret_iam_member.internal_api, google_secret_manager_secret_iam_member.payment_xendit_api, google_secret_manager_secret_iam_member.payment_xendit_webhook, google_storage_bucket_iam_member.processing_object_user, google_service_account_iam_member.processing_invoice_signer]
 }
 
 resource "google_cloud_run_v2_service_iam_member" "configuration_calls_messaging" {
