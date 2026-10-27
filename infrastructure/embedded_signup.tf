@@ -22,19 +22,14 @@ locals {
   }
 }
 
-resource "random_password" "meta_webhook_verify_token" {
-  length  = 40
-  special = false
-}
-
 resource "google_secret_manager_secret_version" "meta_webhook_verify_token" {
   secret      = google_secret_manager_secret.app["meta-webhook-verify-token"].id
-  secret_data = random_password.meta_webhook_verify_token.result
+  secret_data = var.meta_webhook_verify_token
 }
 
 resource "google_secret_manager_secret_iam_member" "configuration_meta" {
   for_each  = toset(values(local.meta_secrets))
-  secret_id = google_secret_manager_secret.app[each.key].id
+  secret_id = each.key == "meta-app-secret" ? "projects/${var.project_id}/secrets/meta-app-secret" : google_secret_manager_secret.app[each.key].id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.runtime["configuration-service"].email}"
 }

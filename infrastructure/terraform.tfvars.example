@@ -47,10 +47,12 @@ vertex_ai_demo_allow_unauthenticated = false
 alert_notification_email = ""
 
 # WhatsApp Embedded Signup ("Connect with Facebook"), always on. Before the first apply, add the
-# App Secret: gcloud secrets versions add meta-app-secret --data-file=… (Terraform generates the
-# webhook verify token: terraform output -raw meta_webhook_verify_token).
+# App Secret: gcloud secrets versions add meta-app-secret --data-file=… .
+# Terraform stores the webhook verify token from private terraform.tfvars in Secret Manager.
 meta_app_id                    = "1147422487864729"
-meta_embedded_signup_config_id = ""
+meta_embedded_signup_config_id = "2124052078204370"
+# Keep the exact Meta webhook verify token in the ignored terraform.tfvars only.
+meta_webhook_verify_token      = ""
 messaging_ingester_public_url  = ""
 
 # Logging in with Google / Facebook comes with enable_firebase (identity.tf; enabling Identity Platform

@@ -30,6 +30,13 @@ resource "google_identity_platform_config" "auth" {
     # One account per email: logging in with Facebook with an email that already uses Google asks to
     # use Google (the frontend says so).
     allow_duplicate_emails = false
+    email {
+      enabled           = false
+      password_required = false
+    }
+    phone_number {
+      enabled = false
+    }
   }
 
   depends_on = [google_project_service.api, google_firebase_project.app]

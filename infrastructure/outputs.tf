@@ -44,7 +44,7 @@ output "firebase_hosting_url" {
 
 output "meta_webhook_verify_token" {
   description = "Verify token for our Meta app's webhook (App Dashboard → WhatsApp → Configuration): terraform output -raw meta_webhook_verify_token"
-  value       = random_password.meta_webhook_verify_token.result
+  value       = var.meta_webhook_verify_token
   sensitive   = true
 }
 

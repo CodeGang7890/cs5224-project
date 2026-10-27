@@ -120,6 +120,12 @@ resource "google_secret_manager_secret_iam_member" "processing_sql_password" {
   member    = "serviceAccount:${google_service_account.runtime["processing-service"].email}"
 }
 
+resource "google_secret_manager_secret_iam_member" "processing_smtp_password" {
+  secret_id = "projects/${var.project_id}/secrets/smtp-password"
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.runtime["processing-service"].email}"
+}
+
 resource "google_storage_bucket_iam_member" "messaging_object_user" {
   bucket = google_storage_bucket.objects.name
   role   = "roles/storage.objectUser"
@@ -216,6 +222,12 @@ resource "google_cloud_run_v2_service" "backend" {
           WEB_CONCURRENCY           = "2"
           GCS_BUCKET                = google_storage_bucket.objects.name
           INVOICE_CURRENCY          = "SGD"
+          EMAIL_ENABLED             = "true"
+          EMAIL_FROM                = "ansera.admin@gmail.com"
+          EMAIL_FROM_NAME           = "Ansera"
+          SMTP_HOST                 = "smtp-relay.brevo.com"
+          SMTP_PORT                 = "587"
+          SMTP_USERNAME             = "bec985001@smtp-brevo.com"
           } : each.key == "messaging-ingester" ? {
           CONFIGURATION_SERVICE_URL = "https://configuration-service-gq6jjn4afq-uc.a.run.app/api"
           GCP_PROJECT_ID            = var.project_id
@@ -243,6 +255,18 @@ resource "google_cloud_run_v2_service" "backend" {
           value_source {
             secret_key_ref {
               secret  = google_secret_manager_secret.app["internal-api-key"].secret_id
+              version = "latest"
+            }
+          }
+        }
+      }
+      dynamic "env" {
+        for_each = each.key == "processing-service" ? [1] : []
+        content {
+          name = "SMTP_PASSWORD"
+          value_source {
+            secret_key_ref {
+              secret  = "smtp-password"
               version = "latest"
             }
           }
@@ -301,6 +325,7 @@ resource "google_cloud_run_v2_service" "backend" {
         # appends the client's IP to X-Forwarded-For (the login / sign-up rate limits count per client).
         for_each = each.key == "configuration-service" ? {
           MESSAGING_INGESTER_PUBLIC_URL = local.messaging_ingester_public_url
+          META_GRAPH_API_URL            = "https://graph.facebook.com/v25.0"
           META_APP_ID                   = var.meta_app_id
           FIREBASE_PROJECT_ID           = var.enable_firebase ? var.project_id : ""
           DJANGO_NUM_PROXIES            = "1"
@@ -316,7 +341,7 @@ resource "google_cloud_run_v2_service" "backend" {
           name = env.key
           value_source {
             secret_key_ref {
-              secret  = google_secret_manager_secret.app[env.value].secret_id
+              secret  = env.value == "meta-app-secret" ? env.value : google_secret_manager_secret.app[env.value].secret_id
               version = "latest"
             }
           }
@@ -405,7 +430,7 @@ resource "google_cloud_run_v2_service" "backend" {
   }
 
   lifecycle { ignore_changes = [template[0].containers[0].image] }
-  depends_on = [google_project_service.api, google_secret_manager_secret_iam_member.configuration_secret, google_secret_manager_secret_iam_member.configuration_encryption, google_secret_manager_secret_iam_member.configuration_sql_password, google_secret_manager_secret_iam_member.messaging_sql_password, google_secret_manager_secret_iam_member.processing_sql_password, google_secret_manager_secret_iam_member.jwt, google_secret_manager_secret_version.django, google_secret_manager_secret_version.jwt, google_secret_manager_secret_version.internal_api, google_secret_manager_secret_iam_member.internal_api, google_secret_manager_secret_iam_member.configuration_meta, google_secret_manager_secret_version.meta_webhook_verify_token, google_secret_manager_secret_iam_member.payment_xendit_api, google_secret_manager_secret_iam_member.payment_xendit_webhook, google_storage_bucket_iam_member.processing_object_user, google_service_account_iam_member.processing_invoice_signer]
+  depends_on = [google_project_service.api, google_secret_manager_secret_iam_member.configuration_secret, google_secret_manager_secret_iam_member.configuration_encryption, google_secret_manager_secret_iam_member.configuration_sql_password, google_secret_manager_secret_iam_member.messaging_sql_password, google_secret_manager_secret_iam_member.processing_sql_password, google_secret_manager_secret_iam_member.processing_smtp_password, google_secret_manager_secret_iam_member.jwt, google_secret_manager_secret_version.django, google_secret_manager_secret_version.jwt, google_secret_manager_secret_version.internal_api, google_secret_manager_secret_iam_member.internal_api, google_secret_manager_secret_iam_member.configuration_meta, google_secret_manager_secret_version.meta_webhook_verify_token, google_secret_manager_secret_iam_member.payment_xendit_api, google_secret_manager_secret_iam_member.payment_xendit_webhook, google_storage_bucket_iam_member.processing_object_user, google_service_account_iam_member.processing_invoice_signer]
 }
 
 resource "google_cloud_run_v2_service_iam_member" "configuration_calls_messaging" {
