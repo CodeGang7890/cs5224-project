@@ -74,7 +74,7 @@ The payment topic has a **pull** subscription, `payment-queue-worker`. Terraform
 - `enable_firebase = true` adds Firebase to the existing project and creates the `Ansera` web app plus a Hosting site. The site URL is available as the `firebase_hosting_url` Terraform output. It also turns on Identity Platform, for logging in with Google / Facebook (below).
 - The Firebase Hosting trigger uses `infrastructure/firebase.json` and `infrastructure/cloudbuild-frontend.yaml`. It builds the Vite SPA and deploys it with Firebase CLI using the Cloud Build service account's Application Default Credentials. The build service account receives Firebase Hosting Admin when both Firebase and CI/CD are enabled.
 - Set `dns_domain` to a domain you control to create a public zone. Point your registrar at `dns_nameservers`; add desired `dns_records` after the target IP/hostname is known. This zone alone does not create a load balancer or Cloud Run custom domain.
-- The payment and messaging Pub/Sub subscriptions are **pull** subscriptions. Cloud Run instances scale to zero and will not poll while idle; use a worker design that can consume them reliably. The notification Cloud Run Job is invoked directly by Cloud Scheduler, not from the notification Pub/Sub subscription.
+- The payment and messaging Pub/Sub subscriptions are **pull** subscriptions. Processing-service and messaging-service each keep one instance with CPU available to poll while idle. The notification Cloud Run Job is invoked directly by Cloud Scheduler, not from the notification Pub/Sub subscription.
 - Secret containers for third-party tokens intentionally have no versions. Add values with `gcloud secrets versions add SECRET_ID --data-file=FILE` using a protected local file, then configure the relevant app and runtime IAM. Avoid passing secrets in command arguments or Terraform variables.
 
 ## Logging in with Google / Facebook (Identity Platform)
@@ -89,6 +89,8 @@ Owners can log in (or sign up) with Google or Facebook as well as a username and
 
 Terraform owns the **authorized domains** (localhost and the Hosting site): add others in `identity.tf`, not in the console, or the next apply removes them.
 
+For local Terraform runs with user ADC, set its quota project with `gcloud auth application-default set-quota-project cs5224-ansera`. The Google providers also explicitly send this project for API quota and billing (`versions.tf`). If Identity Platform was already enabled in the project before Terraform managed it, import it once with `terraform import 'google_identity_platform_config.auth[0]' projects/cs5224-ansera/config` before applying; creating an existing config returns `INVALID_PROJECT_ID`.
+
 ## WhatsApp Embedded Signup ("Connect with Facebook")
 
 Businesses connect WhatsApp only through our Meta app, and this is always on. Setup:
@@ -96,13 +98,15 @@ Businesses connect WhatsApp only through our Meta app, and this is always on. Se
 1. **Meta App Dashboard** (our app):
    - **Facebook Login for Business → Settings**: turn on Client OAuth login, Web OAuth login, Enforce HTTPS, Embedded Browser OAuth Login, Use Strict Mode for redirect URIs and Login with the JavaScript SDK. Add the frontend's domain (e.g. `cs5224-ansera.web.app`) to _Allowed domains for the JavaScript SDK_ and `https://cs5224-ansera.web.app/` to _Valid OAuth redirect URIs_.
    - **Facebook Login for Business → Configurations**: create one from the _WhatsApp Embedded Signup_ template and note its configuration ID.
-2. **App Secret** (before the first apply; from a protected local file, not the command line): `gcloud secrets versions add meta-app-secret --data-file=…` (App settings → Basic → App secret). Terraform generates the webhook verify token itself.
-3. **`terraform.tfvars`**: `meta_app_id` (default: ours), `meta_embedded_signup_config_id`, and `messaging_ingester_public_url` only if it isn't the Cloud Run default URL. Apply. configuration-service gets `META_APP_ID`, `META_APP_SECRET`, `META_APP_WEBHOOK_VERIFY_TOKEN` and `MESSAGING_INGESTER_PUBLIC_URL`, and the frontend build gets `VITE_META_APP_ID` / `VITE_META_CONFIG_ID`. Without a configuration ID, the Connect with Facebook button does nothing.
+2. **App Secret** (before the first apply; from a protected local file, not the command line): `gcloud secrets versions add meta-app-secret --data-file=…` (App settings → Basic → App secret). Terraform references this existing secret; its container is not Terraform-managed.
+3. **`terraform.tfvars`**: set `meta_app_id`, `meta_embedded_signup_config_id`, and `meta_webhook_verify_token` to the value configured in the Meta App Dashboard. Keep `terraform.tfvars` ignored and private. Set `messaging_ingester_public_url` only if it isn't the Cloud Run default URL. Apply. configuration-service gets `META_APP_ID`, `META_APP_SECRET`, `META_APP_WEBHOOK_VERIFY_TOKEN` and `MESSAGING_INGESTER_PUBLIC_URL`, and the frontend build gets `VITE_META_APP_ID` / `VITE_META_CONFIG_ID`. Terraform writes the webhook token to a Secret Manager version; this value is also stored in private Terraform state. Without a configuration ID, the Connect with Facebook button does nothing.
 4. **Our app's webhook** (App Dashboard → WhatsApp → Configuration): Callback URL from `terraform output meta_app_webhook_url`, Verify token from `terraform output -raw meta_webhook_verify_token`; subscribe to `messages` and `account_update`. Each business's messages are redirected to its own `/webhook/<id>` automatically.
 
 The app works for Facebook accounts with a role on it while it's in development mode. Onboarding outside businesses needs Meta business verification, App Review and Tech Provider status.
 
 ### Persistent backend settings
+
+Processing-service keeps invoice email enabled with the Ansera sender and Brevo SMTP relay. `SMTP_PASSWORD` reads the existing `smtp-password` Secret Manager secret; Terraform grants its runtime account access. Keep the sender verified with Brevo.
 
 Terraform defines the Cloud Run environment for configuration-service, messaging-service, and processing-service in `run.tf`. Configuration-service has the public messaging-ingester URL and Meta Graph API URL. Messaging-service has its Firebase CORS origins, configuration-service API URL, and messaging Pub/Sub subscription. Processing-service has its configuration-service URL, payment Pub/Sub subscription, Cloud SQL socket and database settings, invoice bucket, and currency. Both Pub/Sub consumers are enabled and keep one Cloud Run instance with CPU allocated outside requests. These two instances incur continuous charges, even without HTTP traffic.
 

@@ -212,6 +212,16 @@ variable "meta_embedded_signup_config_id" {
   default     = ""
 }
 
+variable "meta_webhook_verify_token" {
+  description = "Verify token configured in the Meta App Dashboard for this app's webhook. Set in ignored terraform.tfvars; do not commit it."
+  type        = string
+  sensitive   = true
+  validation {
+    condition     = length(trimspace(var.meta_webhook_verify_token)) > 0
+    error_message = "Set meta_webhook_verify_token to the Meta app webhook verify token."
+  }
+}
+
 variable "messaging_ingester_public_url" {
   description = "Public URL of messaging-ingester (webhook Callback URLs). Empty: its Cloud Run default URL."
   type        = string
