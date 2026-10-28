@@ -216,7 +216,12 @@ export function startEmbeddedSignup(): Promise<EmbeddedSignupResult> {
         config_id: env.meta.configId,
         response_type: "code",
         override_default_response_type: true,
-        extras: { setup: {} },
+        extras: {
+          setup: {},
+          featureType: "",
+          sessionInfoVersion: "3",
+          version: "v4",
+        },
       },
     );
   });
