@@ -541,6 +541,17 @@ class MetaApiTests(SimpleTestCase):
                 with self.assertRaises(meta_api.MetaUnavailableError):
                     self.check(error=error)
 
+    def test_unavailable_names_the_call(self):
+        # So the logs show which call failed (the owner only sees "Couldn't reach Meta").
+        with self.assertRaisesMessage(
+            meta_api.MetaUnavailableError, 'Could not reach Meta (GET 106540352242922): ReadTimeout slow'
+        ):
+            self.check(error=httpx.ReadTimeout('slow'))
+        with self.assertRaisesMessage(
+            meta_api.MetaUnavailableError, 'Meta answered 503 (GET 106540352242922): Service temporarily unavailable'
+        ):
+            self.check(**self.meta_error(2, 'Service temporarily unavailable', status=503))
+
     def test_appsecret_proof(self):
         self.assertEqual(
             meta_api.appsecret_proof('token', 'secret'),
@@ -661,6 +672,10 @@ class SendTextMessageTests(SimpleTestCase):
         with self.assertRaises(meta_api.MetaUnavailableError):
             self.send(error=httpx.ConnectError('down'))
 
+    def test_usual_timeout(self):
+        self.send()
+        self.assertEqual(self.requests[0].extensions['timeout']['read'], meta_api.META_TIMEOUT_SECONDS)
+
 
 
 # --- WhatsApp Embedded Signup (embedded_signup.py, meta_api's signup calls) ----------------------
@@ -763,6 +778,22 @@ class EmbeddedSignupMetaApiTests(SimpleTestCase):
         for status, response in ((400, body), (200, {'success': False})):
             with self.subTest(status=status), self.assertRaises(meta_api.MetaSignupError):
                 meta_api.subscribe_app('1', SIGNUP_TOKEN, PLATFORM_APP_SECRET, transport=self.fake_meta(status, response))
+
+    def test_signup_calls_wait_longer(self):
+        # Registering a number or overriding the webhook can take Meta more than the usual 10 seconds.
+        calls = {
+            'exchange_code': lambda t: meta_api.exchange_code('code', transport=t),
+            'phone_number_info': lambda t: meta_api.phone_number_info('1', SIGNUP_TOKEN, PLATFORM_APP_SECRET, transport=t),
+            'register_phone_number': lambda t: meta_api.register_phone_number(
+                '1', SIGNUP_TOKEN, PLATFORM_APP_SECRET, '123456', transport=t
+            ),
+            'subscribe_app': lambda t: meta_api.subscribe_app('1', SIGNUP_TOKEN, PLATFORM_APP_SECRET, transport=t),
+        }
+        for name, call in calls.items():
+            with self.subTest(name):
+                call(self.fake_meta(body={'success': True, 'access_token': SIGNUP_TOKEN}))
+                request, _, _ = self.last()
+                self.assertEqual(request.extensions['timeout']['read'], meta_api.SIGNUP_TIMEOUT_SECONDS)
 
     def test_unsubscribe_app(self):
         meta_api.unsubscribe_app(SIGNUP_WABA_ID, SIGNUP_TOKEN, PLATFORM_APP_SECRET, transport=self.fake_meta())
@@ -881,8 +912,12 @@ class EmbeddedSignupAPITests(APITestCase):
         self.meta['register_phone_number'].assert_not_called()
 
     def test_meta_unavailable_is_503(self):
-        self.meta['register_phone_number'].side_effect = meta_api.MetaUnavailableError('timeout')
-        self.assertEqual(self.connect().status_code, 503)
+        self.meta['register_phone_number'].side_effect = meta_api.MetaUnavailableError(
+            'Could not reach Meta (POST 1/register): ReadTimeout'
+        )
+        with self.assertLogs('configuration_app.views', 'WARNING') as logs:
+            self.assertEqual(self.connect().status_code, 503)
+        self.assertIn('Could not reach Meta (POST 1/register): ReadTimeout', logs.output[0])
         self.assertFalse(WhatsAppConfiguration.objects.exists())
 
     def test_number_of_another_business_is_400(self):

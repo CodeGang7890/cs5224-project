@@ -1,4 +1,5 @@
 import hmac
+import logging
 import random
 
 from django.conf import settings
@@ -29,6 +30,8 @@ from .serializers import (
     VerifyTokenRequestSerializer,
     WhatsAppConfigurationSerializer,
 )
+
+logger = logging.getLogger(__name__)
 
 RANDOM_NUMBER_MIN = 1
 RANDOM_NUMBER_MAX = 10
@@ -195,8 +198,11 @@ class WhatsAppEmbeddedSignupView(APIView):
         except embedded_signup.PhoneNumberTaken as exc:
             raise ValidationError({'phone_number_id': [PHONE_NUMBER_TAKEN_MESSAGE]}) from exc
         except meta_api.MetaSignupError as exc:
+            logger.warning('Embedded Signup for business %s refused by Meta: %s', business.pk, exc)
             raise ValidationError({'non_field_errors': [str(exc)]}) from exc
         except meta_api.MetaUnavailableError as exc:
+            # The owner only sees "Couldn't reach Meta": the logs say which call failed and how.
+            logger.warning('Embedded Signup for business %s failed: %s', business.pk, exc)
             raise MetaUnavailable() from exc
         return Response(
             WhatsAppConfigurationSerializer(config).data,

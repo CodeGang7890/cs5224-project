@@ -37,6 +37,9 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 META_TIMEOUT_SECONDS = 10
+# Embedded Signup's calls can take Meta longer (registering a number, or overriding the webhook, which
+# Meta checks against messaging-ingester before answering): a 10-second limit sometimes cut them off.
+SIGNUP_TIMEOUT_SECONDS = 30
 
 
 @dataclass(frozen=True)
@@ -87,31 +90,36 @@ def _call(
     params: dict | None = None,
     json: dict | None = None,
     retryable: tuple[int, ...] = RETRYABLE_ERROR_CODES,
+    timeout: float = META_TIMEOUT_SECONDS,
     transport: httpx.BaseTransport | None = None,  # tests pass an httpx.MockTransport
 ) -> tuple[int, dict]:
     """One Graph API call. Returns (status, JSON object); raises MetaUnavailableError if Meta can't be
-    reached, answers 5xx or one of the `retryable` error codes, or doesn't answer with a JSON object."""
+    reached, answers 5xx or one of the `retryable` error codes, or doesn't answer with a JSON object.
+    Its message names the call (e.g. `POST 123/register`), so the logs show which one failed."""
     params = dict(params or {})
     headers = {}
     if access_token:
         headers['Authorization'] = f'Bearer {access_token}'
         params['appsecret_proof'] = appsecret_proof(access_token, app_secret or '')
+    call = f'{method} {path}'
     try:
-        with httpx.Client(timeout=META_TIMEOUT_SECONDS, transport=transport) as client:
+        with httpx.Client(timeout=timeout, transport=transport) as client:
             response = client.request(
                 method, f'{settings.META_GRAPH_API_URL}/{path}', params=params, json=json, headers=headers
             )
     except httpx.HTTPError as exc:
-        raise MetaUnavailableError(f'Could not reach Meta: {exc}') from exc
+        raise MetaUnavailableError(f'Could not reach Meta ({call}): {type(exc).__name__} {exc}') from exc
     try:
         data = response.json()
     except ValueError as exc:
-        raise MetaUnavailableError(f'Meta answered {response.status_code} without JSON.') from exc
+        raise MetaUnavailableError(f'Meta answered {response.status_code} without JSON ({call}).') from exc
     if not isinstance(data, dict):
-        raise MetaUnavailableError(f'Unexpected answer from Meta ({response.status_code}).')
+        raise MetaUnavailableError(f'Unexpected answer from Meta ({call}, {response.status_code}).')
     error = data.get('error') if isinstance(data.get('error'), dict) else {}
     if response.status_code >= 500 or error.get('code') in retryable:
-        raise MetaUnavailableError(f'Meta answered {response.status_code}: {error.get("message") or "no details"}')
+        raise MetaUnavailableError(
+            f'Meta answered {response.status_code} ({call}): {error.get("message") or "no details"}'
+        )
     return response.status_code, data
 
 
@@ -131,6 +139,7 @@ def phone_number_info(
         access_token=access_token,
         app_secret=app_secret,
         params={'fields': 'display_phone_number,verified_name'},
+        timeout=SIGNUP_TIMEOUT_SECONDS,
         transport=transport,
     )
     if status != 200:
@@ -187,6 +196,7 @@ def exchange_code(code: str, transport: httpx.BaseTransport | None = None) -> Bu
         'GET',
         'oauth/access_token',
         params={'client_id': settings.META_APP_ID, 'client_secret': settings.META_APP_SECRET, 'code': code},
+        timeout=SIGNUP_TIMEOUT_SECONDS,
         transport=transport,
     )
     token = data.get('access_token')
@@ -210,6 +220,7 @@ def register_phone_number(
         access_token=access_token,
         app_secret=app_secret,
         json={'messaging_product': 'whatsapp', 'pin': pin},
+        timeout=SIGNUP_TIMEOUT_SECONDS,
         transport=transport,
     )
     if status == 200:
@@ -240,6 +251,7 @@ def subscribe_app(
         access_token=access_token,
         app_secret=app_secret,
         json=body,
+        timeout=SIGNUP_TIMEOUT_SECONDS,
         transport=transport,
     )
     if status == 200 and data.get('success') is True:
