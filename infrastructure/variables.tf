@@ -203,13 +203,19 @@ variable "vertex_ai_demo_image" {
 variable "meta_app_id" {
   description = "Our Meta app's ID (App Dashboard), for WhatsApp Embedded Signup."
   type        = string
-  default     = "1147422487864729"
+  default     = "1113885617929605"
 }
 
 variable "meta_embedded_signup_config_id" {
   description = "Facebook Login for Business configuration ID of the WhatsApp Embedded Signup configuration (frontend build). Empty: the Connect with Facebook button does nothing."
   type        = string
   default     = ""
+}
+
+variable "meta_app_secret_version" {
+  description = "Version of the existing meta-app-secret Secret Manager secret used by configuration-service."
+  type        = string
+  default     = "2"
 }
 
 variable "meta_webhook_verify_token" {
