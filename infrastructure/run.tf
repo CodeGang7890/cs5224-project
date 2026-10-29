@@ -342,7 +342,7 @@ resource "google_cloud_run_v2_service" "backend" {
           value_source {
             secret_key_ref {
               secret  = env.value == "meta-app-secret" ? env.value : google_secret_manager_secret.app[env.value].secret_id
-              version = "latest"
+              version = env.value == "meta-app-secret" ? var.meta_app_secret_version : "latest"
             }
           }
         }
