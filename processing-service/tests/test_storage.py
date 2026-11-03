@@ -23,6 +23,16 @@ class StorageTests(unittest.TestCase):
         )
         self.assertEqual(uri, 'gs://my-bucket/invoices/x.pdf')
 
+    def test_the_client_asks_for_the_cloud_platform_scope_so_links_can_be_signed(self):
+        credentials = mock.Mock()
+        with mock.patch.object(storage, '_client', None), \
+                mock.patch('google.auth.default', return_value=(credentials, 'project')) as default, \
+                mock.patch('google.cloud.storage.Client') as client_class:
+            client = storage._get_client()
+        default.assert_called_once_with(scopes=['https://www.googleapis.com/auth/cloud-platform'])
+        client_class.assert_called_once_with(project=storage.config.GCP_PROJECT_ID, credentials=credentials)
+        self.assertIs(client, client_class.return_value)
+
     def test_a_user_login_has_no_service_account_so_no_link(self):
         client = mock.Mock()
         client._credentials = object()  # a user's credentials: no service_account_email

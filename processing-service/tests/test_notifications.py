@@ -104,13 +104,17 @@ class EmailCustomerTests(unittest.TestCase):
             'a failed payment': dict(status='payment_failed'),
             'no invoice PDF': dict(pdf=None),
             'no email address': dict(invoice=make_invoice(email='')),
-            'a sandbox customer': dict(invoice=make_invoice(is_sandbox=True)),
         }
         for name, kwargs in cases.items():
             with self.subTest(name):
                 sent, send = self.email(**kwargs)
                 self.assertFalse(sent)
                 send.assert_not_called()
+
+    def test_a_chat_sandbox_customer_is_emailed_too(self):
+        sent, send = self.email(invoice=make_invoice(is_sandbox=True, phone=''), return_value=True)
+        self.assertTrue(sent)
+        self.assertEqual(send.call_args.args[2], 'daniel@example.com')
 
     def test_a_refusal_is_logged_not_raised(self):
         sent, _ = self.email(side_effect=EmailError('mailbox does not exist', retryable=False))
