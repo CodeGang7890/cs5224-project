@@ -1,9 +1,8 @@
 """Telling the customer how their payment went: on WhatsApp, and by email when the payment was received.
 
 Sent after the payment is committed (app/payments.py). Each channel is skipped when the customer
-has no way to be reached on it, or it is a Chat Sandbox customer:
-- WhatsApp: needs a phone number. Says whether the payment was received or failed, with the invoice
-  link when there is one.
+has no way to be reached on it:
+- WhatsApp: needs a phone number. Says whether the payment was received or failed, with the invoice link when there is one.
 - Email: needs an `email` detail from the chat, and EMAIL_ENABLED (app/config.py). Only for a received
   payment, with the invoice PDF attached (so no link is needed).
 
@@ -88,9 +87,6 @@ def email_subject_and_text(invoice: Invoice) -> tuple[str, str]:
 def email_customer(invoice: Invoice, new_status: str, invoice_pdf: bytes | None) -> bool:
     """Emails the invoice for a received payment. Returns whether it was sent or not."""
     if new_status != PAYMENT_RECEIVED or not invoice_pdf:
-        return False
-    if invoice.is_sandbox:
-        logger.info('%s: not emailing a Chat Sandbox customer', invoice.number)
         return False
     if not invoice.customer_email:
         logger.info('%s: no email address to send the invoice to', invoice.number)

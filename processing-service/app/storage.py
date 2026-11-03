@@ -17,11 +17,16 @@ INVOICE_LINK_VALIDITY = timedelta(days=7)
 _client = None
 
 
+CLOUD_PLATFORM_SCOPE = 'https://www.googleapis.com/auth/cloud-platform'
+
 def _get_client():
     global _client
     if _client is None:
+        import google.auth
         from google.cloud import storage
-        _client = storage.Client(project=config.GCP_PROJECT_ID)
+
+        credentials, _ = google.auth.default(scopes=[CLOUD_PLATFORM_SCOPE])
+        _client = storage.Client(project=config.GCP_PROJECT_ID, credentials=credentials)
     return _client
 
 
