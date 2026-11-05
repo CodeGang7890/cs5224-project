@@ -48,6 +48,26 @@ const POSITIONS: Record<FlowNodeId, { x: number; y: number }> = {
   order_status: { x: 330, y: 620 },
 };
 
+// Blocks are `w-56` (224 px) wide and at most ~200 px tall.
+const NODE_WIDTH = 224;
+const NODE_HEIGHT = 200;
+// How far past the outermost blocks the diagram can be panned.
+const PAN_MARGIN = 300;
+
+/** The area the diagram can be panned within (React Flow's `translateExtent`), so it can't be lost off-screen. */
+export const DIAGRAM_EXTENT: [[number, number], [number, number]] = (() => {
+  const points = Object.values(POSITIONS);
+  const xs = points.map((point) => point.x);
+  const ys = points.map((point) => point.y);
+  return [
+    [Math.min(...xs) - PAN_MARGIN, Math.min(...ys) - PAN_MARGIN],
+    [
+      Math.max(...xs) + NODE_WIDTH + PAN_MARGIN,
+      Math.max(...ys) + NODE_HEIGHT + PAN_MARGIN,
+    ],
+  ];
+})();
+
 /** The diagram's blocks; each details block gets its own fields, the Welcome & style block `settings`. */
 export function flowNodes(
   orderFields: DetailField[],
@@ -69,6 +89,9 @@ export function flowNodes(
     draggable: false,
     connectable: false,
     deletable: false,
+    // React Flow's own (unlayered) CSS gives nodes `cursor: default`, which beats Tailwind classes; every
+    // block opens a dialog when clicked, so the pointer is set inline.
+    style: { cursor: "pointer" },
   }));
 }
 
