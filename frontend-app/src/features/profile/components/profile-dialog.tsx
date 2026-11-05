@@ -12,7 +12,11 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { type CurrentUser, useCurrentUser } from "@/features/auth";
+import {
+  type CurrentUser,
+  SUBSCRIPTION_TIER_LABELS,
+  useCurrentUser,
+} from "@/features/auth";
 
 const PROFILE_PARAM = "profile";
 
@@ -93,6 +97,11 @@ export function ProfileDialog() {
                 {user.business === null
                   ? "None"
                   : `${user.business_name} (ID ${user.business})`}
+              </dd>
+              <dt className="text-muted-foreground">Plan</dt>
+              <dd className="truncate">
+                {SUBSCRIPTION_TIER_LABELS[user.subscription_tier] ??
+                  user.subscription_tier}
               </dd>
             </dl>
           </div>

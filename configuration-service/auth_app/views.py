@@ -16,8 +16,10 @@ from .serializers import (
     FirebaseLoginSerializer,
     MeSerializer,
     SignUpSerializer,
+    SubscriptionTierSerializer,
     TokenPairSerializer,
 )
+from .models import SubscriptionTier
 
 AUTH_TAG = 'Auth'
 
@@ -87,6 +89,23 @@ class MeView(generics.RetrieveAPIView):
 
     def get_object(self):
         return self.request.user
+
+
+class SubscriptionTiersView(APIView):
+    """The subscription plans, cheapest first (public: frontend-app's landing page lists them)."""
+
+    permission_classes = [AllowAny]
+    authentication_classes: list = []
+
+    @extend_schema(
+        tags=[AUTH_TAG],
+        summary='List the subscription plans',
+        description='Every `subscription_tier` value with its name, cheapest first. Public. Nothing is billed yet.',
+        responses=SubscriptionTierSerializer(many=True),
+    )
+    def get(self, request: Request) -> Response:
+        tiers = [{'id': value, 'name': label} for value, label in SubscriptionTier.choices]
+        return Response(SubscriptionTierSerializer(tiers, many=True).data)
 
 
 class SignUpView(APIView):

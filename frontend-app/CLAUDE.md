@@ -126,7 +126,7 @@ Copy this structure for new CRUD features.
   - `POST /api/auth/token/`: `{username, password}` → `{access, refresh}`.
   - `POST /api/auth/token/refresh/`: `{refresh}` → `{access, refresh}`. Refresh tokens **rotate**, and the old one is blacklisted.
   - `POST /api/auth/logout/`: `{refresh}` blacklists it.
-  - `GET /api/auth/me/` → `CurrentUser` (`id`, `username`, `email`, names, `business` id | null, `business_name`, `is_staff`, `is_superuser`).
+  - `GET /api/auth/me/` → `CurrentUser` (`id`, `username`, `email`, names, `business` id | null, `business_name`, `subscription_tier` (`SubscriptionTier` free / starter / growth / business, `SUBSCRIPTION_TIER_LABELS`; shown by Home's plan badge and plans (`features/home/plans.ts`: prices and features per tier) and the profile modal, nothing is billed yet; the logged-out landing page's `PricingSection` lists the tiers from the public `GET /api/auth/subscription-tiers/` (`useSubscriptionTiers`, falling back to `PLANS` if it fails)), `is_staff`, `is_superuser`).
   - `POST /api/auth/signup/`: `{username, email, password, first_name, last_name}` → `{access, refresh}` (201; DRF field errors on 400).
   - `POST /api/auth/firebase/`: `{id_token}` → `{access, refresh, created}`: Google / Facebook (below).
   - Lifetimes: access 15 minutes, refresh 7 days.

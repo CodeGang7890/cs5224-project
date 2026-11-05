@@ -24,6 +24,7 @@ import { usePrefersReducedMotion } from "../hooks/use-prefers-reduced-motion";
 import { AuthButton } from "./auth-button";
 import { ChatPreview } from "./chat-preview";
 import { LandingStyles } from "./landing-styles";
+import { PricingSection } from "./pricing-section";
 import { Reveal } from "./reveal";
 import { Testimonials } from "./testimonials";
 
@@ -326,6 +327,8 @@ export function Landing() {
           </ol>
         </div>
       </section>
+
+      <PricingSection />
 
       <Testimonials />
 

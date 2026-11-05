@@ -1,7 +1,10 @@
 // Subscription plans: prices and usage from the Preliminary Report's business model, features limited to
-// what the app does today. Free is the plan every account is on for now. Hardcoded: there's no billing yet.
+// what the app does today. The account's own plan is `CurrentUser.subscription_tier` (GET /api/auth/me/).
+// Hardcoded here: there's no billing yet.
 
-export type PlanId = "free" | "starter" | "growth" | "business";
+import type { SubscriptionTier } from "@/features/auth";
+
+export type PlanId = SubscriptionTier;
 
 export interface Plan {
   id: PlanId;
@@ -13,8 +16,6 @@ export interface Plan {
   features: string[];
   recommended?: boolean;
 }
-
-export const CURRENT_PLAN_ID: PlanId = "free";
 
 export const PLANS: Plan[] = [
   {
@@ -78,8 +79,14 @@ export const PLANS: Plan[] = [
   },
 ];
 
-export function currentPlan() {
-  return PLANS.find((plan) => plan.id === CURRENT_PLAN_ID) ?? PLANS[0];
+/** The plan with this id (Free for an unknown one). */
+export function planFor(id: PlanId | undefined) {
+  return PLANS.find((plan) => plan.id === id) ?? PLANS[0];
+}
+
+/** Position in PLANS: higher is more expensive. */
+export function planRank(id: PlanId) {
+  return PLANS.findIndex((plan) => plan.id === id);
 }
 
 export function formatPrice(amount: number) {

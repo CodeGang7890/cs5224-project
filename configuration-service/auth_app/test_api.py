@@ -158,6 +158,7 @@ class AuthAPITests(RateLimitResetMixin, APITestCase):
                 'last_name': 'Tan',
                 'business': self.business.pk,
                 'business_name': 'Café',
+                'subscription_tier': 'free',
                 'is_staff': False,
                 'is_superuser': False,
             },
@@ -208,7 +209,7 @@ class SignUpAPITests(RateLimitResetMixin, APITestCase):
         self.assertIsNotNone(user.last_login)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {response.data["access"]}')
         me = self.client.get(self.me_url).data
-        self.assertEqual((me['username'], me['business']), ('mei', None))
+        self.assertEqual((me['username'], me['business'], me['subscription_tier']), ('mei', None, 'free'))
 
     def test_username_and_email_must_be_free(self):
         BusinessUser.objects.create_user(username='Mei', email='MEI@example.com', password='x')
@@ -365,3 +366,24 @@ class UniqueUsernameTests(APITestCase):
         ):
             with self.subTest(seed=seed):
                 self.assertEqual(unique_username(seed), username)
+
+
+class SubscriptionTiersAPITests(APITestCase):
+    url = reverse('auth_app:subscription-tiers')
+
+    def test_lists_the_plans_publicly_cheapest_first(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data,
+            [
+                {'id': 'free', 'name': 'Free'},
+                {'id': 'starter', 'name': 'Starter'},
+                {'id': 'growth', 'name': 'Growth'},
+                {'id': 'business', 'name': 'Business'},
+            ],
+        )
+
+    def test_ignores_a_bad_token(self):
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer garbage')
+        self.assertEqual(self.client.get(self.url).status_code, status.HTTP_200_OK)

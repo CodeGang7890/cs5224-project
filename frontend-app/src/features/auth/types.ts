@@ -12,6 +12,16 @@ export interface SignUpInput {
   last_name: string;
 }
 
+/** The account's plan (configuration-service `auth_app.SubscriptionTier`); nothing is billed yet. */
+export type SubscriptionTier = "free" | "starter" | "growth" | "business";
+
+export const SUBSCRIPTION_TIER_LABELS: Record<SubscriptionTier, string> = {
+  free: "Free",
+  starter: "Starter",
+  growth: "Growth",
+  business: "Business",
+};
+
 /** Response of GET /api/auth/me/ */
 export interface CurrentUser {
   id: number;
@@ -22,6 +32,7 @@ export interface CurrentUser {
   /** ID of the BusinessConfiguration the account belongs to (null for e.g. the admin superuser). */
   business: number | null;
   business_name: string | null;
+  subscription_tier: SubscriptionTier;
   is_staff: boolean;
   is_superuser: boolean;
 }
