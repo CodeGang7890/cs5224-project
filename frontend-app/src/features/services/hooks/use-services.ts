@@ -5,6 +5,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 
+import { LIVE_REFRESH_INTERVAL_MS } from "@/lib/live-refresh";
 import type { ApiError, Paginated } from "@/types/api";
 
 import {
@@ -63,6 +64,7 @@ function useInvalidateBoth() {
 export function useServices(page: number) {
   return useQuery<Paginated<Service>, ApiError>({
     queryKey: serviceKeys.list(page),
+    refetchInterval: LIVE_REFRESH_INTERVAL_MS,
     queryFn: () => listServices(page),
     placeholderData: keepPreviousData,
   });
@@ -95,6 +97,7 @@ export function useDeleteService() {
 export function useProviders() {
   return useQuery<Paginated<ServiceProvider>, ApiError>({
     queryKey: providerKeys.list(),
+    refetchInterval: LIVE_REFRESH_INTERVAL_MS,
     queryFn: listProviders,
   });
 }
@@ -126,6 +129,7 @@ export function useDeleteProvider() {
 export function useWeekCalendar(providerId: number | null, week: string) {
   return useQuery<WeekCalendar, ApiError>({
     queryKey: providerKeys.calendar(providerId ?? 0, week),
+    refetchInterval: LIVE_REFRESH_INTERVAL_MS,
     queryFn: () => getWeekCalendar(providerId as number, week),
     enabled: providerId !== null,
     placeholderData: keepPreviousData,

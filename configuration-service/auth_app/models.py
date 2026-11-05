@@ -2,6 +2,16 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 
 
+class SubscriptionTier(models.TextChoices):
+    """The account's plan (frontend-app's Home page lists them with their prices). Nothing is billed or
+    limited by it yet: it's only shown."""
+
+    FREE = 'free', 'Free'
+    STARTER = 'starter', 'Starter'
+    GROWTH = 'growth', 'Growth'
+    BUSINESS = 'business', 'Business'
+
+
 class BusinessUser(AbstractUser):
     """
     Custom user model (AUTH_USER_MODEL). Inherits every field of Django's default user
@@ -27,6 +37,15 @@ class BusinessUser(AbstractUser):
         blank=True,
         editable=False,
         help_text='Identity Platform user ID, set when the account logs in with Google or Facebook.',
+    )
+
+    # db_default too, so rows inserted outside Django (other services never do, today) also start on Free.
+    subscription_tier = models.CharField(
+        max_length=20,
+        choices=SubscriptionTier.choices,
+        default=SubscriptionTier.FREE,
+        db_default=SubscriptionTier.FREE,
+        help_text="The account's subscription plan (only shown for now: nothing is billed or limited).",
     )
 
     class Meta(AbstractUser.Meta):

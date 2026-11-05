@@ -593,7 +593,7 @@ function RequiredSwitch({
         disabled={disabled}
         onCheckedChange={onChange}
       />
-      <Label htmlFor={id} className="text-xs font-normal">
+      <Label htmlFor={id} className="cursor-pointer text-xs font-normal">
         Required
       </Label>
     </div>

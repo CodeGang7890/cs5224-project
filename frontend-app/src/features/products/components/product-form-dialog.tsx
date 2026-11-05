@@ -239,7 +239,10 @@ function ProductForm({
 
         <div className="flex items-center justify-between gap-4 rounded-md border p-3">
           <div className="grid gap-1">
-            <label htmlFor="product-is-active" className="text-sm font-medium">
+            <label
+              htmlFor="product-is-active"
+              className="cursor-pointer text-sm font-medium"
+            >
               Active
             </label>
             <p className="text-muted-foreground text-xs">

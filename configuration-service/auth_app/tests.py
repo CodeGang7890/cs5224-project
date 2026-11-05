@@ -1,10 +1,11 @@
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
 
 from configuration_app.models import BusinessConfiguration
 
-from .models import BusinessUser
+from .models import BusinessUser, SubscriptionTier
 
 
 class BusinessUserModelTests(TestCase):
@@ -22,6 +23,32 @@ class BusinessUserModelTests(TestCase):
         business.delete()
         user.refresh_from_db()
         self.assertIsNone(user.business)
+
+
+class SubscriptionTierTests(TestCase):
+    def test_new_accounts_start_on_free(self):
+        user = BusinessUser.objects.create_user(username='owner', password='pw')
+        self.assertEqual(user.subscription_tier, SubscriptionTier.FREE)
+
+    def test_rejects_unknown_tier(self):
+        user = BusinessUser(username='owner', subscription_tier='platinum')
+        user.set_password('pw')
+        with self.assertRaises(ValidationError) as context:
+            user.full_clean()
+        self.assertIn('subscription_tier', context.exception.message_dict)
+
+
+class SampleBusinessUserFixtureTests(TestCase):
+    fixtures = ['sample_business_configurations', 'sample_business_users']
+
+    def test_every_sample_user_is_on_business(self):
+        tiers = set(BusinessUser.objects.values_list('subscription_tier', flat=True))
+        self.assertEqual(tiers, {SubscriptionTier.BUSINESS})
+
+    def test_sample_users_pass_full_clean(self):
+        for user in BusinessUser.objects.all():
+            with self.subTest(user=user.username):
+                user.full_clean()
 
 
 class AdminSmokeTests(TestCase):

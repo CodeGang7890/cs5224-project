@@ -6,10 +6,16 @@ export interface AuthTokens {
   refresh: string;
 }
 
+/** How this session logged in (shown in the profile; the backend doesn't record it). */
+export type LoginMethod = "password" | "google" | "facebook";
+
 interface AuthState {
   accessToken: string | null;
   refreshToken: string | null;
-  setTokens: (tokens: AuthTokens) => void;
+  /** Null for a session from before this was tracked. */
+  loginMethod: LoginMethod | null;
+  /** `loginMethod` is set when logging in; a token refresh leaves it out and keeps it. */
+  setTokens: (tokens: AuthTokens, loginMethod?: LoginMethod) => void;
   clearTokens: () => void;
 }
 
@@ -25,9 +31,15 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       accessToken: null,
       refreshToken: null,
-      setTokens: ({ access, refresh }) =>
-        set({ accessToken: access, refreshToken: refresh }),
-      clearTokens: () => set({ accessToken: null, refreshToken: null }),
+      loginMethod: null,
+      setTokens: ({ access, refresh }, loginMethod) =>
+        set((state) => ({
+          accessToken: access,
+          refreshToken: refresh,
+          loginMethod: loginMethod ?? state.loginMethod,
+        })),
+      clearTokens: () =>
+        set({ accessToken: null, refreshToken: null, loginMethod: null }),
     }),
     { name: STORAGE_KEY },
   ),

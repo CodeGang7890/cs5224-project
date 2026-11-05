@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
 from .accounts import NAME_MAX_LENGTH, USERNAME_MAX_LENGTH, email_taken
-from .models import BusinessUser
+from .models import BusinessUser, SubscriptionTier
 
 USERNAME_TAKEN_MESSAGE = 'This username is taken.'
 EMAIL_TAKEN_MESSAGE = 'An account with this email already exists. Log in instead.'
@@ -32,10 +32,18 @@ class MeSerializer(serializers.ModelSerializer):
             'last_name',
             'business',
             'business_name',
+            'subscription_tier',
             'is_staff',
             'is_superuser',
         )
         read_only_fields = fields
+
+
+class SubscriptionTierSerializer(serializers.Serializer):
+    """One subscription plan: its `subscription_tier` value and name."""
+
+    id = serializers.ChoiceField(choices=SubscriptionTier.choices, help_text='The `subscription_tier` value.')
+    name = serializers.CharField(help_text='Its name, e.g. "Business".')
 
 
 class TokenPairSerializer(serializers.Serializer):

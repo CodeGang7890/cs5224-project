@@ -18,6 +18,7 @@ import type { ApiError } from "@/types/api";
 
 import { normalizeDetailField } from "../details";
 import {
+  DIAGRAM_EXTENT,
   ROUTE_NODES,
   UNAVAILABLE_REASONS,
   type FlowRoute,
@@ -289,6 +290,9 @@ export function WorkflowEditor({
           colorMode={theme}
           fitView
           fitViewOptions={{ padding: 0.15, maxZoom: 1 }}
+          translateExtent={DIAGRAM_EXTENT}
+          minZoom={0.3}
+          maxZoom={2}
         >
           <Background variant={BackgroundVariant.Dots} gap={18} size={1.5} />
           <Controls showInteractive={false} />

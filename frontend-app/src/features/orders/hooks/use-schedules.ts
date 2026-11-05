@@ -5,6 +5,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 
+import { LIVE_REFRESH_INTERVAL_MS } from "@/lib/live-refresh";
 import type { ApiError, DetailedPaginated } from "@/types/api";
 
 import {
@@ -25,6 +26,7 @@ export const scheduleKeys = {
 export function useSchedules(params: ScheduleListParams) {
   return useQuery<DetailedPaginated<ScheduleItem>, ApiError>({
     queryKey: scheduleKeys.list(params),
+    refetchInterval: LIVE_REFRESH_INTERVAL_MS,
     queryFn: () => listSchedules(params),
     placeholderData: keepPreviousData,
   });
@@ -34,6 +36,7 @@ export function useSchedules(params: ScheduleListParams) {
 export function useSchedule(id: number | null, enabled = true) {
   return useQuery<ScheduleItem, ApiError>({
     queryKey: scheduleKeys.detail(id ?? 0),
+    refetchInterval: LIVE_REFRESH_INTERVAL_MS,
     queryFn: () => getSchedule(id as number),
     enabled: enabled && id !== null,
   });
