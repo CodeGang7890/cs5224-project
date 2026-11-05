@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { signInWithProvider, type SocialProvider } from "@/lib/firebase";
 import {
   type AuthTokens,
+  type LoginMethod,
   selectIsAuthenticated,
   useAuthStore,
 } from "@/stores/auth-store";
@@ -50,8 +51,8 @@ export function useAuth() {
 
   // Stores the tokens and loads the profile before resolving, so the UI switches straight to the
   // logged-in state.
-  const startSession = async (tokens: AuthTokens) => {
-    setTokens({ access: tokens.access, refresh: tokens.refresh });
+  const startSession = async (tokens: AuthTokens, method: LoginMethod) => {
+    setTokens({ access: tokens.access, refresh: tokens.refresh }, method);
     await queryClient.fetchQuery({
       queryKey: authKeys.currentUser,
       queryFn: getCurrentUser,
@@ -59,18 +60,22 @@ export function useAuth() {
   };
 
   const loginMutation = useMutation<void, ApiError, LoginCredentials>({
-    mutationFn: async (credentials) => startSession(await login(credentials)),
+    mutationFn: async (credentials) =>
+      startSession(await login(credentials), "password"),
   });
 
   const signUpMutation = useMutation<void, ApiError, SignUpInput>({
-    mutationFn: async (input) => startSession(await signUp(input)),
+    mutationFn: async (input) => startSession(await signUp(input), "password"),
   });
 
   // Google / Facebook: the popup (a `SocialLoginError` if cancelled or refused), then our tokens.
   // Must be called from the click, so the popup isn't blocked.
   const providerMutation = useMutation<void, ApiError | Error, SocialProvider>({
     mutationFn: async (provider) =>
-      startSession(await loginWithFirebase(await signInWithProvider(provider))),
+      startSession(
+        await loginWithFirebase(await signInWithProvider(provider)),
+        provider,
+      ),
   });
 
   const logoutMutation = useMutation<void, ApiError, void>({
