@@ -9,6 +9,146 @@ variable "region" {
   default     = "us-central1"
 }
 
+variable "enable_singapore_staging" {
+  description = "Create parallel Singapore resources while US resources remain active for migration."
+  type        = bool
+  default     = false
+}
+
+variable "singapore_region" {
+  description = "Destination region for the parallel Singapore migration resources."
+  type        = string
+  default     = "asia-southeast1"
+}
+
+variable "singapore_github_app_installation_id" {
+  description = "GitHub App installation ID for the Singapore Cloud Build connection. Zero skips the connection."
+  type        = number
+  default     = 0
+}
+
+variable "singapore_github_token_version" {
+  description = "Version number of the copied GitHub OAuth token in the Singapore-replicated secret."
+  type        = string
+  default     = "1"
+}
+
+variable "singapore_stage_backend_services" {
+  description = "Backend services safe to stage in Singapore before the database cutover. Start with the ingesters; add other services deliberately."
+  type        = set(string)
+  default     = ["messaging-ingester", "payment-ingester", "messaging-service", "processing-service"]
+  validation {
+    condition = length(setsubtract(var.singapore_stage_backend_services, [
+      "configuration-service", "messaging-service", "processing-service", "messaging-ingester", "payment-ingester"
+    ])) == 0
+    error_message = "Singapore staging can include only known backend service names."
+  }
+}
+
+variable "singapore_build_triggers_enabled" {
+  description = "Enable Singapore build and deploy triggers after the regional services are ready for cutover."
+  type        = bool
+  default     = false
+}
+
+variable "singapore_notification_scheduler_enabled" {
+  description = "Start the Singapore notification schedule after the US schedule is paused and the job uses the promoted Singapore database."
+  type        = bool
+  default     = false
+}
+
+variable "singapore_sql_promoted" {
+  description = "Set true only after the Singapore Cloud SQL replica has been promoted to a writable primary."
+  type        = bool
+  default     = false
+}
+
+variable "singapore_service_urls" {
+  description = "Cloud Run URLs discovered after creating Singapore services; used to route service-to-service calls without resource cycles."
+  type        = map(string)
+  default     = {}
+}
+
+variable "singapore_queue_consumers_enabled" {
+  description = "Enable Singapore Pub/Sub pull consumers only after the US consumers are stopped."
+  type        = bool
+  default     = false
+}
+
+variable "singapore_min_instances" {
+  description = "Service-level minimum instances for Singapore Cloud Run services; zero while staging."
+  type        = number
+  default     = 0
+  validation {
+    condition     = var.singapore_min_instances >= 0 && var.singapore_min_instances <= 3
+    error_message = "Singapore minimum instances must be between zero and three."
+  }
+}
+
+variable "singapore_public_endpoints_enabled" {
+  description = "Grant public invocation to Singapore browser and webhook endpoints after cutover."
+  type        = bool
+  default     = false
+}
+
+variable "us_queue_consumers_enabled" {
+  description = "Turn off US Pub/Sub pull consumers before enabling the Singapore copies."
+  type        = bool
+  default     = true
+}
+
+variable "us_build_triggers_enabled" {
+  description = "Turn off US build/deploy triggers before enabling Singapore triggers."
+  type        = bool
+  default     = true
+}
+
+variable "us_public_endpoints_enabled" {
+  description = "Allow unauthenticated access to the existing US browser and webhook services. Turn off during Singapore database cutover."
+  type        = bool
+  default     = true
+}
+
+variable "us_legacy_messaging_ingester_public" {
+  description = "Temporarily accept Meta callbacks at the old US messaging ingester URL during the Singapore webhook migration."
+  type        = bool
+  default     = false
+}
+
+variable "us_legacy_payment_ingester_public" {
+  description = "Temporarily accept Xendit callbacks at the old US payment ingester URL during the Singapore webhook migration."
+  type        = bool
+  default     = false
+}
+
+variable "us_legacy_messaging_ingester_configuration_service_url" {
+  description = "Configuration API used by the old US messaging webhook endpoint while forwarding callbacks to Singapore."
+  type        = string
+  default     = "https://configuration-service-gq6jjn4afq-uc.a.run.app/api"
+}
+
+variable "us_vertex_ai_demo_public" {
+  description = "Keep the old US Vertex AI demo publicly invokable. Set false after the Singapore demo is live."
+  type        = bool
+  default     = true
+}
+
+variable "us_min_instances" {
+  description = "Service-level minimum instances for the existing US Cloud Run services."
+  type        = number
+  default     = 1
+  validation {
+    condition     = var.us_min_instances >= 0 && var.us_min_instances <= 3
+    error_message = "US minimum instances must be between zero and three."
+  }
+}
+
+variable "pubsub_allowed_persistence_regions" {
+  description = "Optional Pub/Sub message persistence regions. Set to [\"asia-southeast1\"] after the consumers move to Singapore."
+  type        = list(string)
+  default     = []
+}
+
 variable "bucket_name" {
   description = "Globally unique object bucket name; defaults to PROJECT_ID-app-objects."
   type        = string
@@ -203,7 +343,7 @@ variable "vertex_ai_demo_image" {
 variable "meta_app_id" {
   description = "Our Meta app's ID (App Dashboard), for WhatsApp Embedded Signup."
   type        = string
-  default     = "1113885617929605"
+  default     = "2228337358565044"
 }
 
 variable "meta_embedded_signup_config_id" {
@@ -215,7 +355,7 @@ variable "meta_embedded_signup_config_id" {
 variable "meta_app_secret_version" {
   description = "Version of the existing meta-app-secret Secret Manager secret used by configuration-service."
   type        = string
-  default     = "2"
+  default     = "3"
 }
 
 variable "meta_webhook_verify_token" {

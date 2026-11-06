@@ -18,10 +18,14 @@ resource "google_sql_database_instance" "main" {
     disk_type         = "PD_HDD"
     disk_size         = 10
     disk_autoresize   = false
-    backup_configuration { enabled = false }
+    backup_configuration { enabled = true }
     ip_configuration { ipv4_enabled = true }
   }
   depends_on = [google_project_service.api]
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "google_sql_database" "configuration" {

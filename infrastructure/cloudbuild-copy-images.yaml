@@ -1,0 +1,12 @@
+# One-time copy for the US -> Singapore migration. Re-run before final cutover
+# to include images built after the initial copy.
+steps:
+  - name: gcr.io/go-containerregistry/gcrane:latest
+    args:
+      - cp
+      - -r
+      - us-central1-docker.pkg.dev/$PROJECT_ID/apps
+      - asia-southeast1-docker.pkg.dev/$PROJECT_ID/apps
+
+options:
+  logging: CLOUD_LOGGING_ONLY

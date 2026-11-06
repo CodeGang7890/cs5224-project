@@ -78,6 +78,7 @@ resource "google_cloudbuildv2_repository" "github" {
 
 resource "google_cloudbuild_trigger" "configuration" {
   for_each        = var.enable_ci_cd && var.github_connection_name != "" ? var.ci_cd_services : toset([])
+  disabled        = !var.us_build_triggers_enabled
   name            = "${each.key}-main"
   location        = var.region
   service_account = google_service_account.builder.id
@@ -101,6 +102,7 @@ resource "google_cloudbuild_trigger" "configuration" {
 
 resource "google_cloudbuild_trigger" "notification_job" {
   count           = var.enable_ci_cd && var.enable_cloud_sql && var.github_connection_name != "" ? 1 : 0
+  disabled        = !var.us_build_triggers_enabled
   name            = "notification-job-main"
   location        = var.region
   service_account = google_service_account.builder.id
@@ -129,6 +131,7 @@ resource "google_cloudbuild_trigger" "notification_job" {
 
 resource "google_cloudbuild_trigger" "vertex_ai_demo" {
   count           = var.enable_ci_cd && var.enable_vertex_ai_demo && var.github_connection_name != "" ? 1 : 0
+  disabled        = !var.us_build_triggers_enabled
   name            = "vertex-ai-demo-main"
   location        = var.region
   service_account = google_service_account.builder.id
@@ -158,6 +161,7 @@ resource "google_cloudbuild_trigger" "vertex_ai_demo" {
 
 resource "google_cloudbuild_trigger" "frontend_hosting" {
   count           = var.enable_ci_cd && var.enable_firebase && var.github_connection_name != "" ? 1 : 0
+  disabled        = !var.us_build_triggers_enabled
   name            = "frontend-hosting-main"
   location        = var.region
   service_account = google_service_account.builder.id

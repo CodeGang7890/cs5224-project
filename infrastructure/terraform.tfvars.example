@@ -1,5 +1,26 @@
 project_id = "YOUR_GCP_PROJECT_ID"
 region     = "us-central1"
+enable_singapore_staging = false
+singapore_region          = "asia-southeast1"
+singapore_github_app_installation_id = 0 # Set to the existing Cloud Build GitHub App installation ID during migration.
+singapore_github_token_version       = "1"
+singapore_stage_backend_services      = ["messaging-ingester", "payment-ingester", "messaging-service", "processing-service"]
+singapore_build_triggers_enabled       = false
+singapore_notification_scheduler_enabled = false
+singapore_sql_promoted                   = false
+singapore_queue_consumers_enabled        = false
+singapore_min_instances                  = 0
+singapore_public_endpoints_enabled       = false
+singapore_service_urls                   = {} # Fill with Cloud Run URLs after creating Singapore services.
+us_queue_consumers_enabled              = true
+us_build_triggers_enabled                = true
+us_public_endpoints_enabled              = true
+us_legacy_messaging_ingester_public      = false # Temporary Meta bridge only; disable after all Meta callbacks use Singapore.
+us_legacy_payment_ingester_public        = false # Temporary Xendit bridge only; disable after Xendit callbacks use Singapore.
+us_vertex_ai_demo_public                 = true # Set false once the Singapore demo is deployed.
+us_legacy_messaging_ingester_configuration_service_url = "https://configuration-service-gq6jjn4afq-uc.a.run.app/api"
+us_min_instances                         = 1
+pubsub_allowed_persistence_regions       = [] # Set to ["asia-southeast1"] after cutover.
 
 # Only set image URLs for services that are ready to deploy.
 service_images = {}
@@ -49,9 +70,9 @@ alert_notification_email = ""
 # WhatsApp Embedded Signup ("Connect with Facebook"), always on. Before the first apply, add the
 # App Secret: gcloud secrets versions add meta-app-secret --data-file=… .
 # Terraform stores the webhook verify token from private terraform.tfvars in Secret Manager.
-meta_app_id                    = "1113885617929605"
-meta_embedded_signup_config_id = "1816063649635087"
-meta_app_secret_version        = "2"
+meta_app_id                    = "2228337358565044"
+meta_embedded_signup_config_id = "1330129685818612"
+meta_app_secret_version        = "3"
 # Keep the exact Meta webhook verify token in the ignored terraform.tfvars only.
 meta_webhook_verify_token      = ""
 messaging_ingester_public_url  = ""

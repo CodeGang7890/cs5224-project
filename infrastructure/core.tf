@@ -20,12 +20,23 @@ resource "google_storage_bucket" "objects" {
   public_access_prevention    = "enforced"
   force_destroy               = false
   depends_on                  = [google_project_service.api]
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "google_pubsub_topic" "queue" {
   for_each   = toset(["payment-queue", "messaging-queue", "notification-tick"])
   name       = each.key
   depends_on = [google_project_service.api]
+
+  dynamic "message_storage_policy" {
+    for_each = length(var.pubsub_allowed_persistence_regions) > 0 ? [1] : []
+    content {
+      allowed_persistence_regions = var.pubsub_allowed_persistence_regions
+    }
+  }
 }
 
 resource "google_pubsub_subscription" "queue" {

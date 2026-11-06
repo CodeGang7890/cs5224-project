@@ -181,12 +181,17 @@ resource "google_cloud_run_v2_service" "backend" {
   deletion_protection = false
   ingress             = "INGRESS_TRAFFIC_ALL"
 
+  scaling {
+    min_instance_count = var.us_min_instances
+    max_instance_count = 3
+  }
+
   template {
     service_account                  = google_service_account.runtime[each.key].email
     max_instance_request_concurrency = 10
     scaling {
-      # Pull subscribers run outside HTTP requests and need a live instance.
-      min_instance_count = contains(["messaging-service", "processing-service"], each.key) ? 1 : 0
+      # Service-level minimum keeps one warm instance without stacking revision minimums.
+      min_instance_count = 0
       max_instance_count = 1
     }
 
@@ -217,7 +222,7 @@ resource "google_cloud_run_v2_service" "backend" {
           PUBSUB_SUBSCRIPTION       = google_pubsub_subscription.queue["payment-queue"].name
           CONFIGURATION_SERVICE_URL = "https://configuration-service-gq6jjn4afq-uc.a.run.app/api"
           SCHEDULE_TIME_ZONE        = "Asia/Singapore"
-          PUBSUB_CONSUMER_ENABLED   = "true"
+          PUBSUB_CONSUMER_ENABLED   = tostring(var.us_queue_consumers_enabled)
           PUBSUB_MAX_MESSAGES       = "5"
           WEB_CONCURRENCY           = "2"
           GCS_BUCKET                = google_storage_bucket.objects.name
@@ -229,14 +234,14 @@ resource "google_cloud_run_v2_service" "backend" {
           SMTP_PORT                 = "587"
           SMTP_USERNAME             = "bec985001@smtp-brevo.com"
           } : each.key == "messaging-ingester" ? {
-          CONFIGURATION_SERVICE_URL = "https://configuration-service-gq6jjn4afq-uc.a.run.app/api"
+          CONFIGURATION_SERVICE_URL = var.us_legacy_messaging_ingester_configuration_service_url
           GCP_PROJECT_ID            = var.project_id
           PUBSUB_TOPIC              = google_pubsub_topic.queue["messaging-queue"].name
           } : each.key == "messaging-service" ? {
           PAYMENT_INGESTER_URL      = var.payment_ingester_url
           CONFIGURATION_SERVICE_URL = "https://configuration-service-gq6jjn4afq-uc.a.run.app/api"
           CORS_ALLOWED_ORIGINS      = "https://${var.firebase_hosting_site_id}.web.app,https://${var.firebase_hosting_site_id}.firebaseapp.com"
-          PUBSUB_CONSUMER_ENABLED   = "true"
+          PUBSUB_CONSUMER_ENABLED   = tostring(var.us_queue_consumers_enabled)
           GCP_PROJECT_ID            = var.project_id
           PUBSUB_TOPIC              = google_pubsub_topic.queue["messaging-queue"].name
           PUBSUB_SUBSCRIPTION       = google_pubsub_subscription.queue["messaging-queue"].name
@@ -443,7 +448,7 @@ resource "google_cloud_run_v2_service_iam_member" "configuration_calls_messaging
 
 # Only the public API endpoints accept unauthenticated webhook/browser calls.
 resource "google_cloud_run_v2_service_iam_member" "public" {
-  for_each = { for k, v in google_cloud_run_v2_service.backend : k => v if contains(["configuration-service", "payment-ingester", "messaging-ingester"], k) }
+  for_each = { for k, v in google_cloud_run_v2_service.backend : k => v if(var.us_public_endpoints_enabled && contains(["configuration-service", "payment-ingester", "messaging-ingester"], k)) || (var.us_legacy_messaging_ingester_public && k == "messaging-ingester") || (var.us_legacy_payment_ingester_public && k == "payment-ingester") }
   project  = var.project_id
   location = var.region
   name     = each.value.name
