@@ -1444,3 +1444,12 @@ Date & Time (GMT+8): 2026-10-24 22:41:14
 AI Model Used: claude-opus-5-5
 Original Prompt:
 Handle business token expiry. Business tokens may expire after about 60 days. Save the expiry, warn the owner to reconnect, and alert before it lapses.
+
+Date & Time (GMT+8): 2026-11-06 14:04:08
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Messaging service now has no latency logs for the core LLM flow
+We want to know the latency for these: one end to end flow from received from messaging service until it repleis to the user (all in messaging service), and second we want to know the time per stage (e.g., the router, the extraction, reply, or the payment route, etc.)
+Please help to add logger.info and measure the time for all these
+Please add some keywords at the beginning so we can easily distinguish and search logs depending on the type we're interested on (e.g., we may only be interested in the LLM time for the "check order status" route, we should be able to query that easily)

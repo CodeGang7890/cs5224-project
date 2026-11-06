@@ -17,6 +17,7 @@ from collections.abc import Callable
 from sqlalchemy import exists, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
+from .. import latency
 from ..models import FAQ, Product, Service, ServiceProvider, service_service_providers
 from .stock import quantities_available
 
@@ -274,5 +275,5 @@ class Toolbox:
         tool = self._tools.get(name)
         if tool is None:
             return json.dumps({'error': f'Unknown tool {name!r}.'})
-        with self._sessions() as db:
+        with latency.timed('TOOL', name), self._sessions() as db:
             return json.dumps(tool[2](db, arguments), ensure_ascii=False)

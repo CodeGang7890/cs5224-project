@@ -412,6 +412,26 @@ class RouterFlowTests(FlowApiMixin, ApiTestCase):
             created_time=datetime(2026, 9, 5, 14, 30, tzinfo=ZoneInfo('Asia/Singapore')),
         )
 
+    def test_order_status_latency_lines(self):
+        # Each stage of the order status route can be searched for on its own ([LATENCY][LLM][ORDER_STATUS]…).
+        order = self.make_order(status=PAYMENT_RECEIVED)
+        reply = f'Your order #{order.pk} (2 × Kopi C, $3.60) has been paid.'
+        with self.assertLogs('app.latency', level='INFO') as logs:
+            self.send('Has my order been paid?', reply=reply, intents=['order_status'], order_status={'kind': 'order', 'numbers': []})
+        tags = [line.split('app.latency:', 1)[1].split(' ', 1)[0] for line in logs.output]
+        self.assertEqual(tags, [
+            '[LATENCY][DB][LOAD]', '[LATENCY][LLM][ROUTER]', '[LATENCY][DB][COMMIT_TURN]',
+            '[LATENCY][LLM][ORDER_STATUS][EXTRACTION]', '[LATENCY][DB][ORDER_STATUS][LOOKUP]',
+            '[LATENCY][LLM][ORDER_STATUS][REPLY]', '[LATENCY][TURN]', '[LATENCY][E2E]', '[LATENCY][SUMMARY]',
+        ])
+        self.assertTrue(all(f'channel=sandbox chat={self.session.pk}' in line for line in logs.output))
+        self.assertIn('intents=order_status', logs.output[1])
+        self.assertIn('kind=order', logs.output[4])
+        self.assertIn('found=1', logs.output[4])
+        self.assertIn('grounded=True', logs.output[5])
+        self.assertIn('reply_kind=order_status', logs.output[6])
+        self.assertRegex(logs.output[-1], r'router=\d+\.\d\d .*order_status\.extraction=\d+\.\d\d order_status\.lookup=\d+\.\d\d order_status\.reply=')
+
     def test_order_status_extracts_then_looks_up_then_rewrites_only_the_records(self):
         order = self.make_order(status=PAYMENT_RECEIVED)
         reply = f'Your order #{order.pk} (2 × Kopi C, $3.60) has been paid.'

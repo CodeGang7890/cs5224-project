@@ -20,12 +20,13 @@ import json
 import logging
 import threading
 import time
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 
 from google.api_core import exceptions as google_exceptions
 from google.cloud import pubsub_v1
 
-from . import config
+from . import config, latency
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +51,12 @@ def parse(data: bytes) -> dict:
     return payload
 
 
-def process(payload: dict, sessions=None) -> None:
-    """The work for one customer message: answer it with the chat flow (app/inbound.py)."""
+def process(payload: dict, sessions=None, published=None) -> None:
+    """The work for one customer message: answer it with the chat flow (app/inbound.py).
+
+    Logs `[LATENCY][E2E]` (from here until the last reply was sent) and `[LATENCY][SUMMARY]`;
+    with `published` (the Pub/Sub message's publish time), `[LATENCY][PUBSUB]` too: how long it waited.
+    """
     from .db import get_sessionmaker  # here: building the app (and the tests) needs no database
     from .inbound import handle_inbound
 
@@ -59,7 +64,18 @@ def process(payload: dict, sessions=None) -> None:
         'Customer message %s for business %s from %s (%s): %r',
         payload['message_id'], payload['business_id'], payload['from'], payload['type'], payload.get('text'),
     )
-    result = handle_inbound(sessions or get_sessionmaker(), payload)
+    with latency.bind(channel='whatsapp', business=payload['business_id'], msg=payload['message_id']):
+        timer = latency.Timer()
+        if published is not None:
+            waited = (datetime.now(timezone.utc) - published).total_seconds()
+            latency.log(['PUBSUB'], max(waited, 0.0))
+        outcome = 'error'
+        try:
+            result = handle_inbound(sessions or get_sessionmaker(), payload)
+            outcome = result.outcome
+        finally:
+            latency.log(['E2E'], timer.elapsed, outcome=outcome)
+            latency.summary(timer.elapsed, outcome=outcome)
     if result.outcome == 'skipped':
         logger.info('Message %s not answered: %s', payload['message_id'], result.reason)
 
@@ -78,6 +94,14 @@ class ConsumerStats:
             setattr(self, outcome, getattr(self, outcome) + 1)
 
 
+def _publish_time(message) -> datetime | None:
+    """The Pub/Sub message's publish time (aware), if it has one."""
+    published = getattr(message, 'publish_time', None)
+    if not isinstance(published, datetime):
+        return None
+    return published if published.tzinfo else published.replace(tzinfo=timezone.utc)
+
+
 def handle(message, stats: ConsumerStats, sessions=None) -> None:
     """Callback for each pulled message (runs on the client library's threads)."""
     try:
@@ -88,7 +112,7 @@ def handle(message, stats: ConsumerStats, sessions=None) -> None:
         stats.count('skipped')
         return
     try:
-        process(payload, sessions)
+        process(payload, sessions, _publish_time(message))
     except Exception:
         logger.exception('Processing Pub/Sub message %s failed; it will be redelivered', message.message_id)
         message.nack()

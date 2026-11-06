@@ -144,8 +144,17 @@ class ConsumerToChatFlowTests(DatabaseTestCase):
         pulled, stats, ollama = Pulled(), ConsumerStats(), MagicMock()
         ollama.chat.side_effect = fake_ollama_chat('Hello!')
         with patch('app.llm.get_client', return_value=ollama), patch('app.inbound.whatsapp_sender.send_text', return_value='w1'), \
-                self.assertLogs('app', level='INFO'):
+                self.assertLogs('app', level='INFO') as logs:
             handle(pulled, stats, self.sessions)
         self.assertTrue(pulled.acked)
         self.assertEqual(stats.handled, 1)
-        self.assertEqual(self.all(ChatSession)[0].chat_message_json[-1]['message'], 'Hello!')
+        session = self.all(ChatSession)[0]
+        self.assertEqual(session.chat_message_json[-1]['message'], 'Hello!')
+        # Latency: every line knows the message; the end-to-end one includes sending the reply.
+        latency_lines = [line for line in logs.output if '[LATENCY]' in line]
+        self.assertTrue(all(f'channel=whatsapp business={cafe.id} msg=wamid.1' in line for line in latency_lines))
+        tags = [line.split('app.latency:', 1)[1].split(' ', 1)[0] for line in latency_lines]
+        self.assertEqual(tags[-4:], ['[LATENCY][TURN]', '[LATENCY][SEND]', '[LATENCY][E2E]', '[LATENCY][SUMMARY]'])
+        self.assertIn(f'chat={session.pk}', latency_lines[-3])
+        self.assertIn('outcome=replied', latency_lines[-2])
+        self.assertIn(' send=', latency_lines[-1])

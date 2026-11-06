@@ -32,7 +32,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
-from . import whatsapp_sender
+from . import latency, whatsapp_sender
 from .chat_flow import dates, flow
 from .chat_flow.constants import SENT_BY_CUSTOMER, STEP_START
 from .chat_flow.validators import CHAT_MESSAGE_MAX_LENGTH
@@ -105,13 +105,15 @@ def handle_inbound(sessions: sessionmaker, payload: dict) -> InboundResult:
         # The same message was claimed by another worker at the same moment: it answers it.
         return InboundResult('skipped', 'being answered by another worker (a duplicate)')
 
+    latency.add_fields(chat=session_id)
     result = flow.handle_customer_message(sessions, session_id, text, save_message=False)
     with sessions.begin() as db:
         record = db.scalars(select(InboundMessage).where(InboundMessage.message_id == message_id)).one()
         record.status, record.replied_time = REPLIED, dates.now()
-    for sent in result.messages:
+    for number, sent in enumerate(result.messages, 1):
         try:
-            message_id = whatsapp_sender.send_text(payload['business_id'], payload['from'], sent['message'])
+            with latency.timed('SEND', message=f'{number}/{len(result.messages)}'):
+                message_id = whatsapp_sender.send_text(payload['business_id'], payload['from'], sent['message'])
         except whatsapp_sender.SendError as exc:
             # TODO: retry (an outbound messages queue). The reply is saved in the chat either way.
             logger.error('Reply in chat %s not sent to %s: %s', session_id, payload['from'], exc)
