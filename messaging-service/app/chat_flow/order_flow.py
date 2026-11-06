@@ -38,7 +38,7 @@ from datetime import date, datetime, time, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
-from .. import llm
+from .. import latency, llm
 from ..models import BusinessConfiguration, ChatSession, Service
 from . import dates as timezone  # timezone.now(), like django.utils.timezone
 from . import prompts
@@ -221,7 +221,8 @@ def advance(
         system_prompt = prompts.build_extraction_prompt(
             business, step, turn.data, products, fields, go_back=targets, services=context.services, now=context.now
         )
-        extracted = llm.generate_structured(system_prompt, history, prompts.extraction_schema(step, fields, targets))
+        with latency.timed('LLM', 'EXTRACTION', step):
+            extracted = llm.generate_structured(system_prompt, history, prompts.extraction_schema(step, fields, targets))
         target = extracted.get('go_back_to')
         if isinstance(target, str) and target in targets:
             # Back to an earlier step, keeping everything. It runs on this same message, so "I also

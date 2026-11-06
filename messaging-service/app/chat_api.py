@@ -18,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 from starlette.concurrency import run_in_threadpool
 
-from . import llm
+from . import latency, llm
 from .auth import authenticate
 from .chat_flow import flow
 from .chat_flow.validators import CHAT_MESSAGE_MAX_LENGTH
@@ -66,8 +66,22 @@ def _message_body(description: str) -> dict:
     }}}}}
 
 
-def _run_turn(sessions: sessionmaker, session_id: int, message: str) -> flow.TurnResult:
-    """One turn of the chat flow; LLM failures → 502 / 503 / 504 (the customer message is kept)."""
+def _run_turn(sessions: sessionmaker, session_id: int, message: str, channel: str) -> flow.TurnResult:
+    """One turn of the chat flow; LLM failures → 502 / 503 / 504 (the customer message is kept).
+    Logs `[LATENCY][E2E]` and `[LATENCY][SUMMARY]` for the request (`channel`: sandbox / api)."""
+    with latency.bind(channel=channel, chat=session_id):
+        timer = latency.Timer()
+        status = 'error'
+        try:
+            result = _turn(sessions, session_id, message)
+            status = 'ok'
+            return result
+        finally:
+            latency.log(['E2E'], timer.elapsed, status=status)
+            latency.summary(timer.elapsed, status=status)
+
+
+def _turn(sessions: sessionmaker, session_id: int, message: str) -> flow.TurnResult:
     try:
         return flow.handle_customer_message(sessions, session_id, message)
     except llm.LLMUnavailableError as exc:
@@ -122,7 +136,7 @@ async def sandbox_message(pk: str, request: Request, sessions: sessionmaker = De
     session = await run_in_threadpool(_own_sandbox_session, request, sessions, pk)
     data = await json_object(request)
     body = validated({'message': char_field(data, 'message', CHAT_MESSAGE_MAX_LENGTH)})
-    result = await run_in_threadpool(_run_turn, sessions, session.id, body['message'])
+    result = await run_in_threadpool(_run_turn, sessions, session.id, body['message'], 'sandbox')
     return {**result.reply, 'messages': result.messages, 'debug': result.debug}
 
 
@@ -173,5 +187,5 @@ async def customer_message(request: Request, sessions: sessionmaker = Depends(ge
     session = await run_in_threadpool(find_session)
     if session is None:
         raise error(404, NO_CHAT_SESSION_MESSAGE)
-    result = await run_in_threadpool(_run_turn, sessions, session.id, body['message'])
+    result = await run_in_threadpool(_run_turn, sessions, session.id, body['message'], 'api')
     return {**result.reply, 'messages': result.messages}

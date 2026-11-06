@@ -780,5 +780,738 @@
       },
       "is_sandbox": false
     }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 21,
+    "fields": {
+      "business": 5,
+      "phone_number": "+6596060455",
+      "display_name": "Tan Wei Jie",
+      "created_time": "2026-10-03T20:14:00+08:00",
+      "last_chat_time": "2026-10-03T20:17:35+08:00",
+      "chat_message_json": [
+        {
+          "message": "Hi! Any badminton court free on Sat 21 Nov evening?",
+          "sent_by": "customer",
+          "message_time": "2026-10-03T20:14:00+08:00"
+        },
+        {
+          "message": "Hi, welcome to Rally Point Courts! I can book a badminton or tennis court for you (1-hour slots, 9am to 9pm daily), take your order for rackets, shuttlecocks and balls, or answer your questions.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-03T20:14:12+08:00"
+        },
+        {
+          "message": "Here are some available times for Badminton Court (1 hour) ($20.00, 1 h):\n1. Sat 21 Nov, 5pm\n2. Sat 21 Nov, 6pm\n3. Sat 21 Nov, 7pm\n4. Sat 21 Nov, 8pm\n\nPlease reply with the number of the time you would like, or tell me another day or time that suits you.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-03T20:14:22+08:00"
+        },
+        {
+          "message": "3 please",
+          "sent_by": "customer",
+          "message_time": "2026-10-03T20:15:07+08:00"
+        },
+        {
+          "message": "Nice, Sat 21 Nov at 7pm it is! 🏸 Could I get your name and email? And how many players, if you know?",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-03T20:15:23+08:00"
+        },
+        {
+          "message": "Tan Wei Jie, tan.weijie56@hotmail.com, 4 of us",
+          "sent_by": "customer",
+          "message_time": "2026-10-03T20:16:33+08:00"
+        },
+        {
+          "message": "Here is your booking summary:\n- Badminton Court (1 hour) (1 h)\n- Sat 21 Nov, 7pm – 8pm\nPrice: $20.00\n\nYour details:\n- Name: Tan Wei Jie\n- Email: tan.weijie56@hotmail.com\n- Number of players: 4\n\nPlease reply CONFIRM to book it, or tell me what you would like to change.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-03T20:16:47+08:00"
+        },
+        {
+          "message": "CONFIRM",
+          "sent_by": "customer",
+          "message_time": "2026-10-03T20:17:27+08:00"
+        },
+        {
+          "message": "Thank you! Your booking #81 with Rally Point Courts is confirmed.\n- Badminton Court (1 hour) (1 h)\n- Sat 21 Nov, 7pm – 8pm\nPrice: $20.00\n\nYour details:\n- Name: Tan Wei Jie\n- Email: tan.weijie56@hotmail.com\n- Number of players: 4\n\nTo pay, use this link: https://checkout-staging.xendit.co/sessions/ps-18edac354c0285d5e4e3fff8",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-03T20:17:35+08:00"
+        }
+      ],
+      "chat_state_id": "start",
+      "chat_state_data": {
+        "last_booking_id": 81
+      },
+      "is_sandbox": false
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 22,
+    "fields": {
+      "business": 5,
+      "phone_number": "+6591253079",
+      "display_name": "Marcus Lim",
+      "created_time": "2026-10-05T12:31:00+08:00",
+      "last_chat_time": "2026-10-05T12:35:43+08:00",
+      "chat_message_json": [
+        {
+          "message": "hello, can i book a tennis court sat 14 nov morning",
+          "sent_by": "customer",
+          "message_time": "2026-10-05T12:31:00+08:00"
+        },
+        {
+          "message": "Hi, welcome to Rally Point Courts! I can book a badminton or tennis court for you (1-hour slots, 9am to 9pm daily), take your order for rackets, shuttlecocks and balls, or answer your questions.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-05T12:31:12+08:00"
+        },
+        {
+          "message": "Here are some available times for Tennis Court (1 hour) ($32.00, 1 h):\n1. Sat 14 Nov, 9am\n2. Sat 14 Nov, 10am\n3. Sat 14 Nov, 11am\n\nPlease reply with the number of the time you would like, or tell me another day or time that suits you.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-05T12:31:22+08:00"
+        },
+        {
+          "message": "what if it rains?",
+          "sent_by": "customer",
+          "message_time": "2026-10-05T12:32:12+08:00"
+        },
+        {
+          "message": "If it rains and the courts are unplayable, we'll move your booking to another time or refund it in full, no worries. Which time works for you?",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-05T12:32:30+08:00"
+        },
+        {
+          "message": "2 please",
+          "sent_by": "customer",
+          "message_time": "2026-10-05T12:33:15+08:00"
+        },
+        {
+          "message": "Sweet, Sat 14 Nov at 10am is yours once you confirm 🎾 What's your name and email? How many of you are playing?",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-05T12:33:31+08:00"
+        },
+        {
+          "message": "Marcus Lim, marcus.lim89@yahoo.com.sg. 2 players",
+          "sent_by": "customer",
+          "message_time": "2026-10-05T12:34:41+08:00"
+        },
+        {
+          "message": "Here is your booking summary:\n- Tennis Court (1 hour) (1 h)\n- Sat 14 Nov, 10am – 11am\nPrice: $32.00\n\nYour details:\n- Name: Marcus Lim\n- Email: marcus.lim89@yahoo.com.sg\n- Number of players: 2\n\nPlease reply CONFIRM to book it, or tell me what you would like to change.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-05T12:34:55+08:00"
+        },
+        {
+          "message": "CONFIRM",
+          "sent_by": "customer",
+          "message_time": "2026-10-05T12:35:35+08:00"
+        },
+        {
+          "message": "Thank you! Your booking #82 with Rally Point Courts is confirmed.\n- Tennis Court (1 hour) (1 h)\n- Sat 14 Nov, 10am – 11am\nPrice: $32.00\n\nYour details:\n- Name: Marcus Lim\n- Email: marcus.lim89@yahoo.com.sg\n- Number of players: 2\n\nTo pay, use this link: https://checkout-staging.xendit.co/sessions/ps-009e270d771c7a7d900822ea",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-05T12:35:43+08:00"
+        }
+      ],
+      "chat_state_id": "start",
+      "chat_state_data": {
+        "last_booking_id": 82
+      },
+      "is_sandbox": false
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 23,
+    "fields": {
+      "business": 5,
+      "phone_number": "+6595675981",
+      "display_name": "Priyanka Menon",
+      "created_time": "2026-10-07T21:02:00+08:00",
+      "last_chat_time": "2026-10-07T21:05:35+08:00",
+      "chat_message_json": [
+        {
+          "message": "Hi, need a badminton court Thursday 26 Nov after work, around 8pm?",
+          "sent_by": "customer",
+          "message_time": "2026-10-07T21:02:00+08:00"
+        },
+        {
+          "message": "Hi, welcome to Rally Point Courts! I can book a badminton or tennis court for you (1-hour slots, 9am to 9pm daily), take your order for rackets, shuttlecocks and balls, or answer your questions.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-07T21:02:12+08:00"
+        },
+        {
+          "message": "Here are some available times for Badminton Court (1 hour) ($20.00, 1 h):\n1. Thu 26 Nov, 6pm\n2. Thu 26 Nov, 7pm\n3. Thu 26 Nov, 8pm\n\nPlease reply with the number of the time you would like, or tell me another day or time that suits you.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-07T21:02:22+08:00"
+        },
+        {
+          "message": "3 please",
+          "sent_by": "customer",
+          "message_time": "2026-10-07T21:03:07+08:00"
+        },
+        {
+          "message": "Thu 26 Nov at 8pm, got it! Could you share your name and email? And the number of players, if you like.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-07T21:03:23+08:00"
+        },
+        {
+          "message": "Priyanka Menon, priyanka.menon41@hotmail.com, 6 players",
+          "sent_by": "customer",
+          "message_time": "2026-10-07T21:04:33+08:00"
+        },
+        {
+          "message": "Here is your booking summary:\n- Badminton Court (1 hour) (1 h)\n- Thu 26 Nov, 8pm – 9pm\nPrice: $20.00\n\nYour details:\n- Name: Priyanka Menon\n- Email: priyanka.menon41@hotmail.com\n- Number of players: 6\n\nPlease reply CONFIRM to book it, or tell me what you would like to change.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-07T21:04:47+08:00"
+        },
+        {
+          "message": "CONFIRM",
+          "sent_by": "customer",
+          "message_time": "2026-10-07T21:05:27+08:00"
+        },
+        {
+          "message": "Thank you! Your booking #83 with Rally Point Courts is confirmed.\n- Badminton Court (1 hour) (1 h)\n- Thu 26 Nov, 8pm – 9pm\nPrice: $20.00\n\nYour details:\n- Name: Priyanka Menon\n- Email: priyanka.menon41@hotmail.com\n- Number of players: 6\n\nTo pay, use this link: https://checkout-staging.xendit.co/sessions/ps-c5879e90e98d7f0c62212493",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-07T21:05:35+08:00"
+        }
+      ],
+      "chat_state_id": "start",
+      "chat_state_data": {
+        "last_booking_id": 83
+      },
+      "is_sandbox": false
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 24,
+    "fields": {
+      "business": 5,
+      "phone_number": "+6593322127",
+      "display_name": "Daniel Koh",
+      "created_time": "2026-10-08T09:47:00+08:00",
+      "last_chat_time": "2026-10-08T09:50:35+08:00",
+      "chat_message_json": [
+        {
+          "message": "Tennis court on Sun 29 Nov late afternoon pls",
+          "sent_by": "customer",
+          "message_time": "2026-10-08T09:47:00+08:00"
+        },
+        {
+          "message": "Hi, welcome to Rally Point Courts! I can book a badminton or tennis court for you (1-hour slots, 9am to 9pm daily), take your order for rackets, shuttlecocks and balls, or answer your questions.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-08T09:47:12+08:00"
+        },
+        {
+          "message": "Here are some available times for Tennis Court (1 hour) ($32.00, 1 h):\n1. Sun 29 Nov, 4pm\n2. Sun 29 Nov, 5pm\n3. Sun 29 Nov, 6pm\n\nPlease reply with the number of the time you would like, or tell me another day or time that suits you.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-08T09:47:22+08:00"
+        },
+        {
+          "message": "2 please",
+          "sent_by": "customer",
+          "message_time": "2026-10-08T09:48:07+08:00"
+        },
+        {
+          "message": "Sun 29 Nov at 5pm, nice choice 🎾 What name and email should I put the booking under?",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-08T09:48:23+08:00"
+        },
+        {
+          "message": "Daniel Koh, daniel.koh3@hotmail.com",
+          "sent_by": "customer",
+          "message_time": "2026-10-08T09:49:33+08:00"
+        },
+        {
+          "message": "Here is your booking summary:\n- Tennis Court (1 hour) (1 h)\n- Sun 29 Nov, 5pm – 6pm\nPrice: $32.00\n\nYour details:\n- Name: Daniel Koh\n- Email: daniel.koh3@hotmail.com\n\nPlease reply CONFIRM to book it, or tell me what you would like to change.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-08T09:49:47+08:00"
+        },
+        {
+          "message": "CONFIRM",
+          "sent_by": "customer",
+          "message_time": "2026-10-08T09:50:27+08:00"
+        },
+        {
+          "message": "Thank you! Your booking #84 with Rally Point Courts is confirmed.\n- Tennis Court (1 hour) (1 h)\n- Sun 29 Nov, 5pm – 6pm\nPrice: $32.00\n\nYour details:\n- Name: Daniel Koh\n- Email: daniel.koh3@hotmail.com\n\nTo pay, use this link: https://checkout-staging.xendit.co/sessions/ps-3003dbca6269aa5b9dccc616",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-08T09:50:35+08:00"
+        }
+      ],
+      "chat_state_id": "start",
+      "chat_state_data": {
+        "last_booking_id": 84
+      },
+      "is_sandbox": false
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 25,
+    "fields": {
+      "business": 5,
+      "phone_number": "+6595828256",
+      "display_name": "Chloe Ng",
+      "created_time": "2026-10-09T19:25:00+08:00",
+      "last_chat_time": "2026-10-09T19:29:43+08:00",
+      "chat_message_json": [
+        {
+          "message": "hi! is there a badminton court on fri 13 nov night?",
+          "sent_by": "customer",
+          "message_time": "2026-10-09T19:25:00+08:00"
+        },
+        {
+          "message": "Hi, welcome to Rally Point Courts! I can book a badminton or tennis court for you (1-hour slots, 9am to 9pm daily), take your order for rackets, shuttlecocks and balls, or answer your questions.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-09T19:25:12+08:00"
+        },
+        {
+          "message": "Here are some available times for Badminton Court (1 hour) ($20.00, 1 h):\n1. Fri 13 Nov, 7pm\n2. Fri 13 Nov, 8pm\n\nPlease reply with the number of the time you would like, or tell me another day or time that suits you.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-09T19:25:22+08:00"
+        },
+        {
+          "message": "do you rent rackets?",
+          "sent_by": "customer",
+          "message_time": "2026-10-09T19:26:12+08:00"
+        },
+        {
+          "message": "We don't rent equipment, sorry! But we sell a few rackets and shuttlecocks: you can order them here and collect them at our front counter, or bring your own. Which time would you like?",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-09T19:26:30+08:00"
+        },
+        {
+          "message": "1 please",
+          "sent_by": "customer",
+          "message_time": "2026-10-09T19:27:15+08:00"
+        },
+        {
+          "message": "Fri 13 Nov at 7pm, you got it! Could I have your name and email? And how many players?",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-09T19:27:31+08:00"
+        },
+        {
+          "message": "Chloe Ng chloe.ng11@outlook.com 4 pax",
+          "sent_by": "customer",
+          "message_time": "2026-10-09T19:28:41+08:00"
+        },
+        {
+          "message": "Here is your booking summary:\n- Badminton Court (1 hour) (1 h)\n- Fri 13 Nov, 7pm – 8pm\nPrice: $20.00\n\nYour details:\n- Name: Chloe Ng\n- Email: chloe.ng11@outlook.com\n- Number of players: 4\n\nPlease reply CONFIRM to book it, or tell me what you would like to change.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-09T19:28:55+08:00"
+        },
+        {
+          "message": "CONFIRM",
+          "sent_by": "customer",
+          "message_time": "2026-10-09T19:29:35+08:00"
+        },
+        {
+          "message": "Thank you! Your booking #85 with Rally Point Courts is confirmed.\n- Badminton Court (1 hour) (1 h)\n- Fri 13 Nov, 7pm – 8pm\nPrice: $20.00\n\nYour details:\n- Name: Chloe Ng\n- Email: chloe.ng11@outlook.com\n- Number of players: 4\n\nTo pay, use this link: https://checkout-staging.xendit.co/sessions/ps-d74e354df29abb367806a645",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-09T19:29:43+08:00"
+        }
+      ],
+      "chat_state_id": "start",
+      "chat_state_data": {
+        "last_booking_id": 85
+      },
+      "is_sandbox": false
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 26,
+    "fields": {
+      "business": 5,
+      "phone_number": "+6582743889",
+      "display_name": "Haziq Ismail",
+      "created_time": "2026-10-10T14:08:00+08:00",
+      "last_chat_time": "2026-10-10T14:11:35+08:00",
+      "chat_message_json": [
+        {
+          "message": "Morning! Badminton on Sunday 22 Nov, before lunch?",
+          "sent_by": "customer",
+          "message_time": "2026-10-10T14:08:00+08:00"
+        },
+        {
+          "message": "Hi, welcome to Rally Point Courts! I can book a badminton or tennis court for you (1-hour slots, 9am to 9pm daily), take your order for rackets, shuttlecocks and balls, or answer your questions.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-10T14:08:12+08:00"
+        },
+        {
+          "message": "Here are some available times for Badminton Court (1 hour) ($20.00, 1 h):\n1. Sun 22 Nov, 10am\n2. Sun 22 Nov, 11am\n3. Sun 22 Nov, 12pm\n\nPlease reply with the number of the time you would like, or tell me another day or time that suits you.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-10T14:08:22+08:00"
+        },
+        {
+          "message": "2 please",
+          "sent_by": "customer",
+          "message_time": "2026-10-10T14:09:07+08:00"
+        },
+        {
+          "message": "Sun 22 Nov at 11am, done deal once you confirm 🏸 Your name and email please? And how many players?",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-10T14:09:23+08:00"
+        },
+        {
+          "message": "Haziq Ismail, haziq.ismail60@outlook.com, 3",
+          "sent_by": "customer",
+          "message_time": "2026-10-10T14:10:33+08:00"
+        },
+        {
+          "message": "Here is your booking summary:\n- Badminton Court (1 hour) (1 h)\n- Sun 22 Nov, 11am – 12pm\nPrice: $20.00\n\nYour details:\n- Name: Haziq Ismail\n- Email: haziq.ismail60@outlook.com\n- Number of players: 3\n\nPlease reply CONFIRM to book it, or tell me what you would like to change.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-10T14:10:47+08:00"
+        },
+        {
+          "message": "CONFIRM",
+          "sent_by": "customer",
+          "message_time": "2026-10-10T14:11:27+08:00"
+        },
+        {
+          "message": "Thank you! Your booking #86 with Rally Point Courts is confirmed.\n- Badminton Court (1 hour) (1 h)\n- Sun 22 Nov, 11am – 12pm\nPrice: $20.00\n\nYour details:\n- Name: Haziq Ismail\n- Email: haziq.ismail60@outlook.com\n- Number of players: 3\n\nTo pay, use this link: https://checkout-staging.xendit.co/sessions/ps-6499df1674ac074550d1488b",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-10T14:11:35+08:00"
+        }
+      ],
+      "chat_state_id": "start",
+      "chat_state_data": {
+        "last_booking_id": 86
+      },
+      "is_sandbox": false
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 27,
+    "fields": {
+      "business": 5,
+      "phone_number": "+6591609696",
+      "display_name": "Siti Nurhaliza",
+      "created_time": "2026-10-04T11:20:00+08:00",
+      "last_chat_time": "2026-10-04T11:23:32+08:00",
+      "chat_message_json": [
+        {
+          "message": "Hi, do you sell the Aerosensa 30 shuttlecocks?",
+          "sent_by": "customer",
+          "message_time": "2026-10-04T11:20:00+08:00"
+        },
+        {
+          "message": "Hi, welcome to Rally Point Courts! I can book a badminton or tennis court for you (1-hour slots, 9am to 9pm daily), take your order for rackets, shuttlecocks and balls, or answer your questions.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-04T11:20:12+08:00"
+        },
+        {
+          "message": "Yep, we do! Yonex Aerosensa 30 Shuttlecocks (Tube of 12) are $42.00 a tube. How many tubes would you like?",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-04T11:20:28+08:00"
+        },
+        {
+          "message": "2 tubes, that's all",
+          "sent_by": "customer",
+          "message_time": "2026-10-04T11:21:23+08:00"
+        },
+        {
+          "message": "Cool! Could I get your name and email for the order? You'll collect it at our front counter.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-04T11:21:37+08:00"
+        },
+        {
+          "message": "Siti Nurhaliza, siti.nurhaliza53@outlook.com",
+          "sent_by": "customer",
+          "message_time": "2026-10-04T11:22:37+08:00"
+        },
+        {
+          "message": "Here is your order summary:\n- 2 × Yonex Aerosensa 30 Shuttlecocks (Tube of 12), $42.00 each\nTotal: $84.00\n\nYour details:\n- Name: Siti Nurhaliza\n- Email: siti.nurhaliza53@outlook.com\n\nPlease reply CONFIRM to place your order, or tell me what you would like to change.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-04T11:22:49+08:00"
+        },
+        {
+          "message": "CONFIRM",
+          "sent_by": "customer",
+          "message_time": "2026-10-04T11:23:24+08:00"
+        },
+        {
+          "message": "Thank you! Your order #50 with Rally Point Courts is confirmed.\n- 2 × Yonex Aerosensa 30 Shuttlecocks (Tube of 12), $42.00 each\nTotal: $84.00\n\nYour details:\n- Name: Siti Nurhaliza\n- Email: siti.nurhaliza53@outlook.com\n\nTo pay, use this link: https://checkout-staging.xendit.co/sessions/ps-58db348ec43b163fca22643e",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-04T11:23:32+08:00"
+        }
+      ],
+      "chat_state_id": "start",
+      "chat_state_data": {
+        "last_order_id": 50
+      },
+      "is_sandbox": false
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 28,
+    "fields": {
+      "business": 5,
+      "phone_number": "+6587473956",
+      "display_name": "Rachel Goh",
+      "created_time": "2026-10-08T18:40:00+08:00",
+      "last_chat_time": "2026-10-08T18:43:32+08:00",
+      "chat_message_json": [
+        {
+          "message": "hey, can i order a badminton racket? the nanoflare 700",
+          "sent_by": "customer",
+          "message_time": "2026-10-08T18:40:00+08:00"
+        },
+        {
+          "message": "Hi, welcome to Rally Point Courts! I can book a badminton or tennis court for you (1-hour slots, 9am to 9pm daily), take your order for rackets, shuttlecocks and balls, or answer your questions.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-08T18:40:12+08:00"
+        },
+        {
+          "message": "For sure! The Yonex Nanoflare 700 Badminton Racket is $239.00. Want a tube of Aerosensa 30 shuttlecocks ($42.00) with it, or just the racket?",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-08T18:40:28+08:00"
+        },
+        {
+          "message": "the racket and 1 tube of shuttles please",
+          "sent_by": "customer",
+          "message_time": "2026-10-08T18:41:23+08:00"
+        },
+        {
+          "message": "Cool! Could I get your name and email for the order? You'll collect it at our front counter.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-08T18:41:37+08:00"
+        },
+        {
+          "message": "Rachel Goh, rachel.goh59@outlook.com",
+          "sent_by": "customer",
+          "message_time": "2026-10-08T18:42:37+08:00"
+        },
+        {
+          "message": "Here is your order summary:\n- 1 × Yonex Nanoflare 700 Badminton Racket, $239.00 each\n- 1 × Yonex Aerosensa 30 Shuttlecocks (Tube of 12), $42.00 each\nTotal: $281.00\n\nYour details:\n- Name: Rachel Goh\n- Email: rachel.goh59@outlook.com\n\nPlease reply CONFIRM to place your order, or tell me what you would like to change.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-08T18:42:49+08:00"
+        },
+        {
+          "message": "CONFIRM",
+          "sent_by": "customer",
+          "message_time": "2026-10-08T18:43:24+08:00"
+        },
+        {
+          "message": "Thank you! Your order #51 with Rally Point Courts is confirmed.\n- 1 × Yonex Nanoflare 700 Badminton Racket, $239.00 each\n- 1 × Yonex Aerosensa 30 Shuttlecocks (Tube of 12), $42.00 each\nTotal: $281.00\n\nYour details:\n- Name: Rachel Goh\n- Email: rachel.goh59@outlook.com\n\nTo pay, use this link: https://checkout-staging.xendit.co/sessions/ps-44bfdbe9ca8b908af67dc1f6",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-08T18:43:32+08:00"
+        }
+      ],
+      "chat_state_id": "start",
+      "chat_state_data": {
+        "last_order_id": 51
+      },
+      "is_sandbox": false
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 29,
+    "fields": {
+      "business": 5,
+      "phone_number": "+6591210312",
+      "display_name": "Kelvin Ong",
+      "created_time": "2026-10-10T16:05:00+08:00",
+      "last_chat_time": "2026-10-10T16:08:32+08:00",
+      "chat_message_json": [
+        {
+          "message": "Do you have tennis balls?",
+          "sent_by": "customer",
+          "message_time": "2026-10-10T16:05:00+08:00"
+        },
+        {
+          "message": "Hi, welcome to Rally Point Courts! I can book a badminton or tennis court for you (1-hour slots, 9am to 9pm daily), take your order for rackets, shuttlecocks and balls, or answer your questions.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-10T16:05:12+08:00"
+        },
+        {
+          "message": "We do! Wilson US Open Tennis Balls (Can of 3) are $9.90 a can. How many cans would you like?",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-10T16:05:28+08:00"
+        },
+        {
+          "message": "4 cans pls",
+          "sent_by": "customer",
+          "message_time": "2026-10-10T16:06:23+08:00"
+        },
+        {
+          "message": "Cool! Could I get your name and email for the order? You'll collect it at our front counter.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-10T16:06:37+08:00"
+        },
+        {
+          "message": "Kelvin Ong, kelvin.ong94@outlook.com",
+          "sent_by": "customer",
+          "message_time": "2026-10-10T16:07:37+08:00"
+        },
+        {
+          "message": "Here is your order summary:\n- 4 × Wilson US Open Tennis Balls (Can of 3), $9.90 each\nTotal: $39.60\n\nYour details:\n- Name: Kelvin Ong\n- Email: kelvin.ong94@outlook.com\n\nPlease reply CONFIRM to place your order, or tell me what you would like to change.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-10T16:07:49+08:00"
+        },
+        {
+          "message": "CONFIRM",
+          "sent_by": "customer",
+          "message_time": "2026-10-10T16:08:24+08:00"
+        },
+        {
+          "message": "Thank you! Your order #52 with Rally Point Courts is confirmed.\n- 4 × Wilson US Open Tennis Balls (Can of 3), $9.90 each\nTotal: $39.60\n\nYour details:\n- Name: Kelvin Ong\n- Email: kelvin.ong94@outlook.com\n\nTo pay, use this link: https://checkout-staging.xendit.co/sessions/ps-258b91b362ce1cacb76b7620",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-10T16:08:32+08:00"
+        }
+      ],
+      "chat_state_id": "start",
+      "chat_state_data": {
+        "last_order_id": 52
+      },
+      "is_sandbox": false
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 30,
+    "fields": {
+      "business": 5,
+      "phone_number": "+6596697913",
+      "display_name": "Joanne Lee",
+      "created_time": "2026-10-11T10:52:00+08:00",
+      "last_chat_time": "2026-10-11T10:52:22+08:00",
+      "chat_message_json": [
+        {
+          "message": "hi can i book tennis on sat 28 nov evening?",
+          "sent_by": "customer",
+          "message_time": "2026-10-11T10:52:00+08:00"
+        },
+        {
+          "message": "Hi, welcome to Rally Point Courts! I can book a badminton or tennis court for you (1-hour slots, 9am to 9pm daily), take your order for rackets, shuttlecocks and balls, or answer your questions.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-11T10:52:12+08:00"
+        },
+        {
+          "message": "Here are some available times for Tennis Court (1 hour) ($32.00, 1 h):\n1. Sat 28 Nov, 5pm\n2. Sat 28 Nov, 6pm\n3. Sat 28 Nov, 7pm\n4. Sat 28 Nov, 8pm\n\nPlease reply with the number of the time you would like, or tell me another day or time that suits you.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-11T10:52:22+08:00"
+        }
+      ],
+      "chat_state_id": "slot_selection",
+      "chat_state_data": {
+        "service": {
+          "service_id": 10,
+          "name": "Tennis Court (1 hour)",
+          "price": "32.00",
+          "duration_minutes": 60,
+          "buffer_minutes": 0
+        },
+        "slot_options": [
+          "2026-11-28T17:00:00+08:00",
+          "2026-11-28T18:00:00+08:00",
+          "2026-11-28T19:00:00+08:00",
+          "2026-11-28T20:00:00+08:00"
+        ]
+      },
+      "is_sandbox": false
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 31,
+    "fields": {
+      "business": 5,
+      "phone_number": "+6587243945",
+      "display_name": "Benjamin Chua",
+      "created_time": "2026-10-11T09:15:00+08:00",
+      "last_chat_time": "2026-10-11T09:16:42+08:00",
+      "chat_message_json": [
+        {
+          "message": "Hi, I need tennis balls and maybe a racket",
+          "sent_by": "customer",
+          "message_time": "2026-10-11T09:15:00+08:00"
+        },
+        {
+          "message": "Hi, welcome to Rally Point Courts! I can book a badminton or tennis court for you (1-hour slots, 9am to 9pm daily), take your order for rackets, shuttlecocks and balls, or answer your questions.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-11T09:15:12+08:00"
+        },
+        {
+          "message": "Nice! Wilson US Open Tennis Balls (Can of 3) are $9.90 a can, and the Wilson Clash 100 v2 Tennis Racket is $329.00 (only 2 left!). How many cans would you like, and do you want the racket too?",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-11T09:15:28+08:00"
+        },
+        {
+          "message": "3 cans first, let me think about the racket",
+          "sent_by": "customer",
+          "message_time": "2026-10-11T09:16:28+08:00"
+        },
+        {
+          "message": "Got it, 3 cans of Wilson US Open Tennis Balls. Take your time with the racket: anything else you'd like to add, or is that everything?",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-11T09:16:42+08:00"
+        }
+      ],
+      "chat_state_id": "product_selection",
+      "chat_state_data": {
+        "items": [
+          {
+            "product_id": 34,
+            "name": "Wilson US Open Tennis Balls (Can of 3)",
+            "unit_price": "9.90",
+            "quantity": 3
+          }
+        ]
+      },
+      "is_sandbox": false
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 32,
+    "fields": {
+      "business": 5,
+      "phone_number": "+6586643806",
+      "display_name": "Nurul Huda",
+      "created_time": "2026-10-06T13:03:00+08:00",
+      "last_chat_time": "2026-10-06T13:05:21+08:00",
+      "chat_message_json": [
+        {
+          "message": "Hello, is there parking and showers at your place?",
+          "sent_by": "customer",
+          "message_time": "2026-10-06T13:03:00+08:00"
+        },
+        {
+          "message": "Hi, welcome to Rally Point Courts! I can book a badminton or tennis court for you (1-hour slots, 9am to 9pm daily), take your order for rackets, shuttlecocks and balls, or answer your questions.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-06T13:03:12+08:00"
+        },
+        {
+          "message": "Yes! There's a car park next to the building ($1.20 an hour), and changing rooms with lockers and showers on level 1.",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-06T13:03:27+08:00"
+        },
+        {
+          "message": "are the badminton courts air-conditioned?",
+          "sent_by": "customer",
+          "message_time": "2026-10-06T13:04:17+08:00"
+        },
+        {
+          "message": "Yep, both badminton courts are indoors and air-conditioned. Want me to book one for you?",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-06T13:04:31+08:00"
+        },
+        {
+          "message": "maybe next week, thanks!",
+          "sent_by": "customer",
+          "message_time": "2026-10-06T13:05:11+08:00"
+        },
+        {
+          "message": "No problem, just message here when you're ready 🏸",
+          "sent_by": "business-automated",
+          "message_time": "2026-10-06T13:05:21+08:00"
+        }
+      ],
+      "chat_state_id": "start",
+      "chat_state_data": {},
+      "is_sandbox": false
+    }
   }
 ]

@@ -1,3 +1,5 @@
+import { Package } from "lucide-react";
+
 import { SectionLayout } from "@/components/layout/section-layout";
 import { catalogTabs } from "@/config/navigation";
 import { faqKeys } from "@/features/faqs";
@@ -15,6 +17,8 @@ const REFRESH_KEYS = [
 export function CatalogPage() {
   return (
     <SectionLayout
+      icon={Package}
+      accent="emerald"
       title="Catalog"
       description="What your business sells and answers questions about: the chat assistant works from these."
       tabs={catalogTabs}

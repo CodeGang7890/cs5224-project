@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta, timezone
 import os
 import unittest
 from types import SimpleNamespace
@@ -69,6 +70,15 @@ class HandleTests(unittest.TestCase):
         handle_inbound.assert_called_once_with(sessions, PAYLOAD)
         self.assertIn("Customer message wamid.1 for business 1 from +6591234567 (text): 'Hi! Do you have pandan chiffon cake?'", logs.output[0])
         self.assertEqual((self.stats.handled, self.stats.skipped, self.stats.failed), (1, 0, 0))
+
+    def test_the_time_waiting_in_pubsub_is_logged(self, handle_inbound):
+        handle_inbound.return_value = SimpleNamespace(outcome='replied')
+        pulled = message()
+        pulled.publish_time = datetime.now(timezone.utc) - timedelta(seconds=2)
+        with self.assertLogs('app.latency', level='INFO') as logs:
+            handle(pulled, self.stats, MagicMock())
+        self.assertRegex(logs.output[0], r'\[LATENCY\]\[PUBSUB\] 2\.\d{3}s channel=whatsapp business=1 msg=wamid\.1$')
+        self.assertRegex(logs.output[1], r'\[LATENCY\]\[E2E\] \d+\.\d{3}s channel=whatsapp business=1 msg=wamid\.1 outcome=replied$')
 
     def test_a_skipped_message_is_acked_too(self, handle_inbound):
         handle_inbound.return_value = SimpleNamespace(outcome='skipped', reason='already replied (a duplicate)')

@@ -42,7 +42,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
-from .. import llm
+from .. import latency, llm
 from ..models import BusinessConfiguration, ChatSession
 from . import dates as timezone  # timezone.now(), like django.utils.timezone
 from . import order_flow, past_orders, payments, prompts, router
@@ -104,9 +104,19 @@ def handle_customer_message(sessions: sessionmaker, session_id: int, message: st
     customer message is already the chat's last one (saved with its InboundMessage record, so a
     redelivered message is never saved twice).
     """
+    with latency.timed('TURN') as turn_timer:
+        result = _handle_customer_message(sessions, session_id, message, save_message)
+        turn_timer.fields.update(
+            reply_kind=result.debug['reply_kind'], intents=result.debug['route']['intents'],
+            step=result.debug['after']['chat_state_id'], messages=len(result.messages),
+        )
+    return result
+
+
+def _handle_customer_message(sessions: sessionmaker, session_id: int, message: str, save_message: bool) -> TurnResult:
     if save_message:
         append_chat_message(sessions, session_id, message, SENT_BY_CUSTOMER)
-    with sessions() as db:
+    with latency.timed('DB', 'LOAD'), sessions() as db:
         session = db.get(ChatSession, session_id)
         business = db.get(BusinessConfiguration, session.business_id)
         products = active_products(db, business)
@@ -119,24 +129,33 @@ def handle_customer_message(sessions: sessionmaker, session_id: int, message: st
     before = {'chat_state_id': session.chat_state_id, 'chat_state_data': session.chat_state_data}
     now = timezone.now()
 
-    route = router.route_message(
-        business, session.chat_state_id, session.chat_state_data, history, products, services
-    )
+    with latency.timed('LLM', 'ROUTER') as timer:
+        route = router.route_message(
+            business, session.chat_state_id, session.chat_state_data, history, products, services
+        )
+        timer.fields['intents'] = route.intents
     turn = order_flow.advance(
         chat_config, session.chat_state_id, session.chat_state_data, history, products,
         start_order=route.start_order, start_booking=route.start_booking, services=services, now=now,
         sessions=sessions,
     )
-    order_flow.commit_turn(sessions, session_id, turn, now)
+    with latency.timed('DB', 'COMMIT_TURN') as timer:
+        order_flow.commit_turn(sessions, session_id, turn, now)
+        timer.fields.update(step=turn.step, order=turn.placed_order_id, booking=turn.placed_booking_id)
     if turn.placed_order_id is not None or turn.placed_booking_id is not None:
         # The customer confirmed: the confirmation message ends with the Xendit payment link
         # (or a note if it could not be created).
-        payments.store_payment_for_placed(sessions, turn, business)
+        kind = 'order' if turn.placed_order_id is not None else 'booking'
+        with latency.timed('PAYMENT', kind=kind, id=turn.placed_order_id or turn.placed_booking_id) as timer:
+            payments.store_payment_for_placed(sessions, turn, business)
+            timer.fields['link'] = 'yes' if turn.payment_link else 'no'
+
     chosen_service = turn.data.get('service', {}).get('service_id')
-    check = (
-        check_customer_question(sessions, session, business, message, history, products, services, chosen_service)
-        if route.question else None
-    )
+    check = None
+    if route.question:
+        with latency.timed('LLM', 'QUESTION_CHECK') as timer:
+            check = check_customer_question(sessions, session, business, message, history, products, services, chosen_service)
+            timer.fields.update(kind=check['kind'], saved=check['saved'])
 
     status = check_order_status(sessions, session, business, history, now) if route.order_status else None
     records = status['records'] if status else None
@@ -167,7 +186,9 @@ def handle_customer_message(sessions: sessionmaker, session_id: int, message: st
             system_prompt = prompts.build_aside_prompt(
                 business, context=context, intents=route.intents, question_check=check, order_records=records, style=style
             )
-            aside = llm.generate_chat_reply(system_prompt, history, toolbox).strip()
+            with latency.timed('LLM', 'ASIDE', kind=reply_kind) as timer:
+                aside = llm.generate_chat_reply(system_prompt, history, toolbox).strip()
+                timer.fields['tools'] = len(toolbox.calls)
             if aside:  # before the summary / times, or after the confirmation
                 parts = [aside, text] if aside_first else [text, aside]
         reply = '\n\n'.join(parts)
@@ -184,8 +205,10 @@ def handle_customer_message(sessions: sessionmaker, session_id: int, message: st
         else:
             reply_kind = REPLY_ORDER_STATUS
             system_prompt = prompts.build_order_status_prompt(business, records, style=style, welcomed=bool(welcome))
-            reply = llm.generate_chat_reply(system_prompt, history)
-            if not past_orders.reply_is_grounded(reply, found):
+            with latency.timed('LLM', 'ORDER_STATUS', 'REPLY') as timer:
+                reply = llm.generate_chat_reply(system_prompt, history)
+                timer.fields['grounded'] = past_orders.reply_is_grounded(reply, found)
+            if not timer.fields['grounded']:
                 reply_kind = REPLY_ORDER_STATUS_FALLBACK
                 reply = prompts.order_status_fallback_message(found)
     else:
@@ -207,7 +230,9 @@ def handle_customer_message(sessions: sessionmaker, session_id: int, message: st
             style=style,
             welcomed=bool(welcome),
         )
-        reply = llm.generate_chat_reply(system_prompt, history, toolbox)
+        with latency.timed('LLM', 'REPLY', step=turn.step) as timer:
+            reply = llm.generate_chat_reply(system_prompt, history, toolbox)
+            timer.fields['tools'] = len(toolbox.calls)
     if reply is not None:
         sent.append(append_chat_message(sessions, session_id, reply.strip() or '…', SENT_BY_BUSINESS_AUTOMATED))
     debug = {
@@ -336,10 +361,12 @@ def check_order_status(
     `records` (prompts.format_order_records: the only facts the reply may use).
     """
     system_prompt = prompts.build_order_status_extraction_prompt(business)
-    extracted = llm.generate_structured(system_prompt, history, prompts.ORDER_STATUS_SCHEMA)
+    with latency.timed('LLM', 'ORDER_STATUS', 'EXTRACTION'):
+        extracted = llm.generate_structured(system_prompt, history, prompts.ORDER_STATUS_SCHEMA)
     kind, numbers = past_orders.clean_request(extracted)
-    with sessions() as db:
+    with latency.timed('DB', 'ORDER_STATUS', 'LOOKUP', kind=kind, numbers=numbers or None) as timer, sessions() as db:
         found = past_orders.lookup(db, session, kind, numbers, now)
+        timer.fields['found'] = len(found.orders) + len(found.bookings)
     return {
         'extracted': extracted,
         'system_prompt': system_prompt,

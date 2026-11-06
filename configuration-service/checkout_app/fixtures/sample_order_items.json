@@ -1533,5 +1533,353 @@
       "created_time": "2026-10-10T10:57:00+08:00",
       "updated_time": "2026-10-10T10:57:00+08:00"
     }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 50,
+    "fields": {
+      "business": 5,
+      "chat_session": 27,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "payment_reference": "b1bb32f4680eab324a34736abca46f76",
+      "xendit_payment_id": "ps-58db348ec43b163fca22643e",
+      "payment_link": "https://checkout-staging.xendit.co/sessions/ps-58db348ec43b163fca22643e",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 32,
+            "name": "Yonex Aerosensa 30 Shuttlecocks (Tube of 12)",
+            "unit_price": "42.00",
+            "quantity": 2
+          }
+        ],
+        "details": {
+          "name": "Siti Nurhaliza",
+          "email": "siti.nurhaliza53@outlook.com"
+        }
+      },
+      "created_time": "2026-10-04T11:23:28+08:00",
+      "updated_time": "2026-10-05T12:23:28+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 51,
+    "fields": {
+      "business": 5,
+      "chat_session": 28,
+      "is_sandbox": false,
+      "order_status": "payment_received",
+      "payment_reference": "1ccbf669d878b7e27d8e9d6b34ff1e71",
+      "xendit_payment_id": "ps-44bfdbe9ca8b908af67dc1f6",
+      "payment_link": "https://checkout-staging.xendit.co/sessions/ps-44bfdbe9ca8b908af67dc1f6",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 30,
+            "name": "Yonex Nanoflare 700 Badminton Racket",
+            "unit_price": "239.00",
+            "quantity": 1
+          },
+          {
+            "product_id": 32,
+            "name": "Yonex Aerosensa 30 Shuttlecocks (Tube of 12)",
+            "unit_price": "42.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Rachel Goh",
+          "email": "rachel.goh59@outlook.com"
+        }
+      },
+      "created_time": "2026-10-08T18:43:28+08:00",
+      "updated_time": "2026-10-08T22:03:28+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 52,
+    "fields": {
+      "business": 5,
+      "chat_session": 29,
+      "is_sandbox": false,
+      "order_status": "pending_payment",
+      "payment_reference": "994dbd48a219953ceb36577b01acf061",
+      "xendit_payment_id": "ps-258b91b362ce1cacb76b7620",
+      "payment_link": "https://checkout-staging.xendit.co/sessions/ps-258b91b362ce1cacb76b7620",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 34,
+            "name": "Wilson US Open Tennis Balls (Can of 3)",
+            "unit_price": "9.90",
+            "quantity": 4
+          }
+        ],
+        "details": {
+          "name": "Kelvin Ong",
+          "email": "kelvin.ong94@outlook.com"
+        }
+      },
+      "created_time": "2026-10-10T16:08:28+08:00",
+      "updated_time": "2026-10-10T16:08:28+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 53,
+    "fields": {
+      "business": 5,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "payment_reference": "3f6e6b1ab23cec89364f2f67bbd274e7",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 32,
+            "name": "Yonex Aerosensa 30 Shuttlecocks (Tube of 12)",
+            "unit_price": "42.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Shermaine Yeo",
+          "email": "shermaine.yeo55@hotmail.com"
+        }
+      },
+      "created_time": "2026-09-29T18:13:00+08:00",
+      "updated_time": "2026-10-03T22:13:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 54,
+    "fields": {
+      "business": 5,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "payment_reference": "c65bbc80e05e729c901ea8e15bf9a21c",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 34,
+            "name": "Wilson US Open Tennis Balls (Can of 3)",
+            "unit_price": "9.90",
+            "quantity": 2
+          }
+        ],
+        "details": {
+          "name": "Arjun Pillai",
+          "email": "arjun.pillai37@gmail.com"
+        }
+      },
+      "created_time": "2026-09-26T19:00:00+08:00",
+      "updated_time": "2026-09-27T23:00:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 55,
+    "fields": {
+      "business": 5,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "order_completed",
+      "payment_reference": "389075c3be200b337d28708ca8df100f",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 31,
+            "name": "Yonex Astrox 99 Pro Badminton Racket",
+            "unit_price": "289.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Joanne Lee",
+          "email": "joanne.lee13@gmail.com"
+        }
+      },
+      "created_time": "2026-09-19T12:16:00+08:00",
+      "updated_time": "2026-09-20T15:16:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 56,
+    "fields": {
+      "business": 5,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "payment_received",
+      "payment_reference": "d85590276533a2fbbd913a91cf666a1c",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 33,
+            "name": "Wilson Clash 100 v2 Tennis Racket",
+            "unit_price": "329.00",
+            "quantity": 1
+          },
+          {
+            "product_id": 34,
+            "name": "Wilson US Open Tennis Balls (Can of 3)",
+            "unit_price": "9.90",
+            "quantity": 3
+          }
+        ],
+        "details": {
+          "name": "Faizal Hassan",
+          "email": "faizal.hassan39@hotmail.com"
+        }
+      },
+      "created_time": "2026-10-04T12:06:00+08:00",
+      "updated_time": "2026-10-04T12:38:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 57,
+    "fields": {
+      "business": 5,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "payment_received",
+      "payment_reference": "192119094e268a5e87b5099cf295042a",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 30,
+            "name": "Yonex Nanoflare 700 Badminton Racket",
+            "unit_price": "239.00",
+            "quantity": 2
+          },
+          {
+            "product_id": 32,
+            "name": "Yonex Aerosensa 30 Shuttlecocks (Tube of 12)",
+            "unit_price": "42.00",
+            "quantity": 2
+          }
+        ],
+        "details": {
+          "name": "Vanessa Tay",
+          "email": "vanessa.tay57@hotmail.com"
+        }
+      },
+      "created_time": "2026-10-03T10:07:00+08:00",
+      "updated_time": "2026-10-03T10:42:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 58,
+    "fields": {
+      "business": 5,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "pending_payment",
+      "payment_reference": "e7a304aa4b8559ecc0b5b876ac91819c",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 32,
+            "name": "Yonex Aerosensa 30 Shuttlecocks (Tube of 12)",
+            "unit_price": "42.00",
+            "quantity": 3
+          }
+        ],
+        "details": {
+          "name": "Ryan Sim",
+          "email": "ryan.sim70@gmail.com"
+        }
+      },
+      "created_time": "2026-10-06T20:36:00+08:00",
+      "updated_time": "2026-10-06T20:36:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 59,
+    "fields": {
+      "business": 5,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "payment_failed",
+      "payment_reference": "353af6986bcffd10018f34c0f7a79f8c",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 34,
+            "name": "Wilson US Open Tennis Balls (Can of 3)",
+            "unit_price": "9.90",
+            "quantity": 6
+          }
+        ],
+        "details": {
+          "name": "Michelle Low",
+          "email": "michelle.low17@hotmail.com"
+        }
+      },
+      "created_time": "2026-10-05T12:50:00+08:00",
+      "updated_time": "2026-10-06T13:00:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 60,
+    "fields": {
+      "business": 5,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "payment_failed",
+      "payment_reference": "1fb30d6fe5817a0e3f2adc57b2cb2e84",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 30,
+            "name": "Yonex Nanoflare 700 Badminton Racket",
+            "unit_price": "239.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Adrian Foo",
+          "email": "adrian.foo3@hotmail.com"
+        }
+      },
+      "created_time": "2026-10-03T16:18:00+08:00",
+      "updated_time": "2026-10-04T16:56:00+08:00"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 61,
+    "fields": {
+      "business": 5,
+      "chat_session": null,
+      "is_sandbox": false,
+      "order_status": "pending_payment",
+      "payment_reference": "341a1e6d895eb9467658bf4a2f962e0a",
+      "order_data": {
+        "items": [
+          {
+            "product_id": 33,
+            "name": "Wilson Clash 100 v2 Tennis Racket",
+            "unit_price": "329.00",
+            "quantity": 1
+          }
+        ],
+        "details": {
+          "name": "Natalie Wong",
+          "email": "natalie.wong61@hotmail.com"
+        }
+      },
+      "created_time": "2026-10-10T08:18:00+08:00",
+      "updated_time": "2026-10-10T08:18:00+08:00"
+    }
   }
 ]
