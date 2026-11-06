@@ -217,36 +217,38 @@ resource "google_cloud_run_v2_service" "backend" {
           GCP_PROJECT_ID = var.project_id
           PUBSUB_TOPIC   = google_pubsub_topic.queue["payment-queue"].name
           } : each.key == "processing-service" ? {
-          GCP_PROJECT_ID            = var.project_id
-          PUBSUB_TOPIC              = google_pubsub_topic.queue["payment-queue"].name
-          PUBSUB_SUBSCRIPTION       = google_pubsub_subscription.queue["payment-queue"].name
-          CONFIGURATION_SERVICE_URL = "https://configuration-service-gq6jjn4afq-uc.a.run.app/api"
-          SCHEDULE_TIME_ZONE        = "Asia/Singapore"
-          PUBSUB_CONSUMER_ENABLED   = tostring(var.us_queue_consumers_enabled)
-          PUBSUB_MAX_MESSAGES       = "5"
-          WEB_CONCURRENCY           = "2"
-          GCS_BUCKET                = google_storage_bucket.objects.name
-          INVOICE_CURRENCY          = "SGD"
-          EMAIL_ENABLED             = "true"
-          EMAIL_FROM                = "ansera.admin@gmail.com"
-          EMAIL_FROM_NAME           = "Ansera"
-          SMTP_HOST                 = "smtp-relay.brevo.com"
-          SMTP_PORT                 = "587"
-          SMTP_USERNAME             = "bec985001@smtp-brevo.com"
+          GCP_PROJECT_ID              = var.project_id
+          PUBSUB_TOPIC                = google_pubsub_topic.queue["payment-queue"].name
+          PUBSUB_SUBSCRIPTION         = google_pubsub_subscription.queue["payment-queue"].name
+          PUBSUB_ACK_DEADLINE_SECONDS = tostring(google_pubsub_subscription.queue["payment-queue"].ack_deadline_seconds)
+          CONFIGURATION_SERVICE_URL   = "https://configuration-service-gq6jjn4afq-uc.a.run.app/api"
+          SCHEDULE_TIME_ZONE          = "Asia/Singapore"
+          PUBSUB_CONSUMER_ENABLED     = tostring(var.us_queue_consumers_enabled)
+          PUBSUB_MAX_MESSAGES         = "5"
+          WEB_CONCURRENCY             = "2"
+          GCS_BUCKET                  = google_storage_bucket.objects.name
+          INVOICE_CURRENCY            = "SGD"
+          EMAIL_ENABLED               = "true"
+          EMAIL_FROM                  = "ansera.admin@gmail.com"
+          EMAIL_FROM_NAME             = "Ansera"
+          SMTP_HOST                   = "smtp-relay.brevo.com"
+          SMTP_PORT                   = "587"
+          SMTP_USERNAME               = "bec985001@smtp-brevo.com"
           } : each.key == "messaging-ingester" ? {
           CONFIGURATION_SERVICE_URL = var.us_legacy_messaging_ingester_configuration_service_url
           GCP_PROJECT_ID            = var.project_id
           PUBSUB_TOPIC              = google_pubsub_topic.queue["messaging-queue"].name
           } : each.key == "messaging-service" ? {
-          PAYMENT_INGESTER_URL      = var.payment_ingester_url
-          CONFIGURATION_SERVICE_URL = "https://configuration-service-gq6jjn4afq-uc.a.run.app/api"
-          CORS_ALLOWED_ORIGINS      = "https://${var.firebase_hosting_site_id}.web.app,https://${var.firebase_hosting_site_id}.firebaseapp.com"
-          PUBSUB_CONSUMER_ENABLED   = tostring(var.us_queue_consumers_enabled)
-          GCP_PROJECT_ID            = var.project_id
-          PUBSUB_TOPIC              = google_pubsub_topic.queue["messaging-queue"].name
-          PUBSUB_SUBSCRIPTION       = google_pubsub_subscription.queue["messaging-queue"].name
-          PUBSUB_MAX_MESSAGES       = "5"
-          WEB_CONCURRENCY           = "2"
+          PAYMENT_INGESTER_URL        = var.payment_ingester_url
+          CONFIGURATION_SERVICE_URL   = "https://configuration-service-gq6jjn4afq-uc.a.run.app/api"
+          CORS_ALLOWED_ORIGINS        = "https://${var.firebase_hosting_site_id}.web.app,https://${var.firebase_hosting_site_id}.firebaseapp.com"
+          PUBSUB_CONSUMER_ENABLED     = tostring(var.us_queue_consumers_enabled)
+          GCP_PROJECT_ID              = var.project_id
+          PUBSUB_TOPIC                = google_pubsub_topic.queue["messaging-queue"].name
+          PUBSUB_SUBSCRIPTION         = google_pubsub_subscription.queue["messaging-queue"].name
+          PUBSUB_ACK_DEADLINE_SECONDS = tostring(google_pubsub_subscription.queue["messaging-queue"].ack_deadline_seconds)
+          PUBSUB_MAX_MESSAGES         = "5"
+          WEB_CONCURRENCY             = "2"
         } : {}
         content {
           name  = env.key

@@ -26,8 +26,31 @@ resource "google_storage_bucket" "objects" {
   }
 }
 
+# The queues and their worker subscriptions (docker-compose's pubsub-init sets up the same locally).
+# A message nacked or not acked within the ack deadline is redelivered after a backoff of 30s growing
+# to 600s; after 5 delivery attempts Pub/Sub moves it to the queue's dead-letter topic (<queue>-dlq).
+# The consumers' leases match the ack deadlines (PUBSUB_ACK_DEADLINE_SECONDS in run.tf).
+locals {
+  pubsub_queues = {
+    # WhatsApp messages → messaging-service: a chat turn can take a while; ordered, so a customer's
+    # messages to a business come one at a time (messaging-ingester's ordering key).
+    "messaging-queue" = { ack_deadline_seconds = 120, ordered = true, dead_letter = true }
+    # Xendit payment events → processing-service.
+    "payment-queue" = { ack_deadline_seconds = 60, ordered = false, dead_letter = true }
+    # Unused by the notification job (Cloud Scheduler runs it directly): unchanged.
+    "notification-tick" = { ack_deadline_seconds = 30, ordered = false, dead_letter = false }
+  }
+  pubsub_dead_letter_queues    = toset([for name, queue in local.pubsub_queues : name if queue.dead_letter])
+  pubsub_min_backoff           = "30s"
+  pubsub_max_backoff           = "600s"
+  pubsub_max_delivery_attempts = 5
+  # Pub/Sub's service agent forwards dead letters: it publishes to the dead-letter topic and acks the
+  # message on the original subscription.
+  pubsub_service_agent = "serviceAccount:service-${data.google_project.current.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+}
+
 resource "google_pubsub_topic" "queue" {
-  for_each   = toset(["payment-queue", "messaging-queue", "notification-tick"])
+  for_each   = local.pubsub_queues
   name       = each.key
   depends_on = [google_project_service.api]
 
@@ -39,12 +62,62 @@ resource "google_pubsub_topic" "queue" {
   }
 }
 
+resource "google_pubsub_topic" "dead_letter" {
+  for_each   = local.pubsub_dead_letter_queues
+  name       = "${each.key}-dlq"
+  depends_on = [google_project_service.api]
+}
+
 resource "google_pubsub_subscription" "queue" {
-  for_each                   = toset(["payment-queue", "messaging-queue", "notification-tick"])
+  for_each                   = local.pubsub_queues
   name                       = "${each.key}-worker"
   topic                      = google_pubsub_topic.queue[each.key].id
-  ack_deadline_seconds       = 30
+  ack_deadline_seconds       = each.value.ack_deadline_seconds
+  enable_message_ordering    = each.value.ordered
   message_retention_duration = "86400s"
+
+  dynamic "retry_policy" {
+    for_each = each.value.dead_letter ? [1] : []
+    content {
+      minimum_backoff = local.pubsub_min_backoff
+      maximum_backoff = local.pubsub_max_backoff
+    }
+  }
+
+  dynamic "dead_letter_policy" {
+    for_each = each.value.dead_letter ? [1] : []
+    content {
+      dead_letter_topic     = google_pubsub_topic.dead_letter[each.key].id
+      max_delivery_attempts = local.pubsub_max_delivery_attempts
+    }
+  }
+}
+
+# Keeps what lands in each dead-letter topic (Pub/Sub drops messages a topic has no subscription for),
+# to look at or replay: gcloud pubsub subscriptions pull <queue>-dlq-sub --limit=10
+resource "google_pubsub_subscription" "dead_letter" {
+  for_each                   = local.pubsub_dead_letter_queues
+  name                       = "${each.key}-dlq-sub"
+  topic                      = google_pubsub_topic.dead_letter[each.key].id
+  ack_deadline_seconds       = 60
+  message_retention_duration = "604800s" # 7 days, the most a subscription keeps
+  expiration_policy {
+    ttl = "" # never expires, even unused
+  }
+}
+
+resource "google_pubsub_topic_iam_member" "dead_letter_publisher" {
+  for_each = local.pubsub_dead_letter_queues
+  topic    = google_pubsub_topic.dead_letter[each.key].name
+  role     = "roles/pubsub.publisher"
+  member   = local.pubsub_service_agent
+}
+
+resource "google_pubsub_subscription_iam_member" "dead_letter_subscriber" {
+  for_each     = local.pubsub_dead_letter_queues
+  subscription = google_pubsub_subscription.queue[each.key].name
+  role         = "roles/pubsub.subscriber"
+  member       = local.pubsub_service_agent
 }
 
 resource "google_secret_manager_secret" "app" {
