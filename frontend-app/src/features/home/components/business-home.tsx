@@ -27,6 +27,12 @@ interface QuickLink {
 
 const QUICK_LINKS: QuickLink[] = [
   {
+    icon: Workflow,
+    title: "Workflow",
+    description: "The welcome message, reply style and details to collect.",
+    to: paths.workflow,
+  },
+  {
     icon: Package,
     title: "Catalog",
     description: "Products, services and FAQs your assistant knows about.",
@@ -43,12 +49,6 @@ const QUICK_LINKS: QuickLink[] = [
     title: "Chats",
     description: "Read conversations and answer the questions it couldn't.",
     to: paths.chats,
-  },
-  {
-    icon: Workflow,
-    title: "Workflow",
-    description: "The welcome message, reply style and details to collect.",
-    to: paths.workflow,
   },
 ];
 

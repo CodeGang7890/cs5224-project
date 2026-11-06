@@ -1,4 +1,4 @@
-import { Moon, Sun } from "lucide-react";
+import { Moon, Sparkles, Sun } from "lucide-react";
 import { Link, NavLink, Outlet } from "react-router";
 
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,13 @@ export function RootLayout() {
     <div className="flex min-h-svh flex-col">
       <header className="bg-background sticky top-0 z-40 border-b">
         <div className="mx-auto flex h-14 max-w-7xl items-center gap-6 px-4">
-          <Link to={paths.home} className="shrink-0 font-semibold">
+          <Link
+            to={paths.home}
+            className="flex shrink-0 items-center gap-2 font-semibold"
+          >
+            <span className="flex size-7 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-sky-500 text-white shadow-sm">
+              <Sparkles className="size-4" />
+            </span>
             {APP_NAME}
           </Link>
 
@@ -38,8 +44,8 @@ export function RootLayout() {
                   cn(
                     "shrink-0 rounded-md px-3 py-1.5 text-sm transition-colors hover:text-foreground",
                     isActive
-                      ? "bg-accent text-foreground font-medium"
-                      : "text-muted-foreground",
+                      ? "bg-emerald-50 font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                      : "text-muted-foreground hover:bg-muted/60",
                   )
                 }
               >
