@@ -47,6 +47,12 @@ class ValidationErrorResponse(BaseModel):
     )
 
 
+class ConsumerTestMessage(BaseModel):
+    behavior: str = Field(description='What the consumer does with it: `nack` or `no_ack`.', examples=['nack'])
+    pubsub_message_id: str = Field(description='The Pub/Sub message ID (in the consumer\'s logs).', examples=['4'])
+    topic: str = Field(examples=['projects/local-project/topics/whatsapp-inbound-messages'])
+
+
 class ConsumerStatus(BaseModel):
     enabled: bool = Field(description='Whether the consumer is on (PUBSUB_CONSUMER_ENABLED).')
     running: bool = Field(description='Whether it is pulling messages right now.')

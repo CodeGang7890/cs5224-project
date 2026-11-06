@@ -85,10 +85,13 @@ def create_app(consumer: Consumer | None = None) -> FastAPI:
     from .chat import router as chat_router
     from .chat_api import router as chat_api_router
     from .consumer_routes import router as consumer_router
+    from .consumer_routes import test_router as consumer_test_router
     from .routes import router as main_router
 
     app.include_router(main_router)
     app.include_router(chat_router)
     app.include_router(consumer_router)
+    if config.PUBSUB_TEST_ENDPOINTS_ENABLED:
+        app.include_router(consumer_test_router)
     app.include_router(chat_api_router)
     return app

@@ -92,6 +92,8 @@ These also come from environment variables (docker-compose sets them):
 | `PUBSUB_TOPIC` | `whatsapp-inbound-messages` | The topic messaging-ingester publishes to |
 | `PUBSUB_SUBSCRIPTION` | `messaging-service-inbound` | This service's (pull) subscription to it |
 | `PUBSUB_MAX_MESSAGES` | `5` | At most this many messages handled at once, per worker (flow control) |
+| `PUBSUB_ACK_DEADLINE_SECONDS` | `120` | The ack deadline: the consumer's leases (extended by this much while a message is handled; the subscription's, set by docker-compose's `pubsub-init`, is the same) |
+| `PUBSUB_TEST_ENDPOINTS_ENABLED` | off | `POST /consumer/test/nack` and `/consumer/test/no-ack` (docker-compose turns them on; never in production) |
 | `PUBSUB_EMULATOR_HOST` | unset | `host:port` of the local Pub/Sub emulator (the library then uses it instead of Google Cloud) |
 | `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | `configuration_service` / `postgres` / `postgres` | configuration-service's database (the chat flow) |
 | `POSTGRES_HOST` / `POSTGRES_PORT` | `localhost` / `5433` | docker-compose's PostgreSQL from the host (in Docker: `postgres` / `5432`) |
@@ -253,7 +255,18 @@ A **pull** subscriber (`app/consumer.py`) for the customer messages `messaging-i
   3. In one transaction: an `InboundMessage` row for Meta's message id (configuration-service's `chat_app.InboundMessage`), saved with the customer message in the chat. **A duplicate** (Pub/Sub delivers at least once, Meta retries) is skipped; a message redelivered after a failure runs again without being saved twice.
   4. The chat flow runs (router, order / booking steps, FAQ, order status, reply) and saves the reply; the row becomes `replied`.
   5. **The reply is sent on WhatsApp** through configuration-service's internal send endpoint (`app/whatsapp_sender.py`; configuration-service holds the access token and calls Meta's Graph API, or locally `mock_whatsapp`'s fake one). A failed send is logged; the reply stays saved in the chat (retries: a TODO, via an outbound queue).
+- **Retries and dead letters** (docker-compose's `pubsub-init` sets up the subscription): ack deadline 120 s, redelivery backoff 30 s growing to 600 s, and after 5 delivery attempts the message goes to the dead-letter topic `whatsapp-inbound-messages-dlq` (kept by the subscription `whatsapp-inbound-messages-dlq-sub`).
 - If handling raises (e.g. the LLM is down), the message is **nacked**, so Pub/Sub redelivers it. A message that isn't JSON, or lacks `business_id`, `message_id`, `from` or `type`, is logged and **acked** (redelivering it would never help). The ingester orders by customer, so one customer's messages are answered one at a time.
+
+Trying the retries and the dead-letter topic (with `docker compose up`): each endpoint publishes a test message (attribute `test_behavior`) that the consumer handles badly on purpose, every time it's delivered, logging the delivery attempt:
+
+```bash
+curl -X POST localhost:8004/consumer/test/nack     # nacked after 5 s: redelivered after the backoff (30 s, growing)
+curl -X POST localhost:8004/consumer/test/no-ack   # never acked, as if the worker crashed: redelivered after the 120 s ack deadline
+docker compose logs -f messaging-service | grep 'Test message'   # "... (delivery attempt 1) ...", 2, ... 5
+# After the 5th attempt it's in the dead-letter topic:
+curl -s -X POST localhost:8085/v1/projects/local-project/subscriptions/whatsapp-inbound-messages-dlq-sub:pull -d '{"maxMessages": 10}'
+```
 
 Trying it end to end, from the repo root:
 

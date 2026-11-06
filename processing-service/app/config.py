@@ -18,6 +18,9 @@ PUBSUB_CONSUMER_ENABLED = os.getenv('PUBSUB_CONSUMER_ENABLED', '').lower() in ('
 GCP_PROJECT_ID = os.getenv('GCP_PROJECT_ID', 'local-project')
 PUBSUB_TOPIC = os.getenv('PUBSUB_TOPIC', 'payment-events')
 PUBSUB_SUBSCRIPTION = os.getenv('PUBSUB_SUBSCRIPTION', 'processing-service-payments')
+# The ack deadline, in seconds: the subscription's (docker-compose's pubsub-init creates it with
+# this) and the client's leases, extended by this much while an event is handled.
+PUBSUB_ACK_DEADLINE_SECONDS = int(os.getenv('PUBSUB_ACK_DEADLINE_SECONDS', '60'))
 # At most this many messages are handled at once, per worker (Pub/Sub flow control).
 PUBSUB_MAX_MESSAGES = int(os.getenv('PUBSUB_MAX_MESSAGES', '5'))
 

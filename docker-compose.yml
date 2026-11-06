@@ -10,6 +10,13 @@
 # first time. To wipe it and reload them: RESET_DB=true docker compose up
 # (see configuration-service/docker-entrypoint.sh).
 
+# Pub/Sub delivery (the user asked): pubsub-init creates the consumers' subscriptions with these, and
+# the consumers' leases match the ack deadlines (PUBSUB_ACK_DEADLINE_SECONDS). A message nacked or
+# not acked in time is redelivered after a backoff of 30s growing to 600s; after 5 delivery attempts
+# it goes to its dead-letter topic (…-dlq).
+x-pubsub-messages-ack-deadline: &messages-ack-deadline "120" # WhatsApp messages: a chat turn can take a while
+x-pubsub-payments-ack-deadline: &payments-ack-deadline "60" # Xendit payment events
+
 x-postgres-env: &postgres-env
   POSTGRES_DB: configuration_service
   POSTGRES_USER: postgres
@@ -99,23 +106,54 @@ services:
       timeout: 5s
       retries: 30
 
-  # Runs once the emulator is up, creates the queues' topics (as Terraform would on Google Cloud), and
-  # exits. The services wait for it. Consumers create their own subscriptions.
-  #   whatsapp-inbound-messages: messaging-ingester → messaging-service
-  #   payment-events: payment-ingester (for now: payment-ingester/scripts/publish_dummy_payments.py) → processing-service
+  # Runs once the emulator is up, creates the queues (as Terraform would on Google Cloud), and exits.
+  # The services wait for it.
+  #   whatsapp-inbound-messages: messaging-ingester → messaging-service (subscription messaging-service-inbound,
+  #     ordered, ack deadline 120s), dead letters → whatsapp-inbound-messages-dlq
+  #   payment-events: payment-ingester (Xendit; or payment-ingester/scripts/publish_dummy_payments.py) →
+  #     processing-service (subscription processing-service-payments, ack deadline 60s), dead letters → payment-events-dlq
+  # Each dead-letter topic has a subscription (…-dlq-sub) keeping what lands there, to look at, e.g.
+  #   curl -s -X POST localhost:8085/v1/projects/local-project/subscriptions/whatsapp-inbound-messages-dlq-sub:pull -d '{"maxMessages": 10}'
+  # The emulator keeps everything in memory: a subscription that already exists keeps its old settings
+  # until pubsub-emulator is restarted.
   pubsub-init:
     image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators # already pulled for the emulator; has curl
+    environment:
+      MESSAGES_ACK_DEADLINE_SECONDS: *messages-ack-deadline
+      PAYMENTS_ACK_DEADLINE_SECONDS: *payments-ack-deadline
+      MIN_BACKOFF: 30s
+      MAX_BACKOFF: 600s
+      MAX_DELIVERY_ATTEMPTS: "5"
     entrypoint: ["sh", "-ec"]
     command:
       - |
-        for topic in whatsapp-inbound-messages payment-events; do
-          code=$$(curl -s -o /dev/null -w '%{http_code}' -X PUT "http://pubsub-emulator:8085/v1/projects/local-project/topics/$$topic")
+        project=projects/local-project
+        create() { # create <topics|subscriptions> <name> <JSON body>
+          code=$$(curl -s -o /tmp/response -w '%{http_code}' -X PUT -H 'Content-Type: application/json' \
+            -d "$$3" "http://pubsub-emulator:8085/v1/$$project/$$1/$$2")
           case "$$code" in
-            200) echo "Created topic $$topic" ;;
-            409) echo "Topic $$topic already exists" ;;
-            *) echo "Creating topic $$topic failed: HTTP $$code"; exit 1 ;;
+            200) echo "Created $$1/$$2" ;;
+            409) echo "$$1/$$2 already exists" ;;
+            *) echo "Creating $$1/$$2 failed: HTTP $$code $$(cat /tmp/response)"; exit 1 ;;
           esac
+        }
+        # A consumer's subscription: create_subscription <name> <topic> <ack deadline> <ordered: true|false>
+        create_subscription() {
+          create subscriptions "$$1" "{
+            \"topic\": \"$$project/topics/$$2\",
+            \"ackDeadlineSeconds\": $$3,
+            \"enableMessageOrdering\": $$4,
+            \"retryPolicy\": {\"minimumBackoff\": \"$$MIN_BACKOFF\", \"maximumBackoff\": \"$$MAX_BACKOFF\"},
+            \"deadLetterPolicy\": {\"deadLetterTopic\": \"$$project/topics/$$2-dlq\", \"maxDeliveryAttempts\": $$MAX_DELIVERY_ATTEMPTS}
+          }"
+        }
+        for topic in whatsapp-inbound-messages payment-events; do
+          create topics "$$topic" '{}'
+          create topics "$$topic-dlq" '{}'
+          create subscriptions "$$topic-dlq-sub" "{\"topic\": \"$$project/topics/$$topic-dlq\"}"
         done
+        create_subscription messaging-service-inbound whatsapp-inbound-messages "$$MESSAGES_ACK_DEADLINE_SECONDS" true
+        create_subscription processing-service-payments payment-events "$$PAYMENTS_ACK_DEADLINE_SECONDS" false
     depends_on:
       pubsub-emulator:
         condition: service_healthy
@@ -150,6 +188,10 @@ services:
       GCP_PROJECT_ID: local-project # TODO: a real GCP project ID when deploying to Google Cloud Pub/Sub
       PUBSUB_TOPIC: whatsapp-inbound-messages
       PUBSUB_SUBSCRIPTION: messaging-service-inbound
+      PUBSUB_ACK_DEADLINE_SECONDS: *messages-ack-deadline # the subscription's (pubsub-init)
+      # POST /consumer/test/nack and /consumer/test/no-ack: test messages the consumer nacks after 5s
+      # or never acks, to try the retries and the dead-letter topic. TODO: never in production.
+      PUBSUB_TEST_ENDPOINTS_ENABLED: "true"
       # TODO: Don't set this in production, so the real Google Cloud Pub/Sub is used instead of the emulator
       PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
       # The chat flow (moved from configuration-service): its database, logins and the browser's origin.
@@ -217,6 +259,7 @@ services:
       GCP_PROJECT_ID: local-project # TODO: a real GCP project ID when deploying to Google Cloud Pub/Sub
       PUBSUB_TOPIC: payment-events
       PUBSUB_SUBSCRIPTION: processing-service-payments
+      PUBSUB_ACK_DEADLINE_SECONDS: *payments-ack-deadline # the subscription's (pubsub-init)
       # TODO: Don't set this in production, so the real Google Cloud Pub/Sub is used instead of the emulator
       PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
       # configuration-service's database: the payment flow updates the orders / bookings (app/payments.py).

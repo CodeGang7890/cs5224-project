@@ -50,6 +50,15 @@ PUBSUB_TOPIC = os.getenv('PUBSUB_TOPIC', 'whatsapp-inbound-messages')
 PUBSUB_SUBSCRIPTION = os.getenv('PUBSUB_SUBSCRIPTION', 'messaging-service-inbound')
 # At most this many messages are handled at once, per worker (Pub/Sub flow control).
 PUBSUB_MAX_MESSAGES = int(os.getenv('PUBSUB_MAX_MESSAGES', '5'))
+# The ack deadline, in seconds: the subscription's (docker-compose's pubsub-init creates it with
+# this) and the client's leases, extended by this much while a message is handled. A message not
+# acked in time (e.g. the worker died) is redelivered once it runs out.
+PUBSUB_ACK_DEADLINE_SECONDS = int(os.getenv('PUBSUB_ACK_DEADLINE_SECONDS', '120'))
+PUBSUB_PUBLISH_TIMEOUT_SECONDS = 10
+# POST /consumer/test/nack and /consumer/test/no-ack (the user asked, to try the retry and
+# dead-letter settings locally): off unless set; docker-compose turns them on.
+PUBSUB_TEST_ENDPOINTS_ENABLED = os.getenv('PUBSUB_TEST_ENDPOINTS_ENABLED', '').lower() in ('1', 'true', 'yes')
+PUBSUB_TEST_NACK_DELAY_SECONDS = 5  # the nack test waits this long before nacking
 
 # --- The chat flow's LLM calls (app/chat_flow, the same as configuration-service's chat_app/llm.py) --
 # Sampling hyperparameters sent as Ollama `options` on every chat flow request. The seed is fixed

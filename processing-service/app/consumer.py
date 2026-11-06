@@ -129,8 +129,9 @@ def handle(message, session_factory: Callable = get_session) -> None:
 
 
 def ensure_emulator_resources(subscriber, publisher, attempts: int = 30, delay_seconds: float = 1.0) -> None:
-    """With the local emulator only: creates the topic (docker-compose's pubsub-init normally has
-    already) and this service's subscription. The emulator may still be starting, so this retries."""
+    """With the local emulator only: creates the topic and this service's subscription, if
+    docker-compose's pubsub-init hasn't (it normally has, with the ack deadline, retry backoff and
+    dead-letter topic). The emulator may still be starting, so this retries."""
     topic = publisher.topic_path(config.GCP_PROJECT_ID, config.PUBSUB_TOPIC)
     subscription = subscriber.subscription_path(config.GCP_PROJECT_ID, config.PUBSUB_SUBSCRIPTION)
     for attempt in range(1, attempts + 1):
@@ -171,7 +172,12 @@ class Consumer:
         self._future = self._subscriber.subscribe(
             self.subscription,
             callback=handle,
-            flow_control=pubsub_v1.types.FlowControl(max_messages=config.PUBSUB_MAX_MESSAGES),
+            # Leases of PUBSUB_ACK_DEADLINE_SECONDS (the library's own default is 60s, whatever the subscription says).
+            flow_control=pubsub_v1.types.FlowControl(
+                max_messages=config.PUBSUB_MAX_MESSAGES,
+                min_duration_per_lease_extension=config.PUBSUB_ACK_DEADLINE_SECONDS,
+                max_duration_per_lease_extension=config.PUBSUB_ACK_DEADLINE_SECONDS,
+            ),
         )
         logger.info('Pulling payment events from %s (at most %d at a time)', self.subscription, config.PUBSUB_MAX_MESSAGES)
 

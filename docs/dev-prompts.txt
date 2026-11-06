@@ -1463,3 +1463,14 @@ For the local setup first, in Pub Sub please add the business id and the custome
 Additionally, add a new field like version_number or something similar in ChatSession, and whenever it’s modified it has to increase that number by 1.
 In messaging service when a message arrive, it should first read the version number. Then after running through the LLM, it should only then set the version number to +1 of the original one. However, if apparently the version number had increased, then rerun this entire turn.
 We also need this version number checking, because business owner may intercept a chat through the configuration service).
+
+Date & Time (GMT+8): 2026-11-06 21:16:50
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Please modify the pub sub setting in local Docker to have this:
+- In docker compose pubsub-init, add 2 DLQ, 1 for WhatsApp and another for Xendit
+- Make the ack deadline be 120 seconds for messages, and 60 seconds for payment
+- Use min backoff 30s, max 600s
+- Make max delivery attempts to be 5
+Please create me 2 dummy API in messaging service: first is that would just do sth like message.nack after 5 seconds of waiting, another one that would just exit without ack I want to try if this works
