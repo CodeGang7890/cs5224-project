@@ -137,17 +137,17 @@ class OrderItemModelTests(TestCase):
 
 
 class SampleOrderItemFixtureTests(TestCase):
-    fixtures = ['sample_business_configurations', 'sample_order_items']
+    fixtures = ['sample_business_configurations', 'sample_chat_sessions', 'sample_order_items']
 
     def test_fixture_is_valid(self):
         orders = OrderItem.objects.all()
-        self.assertEqual(orders.count(), 49)  # 31–49: Lumen & Lens print orders
+        self.assertEqual(orders.count(), 61)  # 31–49: Lumen & Lens print orders; 50–61: Rally Point Courts
         self.assertEqual(set(orders.values_list('order_status', flat=True)), set(OrderStatus.values))
         for order in orders:
             with self.subTest(order=order.pk):
                 order.full_clean()  # loaddata skips validation
                 self.assertRegex(order.payment_reference, PAYMENT_REFERENCE_PATTERN)
-        self.assertEqual(len(set(orders.values_list('payment_reference', flat=True))), 49)
+        self.assertEqual(len(set(orders.values_list('payment_reference', flat=True))), 61)
 
     def test_florist_has_many_realistic_orders(self):
         orders = OrderItem.objects.filter(business_id=2)
@@ -163,7 +163,7 @@ class SampleOrderItemFixtureTests(TestCase):
 class SampleLumenOrderFixtureTests(TestCase):
     """Lumen & Lens's print and frame orders: delivered, with the photos to print."""
 
-    fixtures = ['sample_business_configurations', 'sample_order_items']
+    fixtures = ['sample_business_configurations', 'sample_chat_sessions', 'sample_order_items']
 
     def test_orders_are_delivered(self):
         orders = OrderItem.objects.filter(business_id=4)
@@ -180,7 +180,7 @@ class SampleLumenOrderFixtureTests(TestCase):
 class SampleStockFixtureTests(TestCase):
     """The sample products' quantities, derived from the sample orders."""
 
-    fixtures = ['sample_business_configurations', 'sample_products', 'sample_order_items']
+    fixtures = ['sample_business_configurations', 'sample_products', 'sample_chat_sessions', 'sample_order_items']
 
     def test_quantities(self):
         from product_app.models import Product
@@ -288,7 +288,7 @@ class ScheduleItemModelTests(TestCase):
 
 
 class SampleScheduleItemFixtureTests(TestCase):
-    """checkout_app/fixtures/sample_schedule_items.json: 80 Lumen & Lens and Rally Point Courts
+    """checkout_app/fixtures/sample_schedule_items.json: 110 Lumen & Lens and Rally Point Courts
     bookings: none in September, some in October, most upcoming in November and December 2026."""
 
     fixtures = [
@@ -298,7 +298,7 @@ class SampleScheduleItemFixtureTests(TestCase):
 
     def test_fixture_is_valid(self):
         bookings = list(ScheduleItem.objects.select_related('service', 'service_provider'))
-        self.assertEqual(len(bookings), 80)
+        self.assertEqual(len(bookings), 110)
         providers_of = {s.pk: set(s.service_providers.values_list('pk', flat=True)) for s in Service.objects.all()}
         for booking in bookings:
             with self.subTest(booking=booking.pk):
@@ -316,7 +316,7 @@ class SampleScheduleItemFixtureTests(TestCase):
                 self.assertLessEqual(a.blocked_until, b.start_time, (a.pk, b.pk))
         self.assertEqual({b.order_status for b in bookings}, set(OrderStatus.values))
         references = [b.payment_reference for b in bookings]
-        self.assertEqual(len(set(references)), 80)
+        self.assertEqual(len(set(references)), 110)
         for reference in references:
             self.assertRegex(reference, PAYMENT_REFERENCE_PATTERN)
         self.assertEqual([b.pk for b in bookings if b.is_sandbox], [5])
@@ -349,7 +349,7 @@ class SampleScheduleItemFixtureTests(TestCase):
 
     def test_a_few_payments_failed_and_their_time_is_free(self):
         failed = ScheduleItem.objects.filter(order_status=OrderStatus.PAYMENT_FAILED)
-        self.assertEqual(sorted(failed.values_list('business_id', flat=True)), [4, 5, 5, 5, 5])
+        self.assertEqual(sorted(failed.values_list('business_id', flat=True)), [4, 5, 5, 5, 5, 5, 5])
         for booking in failed:
             local = booking.start_time.astimezone(dt_timezone(timedelta(hours=8)))
             week = WeeklyAvailability.objects.get(
@@ -367,7 +367,7 @@ class SampleScheduleItemFixtureTests(TestCase):
 
     def test_court_bookings_on_the_hour(self):
         courts = ScheduleItem.objects.filter(business_id=5)
-        self.assertEqual(courts.count(), 68)
+        self.assertEqual(courts.count(), 98)
         self.assertEqual(set(courts.values_list('order_status', flat=True)), set(OrderStatus.values))
         sgt = dt_timezone(timedelta(hours=8))
         days = set()

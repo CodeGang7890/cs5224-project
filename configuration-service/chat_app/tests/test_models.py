@@ -469,7 +469,7 @@ class SampleChatSessionFixtureTests(TestCase):
 
     def test_fixture_is_valid(self):
         sessions = ChatSession.objects.all()
-        self.assertEqual(sessions.count(), 19)  # 1–20 but 6
+        self.assertEqual(sessions.count(), 31)  # 1–32 but 6 (21–32: Rally Point Courts)
         self.assertEqual(sessions.filter(is_sandbox=True).count(), 2)
         self.assertEqual(sessions.get(pk=1).chat_state_id, 'confirmation')
         # 20: Lumen & Lens, a booking made in the chat (checkout_app sample_schedule_items pk 1).

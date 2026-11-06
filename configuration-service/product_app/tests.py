@@ -132,7 +132,7 @@ class FAQModelTests(TestCase):
 
 
 class SampleProductAndFAQFixtureTests(TestCase):
-    fixtures = ['sample_business_configurations', 'sample_products', 'sample_faqs', 'sample_order_items']
+    fixtures = ['sample_business_configurations', 'sample_products', 'sample_faqs', 'sample_chat_sessions', 'sample_order_items']
 
     def test_fixtures_are_valid(self):
         self.assertEqual(Product.objects.count(), 32)  # 20–29: Lumen & Lens's prints and frames, 30–34: Rally Point Courts
@@ -289,7 +289,7 @@ class ProductTotalQuantityMigrationTests(TransactionTestCase):
 class ProductAdminTests(TestCase):
     """Django Admin shows the derived quantities and keeps total_quantity ≥ on hold + sold."""
 
-    fixtures = ['sample_business_configurations', 'sample_products', 'sample_order_items']
+    fixtures = ['sample_business_configurations', 'sample_products', 'sample_chat_sessions', 'sample_order_items']
 
     def setUp(self):
         from auth_app.models import BusinessUser
