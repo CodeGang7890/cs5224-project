@@ -37,10 +37,10 @@ class SendEmailTests(unittest.TestCase):
         self.assertEqual(message.get_content().strip(), 'Thanks for shopping with XXX, this is your invoice.')
 
     def test_attaches_files(self):
-        _, _, smtp = self.send(attachments=[Attachment('INV-O-000001.pdf', b'%PDF-fake')])
+        _, _, smtp = self.send(attachments=[Attachment('RCT-O-000001.pdf', b'%PDF-fake')])
         message = smtp.send_message.call_args.args[0]
         [attachment] = list(message.iter_attachments())
-        self.assertEqual((attachment.get_filename(), attachment.get_content_type()), ('INV-O-000001.pdf', 'application/pdf'))
+        self.assertEqual((attachment.get_filename(), attachment.get_content_type()), ('RCT-O-000001.pdf', 'application/pdf'))
         self.assertEqual(attachment.get_content(), b'%PDF-fake')
         self.assertEqual(message.get_body().get_content().strip(), 'Thanks for shopping with XXX, this is your invoice.')
 

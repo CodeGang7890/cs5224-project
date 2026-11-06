@@ -8,7 +8,7 @@ google-cloud-pubsub>=2.42,<3
 # Pulled in by google-auth. Pinned like configuration-service's: cryptography 50's aarch64 wheel
 # crashes with "illegal instruction" (exit 132) on the local Docker VM (vessel).
 cryptography>=46,<47
-# Invoice PDFs (app/invoice.py), stored in Google Cloud Storage (app/storage.py).
+# Invoice and receipt PDFs (app/documents.py), stored in Google Cloud Storage (app/storage.py).
 fpdf2>=2.8,<3
 google-cloud-storage>=3,<4
 # WhatsApp messages to customers, through configuration-service (app/whatsapp_sender.py).

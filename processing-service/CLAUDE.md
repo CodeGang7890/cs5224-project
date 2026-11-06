@@ -4,7 +4,7 @@ Guidance for Claude Code when working in `processing-service/`. The README cover
 
 ## What this is
 
-A FastAPI service, served by Gunicorn, on port **8003**. It pulls payment events (`{payment_reference, status, amount?}`) from Pub/Sub (`payment-events`). For each one, it checks the amount against the order's / booking's total, updates the order or booking with that payment reference (`app/payments.py`). After the commit it makes the invoice PDF (`app/invoice.py`), uploads it to Cloud Storage (`app/storage.py`) and tells the customer (`app/notifications.py`): on WhatsApp through configuration-service's internal send endpoint (`app/whatsapp_sender.py`), and by email with the invoice PDF attached (`app/email_sender.py`, off unless `EMAIL_ENABLED`).
+A FastAPI service, served by Gunicorn, on port **8003**. It pulls payment events (`{payment_reference, status, amount?}`) from Pub/Sub (`payment-events`). For each one, it checks the amount against the order's / booking's total, updates the order or booking with that payment reference (`app/payments.py`). It also sends two different documents, never mixed up (`app/documents.py`): an **invoice** when an order / booking is placed (a `created` event from payment-ingester: what to pay, and the payment link) and a **receipt** after the payment is received. After the commit it makes the PDF, uploads it to Cloud Storage (`app/storage.py`) and tells the customer (`app/notifications.py`): on WhatsApp through configuration-service's internal send endpoint (`app/whatsapp_sender.py`), and by email with the invoice PDF attached (`app/email_sender.py`, off unless `EMAIL_ENABLED`).
 
 ## The database (the user's rule)
 

@@ -1,4 +1,4 @@
-"""Invoice PDFs in Google Cloud Storage (the bucket from `GCS_BUCKET`).
+"""Invoice and receipt PDFs in Google Cloud Storage (the bucket from `GCS_BUCKET`).
 
 With no `GCS_BUCKET` (local development, the tests) nothing is uploaded and the functions return
 None, so the payment flow runs without Google Cloud.
@@ -12,7 +12,7 @@ from . import config
 logger = logging.getLogger(__name__)
 
 # V4 signed URLs last 7 days at most.
-INVOICE_LINK_VALIDITY = timedelta(days=7)
+LINK_VALIDITY = timedelta(days=7)
 
 _client = None
 
@@ -30,7 +30,7 @@ def _get_client():
     return _client
 
 
-def upload_invoice(pdf: bytes, object_name: str, client=None) -> str | None:
+def upload_pdf(pdf: bytes, object_name: str, client=None) -> str | None:
     """Uploads the PDF and returns its `gs://` URI, or None when no bucket is configured."""
     if not config.GCS_BUCKET:
         logger.info('GCS_BUCKET is not set: not uploading %s', object_name)
@@ -41,8 +41,8 @@ def upload_invoice(pdf: bytes, object_name: str, client=None) -> str | None:
     return f'gs://{config.GCS_BUCKET}/{object_name}'
 
 
-def invoice_link(object_name: str, client=None) -> str | None:
-    """A link the customer can open for INVOICE_LINK_VALIDITY, or None when there's no bucket.
+def signed_link(object_name: str, client=None) -> str | None:
+    """A link the customer can open for LINK_VALIDITY, or None when there's no bucket.
 
     Signs through the IAM API, which needs credentials with a service account (Cloud Run's) that
     may sign for itself (roles/iam.serviceAccountTokenCreator).
@@ -61,7 +61,7 @@ def invoice_link(object_name: str, client=None) -> str | None:
         credentials.refresh(Request())
         return client.bucket(config.GCS_BUCKET).blob(object_name).generate_signed_url(
             version='v4',
-            expiration=INVOICE_LINK_VALIDITY,
+            expiration=LINK_VALIDITY,
             method='GET',
             service_account_email=email,
             access_token=credentials.token,

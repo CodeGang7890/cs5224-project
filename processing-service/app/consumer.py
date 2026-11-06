@@ -2,11 +2,14 @@
 
 Topic `payment-events`, one message per payment event; the data is JSON
 `{payment_reference, status, amount?}`: the order's / booking's 128-bit payment reference (32 hex
-characters, from configuration-service), `success` or `fail`, and the amount Xendit reports
-(used to check the event against the order's / booking's total).
+characters, from configuration-service), the status and the amount (used to check a payment against
+the order's / booking's total). payment-ingester publishes two kinds:
+- `success` / `fail`: a payment's result (Xendit's webhook). The payment flow (app/payments.py)
+  updates the order / booking in PostgreSQL, then sends the RECEIPT (a success) or a failure notice.
+- `created`: the order / booking was just placed and its payment link made (`payment_url`). Sends the
+  INVOICE (what to pay, and where) and changes nothing in the database.
 
-Each event goes through the payment flow (app/payments.py: updates the order / booking in
-PostgreSQL). The subscriber uses streaming pull: the client library keeps a connection open and
+The subscriber uses streaming pull: the client library keeps a connection open and
 calls `handle()` on its own threads, at most PUBSUB_MAX_MESSAGES at a time.
 
 - Applied → ack. Pub/Sub delivers at least once: a repeated event changes nothing.
@@ -28,11 +31,12 @@ from google.cloud import pubsub_v1
 
 from . import config
 from .db import get_session
-from .payments import STATUS_AFTER, PaymentEventError, apply_payment
+from .payments import STATUS_AFTER, PaymentEventError, apply_payment, send_invoice
 
 logger = logging.getLogger(__name__)
 
-STATUSES = tuple(STATUS_AFTER)  # success, fail
+CREATED = 'created'  # the order / booking was placed: send its invoice
+STATUSES = (*STATUS_AFTER, CREATED)  # success, fail, created
 PAYMENT_REFERENCE = re.compile(r'^[0-9a-f]{32}$')  # configuration-service's 128-bit references
 
 
@@ -79,6 +83,11 @@ def parse(data: bytes) -> dict:
         'status': status,
         'amount': amount
     }
+    payment_url = payload.get('payment_url') if 'payment_reference' in payload else None
+    if payment_url is not None:
+        if not isinstance(payment_url, str) or not payment_url.startswith(('https://', 'http://')) or len(payment_url) > 2000:
+            raise InvalidMessageError(f'payment_url must be a link, not {payment_url!r}')
+        new_payload['payment_url'] = payment_url
 
     if amount is not None:
         if isinstance(amount, bool) or not isinstance(amount, (int, float)) or not math.isfinite(amount) or amount < 0:
@@ -92,7 +101,10 @@ def process(payload: dict, session_factory: Callable = get_session) -> None:
     """The work for one payment event: the payment flow, in its own session."""
     logger.info('Payment %s: %s (amount %s)', payload['payment_reference'], payload['status'], payload.get('amount'))
     with session_factory() as session:
-        apply_payment(session, payload['payment_reference'], payload['status'], payload.get('amount'))
+        if payload['status'] == CREATED:
+            send_invoice(session, payload['payment_reference'], payload.get('payment_url'))
+        else:
+            apply_payment(session, payload['payment_reference'], payload['status'], payload.get('amount'))
 
 
 def handle(message, session_factory: Callable = get_session) -> None:
