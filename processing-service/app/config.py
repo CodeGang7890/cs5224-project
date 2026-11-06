@@ -36,8 +36,8 @@ SMTP_USERNAME = os.getenv('SMTP_USERNAME', '')
 SMTP_PASSWORD = os.getenv('SMTP_PASSWORD', '')
 SMTP_TIMEOUT_SECONDS = 20
 
-# --- Invoices (Google Cloud Storage) ---------------------------------------------------------
-# The bucket for the invoice PDFs (Terraform: cs5224-ansera-app-objects). Unset: invoices are made
+# --- Invoice and receipt PDFs (Google Cloud Storage) ---------------------------------------
+# The bucket for the invoice and receipt PDFs (Terraform: cs5224-ansera-app-objects). Unset: they are made
 # but not uploaded (local development, the tests).
 GCS_BUCKET = os.getenv('GCS_BUCKET', '')
 INVOICE_CURRENCY = os.getenv('INVOICE_CURRENCY', 'SGD')

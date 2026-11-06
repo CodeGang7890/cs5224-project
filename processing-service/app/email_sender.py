@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class Attachment:
-    """A file attached to an email, e.g. an invoice PDF."""
+    """A file attached to an email, e.g. an invoice or receipt PDF."""
 
     filename: str
     data: bytes
@@ -71,7 +71,7 @@ def send_email(
     """Returns whether it was sent or not.
     `content`: the plain-text body
     `html`: an optional HTML version.
-    `attachments`: files to attach (e.g. the invoice PDF).
+    `attachments`: files to attach (e.g. the invoice or receipt).
     Raises EmailError when it should have been sent but wasn't.
     """
     if not (config.EMAIL_ENABLED or force):

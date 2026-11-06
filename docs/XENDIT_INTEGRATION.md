@@ -130,7 +130,9 @@ Pulls `payment-events` and applies each event in `processing-service/app/payment
    - `success` → `payment_received`
    - `fail` → `payment_failed`
 4. A failed payment is final. There is no automatic retry and no customer "try again" action.
-5. For received payments, it renders and uploads the invoice, then tells the customer on WhatsApp.
+5. For received payments, it renders and uploads the **receipt**, then tells the customer on WhatsApp and by email.
+
+The customer also gets an **invoice** when the order / booking is placed: payment-ingester publishes a `created` event (with the payment link) after creating the Xendit payment, and processing-service sends the invoice (what to pay, and where) on WhatsApp and by email. It changes nothing in the database.
 
 ## Frontend
 

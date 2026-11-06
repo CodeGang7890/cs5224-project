@@ -202,6 +202,44 @@ class TestCreatePaymentApi(unittest.TestCase):
 
     def setUp(self):
         self.client = TestClient(app)
+        # No real Pub/Sub: the `created` event goes to this fake publisher.
+        patcher = patch('app.routes.PubSubPublisher')
+        self.publisher = patcher.start().return_value
+        self.addCleanup(patcher.stop)
+
+    @patch('app.routes.hmac.compare_digest', return_value=True)
+    @patch('app.routes.xendit_api.create_payment')
+    def test_create_payment_publishes_a_created_event_for_the_invoice(self, mock_create, _mock_digest):
+        mock_create.return_value = {'xendit_payment_id': 'ps-123', 'payment_url': 'https://xen.to/abc'}
+        response = self.client.post('/payments', json=self.VALID_BODY, headers={'X-Internal-Api-Key': 'some-key'})
+        self.assertEqual(response.status_code, 201)
+        self.publisher.publish.assert_called_once_with([{
+            'payment_reference': 'a' * 32,
+            'status': 'created',
+            'amount': 123.45,
+            'payment_url': 'https://xen.to/abc',
+            'xendit_payment_id': 'ps-123',
+            'kind': 'order',
+            'item_id': 7,
+        }])
+
+    @patch('app.routes.hmac.compare_digest', return_value=True)
+    @patch('app.routes.xendit_api.create_payment')
+    def test_create_payment_still_succeeds_if_the_created_event_cannot_be_published(self, mock_create, _mock_digest):
+        mock_create.return_value = {'xendit_payment_id': 'ps-123', 'payment_url': 'https://xen.to/abc'}
+        self.publisher.publish.side_effect = PublishError('Pub/Sub is down')
+        with self.assertLogs('app.routes', level='ERROR'):
+            response = self.client.post('/payments', json=self.VALID_BODY, headers={'X-Internal-Api-Key': 'some-key'})
+        self.assertEqual(response.status_code, 201)  # the link was made: the customer can pay
+        self.assertEqual(response.json()['payment_url'], 'https://xen.to/abc')
+
+    @patch('app.routes.hmac.compare_digest', return_value=True)
+    @patch('app.routes.xendit_api.create_payment')
+    def test_no_created_event_when_xendit_made_no_payment(self, mock_create, _mock_digest):
+        mock_create.side_effect = XenditApiError(400, 'amount must be positive')
+        response = self.client.post('/payments', json=self.VALID_BODY, headers={'X-Internal-Api-Key': 'some-key'})
+        self.assertEqual(response.status_code, 502)
+        self.publisher.publish.assert_not_called()
 
     @patch('app.routes.hmac.compare_digest', return_value=True)
     @patch('app.routes.xendit_api.create_payment')

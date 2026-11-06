@@ -1,12 +1,14 @@
-"""
-The invoice for a paid order or booking: its data, then a PDF.
+"""The two PDFs a customer gets, never to be mixed up:
+
+- an INVOICE (`INV-O-000012`) when they place an order / booking: what they ordered and the
+  amount to pay, with the link to pay it online. Made for an order / booking that is pending payment.
+- a RECEIPT (`RCT-O-000012`) once the payment is received: the same details, as paid.
 
 Two steps, so each can be tested on its own:
-1. build_invoice(session, item): reads what the invoice shows (the business, the customer, the
-   lines) from the order / booking and the rows it points to, into an Invoice.
-2. render_pdf(invoice): the PDF, as bytes. No database, no files: the caller decides where it goes
-   (object storage, later; a local file in scripts/preview_invoice.py).
-
+1. build_document(session, item, doc_type): reads what the document shows (the business, the
+   customer, the lines) from the order / booking and the rows it points to, into a Document.
+2. render_pdf(document): the PDF, as bytes. No database, no files: the caller decides where it goes
+   (object storage; a local file in scripts/preview_documents.py).
 """
 
 import re
@@ -22,11 +24,14 @@ from sqlalchemy.orm import Session
 from . import config
 from .models import BusinessConfiguration, ChatSession, OrderItem, ScheduleItem, ServiceProvider
 
-ORDER, BOOKING = 'order', 'booking'
+ORDER, BOOKING = 'order', 'booking'  # the kind of item
+INVOICE, RECEIPT = 'invoice', 'receipt'  # the type of document
+NUMBER_PREFIX = {INVOICE: 'INV', RECEIPT: 'RCT'}
+TITLE = {INVOICE: 'INVOICE', RECEIPT: 'RECEIPT'}
 
 
 @dataclass(frozen=True)
-class InvoiceLine:
+class DocumentLine:
     description: str
     quantity: int
     unit_price: Decimal
@@ -45,8 +50,9 @@ class Booking:
 
 
 @dataclass(frozen=True)
-class Invoice:
+class Document:
     number: str
+    doc_type: str  # INVOICE or RECEIPT
     kind: str  # ORDER or BOOKING
     issued_at: datetime
     payment_reference: str
@@ -55,11 +61,12 @@ class Invoice:
     customer_name: str
     customer_phone: str
     details: tuple[tuple[str, str], ...]
-    lines: tuple[InvoiceLine, ...]
+    lines: tuple[DocumentLine, ...]
     currency: str
     booking: Booking | None = None
     is_sandbox: bool = False
     customer_email: str = ''  # from the chat's `email` detail, '' if none or it doesn't look like an address
+    payment_url: str = ''  # where to pay (an invoice only), '' if there is no link
 
     @property
     def total(self) -> Decimal:
@@ -69,9 +76,10 @@ class Invoice:
 EMAIL_ADDRESS = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')  # roughly an address; the mail server has the final say
 
 
-def invoice_number(kind: str, item_id: int) -> str:
-    """INV-O-000012 for order #12, INV-B-000028 for booking #28"""
-    return f'INV-{kind[0].upper()}-{item_id:06d}'
+def document_number(doc_type: str, kind: str, item_id: int) -> str:
+    """INV-O-000012 / RCT-O-000012 for order #12, INV-B-000028 / RCT-B-000028 for booking #28:
+    stable, so a repeated event gives the same document."""
+    return f'{NUMBER_PREFIX[doc_type]}-{kind[0].upper()}-{item_id:06d}'
 
 
 def aware(moment: datetime) -> datetime:
@@ -84,9 +92,15 @@ def detail_label(key: str) -> str:
     return key.replace('_', ' ').strip().capitalize()
 
 
-def build_invoice(session: Session, item: OrderItem | ScheduleItem, issued_at: datetime | None = None) -> Invoice:
-    """The invoice for this order / booking. `issued_at` defaults to its updated_time: when the
-    payment was applied."""
+def build_document(
+    session: Session,
+    item: OrderItem | ScheduleItem,
+    doc_type: str,
+    issued_at: datetime | None = None,
+    payment_url: str = '',
+) -> Document:
+    """The invoice or receipt for this order / booking. `issued_at` defaults to when the order was
+    placed (an invoice) or when the payment was applied (a receipt: its updated_time)."""
     kind = ORDER if isinstance(item, OrderItem) else BOOKING
     data = (item.order_data if kind == ORDER else item.schedule_data) or {}
     details = dict(data.get('details') or {})
@@ -98,7 +112,7 @@ def build_invoice(session: Session, item: OrderItem | ScheduleItem, issued_at: d
     booking = None
     if kind == ORDER:
         lines = tuple(
-            InvoiceLine(str(line['name']), int(line['quantity']), Decimal(str(line['unit_price'])))
+            DocumentLine(str(line['name']), int(line['quantity']), Decimal(str(line['unit_price'])))
             for line in data.get('items', [])
         )
     else:
@@ -106,14 +120,16 @@ def build_invoice(session: Session, item: OrderItem | ScheduleItem, issued_at: d
         name = str(service.get('name') or 'Booking')
         provider = session.get(ServiceProvider, item.service_provider_id) if item.service_provider_id else None
         booking = Booking(name, provider.name if provider else '', aware(item.start_time), aware(item.end_time))
-        lines = (InvoiceLine(name, 1, Decimal(str(service.get('price', '0.00')))),)
+        lines = (DocumentLine(name, 1, Decimal(str(service.get('price', '0.00')))),)
 
     email = next((str(value).strip() for key, value in details.items() if key.lower() == 'email'), '')
+    default_time = item.created_time if doc_type == INVOICE else item.updated_time
 
-    return Invoice(
-        number=invoice_number(kind, item.id),
+    return Document(
+        number=document_number(doc_type, kind, item.id),
+        doc_type=doc_type,
         kind=kind,
-        issued_at=aware(issued_at or item.updated_time),
+        issued_at=aware(issued_at or default_time),
         payment_reference=item.payment_reference,
         business_name=business.business_name if business else f'Business #{item.business_id}',
         business_location=business.location if business else '',
@@ -121,10 +137,11 @@ def build_invoice(session: Session, item: OrderItem | ScheduleItem, issued_at: d
         customer_phone=chat.phone_number if chat else '',
         details=tuple((detail_label(key), str(value)) for key, value in details.items()),
         lines=lines,
-        currency=config.INVOICE_CURRENCY,
+        currency=config.INVOICE_CURRENCY,  # the currency of both documents
         booking=booking,
         is_sandbox=item.is_sandbox,
         customer_email=email if EMAIL_ADDRESS.match(email) else '',
+        payment_url=payment_url if doc_type == INVOICE else '',
     )
 
 # Generating the pdf
@@ -146,7 +163,7 @@ def local(moment: datetime) -> datetime:
     return moment.astimezone(ZoneInfo(config.SCHEDULE_TIME_ZONE))
 
 
-class _InvoicePDF(FPDF):
+class _DocumentPDF(FPDF):
     def footer(self):
         self.set_y(-15)
         self.set_font('Helvetica', '', 8)
@@ -154,10 +171,12 @@ class _InvoicePDF(FPDF):
         self.cell(0, 5, f'Page {self.page_no()}', align='C')
 
 
-def render_pdf(invoice: Invoice) -> bytes:
-    pdf = _InvoicePDF(format='A4')
-    pdf.set_title(pdf_text(f'Invoice {invoice.number}'))
-    pdf.set_author(pdf_text(invoice.business_name))
+def render_pdf(document: Document) -> bytes:
+    is_invoice = document.doc_type == INVOICE
+    title = TITLE[document.doc_type]
+    pdf = _DocumentPDF(format='A4')
+    pdf.set_title(pdf_text(f'{title.capitalize()} {document.number}'))
+    pdf.set_author(pdf_text(document.business_name))
     pdf.set_auto_page_break(auto=True, margin=20)
     pdf.add_page()
     width = pdf.epw
@@ -167,34 +186,35 @@ def render_pdf(invoice: Invoice) -> bytes:
         pdf.set_text_color(*color)
         pdf.multi_cell(width, height, pdf_text(text), align=align, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
-    # Header: the business on the left, the invoice's number and date on the right
+    # Header: the business on the left, the document's title, number and date on the right
     top = pdf.get_y()
-    line(invoice.business_name, size=16, style='B', height=8)
-    if invoice.business_location:
-        line(invoice.business_location, size=9, color=GREY)
+    line(document.business_name, size=16, style='B', height=8)
+    if document.business_location:
+        line(document.business_location, size=9, color=GREY)
     after_business = pdf.get_y()
     pdf.set_xy(pdf.l_margin, top)
-    line('INVOICE', size=16, style='B', align='R', height=8)
-    line(invoice.number, size=9, color=GREY, align='R')
-    line(f'Paid {local(invoice.issued_at):%d %b %Y, %H:%M}', size=9, color=GREY, align='R')
+    line(title, size=16, style='B', align='R', height=8)
+    line(document.number, size=9, color=GREY, align='R')
+    when = 'Issued' if is_invoice else 'Paid'
+    line(f'{when} {local(document.issued_at):%d %b %Y, %H:%M}', size=9, color=GREY, align='R')
     pdf.set_y(max(after_business, pdf.get_y()) + 6)
 
-    if invoice.is_sandbox:
-        line('TEST INVOICE: placed in the Chat Sandbox, not a real payment.', size=9, style='B', color=(180, 0, 0))
+    if document.is_sandbox:
+        line(f'TEST {title}: placed in the Chat Sandbox, not a real payment.', size=9, style='B', color=(180, 0, 0))
         pdf.ln(3)
 
     # Bill to
     line('BILLED TO', size=8, style='B', color=GREY)
-    line(invoice.customer_name, size=11, style='B', height=6)
-    if invoice.customer_phone:
-        line(invoice.customer_phone, size=9)
-    for label, value in invoice.details:
+    line(document.customer_name, size=11, style='B', height=6)
+    if document.customer_phone:
+        line(document.customer_phone, size=9)
+    for label, value in document.details:
         line(f'{label}: {value}', size=9)
     pdf.ln(4)
 
     # Booking: what and when
-    if invoice.booking:
-        booking = invoice.booking
+    if document.booking:
+        booking = document.booking
         start, end = local(booking.start), local(booking.end)
         line('BOOKING', size=8, style='B', color=GREY)
         line(booking.service, size=10, style='B')
@@ -212,8 +232,8 @@ def render_pdf(invoice: Invoice) -> bytes:
         pdf.cell(column_width, 7, title, align=align, fill=True)
     pdf.ln()
     pdf.set_font('Helvetica', '', 9)
-    for item in invoice.lines:
-        values = (item.description, str(item.quantity), money(item.unit_price, invoice.currency), money(item.amount, invoice.currency))
+    for item in document.lines:
+        values = (item.description, str(item.quantity), money(item.unit_price, document.currency), money(item.amount, document.currency))
         # A long description wraps onto more rows; the numbers stay on its first row.
         description = pdf_text(values[0])
         rows = len(pdf.multi_cell(columns[0][1], 6, description, dry_run=True, output='LINES'))
@@ -229,16 +249,30 @@ def render_pdf(invoice: Invoice) -> bytes:
 
     pdf.ln(2)
     pdf.set_font('Helvetica', 'B', 11)
-    pdf.cell(width * 0.81, 8, 'Total paid', align='R')
-    pdf.cell(width * 0.19, 8, money(invoice.total, invoice.currency), align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(width * 0.81, 8, 'Amount due' if is_invoice else 'Total paid', align='R')
+    pdf.cell(width * 0.19, 8, money(document.total, document.currency), align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.ln(8)
 
-    line(f'Payment reference: {invoice.payment_reference}', size=8, color=GREY)
-    line(f'Thank you for your {invoice.kind}!', size=9)
+    if is_invoice:
+        # How to pay, and what comes next: this is not a receipt yet.
+        line('HOW TO PAY', size=8, style='B', color=GREY)
+        if document.payment_url:
+            pdf.set_font('Helvetica', 'U', 9)
+            pdf.set_text_color(0, 0, 200)
+            pdf.write(5, pdf_text(document.payment_url), link=document.payment_url)
+            pdf.ln(7)
+        else:
+            line('Please contact the business to arrange payment.', size=9)
+        line('This is an invoice, not a receipt. You will get a receipt once your payment is received.', size=9)
+        pdf.ln(4)
+    line(f'Payment reference: {document.payment_reference}', size=8, color=GREY)
+    if not is_invoice:
+        line(f'Thank you for your {document.kind}!', size=9)
 
     return bytes(pdf.output())
 
 
-def object_name(payment_reference: str) -> str:
-    """Where the PDF goes in object storage: one per payment, so a repeated event overwrites it."""
-    return f'invoices/{payment_reference}.pdf'
+def object_name(doc_type: str, payment_reference: str) -> str:
+    """Where the PDF goes in object storage: invoices/<reference>.pdf or receipts/<reference>.pdf, one
+    of each per payment, so a repeated event overwrites it."""
+    return f'{doc_type}s/{payment_reference}.pdf'

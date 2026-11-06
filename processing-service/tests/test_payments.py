@@ -1,4 +1,4 @@
-"""The payment flow (app/payments.py), a draft: a couple of cases on in-memory SQLite."""
+"""The payment flow (app/payments.py): the receipt after a payment, the invoice when an order is placed. In-memory SQLite."""
 
 import unittest
 from datetime import UTC, date, datetime
@@ -9,7 +9,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.models import UNAVAILABLE_WEEK, Base, BusinessConfiguration, ChatSession, OrderItem, ScheduleItem, WeeklyAvailability
 from app.email_sender import EmailError
-from app.payments import PaymentEventError, PaymentNotFoundError, apply_payment
+from app.payments import PaymentEventError, PaymentNotFoundError, PaymentStatusConflictError, apply_payment, send_invoice
 from app.whatsapp_sender import SendError
 
 ORDER_REFERENCE = 'a' * 32
@@ -45,14 +45,14 @@ class PaymentFlowTests(unittest.TestCase):
             session.add(BusinessConfiguration(id=1, business_name='Kopi & Toast', location='1 Raffles Place'))
             session.add(BusinessConfiguration(id=4, business_name='Studio', location='2 Orchard Road'))
             session.add(ChatSession(id=1, phone_number='+6591234567', display_name='Daniel'))
-            session.add(OrderItem(id=2, business_id=1, chat_session_id=1, is_sandbox=False, order_data=ORDER_DATA, order_status='pending_payment', payment_reference=CHAT_ORDER_REFERENCE, updated_time=now))
-            session.add(OrderItem(id=1, business_id=1, is_sandbox=False, order_data=ORDER_DATA, order_status='pending_payment', payment_reference=ORDER_REFERENCE, updated_time=now))
+            session.add(OrderItem(id=2, business_id=1, chat_session_id=1, is_sandbox=False, order_data=ORDER_DATA, order_status='pending_payment', payment_reference=CHAT_ORDER_REFERENCE, created_time=now, updated_time=now))
+            session.add(OrderItem(id=1, business_id=1, is_sandbox=False, order_data=ORDER_DATA, order_status='pending_payment', payment_reference=ORDER_REFERENCE, created_time=now, updated_time=now))
             session.add(ScheduleItem(
                 id=1, business_id=4, is_sandbox=False, service_provider_id=1, schedule_data=SCHEDULE_DATA, order_status='pending_payment', payment_reference=BOOKING_REFERENCE,
                 start_time=datetime(2026, 10, 12, 2, tzinfo=UTC),  # 10:00 in Singapore
                 end_time=datetime(2026, 10, 12, 3, tzinfo=UTC),
                 blocked_until=datetime(2026, 10, 12, 3, 30, tzinfo=UTC),
-                updated_time=now,
+                created_time=now, updated_time=now,
             ))
             session.add(WeeklyAvailability(id=1, service_provider_id=1, week=MONDAY, availability=LETTERS))
 
@@ -68,25 +68,25 @@ class PaymentFlowTests(unittest.TestCase):
             letters = session.get(WeeklyAvailability, 1).availability
         self.assertEqual(letters[36:48], 'OOOO' + 'XXXX' + 'XX' + 'OO')  # duration and buffer H → X
 
-    def test_a_paid_order_gets_its_invoice_uploaded(self):
-        with mock.patch('app.storage.upload_invoice', return_value='gs://bucket/x.pdf') as upload, \
-                mock.patch('app.storage.invoice_link', return_value='https://signed') as link, \
+    def test_a_paid_order_gets_its_receipt_uploaded(self):
+        with mock.patch('app.storage.upload_pdf', return_value='gs://bucket/x.pdf') as upload, \
+                mock.patch('app.storage.signed_link', return_value='https://signed') as link, \
                 self.sessions() as session:
             result = apply_payment(session, ORDER_REFERENCE, 'success', ORDER_TOTAL)
         pdf, object_name = upload.call_args.args
         self.assertTrue(pdf.startswith(b'%PDF'))
-        self.assertEqual(object_name, f'invoices/{ORDER_REFERENCE}.pdf')
-        link.assert_called_once_with(f'invoices/{ORDER_REFERENCE}.pdf')
-        self.assertEqual((result.invoice_uri, result.invoice_link), ('gs://bucket/x.pdf', 'https://signed'))
+        self.assertEqual(object_name, f'receipts/{ORDER_REFERENCE}.pdf')
+        link.assert_called_once_with(f'receipts/{ORDER_REFERENCE}.pdf')
+        self.assertEqual((result.document_uri, result.document_link), ('gs://bucket/x.pdf', 'https://signed'))
 
-    def test_a_paid_booking_gets_its_invoice_uploaded(self):
-        with mock.patch('app.storage.upload_invoice', return_value=None) as upload, self.sessions() as session:
+    def test_a_paid_booking_gets_its_receipt_uploaded(self):
+        with mock.patch('app.storage.upload_pdf', return_value=None) as upload, self.sessions() as session:
             result = apply_payment(session, BOOKING_REFERENCE, 'success', BOOKING_TOTAL)
-        self.assertEqual(upload.call_args.args[1], f'invoices/{BOOKING_REFERENCE}.pdf')
-        self.assertIsNone(result.invoice_link)  # nothing uploaded (no bucket): nothing to link
+        self.assertEqual(upload.call_args.args[1], f'receipts/{BOOKING_REFERENCE}.pdf')
+        self.assertIsNone(result.document_link)  # nothing uploaded (no bucket): nothing to link
 
-    def test_a_failed_payment_makes_no_invoice(self):
-        with mock.patch('app.storage.upload_invoice') as upload, self.sessions() as session:
+    def test_a_failed_payment_makes_no_receipt(self):
+        with mock.patch('app.storage.upload_pdf') as upload, self.sessions() as session:
             apply_payment(session, ORDER_REFERENCE, 'fail', ORDER_TOTAL)
         upload.assert_not_called()
 
@@ -114,8 +114,8 @@ class PaymentFlowTests(unittest.TestCase):
             result = apply_payment(session, ORDER_REFERENCE, 'fail')
         self.assertEqual(result.new_status, 'payment_failed')
 
-    def test_a_repeated_event_makes_the_invoice_again_after_a_failed_upload(self):
-        with mock.patch('app.storage.upload_invoice', side_effect=[RuntimeError('GCS down'), 'gs://b/x.pdf']) as upload:
+    def test_a_repeated_event_makes_the_receipt_again_after_a_failed_upload(self):
+        with mock.patch('app.storage.upload_pdf', side_effect=[RuntimeError('GCS down'), 'gs://b/x.pdf']) as upload:
             with self.sessions() as session, self.assertRaises(RuntimeError):
                 apply_payment(session, ORDER_REFERENCE, 'success', ORDER_TOTAL)
             with self.sessions() as session:
@@ -124,11 +124,11 @@ class PaymentFlowTests(unittest.TestCase):
                 result = apply_payment(session, ORDER_REFERENCE, 'success', ORDER_TOTAL)  # Pub/Sub redelivers
         self.assertFalse(result.changed)
         self.assertEqual(upload.call_count, 2)
-        self.assertEqual(result.invoice_uri, 'gs://b/x.pdf')
+        self.assertEqual(result.document_uri, 'gs://b/x.pdf')
 
-    def test_the_customer_is_told_a_payment_was_received_with_the_invoice_link(self):
-        with mock.patch('app.storage.upload_invoice', return_value='gs://b/x.pdf'), \
-                mock.patch('app.storage.invoice_link', return_value='https://signed/x.pdf'), \
+    def test_the_customer_is_told_a_payment_was_received_with_the_receipt_link(self):
+        with mock.patch('app.storage.upload_pdf', return_value='gs://b/x.pdf'), \
+                mock.patch('app.storage.signed_link', return_value='https://signed/x.pdf'), \
                 mock.patch('app.whatsapp_sender.send_text', return_value='wamid.1') as send, self.sessions() as session:
             apply_payment(session, CHAT_ORDER_REFERENCE, 'success', ORDER_TOTAL)
         business_id, to, text = send.call_args.args
@@ -136,15 +136,15 @@ class PaymentFlowTests(unittest.TestCase):
         self.assertIn('received your payment', text)
         self.assertIn('https://signed/x.pdf', text)
 
-    def test_the_invoice_is_emailed_attached_to_the_customer(self):
+    def test_the_receipt_is_emailed_attached_to_the_customer(self):
         with mock.patch('app.whatsapp_sender.send_text', return_value='wamid.1'), self.sessions() as session:
             apply_payment(session, CHAT_ORDER_REFERENCE, 'success', ORDER_TOTAL)
         subject, text, to = self.send_email.call_args.args
         [attachment] = self.send_email.call_args.kwargs['attachments']
         self.assertEqual(to, 'daniel@example.com')
         self.assertEqual(subject, 'Payment received: your order with Kopi & Toast')
-        self.assertIn('INV-O-000002', text)
-        self.assertEqual(attachment.filename, 'INV-O-000002.pdf')
+        self.assertIn('RCT-O-000002', text)
+        self.assertEqual(attachment.filename, 'RCT-O-000002.pdf')
         self.assertTrue(attachment.data.startswith(b'%PDF'))
 
     def test_a_failed_payment_sends_no_email(self):
@@ -190,6 +190,86 @@ class PaymentFlowTests(unittest.TestCase):
         with mock.patch('app.whatsapp_sender.send_text', side_effect=refused), self.sessions() as session:
             result = apply_payment(session, CHAT_ORDER_REFERENCE, 'fail')
         self.assertEqual(result.new_status, 'payment_failed')
+
+    # --- the invoice: the order / booking was just placed ------------------------------------------------
+
+    PAY_URL = 'https://checkout.xendit.example/pay/abc123'
+
+    def test_a_new_order_gets_its_invoice_by_whatsapp_and_email(self):
+        with mock.patch('app.storage.upload_pdf', return_value='gs://b/inv.pdf') as upload, \
+                mock.patch('app.storage.signed_link', return_value='https://signed/inv.pdf'), \
+                mock.patch('app.whatsapp_sender.send_text', return_value='wamid.1') as send_text, self.sessions() as session:
+            result = send_invoice(session, CHAT_ORDER_REFERENCE, self.PAY_URL)
+        pdf, object_name = upload.call_args.args
+        self.assertTrue(pdf.startswith(b'%PDF'))
+        self.assertEqual(object_name, f'invoices/{CHAT_ORDER_REFERENCE}.pdf')  # not receipts/
+        self.assertEqual((result.document_uri, result.document_link), ('gs://b/inv.pdf', 'https://signed/inv.pdf'))
+        business_id, to, text = send_text.call_args.args
+        self.assertEqual((business_id, to), (1, '+6591234567'))
+        for wanted in ('your invoice INV-O-000002', 'Amount to pay: SGD 3.60', f'Pay here: {self.PAY_URL}', 'Invoice (PDF): https://signed/inv.pdf'):
+            self.assertIn(wanted, text)
+        subject, body, recipient = self.send_email.call_args.args
+        [attachment] = self.send_email.call_args.kwargs['attachments']
+        self.assertEqual((recipient, subject), ('daniel@example.com', 'Invoice for your order with Kopi & Toast: SGD 3.60 to pay'))
+        self.assertIn(f'Pay online: {self.PAY_URL}', body)
+        self.assertEqual(attachment.filename, 'INV-O-000002.pdf')
+        self.assertTrue(attachment.data.startswith(b'%PDF'))
+
+    def test_an_invoice_changes_nothing_in_the_database(self):
+        with mock.patch('app.whatsapp_sender.send_text', return_value='wamid.1'), self.sessions() as session:
+            result = send_invoice(session, CHAT_ORDER_REFERENCE, self.PAY_URL)
+        self.assertFalse(result.changed)
+        with self.sessions() as session:
+            order = session.get(OrderItem, 2)
+            self.assertEqual(order.order_status, 'pending_payment')
+            self.assertEqual(order.updated_time.replace(tzinfo=UTC), datetime(2026, 10, 1, tzinfo=UTC))
+
+    def test_a_booking_gets_an_invoice_too(self):
+        with mock.patch('app.storage.upload_pdf', return_value=None) as upload, self.sessions() as session:
+            result = send_invoice(session, BOOKING_REFERENCE, self.PAY_URL)  # no chat, no email: nobody to tell, no error
+        self.assertEqual(upload.call_args.args[1], f'invoices/{BOOKING_REFERENCE}.pdf')
+        self.assertEqual(result.kind, 'booking')
+
+    def test_an_order_that_is_paid_or_failed_gets_no_invoice(self):
+        with mock.patch('app.whatsapp_sender.send_text', return_value='wamid.1') as send_text:
+            with self.sessions() as session:
+                apply_payment(session, CHAT_ORDER_REFERENCE, 'success', ORDER_TOTAL)
+            send_text.reset_mock()
+            self.send_email.reset_mock()
+            with mock.patch('app.storage.upload_pdf') as upload, self.sessions() as session, \
+                    self.assertRaises(PaymentStatusConflictError):
+                send_invoice(session, CHAT_ORDER_REFERENCE, self.PAY_URL)  # a late "created" event, after the payment
+        upload.assert_not_called()
+        send_text.assert_not_called()
+        self.send_email.assert_not_called()
+
+    def test_an_unknown_payment_reference_gets_no_invoice(self):
+        with self.sessions() as session, self.assertRaises(PaymentNotFoundError):
+            send_invoice(session, 'c' * 32, self.PAY_URL)
+
+    def test_an_invoice_that_could_not_be_sent_yet_is_retried_with_the_event(self):
+        down = SendError('configuration-service is down', retryable=True)
+        with mock.patch('app.whatsapp_sender.send_text', side_effect=[down, 'wamid.1']) as send_text:
+            with self.sessions() as session, self.assertRaises(SendError):
+                send_invoice(session, CHAT_ORDER_REFERENCE, self.PAY_URL)
+            self.assertEqual(self.send_email.call_count, 1)  # the email wasn't held up by WhatsApp
+            with self.sessions() as session:
+                send_invoice(session, CHAT_ORDER_REFERENCE, self.PAY_URL)  # Pub/Sub redelivers
+        self.assertEqual(send_text.call_count, 2)
+
+    def test_the_invoice_and_the_receipt_do_not_share_wording(self):
+        with mock.patch('app.whatsapp_sender.send_text', return_value='wamid.1') as send_text:
+            with self.sessions() as session:
+                send_invoice(session, CHAT_ORDER_REFERENCE, self.PAY_URL)
+            invoice_text = send_text.call_args.args[2]
+            with self.sessions() as session:
+                apply_payment(session, CHAT_ORDER_REFERENCE, 'success', ORDER_TOTAL)
+            receipt_text = send_text.call_args.args[2]
+        self.assertIn('invoice', invoice_text)
+        self.assertNotIn('your receipt:', invoice_text.lower())
+        self.assertIn('Your receipt: RCT-O-000002', receipt_text)
+        self.assertNotIn('invoice', receipt_text.lower())
+        self.assertNotIn('Amount to pay', receipt_text)
 
     def test_an_unknown_payment_reference_is_an_error(self):
         with self.sessions() as session, self.assertRaises(PaymentNotFoundError):

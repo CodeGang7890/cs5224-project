@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from app import config, create_app
 from app.consumer import Consumer, InvalidMessageError, handle, parse
-from app.payments import PaymentNotFoundError
+from app.payments import PaymentNotFoundError, PaymentStatusConflictError
 
 REFERENCE = '3f9c1a2b4d5e6f708192a3b4c5d6e7f8'
 
@@ -30,12 +30,17 @@ class FakeMessage:
         self.nacked = True
 
 
-def event(payment_reference=REFERENCE, status='success', amount=None) -> FakeMessage:
+PAYMENT_URL = 'https://checkout.xendit.example/pay/abc123'
+
+
+def event(payment_reference=REFERENCE, status='success', amount=None, payment_url=None) -> FakeMessage:
     payload = {
         'payment_reference': payment_reference,
         'status': status,
         'amount': amount,
     }
+    if payment_url is not None:
+        payload['payment_url'] = payment_url
     return FakeMessage(json.dumps(payload).encode())
 
 
@@ -63,6 +68,18 @@ class ParseTests(unittest.TestCase):
             parse(event(status='success', amount=0).data),
             {'payment_reference': REFERENCE, 'status': 'success', 'amount': 0.0},
         )
+
+    def test_a_created_event_has_the_payment_link(self):
+        self.assertEqual(
+            parse(event(status='created', amount=3.6, payment_url=PAYMENT_URL).data),
+            {'payment_reference': REFERENCE, 'status': 'created', 'amount': 3.6, 'payment_url': PAYMENT_URL},
+        )
+        self.assertNotIn('payment_url', parse(event(status='created').data))  # the link is optional
+
+    def test_the_payment_link_must_be_a_link(self):
+        for url in ('not a link', 42, ['https://x'], 'javascript:alert(1)', 'https://' + 'a' * 2000):
+            with self.subTest(url=url), self.assertRaises(InvalidMessageError):
+                parse(event(status='created', payment_url=url).data)
 
     def test_anything_else_is_invalid(self):
         bad = (
@@ -103,6 +120,35 @@ class ParseTests(unittest.TestCase):
 
 @patch('app.consumer.apply_payment')
 class HandleTests(unittest.TestCase):
+    def test_a_created_event_sends_the_invoice_not_a_payment(self, apply_payment):
+        pulled = event(status='created', amount=3.6, payment_url=PAYMENT_URL)
+        with patch('app.consumer.send_invoice') as send_invoice, self.assertLogs('app.consumer', level='INFO'):
+            handle(pulled, session_factory=MagicMock())
+        self.assertEqual(send_invoice.call_args.args[1:], (REFERENCE, PAYMENT_URL))
+        apply_payment.assert_not_called()  # nothing about the payment changes
+        self.assertTrue(pulled.acked)
+
+    def test_a_payment_result_does_not_send_an_invoice(self, apply_payment):
+        with patch('app.consumer.send_invoice') as send_invoice, self.assertLogs('app.consumer', level='INFO'):
+            handle(event(status='success', amount=3.6), session_factory=MagicMock())
+        send_invoice.assert_not_called()
+        apply_payment.assert_called_once()
+
+    def test_an_invoice_for_an_order_that_is_already_paid_is_logged_and_acked(self, apply_payment):
+        pulled = event(status='created', payment_url=PAYMENT_URL)
+        with patch('app.consumer.send_invoice', side_effect=PaymentStatusConflictError('already paid')), \
+                self.assertLogs('app.consumer', level='ERROR'):
+            handle(pulled, session_factory=MagicMock())
+        self.assertTrue(pulled.acked)
+
+    def test_an_invoice_that_could_not_be_sent_yet_is_nacked_so_it_is_redelivered(self, apply_payment):
+        pulled = event(status='created', payment_url=PAYMENT_URL)
+        with patch('app.consumer.send_invoice', side_effect=RuntimeError('relay down')), \
+                self.assertLogs('app.consumer', level='ERROR'):
+            handle(pulled, session_factory=MagicMock())
+        self.assertTrue(pulled.nacked)
+        self.assertFalse(pulled.acked)
+
     def test_completed_xendit_webhook_through_the_actual_ingester_publisher(self, apply_payment):
         # A separate interpreter avoids colliding with both services' "app" packages.
         # Pub/Sub is mocked; parsing and serialization use the real producer code.
