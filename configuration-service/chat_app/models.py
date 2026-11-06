@@ -166,6 +166,14 @@ class ChatSession(models.Model):
         validators=[validate_chat_state_data],
         help_text='Data collected by the chat flow so far: chosen products, customer details, completed.',
     )
+    # Goes up by 1 whenever the session is changed (save() here; messaging-service's mapping does the
+    # same), so messaging-service can tell the chat changed while its LLM was answering (e.g. the
+    # business answered in the chat, or another message arrived) and run the turn again.
+    version = models.PositiveIntegerField(
+        default=0,
+        editable=False,
+        help_text='Goes up by 1 on every change, so concurrent changes can be detected.',
+    )
 
     class Meta:
         verbose_name = 'Chat Session'
@@ -190,6 +198,18 @@ class ChatSession(models.Model):
     def __str__(self) -> str:
         name = self.display_name or self.phone_number or f'Sandbox chat #{self.pk}'
         return f'{name} ({self.business})'
+
+    def save(self, *args, **kwargs):
+        """Saves, and on an update adds 1 to `version` in the database (F(), so two saves at once
+        can't both write the same number). QuerySet.update() skips this: set version=F('version') + 1
+        there too."""
+        if self._state.adding:
+            return super().save(*args, **kwargs)
+        self.version = models.F('version') + 1
+        if kwargs.get('update_fields') is not None:
+            kwargs['update_fields'] = {*kwargs['update_fields'], 'version'}
+        super().save(*args, **kwargs)
+        self.refresh_from_db(fields=['version'])
 
     def clean(self):
         super().clean()

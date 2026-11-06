@@ -652,71 +652,99 @@ def _after_placed(data: dict, key: str, pk: int) -> dict:
     return {**kept, key: pk}
 
 
-def commit_turn(sessions: sessionmaker, session_id: int, turn: Turn, now: datetime | None = None) -> None:
-    """Saves where the chat is and what it has collected, placing the order or booking if the
-    customer confirmed.
+class ChatChanged(Exception):
+    """The chat's version isn't the one the turn read: it changed while the LLM was answering
+    (another message, the business answering in the chat…). Nothing of the turn was saved."""
 
-    One transaction, with the session row locked: the order (checkout_app.services.place_order,
-    which locks the products and reserves their stock) or booking (place_booking, which locks the
-    service's calendars) and the saved state can't disagree. Once it's saved, the chat goes back to
+    def __init__(self, session_id: int, expected: int, found: int):
+        super().__init__(f'Chat {session_id} changed during the turn (version {expected} → {found}).')
+        self.session_id, self.expected, self.found = session_id, expected, found
+
+
+def lock_session(db, session_id: int, version: int | None = None) -> ChatSession:
+    """The chat's row, locked (call inside a transaction). With `version` (the one the turn read):
+    ChatChanged if the chat's is different now."""
+    session = db.scalars(select(ChatSession).where(ChatSession.id == session_id).with_for_update()).one()
+    if version is not None and session.version != version:
+        raise ChatChanged(session_id, version, session.version)
+    return session
+
+
+def commit_turn(
+    sessions: sessionmaker, session_id: int, turn: Turn, now: datetime | None = None, version: int | None = None
+) -> int:
+    """apply_turn() in its own transaction, with the session row locked and, with `version`, only
+    if the chat is still at that version (else ChatChanged, and nothing is saved). Returns the
+    chat's new version."""
+    with sessions.begin() as db:
+        session = lock_session(db, session_id, version)
+        apply_turn(db, session, turn, now)
+    return session.version
+
+
+def apply_turn(db, session: ChatSession, turn: Turn, now: datetime | None = None) -> None:
+    """Saves where the chat is and what it has collected, placing the order or booking if the
+    customer confirmed. Call inside a transaction, with `session` locked (lock_session).
+
+    The order (checkout_app.services.place_order, which locks the products and reserves their
+    stock) or booking (place_booking, which locks the service's calendars) and the saved state are
+    in the same transaction, so they can't disagree. Once it's saved, the chat goes back to
     `start` with only `last_order_id` / `last_booking_id` (and `turn.placed_order_id` /
     `placed_booking_id` is set, for the confirmation message). If it can't be placed, the chat goes
     back, keeping everything: an order to Product selection (e.g. sold out since it was chosen), a
     booking to Time slot with fresh times offered (e.g. someone else booked that time); the problems
     go into the reply. A collected name also fills in an empty display_name.
     """
-    with sessions.begin() as db:
-        session = db.scalars(select(ChatSession).where(ChatSession.id == session_id).with_for_update()).one()
-        business = db.get(BusinessConfiguration, session.business_id)
-        details = turn.data.get('details', {})
-        booking = turn.step == STEP_BOOKING_CONFIRMATION
-        if turn.confirmation is not None and not (
-            turn.confirmation.get('service') and turn.confirmation.get('slot') if booking else turn.confirmation.get('items')
-        ):
-            # Can't happen (the earlier steps need them), but never place an empty order / booking.
-            turn.confirmation, turn.step = None, FIRST_STEP[turn.step]
-            turn.missing = [SERVICE_MISSING if booking else PRODUCTS_MISSING]
-            turn.stop_reason += ' Nothing was chosen, so nothing was placed.'
-        if turn.confirmation is not None and booking:
-            _place_booking(db, session, business, turn, now)
-        elif turn.confirmation is not None:
-            data = turn.confirmation
-            try:
-                # A savepoint: if the order can't be placed, only its rows are undone (Django's atomic()).
-                with db.begin_nested():
-                    order = place_order(
-                        db,
-                        business,
-                        data.get('items', []),
-                        data.get('details', {}),
-                        chat_session=session,
-                        is_sandbox=session.is_sandbox,
-                    )
-            except OrderError as exc:
-                label = STEP_LABELS[STEP_CONFIRMATION]
-                turn.step = STEP_PRODUCT_SELECTION
-                turn.data = {key: value for key, value in data.items() if key != 'items_confirmed'}
-                turn.finished = [f for f in turn.finished if f != label]
-                turn.missing = []
-                turn.issues = [*exc.problems, 'The order was not placed: ask the customer what to change.']
-                turn.stop_reason = f'The order could not be placed: {exc} Back to Product selection.'
-            else:
-                turn.placed_order_id = order.pk
-                turn.step = STEP_START
-                turn.data = _after_placed(data, 'last_order_id', order.pk)
-                turn.stop_reason = f'Order #{order.pk} placed: back to the start.'
-        if turn.confirmation is not None:
-            details = turn.confirmation.get('details', {})
-        validate_chat_state_data(turn.data)
-        session.chat_state_id = turn.step
-        session.chat_state_data = copy.deepcopy(turn.data)
-        name = details.get('name')  # a field with the key `name`, if any
-        if isinstance(name, str) and not session.display_name:
-            session.display_name = name[:DISPLAY_NAME_MAX_LENGTH]
+    business = db.get(BusinessConfiguration, session.business_id)
+    details = turn.data.get('details', {})
+    booking = turn.step == STEP_BOOKING_CONFIRMATION
+    if turn.confirmation is not None and not (
+        turn.confirmation.get('service') and turn.confirmation.get('slot') if booking else turn.confirmation.get('items')
+    ):
+        # Can't happen (the earlier steps need them), but never place an empty order / booking.
+        turn.confirmation, turn.step = None, FIRST_STEP[turn.step]
+        turn.missing = [SERVICE_MISSING if booking else PRODUCTS_MISSING]
+        turn.stop_reason += ' Nothing was chosen, so nothing was placed.'
+    if turn.confirmation is not None and booking:
+        _place_booking(db, session, business, turn, now)
+    elif turn.confirmation is not None:
+        data = turn.confirmation
+        try:
+            # A savepoint: if the order can't be placed, only its rows are undone (Django's atomic()).
+            with db.begin_nested():
+                order = place_order(
+                    db,
+                    business,
+                    data.get('items', []),
+                    data.get('details', {}),
+                    chat_session=session,
+                    is_sandbox=session.is_sandbox,
+                )
+        except OrderError as exc:
+            label = STEP_LABELS[STEP_CONFIRMATION]
+            turn.step = STEP_PRODUCT_SELECTION
+            turn.data = {key: value for key, value in data.items() if key != 'items_confirmed'}
+            turn.finished = [f for f in turn.finished if f != label]
+            turn.missing = []
+            turn.issues = [*exc.problems, 'The order was not placed: ask the customer what to change.']
+            turn.stop_reason = f'The order could not be placed: {exc} Back to Product selection.'
+        else:
+            turn.placed_order_id = order.pk
+            turn.step = STEP_START
+            turn.data = _after_placed(data, 'last_order_id', order.pk)
+            turn.stop_reason = f'Order #{order.pk} placed: back to the start.'
+    if turn.confirmation is not None:
+        details = turn.confirmation.get('details', {})
+    validate_chat_state_data(turn.data)
+    session.chat_state_id = turn.step
+    session.chat_state_data = copy.deepcopy(turn.data)
+    name = details.get('name')  # a field with the key `name`, if any
+    if isinstance(name, str) and not session.display_name:
+        session.display_name = name[:DISPLAY_NAME_MAX_LENGTH]
 
 
 def _place_booking(db, session: ChatSession, business, turn: Turn, now: datetime | None) -> None:
-    """commit_turn() for Booking confirmation: place_booking(), or back to Time slot if it can't."""
+    """apply_turn() for Booking confirmation: place_booking(), or back to Time slot if it can't."""
     data = turn.confirmation
     now = now or timezone.now()
     try:

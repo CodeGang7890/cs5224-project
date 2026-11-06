@@ -25,7 +25,7 @@ A **FastAPI** service (port **8002**) that receives Meta's WhatsApp Cloud API we
   - 503 configuration-service or Pub/Sub unavailable
   - 403 / 422 for the handshake
 - Only changes whose `metadata.phone_number_id` equals the business's (returned by verify-signature) are published. `statuses` (receipts) are ignored. Malformed items are skipped, never a crash.
-- **Pub/Sub:** data = `InboundMessage.to_dict()` JSON; attributes `business_id`, `phone_number_id`, `message_id`; ordering key = the customer's E.164 number (`PublisherOptions(enable_message_ordering=True)`; after a failed publish, `resume_publish` that key). The route waits for every future; any failure → `PublishError` → 503. Consumers dedupe on `message_id`.
+- **Pub/Sub:** data = `InboundMessage.to_dict()` JSON; attributes `business_id`, `phone_number_id`, `message_id`; ordering key = `<business_id>:<customer's E.164 number>` (`ordering_key()`; the user asked: one customer's messages to one business arrive in order and one at a time, since the subscription has message ordering and messaging-service acks at the end of the turn; `PublisherOptions(enable_message_ordering=True)`; after a failed publish, `resume_publish` that key). The route waits for every future; any failure → `PublishError` → 503. Consumers dedupe on `message_id`.
 
 ## Stack
 

@@ -420,15 +420,16 @@ class RouterFlowTests(FlowApiMixin, ApiTestCase):
             self.send('Has my order been paid?', reply=reply, intents=['order_status'], order_status={'kind': 'order', 'numbers': []})
         tags = [line.split('app.latency:', 1)[1].split(' ', 1)[0] for line in logs.output]
         self.assertEqual(tags, [
-            '[LATENCY][DB][LOAD]', '[LATENCY][LLM][ROUTER]', '[LATENCY][DB][COMMIT_TURN]',
+            '[LATENCY][DB][LOAD]', '[LATENCY][LLM][ROUTER]',
             '[LATENCY][LLM][ORDER_STATUS][EXTRACTION]', '[LATENCY][DB][ORDER_STATUS][LOOKUP]',
-            '[LATENCY][LLM][ORDER_STATUS][REPLY]', '[LATENCY][TURN]', '[LATENCY][E2E]', '[LATENCY][SUMMARY]',
+            '[LATENCY][LLM][ORDER_STATUS][REPLY]', '[LATENCY][DB][SAVE_TURN]', '[LATENCY][TURN]', '[LATENCY][E2E]',
+            '[LATENCY][SUMMARY]',
         ])
         self.assertTrue(all(f'channel=sandbox chat={self.session.pk}' in line for line in logs.output))
         self.assertIn('intents=order_status', logs.output[1])
-        self.assertIn('kind=order', logs.output[4])
-        self.assertIn('found=1', logs.output[4])
-        self.assertIn('grounded=True', logs.output[5])
+        self.assertIn('kind=order', logs.output[3])
+        self.assertIn('found=1', logs.output[3])
+        self.assertIn('grounded=True', logs.output[4])
         self.assertIn('reply_kind=order_status', logs.output[6])
         self.assertRegex(logs.output[-1], r'router=\d+\.\d\d .*order_status\.extraction=\d+\.\d\d order_status\.lookup=\d+\.\d\d order_status\.reply=')
 

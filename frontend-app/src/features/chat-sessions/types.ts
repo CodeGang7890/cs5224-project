@@ -117,6 +117,8 @@ export interface SandboxTurnDebug {
     | "booking_confirmed";
   /** The LLM reply's prompt; for a Confirmation template, the prompt of its short aside (empty if none). */
   reply_system_prompt: string;
+  /** How many times the turn ran (more than 1: the chat changed while it was worked out, so it ran again). */
+  attempts: number;
   tool_calls: { name: string; arguments: Record<string, unknown> }[];
   /** The question check (FAQs): does the business's information answer the question? Null unless the router found one. */
   question_check: QuestionCheckDebug | null;

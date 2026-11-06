@@ -55,6 +55,7 @@ class InboundTests(DatabaseTestCase):
             [(m['sent_by'], m['message']) for m in session.chat_message_json],
             [('customer', 'Hi! Do you have pandan chiffon cake?'), ('business-automated', 'Yes, we do! A whole cake is $25.')],
         )
+        self.assertEqual(session.version, 2)  # created at 0, the message, the reply
         record, = self.all(InboundMessage)
         self.assertEqual((record.message_id, record.status, record.chat_session_id), ('wamid.1', 'replied', session.id))
         self.assertIsNotNone(record.replied_time)

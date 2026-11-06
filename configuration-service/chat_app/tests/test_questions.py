@@ -226,7 +226,7 @@ class AnswerQuestionAPITests(QuestionAPITestCase):
         return self.client.post(self.answer_url(item or self.item), {'answer': 'Yes, for 50 cents more.', **data}, format='json')
 
     def test_answering_saves_an_faq_replies_in_the_chat_and_closes_the_question(self):
-        before = self.alice.last_chat_time
+        before, version = self.alice.last_chat_time, self.alice.version
         response = self.answer()
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.item.refresh_from_db()
@@ -244,6 +244,7 @@ class AnswerQuestionAPITests(QuestionAPITestCase):
         self.assertEqual(message['sent_by'], 'business-manual')
         validate_chat_messages(self.alice.chat_message_json)
         self.assertGreater(self.alice.last_chat_time, before)
+        self.assertEqual(self.alice.version, version + 1)  # messaging-service sees the chat changed
 
     def test_reworded_question(self):
         response = self.answer(question='  Do you have  oat milk for coffee? ')

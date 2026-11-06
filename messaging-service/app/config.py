@@ -79,6 +79,9 @@ VERTEX_AI_STRUCTURED_OPTIONS = VERTEX_AI_OPTIONS
 VERTEX_AI_THINKING_LEVEL = 'MINIMAL'
 # How many rounds of tool calls the reply step may make before it must answer.
 MAX_TOOL_ROUNDS = 3
+# How many times a turn runs when the chat keeps changing while it's worked out (ChatSession.version:
+# another message, the business answering in the chat): then it gives up (409 / the message is nacked).
+TURN_ATTEMPTS_MAX = 3
 
 # --- PostgreSQL (configuration-service's database) -----------------------------------------
 # The chat flow reads the business's products, services, FAQs and chats, and writes chat messages,

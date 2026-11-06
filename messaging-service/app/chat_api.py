@@ -67,7 +67,8 @@ def _message_body(description: str) -> dict:
 
 
 def _run_turn(sessions: sessionmaker, session_id: int, message: str, channel: str) -> flow.TurnResult:
-    """One turn of the chat flow; LLM failures → 502 / 503 / 504 (the customer message is kept).
+    """One turn of the chat flow; LLM failures → 502 / 503 / 504, a chat that kept changing during
+    the turn → 409 (the customer message is kept either way).
     Logs `[LATENCY][E2E]` and `[LATENCY][SUMMARY]` for the request (`channel`: sandbox / api)."""
     with latency.bind(channel=channel, chat=session_id):
         timer = latency.Timer()
@@ -90,6 +91,8 @@ def _turn(sessions: sessionmaker, session_id: int, message: str) -> flow.TurnRes
         raise error(504, str(exc)) from exc
     except llm.LLMError as exc:
         raise error(502, str(exc)) from exc
+    except flow.ChatConflictError as exc:
+        raise error(409, str(exc)) from exc
 
 
 def _own_sandbox_session(request: Request, sessions: sessionmaker, pk: str) -> ChatSession:
@@ -122,6 +125,7 @@ def _own_sandbox_session(request: Request, sessions: sessionmaker, pk: str) -> C
         401: {'description': 'Not logged in (configuration-service access token).'},
         403: {'description': "Another business's session, or your account has no business."},
         404: {'description': 'No chat session with this ID.'},
+        409: {'description': 'The chat kept changing while the reply was being written (the message is saved).'},
         502: {'description': 'Ollama returned an error (e.g. the model is not pulled).'},
         503: {'description': 'Ollama is not reachable.'},
         504: {'description': 'Ollama took too long to answer.'},
@@ -155,6 +159,7 @@ async def sandbox_message(pk: str, request: Request, sessions: sessionmaker = De
     responses={
         400: {'description': 'Invalid business ID, phone number or message.'},
         404: {'description': 'No chat session for this phone number at this business.'},
+        409: {'description': 'The chat kept changing while the reply was being written (the message is saved).'},
         502: {'description': 'Ollama returned an error (e.g. the model is not pulled).'},
         503: {'description': 'Ollama is not reachable.'},
         504: {'description': 'Ollama took too long to answer.'},

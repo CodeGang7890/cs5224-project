@@ -407,6 +407,27 @@ class ChatSessionModelTests(TestCase):
         self.business.delete()
         self.assertFalse(ChatSession.objects.exists())
 
+    def test_version_starts_at_zero_and_goes_up_on_every_save(self):
+        session = self.make_session()
+        session.save()
+        self.assertEqual(session.version, 0)
+        session.display_name = 'Alicia'
+        session.save()
+        self.assertEqual(session.version, 1)
+        session.save(update_fields=['display_name'])  # version is added to the fields saved
+        self.assertEqual(session.version, 2)
+        self.assertEqual(ChatSession.objects.get(pk=session.pk).version, 2)
+
+    def test_version_goes_up_from_the_database_value(self):
+        # A stale copy still adds 1 to what's saved (F()), so a change made meanwhile is never hidden.
+        session = self.make_session()
+        session.save()
+        stale = ChatSession.objects.get(pk=session.pk)
+        session.save()
+        stale.save()
+        self.assertEqual(stale.version, 2)
+        self.assertEqual(ChatSession.objects.get(pk=session.pk).version, 2)
+
 
 VALID_STATE_DATA = {
     'items': [{'product_id': 1, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 2}],

@@ -8,7 +8,10 @@ Each message is answered by the chat flow (app/inbound.py: the customer's chat, 
 order / booking steps, the reply; duplicates by `message_id` are answered once), then
 acknowledged. The subscriber uses streaming pull: the client library keeps a connection open and
 calls `handle()` on its own threads, at most PUBSUB_MAX_MESSAGES at a time. The ingester publishes
-with the customer's number as the ordering key, so one customer's messages come one at a time.
+with `<business_id>:<customer's number>` as the ordering key and the subscription has message
+ordering, so one customer's messages to a business come in order and one at a time: the client
+library holds the next message of a key until the previous one is acked (or nacked), which is only
+once its turn is over and the replies are sent. Different customers' messages run in parallel.
 
 - Handled (answered, or skipped: not text, unknown business, a duplicate) → ack.
 - Handling raised (e.g. the LLM is down) → nack, so Pub/Sub redelivers it (the turn runs again,
@@ -124,8 +127,8 @@ def handle(message, stats: ConsumerStats, sessions=None) -> None:
 
 def ensure_emulator_resources(subscriber, publisher, attempts: int = 30, delay_seconds: float = 1.0) -> None:
     """With the local emulator only: creates the topic (if the ingester hasn't yet) and this
-    service's subscription, with message ordering (the ingester orders by customer). The emulator
-    may still be starting, so this retries for a while."""
+    service's subscription, with message ordering (the ingester's ordering key is the business and
+    the customer). The emulator may still be starting, so this retries for a while."""
     topic = publisher.topic_path(config.GCP_PROJECT_ID, config.PUBSUB_TOPIC)
     subscription = subscriber.subscription_path(config.GCP_PROJECT_ID, config.PUBSUB_SUBSCRIPTION)
     for attempt in range(1, attempts + 1):

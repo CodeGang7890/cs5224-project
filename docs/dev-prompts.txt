@@ -1453,3 +1453,13 @@ Messaging service now has no latency logs for the core LLM flow
 We want to know the latency for these: one end to end flow from received from messaging service until it repleis to the user (all in messaging service), and second we want to know the time per stage (e.g., the router, the extraction, reply, or the payment route, etc.)
 Please help to add logger.info and measure the time for all these
 Please add some keywords at the beginning so we can easily distinguish and search logs depending on the type we're interested on (e.g., we may only be interested in the LLM time for the "check order status" route, we should be able to query that easily)
+
+Date & Time (GMT+8): 2026-11-06 19:03:39
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+When customer send burst messages quickly, messaging-service can process them at the same time but cause race condition (e.g., incomplete context / missing detail, overwrite latest message, coming out of order).
+For the local setup first, in Pub Sub please add the business id and the customer id as a key and with ordering on, so a customer message on a particular business should arrive in order and one at a time (only when previous message is ack at end of turn, it should accept a new one).
+Additionally, add a new field like version_number or something similar in ChatSession, and whenever it’s modified it has to increase that number by 1.
+In messaging service when a message arrive, it should first read the version number. Then after running through the LLM, it should only then set the version number to +1 of the original one. However, if apparently the version number had increased, then rerun this entire turn.
+We also need this version number checking, because business owner may intercept a chat through the configuration service).

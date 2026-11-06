@@ -97,6 +97,15 @@ class ChatSession(Base):
     chat_state_id: Mapped[str] = mapped_column(String(32))
     is_sandbox: Mapped[bool] = mapped_column(Boolean, default=False)
     chat_state_data: Mapped[dict] = mapped_column(Json)
+    # Goes up by 1 on every change (Django's save() does it too). As the version_id_col, SQLAlchemy
+    # adds 1 in every UPDATE of the row (WHERE version = the one loaded), and a new chat starts at 0
+    # like Django's. The chat flow compares it to detect changes made while its LLM was answering.
+    version: Mapped[int] = mapped_column(Integer)
+
+    __mapper_args__ = {
+        'version_id_col': version,
+        'version_id_generator': lambda version: 0 if version is None else version + 1,
+    }
 
 
 class UnansweredQuestion(Base):

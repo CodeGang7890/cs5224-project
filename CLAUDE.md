@@ -32,6 +32,7 @@ There is one PostgreSQL database, and **configuration-service (Django) owns its 
   - `notification-job/app/models.py`
 
   CI's `schema` job migrates a PostgreSQL database with Django and checks the messaging-service, processing-service and notification-job models against it (`tests/test_schema.py`).
+- `ChatSession.version` goes up by 1 on every change to a chat, in every service (Django's `save()`, messaging-service's `version_id_col`): messaging-service runs a turn again if its chat changed while the LLM was answering. Code that changes chats must keep that up.
 - Django's model defaults (`default=…`, `auto_now`, `new_payment_reference()`) and signals (for example, painting a booking into its provider's weekly availability) don't run outside Django. Code in another service that inserts or updates rows must set those values, and repeat those side effects, itself.
 
 ## The chat flow is only in messaging-service
