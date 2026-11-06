@@ -5,7 +5,8 @@ and publishes it to Pub/Sub for processing-service.
 
 Endpoints:
 - POST /webhook: Receive Xendit payment webhooks
-- POST /payments: Create the Xendit payment session (hosted link) for an order / booking
+- POST /payments: Create the Xendit payment session (hosted link) for an order / booking, and publish
+  a `created` event so processing-service sends the customer the invoice
 - GET /: Health check
 """
 
@@ -148,7 +149,29 @@ def create_payment(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     logger.info('Created Xendit payment %s for %s #%s', result['xendit_payment_id'], request.kind, request.item_id)
+    _publish_created(request, result)
     return CreatePaymentResponse(**result)
+
+
+def _publish_created(request: CreatePaymentRequest, result: dict[str, str]) -> None:
+    """Tell processing-service the order / booking was placed and its payment link made (a `created`
+    event on the same topic as the payment results), so it sends the customer their invoice.
+
+    The payment link exists either way, so a failure here is only logged: the customer can still
+    pay, they just don't get the invoice."""
+    event = {
+        'payment_reference': request.payment_reference,
+        'status': 'created',
+        'amount': request.amount,
+        'payment_url': result['payment_url'],
+        'xendit_payment_id': result['xendit_payment_id'],
+        'kind': request.kind,
+        'item_id': request.item_id,
+    }
+    try:
+        get_publisher().publish([event])
+    except Exception:  # PublishError, or Pub/Sub not reachable / not configured
+        logger.exception('Could not publish the created event for %s #%s: no invoice will be sent', request.kind, request.item_id)
 
 
 def create_app() -> FastAPI:

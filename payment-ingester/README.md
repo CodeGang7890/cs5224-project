@@ -77,6 +77,24 @@ Pub/Sub message data:
 
 Attributes: `payment_reference`, `status`.
 
+### The `created` event (the invoice)
+
+`POST /payments` also publishes a second kind of event on the same topic, right after Xendit made the payment link, so processing-service sends the customer their **invoice** (what to pay, and the link). It is not a payment result: nothing about the order / booking changes.
+
+```json
+{
+  "payment_reference": "3f9c1a2b4d5e6f708192a3b4c5d6e7f8",
+  "status": "created",
+  "amount": 3.6,
+  "payment_url": "https://checkout.xendit.co/...",
+  "xendit_payment_id": "ps_...",
+  "kind": "order",
+  "item_id": 7
+}
+```
+
+If the event can't be published the payment link still works (the response is still `201`); the failure is logged and only the invoice is lost. `scripts/publish_dummy_payments.py --status created` publishes it locally.
+
 ## Environment variables
 
 | Variable | Default | Notes |

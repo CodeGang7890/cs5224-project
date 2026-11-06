@@ -3,10 +3,13 @@
     python scripts/publish_dummy_payments.py                    # up to 5 pending orders / bookings
     python scripts/publish_dummy_payments.py --count 20
     python scripts/publish_dummy_payments.py --status fail      # every event a failed payment
+    python scripts/publish_dummy_payments.py --status created   # every order / booking was just placed: sends the INVOICE
     python scripts/publish_dummy_payments.py --reference 3f9c…  # a given payment reference (repeatable)
 
-Each message's data is JSON `{"payment_reference": "<32 hex>", "status": "success" | "fail", "amount": …}`
-(processing-service consumes them and checks the amount against the order's / booking's total). By
+Each message's data is JSON `{"payment_reference": "<32 hex>", "status": "success" | "fail" | "created", "amount": …}`
+(processing-service consumes them and checks the amount against the order's / booking's total).
+`success` / `fail` are a payment's result (the customer gets a receipt, or a failure notice); `created` is
+the order / booking being placed, with its payment link (`payment_url`): the customer gets the invoice. By
 default the references are those of random orders and bookings still pending payment in
 configuration-service's database (docker-compose's PostgreSQL, localhost:5433; POSTGRES_* override
 it), and the status is random.
@@ -92,7 +95,8 @@ def payments_by_references(references: list[str]) -> list[tuple[str, int, str, f
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('--count', type=int, default=5, help='how many pending orders / bookings to pay (default 5)')
-    parser.add_argument('--status', choices=STATUSES, help='the status of every event (default: random)')
+    parser.add_argument('--status', choices=(*STATUSES, 'created'),
+                        help='the status of every event: a result, or `created` for the invoice (default: random success / fail)')
     parser.add_argument('--reference', action='append', help='publish for this payment reference instead (repeatable)')
     args = parser.parse_args()
 
@@ -119,6 +123,8 @@ def main() -> None:
     for kind, item_id, reference, amount in targets:
         status = args.status or random.choice(STATUSES)
         event = {'payment_reference': reference, 'status': status, 'amount': amount}
+        if status == 'created':
+            event['payment_url'] = f'https://checkout.xendit.example/pay/{reference[:12]}'  # a dummy link
         message_id = publisher.publish(
             topic, json.dumps(event).encode(), payment_reference=reference, status=status
         ).result(timeout=10)
