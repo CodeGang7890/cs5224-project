@@ -246,6 +246,48 @@ class QuestionCheckFlowTests(ApiTestCase):
         self.assertIn('If you are unsure whether it is answered, choose "unanswered"', system_prompt)
         self.assertEqual(call['messages'][-1], {'role': 'user', 'content': 'Does the kaya toast have eggs?'})
 
+    def test_products_and_services_not_offered_are_answered_not_sent_to_the_team(self):
+        # The lists are everything the business sells or books: "do you sell X?" for anything else
+        # is answered (no), while other things that aren't mentioned stay unanswered.
+        self.send('do you sell croissants?', {'kind': 'none', 'question': None})
+        system_prompt = self.check_call()['messages'][0]['content']
+        self.assertIn(
+            'The one exception: the products on sale and the services that can be booked above are everything the '
+            'business sells or lets customers book.', system_prompt,
+        )
+        self.assertIn('is "answered" even when the answer is no', system_prompt)
+        self.assertIn('"table tennis" is not "tennis"', system_prompt)
+        self.assertIn('"racquet" for "racket"', system_prompt)
+        self.assertIn('A sold-out product is still sold', system_prompt)
+        self.assertIn('never treat "it isn\'t mentioned" as "no"', system_prompt)  # still, for everything else
+
+    def test_a_court_not_offered_is_answered_from_the_services_list(self):
+        # Rally Point Courts' case: badminton and tennis courts only, so a table tennis court isn't offered.
+        self.make.service(self.cafe, 'Badminton Court', [self.make.provider(self.cafe, 'Court 1')], price='20.00')
+        self.make.service(self.cafe, 'Tennis Court', [self.make.provider(self.cafe, 'Court 3')], price='25.00')
+        self.send('do you have a table tennis court?', {'kind': 'answered', 'question': 'Do you have a table tennis court?'})
+        self.assertEqual(self.questions(), [])
+        check_prompt = self.check_call()['messages'][0]['content']
+        self.assertIn('## Services that can be booked\n- id', check_prompt)
+        self.assertIn('Badminton Court, $20.00', check_prompt)
+        self.assertIn('Tennis Court, $25.00', check_prompt)
+        self.assertIn('or offers a service, court or session that can be booked, is "answered" even when the answer is no', check_prompt)
+        reply_prompt = self.reply_prompt()
+        self.assertIn('Tennis Court, $25.00', reply_prompt)  # the list it answers from
+        self.assertIn('(for example table tennis is not tennis)', reply_prompt)
+
+    def test_a_product_not_sold_gets_a_reply_saying_so(self):
+        self.send('do you sell croissants?', {'kind': 'answered', 'question': 'Do you sell croissants?'})
+        self.assertEqual(self.questions(), [])  # not sent to the team
+        prompt = self.reply_prompt()
+        self.assertIn('The customer asked: "Do you sell croissants?". Answer it only from the information below', prompt)
+        self.assertIn('## Products on sale\n- id', prompt)  # the full list, to answer from
+        self.assertIn(
+            "that isn't one of them (and isn't the same thing under another name), tell them clearly that Kopi Café "
+            "doesn't sell or offer it", prompt,
+        )
+        self.assertIn('A sold-out product is different: say it has run out for now.', prompt)
+
     def test_runs_even_after_the_order_is_done(self):
         with self.sessions.begin() as db:
             db.get(ChatSession, self.session.id).chat_state_data = {'last_order_id': 1}

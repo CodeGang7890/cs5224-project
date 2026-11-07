@@ -1181,6 +1181,7 @@ class ProductDetailsToolFlowTests(ApiTestCase):
         self.assertIn('call get_product_details', prompt)
         self.assertIn("say honestly that you don't know", prompt)
         self.assertIn("Never say the business does or doesn't offer something", prompt)
+        self.assertIn('Something that only shares a word with one of them is a different thing (for example table tennis is not tennis).', prompt)
         self.assertNotIn('Robusta beans', prompt)
         # The tool returned the description and the whole information.
         tool_message = reply_calls[1].kwargs['messages'][-1]
