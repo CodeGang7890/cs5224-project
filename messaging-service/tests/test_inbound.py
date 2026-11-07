@@ -96,7 +96,7 @@ class InboundTests(DatabaseTestCase):
 
         self.ollama.chat.side_effect = chat
         result = handle_inbound(self.sessions, self.payload)
-        self.assertEqual((result.outcome, result.reason), ('skipped', 'answered by another worker meanwhile (a duplicate)'))
+        self.assertEqual((result.outcome, result.reason), ('skipped', 'answered meanwhile (with another message, or a duplicate)'))
         self.assertEqual([m['sent_by'] for m in self.all(ChatSession)[0].chat_message_json], ['customer'])
         self.assertEqual(self.all(OutboundMessage), [])
         self.send_text.assert_not_called()
@@ -108,12 +108,13 @@ class InboundTests(DatabaseTestCase):
 
         real = flow.handle_customer_message
 
-        def placed_meanwhile(sessions, session_id, message, save_message=True, on_saved=None):
-            def answered_first(db, session, messages, placed):
+        def placed_meanwhile(sessions, session_id, message, save_message=True, on_saved=None, before_attempt=None):
+            def answered_first(db, session, messages, placed, saw_all):
                 record = db.query(InboundMessage).one()
                 record.status, record.replied_time = 'replied', record.received_time
-                on_saved(db, session, messages, True)
-            return real(sessions, session_id, message, save_message=save_message, on_saved=answered_first)
+                on_saved(db, session, messages, True, saw_all)
+            return real(sessions, session_id, message, save_message=save_message, on_saved=answered_first,
+                        before_attempt=before_attempt)
 
         with patch('app.inbound.flow.handle_customer_message', side_effect=placed_meanwhile), \
                 self.assertLogs('app.inbound', level='WARNING') as logs:
@@ -285,6 +286,6 @@ class SaveTurnPlacedTests(DatabaseTestCase):
                 version = self.get(ChatSession, session.id).version
                 flow.save_turn(
                     self.sessions, session.id, None, ['Hello!'], version, check=False,
-                    on_saved=lambda db, s, messages, placed: calls.append(placed), placed=placed,
+                    on_saved=lambda db, s, messages, placed, saw_all: calls.append(placed), placed=placed,
                 )
         self.assertEqual(calls, [False, True])

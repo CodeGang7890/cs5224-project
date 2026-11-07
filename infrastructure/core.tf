@@ -32,9 +32,9 @@ resource "google_storage_bucket" "objects" {
 # The consumers' leases match the ack deadlines (PUBSUB_ACK_DEADLINE_SECONDS in run.tf).
 locals {
   pubsub_queues = {
-    # WhatsApp messages → messaging-service: a chat turn can take a while; ordered, so a customer's
-    # messages to a business come one at a time (messaging-ingester's ordering key).
-    "messaging-queue" = { ack_deadline_seconds = 120, ordered = true, dead_letter = true }
+    # WhatsApp messages → messaging-service: a chat turn can take a while. Not ordered: a customer's
+    # messages sent close together are handled at once and get one reply (messaging-service/app/inbound.py).
+    "messaging-queue" = { ack_deadline_seconds = 120, ordered = false, dead_letter = true }
     # Xendit payment events → processing-service.
     "payment-queue" = { ack_deadline_seconds = 60, ordered = false, dead_letter = true }
     # Unused by the notification job (Cloud Scheduler runs it directly): unchanged.
