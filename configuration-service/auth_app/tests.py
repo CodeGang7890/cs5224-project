@@ -42,8 +42,10 @@ class SampleBusinessUserFixtureTests(TestCase):
     fixtures = ['sample_business_configurations', 'sample_business_users']
 
     def test_every_sample_user_is_on_business(self):
-        tiers = set(BusinessUser.objects.values_list('subscription_tier', flat=True))
+        # testansera (109, Business Test) is kept from production as it was: on the free tier.
+        tiers = set(BusinessUser.objects.exclude(pk=109).values_list('subscription_tier', flat=True))
         self.assertEqual(tiers, {SubscriptionTier.BUSINESS})
+        self.assertEqual(BusinessUser.objects.get(pk=109).subscription_tier, SubscriptionTier.FREE)
 
     def test_sample_users_pass_full_clean(self):
         for user in BusinessUser.objects.all():

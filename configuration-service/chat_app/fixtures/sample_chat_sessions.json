@@ -1513,5 +1513,646 @@
       "chat_state_data": {},
       "is_sandbox": false
     }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 33,
+    "fields": {
+      "business": 7,
+      "phone_number": "",
+      "display_name": "Test chat 1",
+      "created_time": "2026-11-03T13:29:17.922Z",
+      "last_chat_time": "2026-11-03T13:58:53.708207+00:00",
+      "chat_message_json": [
+        {
+          "message": "Hello, I want to place an order",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:29:50.199787+00:00"
+        },
+        {
+          "message": "Hello! I'd love to help you with your order. \n\nHere are the items we currently have available:\n- Item A: $5.00 each (2 available)\n- Item B: $2.50 each (1 available)\n\nWhat would you like, and how many of each?",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:29:56.175326+00:00"
+        },
+        {
+          "message": "How about Item C?",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:30:09.991269+00:00"
+        },
+        {
+          "message": "I don't know yet, but I've asked the team and they will reply in this chat. \n\nIn the meantime, we have these items available:\n- Item A: $5.00 each (2 available)\n- Item B: $2.50 each (1 available)\n\nWhat would you like, and how many of each?",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:30:14.900308+00:00"
+        },
+        {
+          "message": "I want to order Item B, just 1",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:30:40.377933+00:00"
+        },
+        {
+          "message": "You currently have 1 × Item B ($2.50 each) in your order. Total: $2.50. \n\nWould you like anything else, or is that everything?",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:30:43.333563+00:00"
+        },
+        {
+          "message": "That's all",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:30:54.916694+00:00"
+        },
+        {
+          "message": "To complete your order, could you please provide your Name and Email?",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:30:57.935543+00:00"
+        },
+        {
+          "message": "Name: Merry\nEmail: merryrosalie001@gmail.com",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:31:14.367313+00:00"
+        },
+        {
+          "message": "Here is your order summary:\n- 1 × Item B, $2.50 each\nTotal: $2.50\n\nYour details:\n- Name: Merry\n- Email: merryrosalie001@gmail.com\n\nPlease reply CONFIRM to place your order, or tell me what you would like to change.",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:31:15.959388+00:00"
+        },
+        {
+          "message": "CONFIRM",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:31:22.288552+00:00"
+        },
+        {
+          "message": "Thank you! Your order #62 with Business Test is confirmed.\n- 1 × Item B, $2.50 each\nTotal: $2.50\n\nYour details:\n- Name: Merry\n- Email: merryrosalie001@gmail.com\n\nTo pay, use this link: https://dev.xen.to/hEiVMfPF",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:31:27.391790+00:00"
+        },
+        {
+          "message": "Can I order Item B again?",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:39:13.610042+00:00"
+        },
+        {
+          "message": "Item B has run out for now, so it cannot be ordered. \n\nWe do have Item A available for $5.00 each (2 available). Would you like to order that instead?",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:39:16.833265+00:00"
+        },
+        {
+          "message": "Can I order a service from you? What kind of services are available?",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:39:49.837530+00:00"
+        },
+        {
+          "message": "We offer Massage ($10.00 for 1 hour) and Pedicure ($8.00 for 1 hour). \n\nIf you'd like to get back to our products, we currently have Item A available for $5.00 each (2 available), while Item B has run out for now. Would you like to order any Item A?",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:39:53.243590+00:00"
+        },
+        {
+          "message": "I would like to order 1 Massage for 1 hour",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:40:11.218340+00:00"
+        },
+        {
+          "message": "We can only help with Business Test orders, bookings and questions. \n\nFor bookings, you can choose a service, but never offer, suggest or promise booking times yourself: the system offers the free times. \n\nWould you like to book Massage ($10.00, 1 hour)?",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:40:14.864888+00:00"
+        },
+        {
+          "message": "Yes",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:40:25.272265+00:00"
+        },
+        {
+          "message": "Great choice! Let's get your booking set up. \n\nPlease select the date and time for your Massage:",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:40:28.799085+00:00"
+        },
+        {
+          "message": "This sunday 1am",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:40:44.598972+00:00"
+        },
+        {
+          "message": "I'm sorry, but that time isn't available. Please choose another date and time for your Massage:",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:40:47.197209+00:00"
+        },
+        {
+          "message": "Thursday 3pm",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:41:08.162440+00:00"
+        },
+        {
+          "message": "I'm sorry, but that time isn't available. Please choose another date and time for your Massage:",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:41:10.512898+00:00"
+        },
+        {
+          "message": "This thursday 3pm cannot?",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:41:21.738817+00:00"
+        },
+        {
+          "message": "I'm sorry, but that time isn't available. Please choose another date and time for your Massage:",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:41:40.812829+00:00"
+        },
+        {
+          "message": "Thursday, 5th November 2027 3pm?",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:42:50.315674+00:00"
+        },
+        {
+          "message": "I'm sorry, but that time isn't available. Please choose another date and time for your Massage:",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:42:52.558240+00:00"
+        },
+        {
+          "message": "What times are available then?",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:44:30.980306+00:00"
+        },
+        {
+          "message": "I don't know the available times yet, but I've asked the team, and they will reply in this chat. \n\nIn the meantime, is there anything else I can help you with regarding our products or services?",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:44:35.554656+00:00"
+        },
+        {
+          "message": "Can I order Item A?",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:53:06.340080+00:00"
+        },
+        {
+          "message": "You currently have 1 × Item A ($5.00 each) in your order, for a total of $5.00. \n\nWould you like anything else, or is that everything?",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:53:08.760383+00:00"
+        },
+        {
+          "message": "That's all",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:53:14.898981+00:00"
+        },
+        {
+          "message": "To get your order ready, could you please provide your Name and Email?",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:53:18.247115+00:00"
+        },
+        {
+          "message": "Name: Jane Doe\nEmail: janedoe@example.com",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:53:29.189136+00:00"
+        },
+        {
+          "message": "Here is your order summary:\n- 1 × Item A, $5.00 each\nTotal: $5.00\n\nYour details:\n- Name: Jane Doe\n- Email: janedoe@example.com\n\nPlease reply CONFIRM to place your order, or tell me what you would like to change.",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:53:31.087060+00:00"
+        },
+        {
+          "message": "Can I change the name to Joey?",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:53:46.839460+00:00"
+        },
+        {
+          "message": "Here is your order summary:\n- 1 × Item A, $5.00 each\nTotal: $5.00\n\nYour details:\n- Name: Joey\n- Email: janedoe@example.com\n\nPlease reply CONFIRM to place your order, or tell me what you would like to change.",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:53:52.092378+00:00"
+        },
+        {
+          "message": "CONFIRM",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:53:58.329630+00:00"
+        },
+        {
+          "message": "Thank you! Your order #63 with Business Test is confirmed.\n- 1 × Item A, $5.00 each\nTotal: $5.00\n\nYour details:\n- Name: Joey\n- Email: janedoe@example.com\n\nTo pay, use this link: https://dev.xen.to/oIO-f1rp",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:54:01.563068+00:00"
+        },
+        {
+          "message": "What's the payment status?",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:54:49.240506+00:00"
+        },
+        {
+          "message": "Hi there! For order #63 (placed Tue 3 Nov 2026, 9:54pm), the status is Payment pending, which means the order is placed, but the business has not received the payment yet. \n\nIs there anything else I can help you with?",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:54:51.840797+00:00"
+        },
+        {
+          "message": "What's the payment status now?",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:55:25.125341+00:00"
+        },
+        {
+          "message": "Hi there! For order #63, the status is Payment received (the business has received the payment; the order is not completed yet). \n\nIs there anything else I can help you with today?",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:55:41.378928+00:00"
+        },
+        {
+          "message": "Can I order a service?",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:56:40.079791+00:00"
+        },
+        {
+          "message": "Here are some available times for Massage ($10.00, 1 h):\n1. Wed 4 Nov, 9am\n2. Wed 4 Nov, 10am\n3. Wed 4 Nov, 11am\n4. Thu 5 Nov, 9am\n5. Thu 5 Nov, 10am\n6. Thu 5 Nov, 11am\n\nPlease reply with the number of the time you would like, or tell me another day or time that suits you.",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:56:42.432132+00:00"
+        },
+        {
+          "message": "Can I order a product?",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:58:37.370964+00:00"
+        },
+        {
+          "message": "Here are some available times for Massage ($10.00, 1 h):\n1. Wed 4 Nov, 9am\n2. Wed 4 Nov, 10am\n3. Wed 4 Nov, 11am\n4. Thu 5 Nov, 9am\n5. Thu 5 Nov, 10am\n6. Thu 5 Nov, 11am\n\nPlease reply with the number of the time you would like, or tell me another day or time that suits you.",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:58:40.822230+00:00"
+        },
+        {
+          "message": "I want to order Item A",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:58:50.286532+00:00"
+        },
+        {
+          "message": "Here are some available times for Massage ($10.00, 1 h):\n1. Wed 4 Nov, 9am\n2. Wed 4 Nov, 10am\n3. Wed 4 Nov, 11am\n4. Thu 5 Nov, 9am\n5. Thu 5 Nov, 10am\n6. Thu 5 Nov, 11am\n\nPlease reply with the number of the time you would like, or tell me another day or time that suits you.",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:58:53.708207+00:00"
+        }
+      ],
+      "chat_state_id": "slot_selection",
+      "is_sandbox": true,
+      "chat_state_data": {
+        "service": {
+          "name": "Massage",
+          "price": "10.00",
+          "service_id": 11,
+          "buffer_minutes": 60,
+          "duration_minutes": 60
+        },
+        "slot_options": [
+          "2026-11-04T09:00:00+08:00",
+          "2026-11-04T10:00:00+08:00",
+          "2026-11-04T11:00:00+08:00",
+          "2026-11-05T09:00:00+08:00",
+          "2026-11-05T10:00:00+08:00",
+          "2026-11-05T11:00:00+08:00"
+        ],
+        "last_order_id": 63
+      },
+      "version": 0
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 34,
+    "fields": {
+      "business": 7,
+      "phone_number": "",
+      "display_name": "Test chat 2",
+      "created_time": "2026-11-03T13:44:51.577Z",
+      "last_chat_time": "2026-11-03T14:06:56.256751+00:00",
+      "chat_message_json": [
+        {
+          "message": "I want to book a service",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:44:58.283948+00:00"
+        },
+        {
+          "message": "We have a couple of wonderful services available to book:\n\n- Massage ($10.00, 1 hour)\n- Pedicure ($8.00, 1 hour)\n\nWhich one would you like to book today?",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:45:01.012305+00:00"
+        },
+        {
+          "message": "I want to book a Massage for 1 hour",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:45:11.201437+00:00"
+        },
+        {
+          "message": "Here are some available times for Massage ($10.00, 1 h):\n1. Wed 4 Nov, 9am\n2. Wed 4 Nov, 10am\n3. Wed 4 Nov, 11am\n4. Thu 5 Nov, 9am\n5. Thu 5 Nov, 10am\n6. Thu 5 Nov, 11am\n\nPlease reply with the number of the time you would like, or tell me another day or time that suits you.",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:45:13.548637+00:00"
+        },
+        {
+          "message": "I want to book this Thursday 3pm?",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:46:00.553113+00:00"
+        },
+        {
+          "message": "That time isn't available for Massage, but here are some other free times on Thu 5 Nov:\n1. Thu 5 Nov, 9am\n2. Thu 5 Nov, 10am\n3. Thu 5 Nov, 11am\n4. Thu 5 Nov, 12pm\n5. Thu 5 Nov, 1pm\n6. Thu 5 Nov, 2pm\n7. Thu 5 Nov, 3pm – 4pm\n\nWould you like to pick one of these, or try a different day?",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:46:03.802990+00:00"
+        },
+        {
+          "message": "Number 7 then",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:46:18.358331+00:00"
+        },
+        {
+          "message": "Great! To get your Massage on Thu 5 Nov, 3pm – 4pm ready, could you please provide your Name and Email?",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:46:20.460635+00:00"
+        },
+        {
+          "message": "Name: John Doe\nEmail: test@example.com",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:46:33.752531+00:00"
+        },
+        {
+          "message": "Here is your booking summary:\n- Massage (1 h)\n- Thu 5 Nov, 3pm – 4pm\nPrice: $10.00\n\nYour details:\n- Name: John Doe\n- Email: test@example.com\n\nPlease reply CONFIRM to book it, or tell me what you would like to change.",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:46:35.252221+00:00"
+        },
+        {
+          "message": "CONFIRM",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:46:43.730071+00:00"
+        },
+        {
+          "message": "Thank you! Your booking #111 with Business Test is confirmed.\n- Massage (1 h)\n- Thu 5 Nov, 3pm – 4pm\nPrice: $10.00\n\nYour details:\n- Name: John Doe\n- Email: test@example.com\n\nTo pay, use this link: https://dev.xen.to/oy0KQJBS",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:46:46.129942+00:00"
+        },
+        {
+          "message": "Can i book another at 3:30pm?",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:47:46.559508+00:00"
+        },
+        {
+          "message": "Massage can only start every hour (for example 3pm or 4pm).\nThere are no free times for Massage on Tue 3 Nov.\n\nHere are some available times for Massage ($10.00, 1 h):\n1. Wed 4 Nov, 9am\n2. Wed 4 Nov, 10am\n3. Wed 4 Nov, 11am\n4. Thu 5 Nov, 9am\n5. Thu 5 Nov, 10am\n6. Thu 5 Nov, 11am\n\nPlease reply with the number of the time you would like, or tell me another day or time that suits you.",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:47:49.035736+00:00"
+        },
+        {
+          "message": "Can I book at 4pm?",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:48:25.212063+00:00"
+        },
+        {
+          "message": "Here is your booking summary:\n- Massage (1 h)\n- Wed 4 Nov, 4pm – 5pm\nPrice: $10.00\n\nYour details:\n- Name: John Doe\n- Email: test@example.com\n\nPlease reply CONFIRM to book it, or tell me what you would like to change.",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:48:27.963599+00:00"
+        },
+        {
+          "message": "Can I book on Thursday 4pm?",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:48:40.872791+00:00"
+        },
+        {
+          "message": "Here is your booking summary:\n- Massage (1 h)\n- Thu 5 Nov, 4pm – 5pm\nPrice: $10.00\n\nYour details:\n- Name: John Doe\n- Email: test@example.com\n\nPlease reply CONFIRM to book it, or tell me what you would like to change.",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:48:44.469247+00:00"
+        },
+        {
+          "message": "CONFIRM",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:48:55.264312+00:00"
+        },
+        {
+          "message": "Thank you! Your booking #112 with Business Test is confirmed.\n- Massage (1 h)\n- Thu 5 Nov, 4pm – 5pm\nPrice: $10.00\n\nYour details:\n- Name: John Doe\n- Email: test@example.com\n\nTo pay, use this link: https://dev.xen.to/bdt0-nMm",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:48:58.623654+00:00"
+        },
+        {
+          "message": "Can I book another one at 4pm?",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:49:49.152438+00:00"
+        },
+        {
+          "message": "That time is too soon: bookings must be at least an hour from now.\nThere are no free times for Massage on Tue 3 Nov.\n\nHere are some available times for Massage ($10.00, 1 h):\n1. Wed 4 Nov, 9am\n2. Wed 4 Nov, 10am\n3. Wed 4 Nov, 11am\n4. Thu 5 Nov, 9am\n5. Thu 5 Nov, 10am\n6. Thu 5 Nov, 11am\n\nPlease reply with the number of the time you would like, or tell me another day or time that suits you.",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:49:52.254230+00:00"
+        },
+        {
+          "message": "Can you not do Thursday 4pm?",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:50:08.173077+00:00"
+        },
+        {
+          "message": "Thu 5 Nov, 4pm is not available for Massage.\n\nHere are some available times for Massage ($10.00, 1 h):\n1. Thu 5 Nov, 9am\n2. Thu 5 Nov, 10am\n3. Thu 5 Nov, 11am\n\nPlease reply with the number of the time you would like, or tell me another day or time that suits you.",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:50:11.342809+00:00"
+        },
+        {
+          "message": "Option 1",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:50:44.124621+00:00"
+        },
+        {
+          "message": "Here is your booking summary:\n- Massage (1 h)\n- Thu 5 Nov, 9am – 10am\nPrice: $10.00\n\nYour details:\n- Name: John Doe\n- Email: test@example.com\n\nPlease reply CONFIRM to book it, or tell me what you would like to change.",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:51:02.013248+00:00"
+        },
+        {
+          "message": "Can you change the name to Jane Doe?",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:51:14.020626+00:00"
+        },
+        {
+          "message": "Here is your booking summary:\n- Massage (1 h)\n- Thu 5 Nov, 9am – 10am\nPrice: $10.00\n\nYour details:\n- Name: Jane Doe\n- Email: test@example.com\n\nPlease reply CONFIRM to book it, or tell me what you would like to change.",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:51:16.420711+00:00"
+        },
+        {
+          "message": "Can you change the email to test@ansera.com?",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:51:31.638521+00:00"
+        },
+        {
+          "message": "Here is your booking summary:\n- Massage (1 h)\n- Thu 5 Nov, 9am – 10am\nPrice: $10.00\n\nYour details:\n- Name: Jane Doe\n- Email: test@ansera.com\n\nPlease reply CONFIRM to book it, or tell me what you would like to change.",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:51:33.824941+00:00"
+        },
+        {
+          "message": "CONFIRM",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T13:51:37.792413+00:00"
+        },
+        {
+          "message": "Thank you! Your booking #113 with Business Test is confirmed.\n- Massage (1 h)\n- Thu 5 Nov, 9am – 10am\nPrice: $10.00\n\nYour details:\n- Name: Jane Doe\n- Email: test@ansera.com\n\nTo pay, use this link: https://dev.xen.to/43xfalAX",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T13:51:40.155459+00:00"
+        },
+        {
+          "message": "I want to order Item A",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T14:06:16.098513+00:00"
+        },
+        {
+          "message": "You have 1 × Item A ($5.00 each) in your order. Total: $5.00. \n\nWould you like anything else, or is that everything?",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T14:06:18.604988+00:00"
+        },
+        {
+          "message": "That's all",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T14:06:23.711067+00:00"
+        },
+        {
+          "message": "Here is your order summary:\n- 1 × Item A, $5.00 each\nTotal: $5.00\n\nYour details:\n- Name: Jane Doe\n- Email: test@ansera.com\n\nPlease reply CONFIRM to place your order, or tell me what you would like to change.",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T14:06:26.461906+00:00"
+        },
+        {
+          "message": "Can you change the email to merryrosalie001@gmail.com?",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T14:06:41.087323+00:00"
+        },
+        {
+          "message": "Here is your order summary:\n- 1 × Item A, $5.00 each\nTotal: $5.00\n\nYour details:\n- Name: Jane Doe\n- Email: merryrosalie001@gmail.com\n\nPlease reply CONFIRM to place your order, or tell me what you would like to change.",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T14:06:46.312654+00:00"
+        },
+        {
+          "message": "CONFIRM",
+          "sent_by": "customer",
+          "message_time": "2026-11-03T14:06:51.682631+00:00"
+        },
+        {
+          "message": "Thank you! Your order #64 with Business Test is confirmed.\n- 1 × Item A, $5.00 each\nTotal: $5.00\n\nYour details:\n- Name: Jane Doe\n- Email: merryrosalie001@gmail.com\n\nTo pay, use this link: https://dev.xen.to/RlCSt2Kd",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-03T14:06:56.256751+00:00"
+        }
+      ],
+      "chat_state_id": "start",
+      "is_sandbox": true,
+      "chat_state_data": {
+        "last_order_id": 64,
+        "last_booking_id": 113
+      },
+      "version": 0
+    }
+  },
+  {
+    "model": "chat_app.chatsession",
+    "pk": 35,
+    "fields": {
+      "business": 7,
+      "phone_number": "+6587438485",
+      "display_name": "Merry Rosalie",
+      "created_time": "2026-11-06T09:59:56.800Z",
+      "last_chat_time": "2026-11-07T04:38:19.600493+00:00",
+      "chat_message_json": [
+        {
+          "message": "Hello",
+          "sent_by": "customer",
+          "message_time": "2026-11-06T09:59:57.021129+00:00"
+        },
+        {
+          "message": "Hello! Welcome to Business Test. How can I help you today? Would you like to check out our products or book a service?",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-06T09:59:59.031224+00:00"
+        },
+        {
+          "message": "Hi?",
+          "sent_by": "customer",
+          "message_time": "2026-11-06T11:11:57.185036+00:00"
+        },
+        {
+          "message": "Hi there! How can I help you today? We have products available for order and services you can book. Let me know what you'd like to do!",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-06T11:12:00.398186+00:00"
+        },
+        {
+          "message": "Hello again",
+          "sent_by": "customer",
+          "message_time": "2026-11-06T11:20:08.412401+00:00"
+        },
+        {
+          "message": "Hello again! How can I help you today? Would you like to check out our products or book a service?",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-06T11:20:11.260087+00:00"
+        },
+        {
+          "message": "Hi, just checking in",
+          "sent_by": "customer",
+          "message_time": "2026-11-06T11:27:09.595548+00:00"
+        },
+        {
+          "message": "Hello! Hope you're having a great day. Let me know if you have any questions, or if you'd like to browse our products or book a service!",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-06T11:27:11.618232+00:00"
+        },
+        {
+          "message": "Hi again",
+          "sent_by": "customer",
+          "message_time": "2026-11-06T12:00:56.300914+00:00"
+        },
+        {
+          "message": "Hello! How can I help you today? Would you like to check out our products or book a service?",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-06T12:00:58.458595+00:00"
+        },
+        {
+          "message": "Hi please",
+          "sent_by": "customer",
+          "message_time": "2026-11-06T12:13:17.925250+00:00"
+        },
+        {
+          "message": "Hi! How can I help you today? Would you like to check out our products or book a service?",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-06T12:13:20.085183+00:00"
+        },
+        {
+          "message": "Hi",
+          "sent_by": "customer",
+          "message_time": "2026-11-06T14:00:49.744832+00:00"
+        },
+        {
+          "message": "Hello! How can I help you today? Would you like to check out our products or book a service?",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-06T14:00:52.171412+00:00"
+        },
+        {
+          "message": "Test",
+          "sent_by": "customer",
+          "message_time": "2026-11-06T14:54:15.578382+00:00"
+        },
+        {
+          "message": "Hi there! How can I help you today? Would you like to check out our products or book a service?",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-06T14:54:17.462059+00:00"
+        },
+        {
+          "message": "test",
+          "sent_by": "customer",
+          "message_time": "2026-11-06T15:21:24.251817+00:00"
+        },
+        {
+          "message": "Hello! How can I help you today? Would you like to check out our products or book a service?",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-06T15:21:26.506126+00:00"
+        },
+        {
+          "message": "hi",
+          "sent_by": "customer",
+          "message_time": "2026-11-06T15:33:15.716076+00:00"
+        },
+        {
+          "message": "Hello! How can I help you today? Would you like to check out our products or book a service?",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-06T15:33:17.823296+00:00"
+        },
+        {
+          "message": "hi there",
+          "sent_by": "customer",
+          "message_time": "2026-11-06T15:49:57.625923+00:00"
+        },
+        {
+          "message": "Hi there! How can I help you today? Would you like to check out our products or book a service?",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-06T15:50:00.254967+00:00"
+        },
+        {
+          "message": "Hello there",
+          "sent_by": "customer",
+          "message_time": "2026-11-07T04:38:15.679877+00:00"
+        },
+        {
+          "message": "Hello there! How can I help you today? Would you like to check out our products or book a service?",
+          "sent_by": "business-automated",
+          "message_time": "2026-11-07T04:38:19.600493+00:00"
+        }
+      ],
+      "chat_state_id": "start",
+      "is_sandbox": false,
+      "chat_state_data": {},
+      "version": 0
+    }
   }
 ]

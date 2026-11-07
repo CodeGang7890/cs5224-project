@@ -414,5 +414,44 @@
       "total_quantity": 89,
       "is_active": true
     }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 35,
+    "fields": {
+      "business": 7,
+      "name": "Item A",
+      "description": "",
+      "information": "",
+      "price": "5.00",
+      "total_quantity": 2,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 36,
+    "fields": {
+      "business": 7,
+      "name": "Item B",
+      "description": "",
+      "information": "",
+      "price": "2.50",
+      "total_quantity": 1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "product_app.product",
+    "pk": 37,
+    "fields": {
+      "business": 7,
+      "name": "Item C",
+      "description": "",
+      "information": "",
+      "price": "1.00",
+      "total_quantity": 1,
+      "is_active": false
+    }
   }
 ]

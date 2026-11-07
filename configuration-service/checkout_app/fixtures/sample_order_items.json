@@ -1881,5 +1881,92 @@
       "created_time": "2026-10-10T08:18:00+08:00",
       "updated_time": "2026-10-10T08:18:00+08:00"
     }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 62,
+    "fields": {
+      "business": 7,
+      "chat_session": 33,
+      "is_sandbox": true,
+      "order_data": {
+        "items": [
+          {
+            "name": "Item B",
+            "quantity": 1,
+            "product_id": 36,
+            "unit_price": "2.50"
+          }
+        ],
+        "details": {
+          "name": "Merry",
+          "email": "merryrosalie001@gmail.com"
+        }
+      },
+      "order_status": "order_completed",
+      "payment_reference": "6370bae4f20c2b7284976440b53bf716",
+      "xendit_payment_id": "ps-6ae9e22f11e31c8087831a3e",
+      "payment_link": "https://dev.xen.to/hEiVMfPF",
+      "created_time": "2026-11-03T13:31:25.549Z",
+      "updated_time": "2026-11-03T13:37:55.692Z"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 63,
+    "fields": {
+      "business": 7,
+      "chat_session": 33,
+      "is_sandbox": true,
+      "order_data": {
+        "items": [
+          {
+            "name": "Item A",
+            "quantity": 1,
+            "product_id": 35,
+            "unit_price": "5.00"
+          }
+        ],
+        "details": {
+          "name": "Joey",
+          "email": "janedoe@example.com"
+        }
+      },
+      "order_status": "payment_received",
+      "payment_reference": "9e11c2bf0b78a42cba784d5ed4cc79ae",
+      "xendit_payment_id": "ps-6ae9e779038ec78c16248f5f",
+      "payment_link": "https://dev.xen.to/oIO-f1rp",
+      "created_time": "2026-11-03T13:54:00.115Z",
+      "updated_time": "2026-11-03T13:55:19.397Z"
+    }
+  },
+  {
+    "model": "checkout_app.orderitem",
+    "pk": 64,
+    "fields": {
+      "business": 7,
+      "chat_session": 34,
+      "is_sandbox": true,
+      "order_data": {
+        "items": [
+          {
+            "name": "Item A",
+            "quantity": 1,
+            "product_id": 35,
+            "unit_price": "5.00"
+          }
+        ],
+        "details": {
+          "name": "Jane Doe",
+          "email": "merryrosalie001@gmail.com"
+        }
+      },
+      "order_status": "payment_received",
+      "payment_reference": "a43da3c99f7d0b515662ec489f912d06",
+      "xendit_payment_id": "ps-6ae9ea809104fa5c9e818908",
+      "payment_link": "https://dev.xen.to/RlCSt2Kd",
+      "created_time": "2026-11-03T14:06:55.051Z",
+      "updated_time": "2026-11-03T14:07:35.916Z"
+    }
   }
 ]

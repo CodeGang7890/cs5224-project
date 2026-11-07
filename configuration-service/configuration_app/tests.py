@@ -576,6 +576,11 @@ class SampleWhatsAppConfigurationFixtureTests(TestCase):
         for config in configs:
             with self.subTest(business=config.business_id):
                 config.full_clean()  # loaddata skips validation
+                if config.business_id == 7:
+                    # Business Test, kept from production: its real Embedded Signup connection (a Meta test number).
+                    self.assertEqual((config.connection_method, config.status), ('embedded_signup', 'connected'))
+                    self.assertTrue(config.access_token and not config.access_token.startswith('dev-'))
+                    continue
                 self.assertRegex(config.display_phone_number, r'^\+65 [89]\d{3} \d{4}$')
                 self.assertEqual(config.verified_name, config.business.business_name)
                 # Stored encrypted, read back as the plain dummy values mock_whatsapp uses.

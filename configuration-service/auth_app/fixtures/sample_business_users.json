@@ -98,5 +98,26 @@
       "groups": [],
       "user_permissions": []
     }
+  },
+  {
+    "model": "auth_app.businessuser",
+    "pk": 109,
+    "fields": {
+      "password": "!TWluuCyJazhMIFhjQ5SbqToIViv9SD5u0WBbwX43",
+      "last_login": "2026-11-06T09:39:59.790Z",
+      "is_superuser": false,
+      "username": "testansera",
+      "first_name": "Ansera",
+      "last_name": "Test",
+      "email": "testansera@gmail.com",
+      "is_staff": false,
+      "is_active": true,
+      "date_joined": "2026-10-28T11:50:01.217Z",
+      "business": 7,
+      "firebase_uid": "HjmIwDPbFSYLXQv6VyjGZfQlOdN2",
+      "subscription_tier": "free",
+      "groups": [],
+      "user_permissions": []
+    }
   }
 ]

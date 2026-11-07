@@ -135,8 +135,8 @@ class SampleProductAndFAQFixtureTests(TestCase):
     fixtures = ['sample_business_configurations', 'sample_products', 'sample_faqs', 'sample_chat_sessions', 'sample_order_items']
 
     def test_fixtures_are_valid(self):
-        self.assertEqual(Product.objects.count(), 32)  # 20–29: Lumen & Lens's prints and frames, 30–34: Rally Point Courts
-        self.assertEqual(FAQ.objects.count(), 49)  # 35–44: Lumen & Lens, 45–51: Rally Point Courts
+        self.assertEqual(Product.objects.count(), 35)  # 20–29: Lumen & Lens's prints and frames, 30–34: Rally Point Courts, 35–37: Business Test
+        self.assertEqual(FAQ.objects.count(), 50)  # 35–44: Lumen & Lens, 45–51: Rally Point Courts, 53: Business Test
         for record in [*Product.objects.all(), *FAQ.objects.all()]:
             with self.subTest(record=str(record)):
                 record.full_clean()  # loaddata skips validation
@@ -523,20 +523,24 @@ class SampleServiceFixtureTests(TestCase):
     fixtures = ['sample_business_configurations', 'sample_services']
 
     def test_fixture_is_valid(self):
-        self.assertEqual(ServiceProvider.objects.count(), 6)
-        self.assertEqual(Service.objects.count(), 10)
+        # Business Test (7, kept from production): providers 7–8, services 11–12, weeks 95–98.
+        self.assertEqual(ServiceProvider.objects.filter(business_id=7).count(), 2)
+        self.assertEqual(Service.objects.filter(business_id=7).count(), 2)
+        self.assertEqual(WeeklyAvailability.objects.filter(service_provider__business_id=7).count(), 4)
+        self.assertEqual(ServiceProvider.objects.exclude(business_id=7).count(), 6)
+        self.assertEqual(Service.objects.exclude(business_id=7).count(), 10)
         # From 7 Sep 2026: 13 weeks for the photographers (to the week of 30 Nov), 17 for the courts
         # (to the week of 28 Dec, as their bookings run to the end of December).
-        self.assertEqual(WeeklyAvailability.objects.count(), 2 * 13 + 4 * 17)
-        for provider in ServiceProvider.objects.all():
+        self.assertEqual(WeeklyAvailability.objects.exclude(service_provider__business_id=7).count(), 2 * 13 + 4 * 17)
+        for provider in ServiceProvider.objects.exclude(business_id=7):
             weeks = list(provider.weekly_availabilities.values_list('week', flat=True))
             last, count = (date(2026, 12, 28), 17) if provider.business_id == 5 else (date(2026, 11, 30), 13)
             self.assertEqual((weeks[0], weeks[-1], len(weeks)), (date(2026, 9, 7), last, count))
         for item in [*ServiceProvider.objects.all(), *Service.objects.all(), *WeeklyAvailability.objects.all()]:
             with self.subTest(item=str(item)):
                 item.full_clean()  # loaddata skips validation
-                self.assertIn(item.business_id, (4, 5))
-        for service in Service.objects.all():
+                self.assertIn(item.business_id, (4, 5, 7))
+        for service in Service.objects.exclude(business_id=7):
             with self.subTest(service=service.name):
                 self.assertTrue(service.is_active)
                 self.assertTrue(service.description and service.information)
