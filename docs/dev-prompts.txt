@@ -1539,3 +1539,11 @@ Original Prompt:
 [Image #20] when i click this button nothing happens?
 cant u just make that like a plus button and theres an option to put image or file to it
 check caching stuff / versioning of css so it should load the newest change
+
+Date & Time (GMT+8): 2026-11-07 14:40:40
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+In messaging service, if the message received is another type apart from “text”, it should not just leave it silently like this
+Please make it that it just return a generic and short response that we only accept text format as of now
+Yet make sure we also record that message to the DB and ensure a reply is sent

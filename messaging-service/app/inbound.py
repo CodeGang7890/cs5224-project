@@ -3,8 +3,11 @@ messaging-ingester; the consumer is app/consumer.py), answered by the chat flow:
 the Chat Sandbox and POST /api/chat/sessions/messages/ (app/chat_flow/flow.py).
 
 handle_inbound(sessions, payload) for one message:
-1. Only text messages are answered (images, audio, … are skipped for now), and only for a
-   business that exists.
+1. Only for a business that exists. A message that isn't text (a photo, document, voice message,
+   …) isn't read for now: answer_unsupported() saves it in the chat as a placeholder (e.g.
+   "[Photo]") with a short reply asking for text (UNSUPPORTED_REPLY), in one transaction with its
+   InboundMessage (`replied`) and the outbox, then sends it (steps 3 and 5, without the chat flow).
+   Every type that isn't text gets it (the user asked), reactions and system notices too.
 2. The customer's chat: the business's real (not sandbox) ChatSession with that phone number, or a
    new one (as configuration-service creates them: at `start`, no messages; the WhatsApp profile
    name as its display_name).
@@ -37,7 +40,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from . import latency, outbox
 from .chat_flow import dates, flow
-from .chat_flow.constants import SENT_BY_CUSTOMER, STEP_START
+from .chat_flow.constants import SENT_BY_BUSINESS_AUTOMATED, SENT_BY_CUSTOMER, STEP_START
 from .chat_flow.validators import CHAT_MESSAGE_MAX_LENGTH
 from .models import BusinessConfiguration, ChatSession, InboundMessage, OutboundMessage
 
@@ -45,6 +48,13 @@ logger = logging.getLogger(__name__)
 
 RECEIVED, REPLIED = 'received', 'replied'  # chat_app.InboundMessageStatus
 DISPLAY_NAME_MAX_LENGTH = 150  # chat_app.models
+
+# Messages that aren't text: what the chat shows for them (Meta's message types), and the reply.
+UNSUPPORTED_LABELS = {
+    'image': 'Photo', 'document': 'Document', 'audio': 'Voice message', 'video': 'Video', 'sticker': 'Sticker',
+    'location': 'Location', 'contacts': 'Contact', 'reaction': 'Reaction', 'system': 'System notice',
+}
+UNSUPPORTED_REPLY = 'Sorry, I can only read text messages for now. Could you type your message instead?'
 
 
 class AlreadyReplied(Exception):
@@ -82,13 +92,77 @@ def customer_session(db: Session, business: BusinessConfiguration, phone_number:
     return session
 
 
+def unsupported_placeholder(message_type: str) -> str:
+    """What the chat shows for a message that isn't text, e.g. "[Photo]"."""
+    return f'[{UNSUPPORTED_LABELS.get(message_type, "Message")}]'
+
+
+def queue_reply(db: Session, session: ChatSession, record: InboundMessage, text: str, now) -> None:
+    """Puts a message for the customer in the outbox (to send once the transaction commits)."""
+    db.add(OutboundMessage(
+        business_id=session.business_id, chat_session_id=session.id, inbound_message_id=record.id,
+        text=text, status=outbox.PENDING, attempts=0, next_attempt_time=now,
+        last_error='', meta_message_id='', created_time=now, sent_time=None,
+    ))
+    db.flush()  # one at a time: ids in the order they're sent
+
+
+def send_replies(sessions: sessionmaker, session_id: int) -> None:
+    """Sends the chat's queued replies. A failed send stays in the outbox, retried by the consumer's
+    sweeper; so does everything if sending can't even start (e.g. the database just went away): the
+    message was answered, so it isn't nacked."""
+    try:
+        outbox.send_due(sessions, chat_session_id=session_id)
+    except Exception:
+        logger.exception('Sending the replies in chat %s failed; the sweeper will retry', session_id)
+
+
+def answer_unsupported(sessions: sessionmaker, payload: dict) -> InboundResult:
+    """A message that isn't text: saved in the chat as a placeholder, answered with UNSUPPORTED_REPLY
+    (see the module docstring). One transaction, so a redelivery finds it `replied` and skips it."""
+    message_id, message_type = payload['message_id'], str(payload.get('type'))
+    try:
+        with sessions.begin() as db:
+            business = db.get(BusinessConfiguration, payload['business_id'])
+            if business is None:
+                return InboundResult('skipped', f'no business {payload["business_id"]}')
+            session = customer_session(db, business, payload['from'], payload.get('display_name'))
+            record = db.scalars(
+                select(InboundMessage).where(InboundMessage.message_id == message_id).with_for_update()
+            ).first()
+            if record is not None and record.status == REPLIED:
+                return InboundResult('skipped', 'already replied (a duplicate)', session.id)
+            now = dates.now()
+            if record is None:
+                flow.add_message(session, unsupported_placeholder(message_type), SENT_BY_CUSTOMER)
+                record = InboundMessage(
+                    business_id=business.id, chat_session_id=session.id, message_id=message_id, status=REPLIED,
+                    received_time=now, replied_time=now,
+                )
+                db.add(record)
+                db.flush()
+            else:
+                record.status, record.replied_time = REPLIED, now
+            flow.add_message(session, UNSUPPORTED_REPLY, SENT_BY_BUSINESS_AUTOMATED)
+            queue_reply(db, session, record, UNSUPPORTED_REPLY, now)
+            session_id = session.id
+    except IntegrityError:
+        # The same message was claimed by another worker at the same moment: it answers it.
+        return InboundResult('skipped', 'being answered by another worker (a duplicate)')
+    latency.add_fields(chat=session_id)
+    send_replies(sessions, session_id)
+    return InboundResult('replied', f'not a text message ({message_type})', session_id, UNSUPPORTED_REPLY)
+
+
 def handle_inbound(sessions: sessionmaker, payload: dict) -> InboundResult:
     """Answers one inbound WhatsApp message (see the module docstring)."""
     message_id = payload['message_id']
+    if payload.get('type') != 'text':
+        return answer_unsupported(sessions, payload)
     text = payload.get('text') if isinstance(payload.get('text'), str) else ''
     text = text.strip()[:CHAT_MESSAGE_MAX_LENGTH]
-    if payload.get('type') != 'text' or not text:
-        return InboundResult('skipped', f'not a text message ({payload.get("type")})')
+    if not text:
+        return InboundResult('skipped', 'an empty text message')
 
     try:
         with sessions.begin() as db:
@@ -132,12 +206,7 @@ def handle_inbound(sessions: sessionmaker, payload: dict) -> InboundResult:
         if record.status != REPLIED:
             record.status, record.replied_time = REPLIED, now
         for chat_message in messages:
-            db.add(OutboundMessage(
-                business_id=session.business_id, chat_session_id=session.id, inbound_message_id=record.id,
-                text=chat_message['message'], status=outbox.PENDING, attempts=0, next_attempt_time=now,
-                last_error='', meta_message_id='', created_time=now, sent_time=None,
-            ))
-            db.flush()  # one at a time: ids in the order they're sent
+            queue_reply(db, session, record, chat_message['message'], now)
 
     try:
         result = flow.handle_customer_message(
@@ -145,11 +214,5 @@ def handle_inbound(sessions: sessionmaker, payload: dict) -> InboundResult:
         )
     except AlreadyReplied:
         return InboundResult('skipped', 'answered by another worker meanwhile (a duplicate)', session_id)
-    # Saved: now send. A failed send stays in the outbox, retried by the consumer's sweeper; so does
-    # everything if sending can't even start (e.g. the database just went away): the message was
-    # answered, so it isn't nacked.
-    try:
-        outbox.send_due(sessions, chat_session_id=session_id)
-    except Exception:
-        logger.exception('Sending the replies in chat %s failed; the sweeper will retry', session_id)
+    send_replies(sessions, session_id)  # saved: now send
     return InboundResult('replied', chat_session_id=session_id, reply=result.reply['message'])

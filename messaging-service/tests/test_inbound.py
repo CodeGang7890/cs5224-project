@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 from app import llm
 from app.consumer import ConsumerStats, handle
-from app.inbound import handle_inbound
+from app.inbound import UNSUPPORTED_REPLY, handle_inbound
 from app.models import ChatSession, InboundMessage, OutboundMessage, Product
 
 from .chat_helpers import DatabaseTestCase, fake_ollama_chat
@@ -150,17 +150,78 @@ class InboundTests(DatabaseTestCase):
         self.assertEqual([m['sent_by'] for m in messages], ['customer', 'business-automated'])
         self.assertEqual(self.all(InboundMessage)[0].status, 'replied')
 
-    def test_not_text_or_an_unknown_business_is_skipped(self):
+    def test_an_empty_text_or_an_unknown_business_is_skipped(self):
         for changes, reason in (
-            ({'type': 'image', 'text': None}, 'not a text message (image)'),
-            ({'text': '   '}, 'not a text message (text)'),
+            ({'text': '   '}, 'an empty text message'),
             ({'business_id': 999}, 'no business 999'),
+            ({'type': 'image', 'text': None, 'business_id': 999}, 'no business 999'),
         ):
             with self.subTest(changes=changes):
                 result = handle_inbound(self.sessions, {**self.payload, **changes})
                 self.assertEqual((result.outcome, result.reason), ('skipped', reason))
-        self.assertEqual((self.all(ChatSession), self.all(InboundMessage)), ([], []))
+        self.assertEqual((self.all(ChatSession), self.all(InboundMessage), self.all(OutboundMessage)), ([], [], []))
         self.ollama.chat.assert_not_called()
+        self.send_text.assert_not_called()
+
+    def test_a_photo_is_saved_and_answered_that_only_text_is_read(self):
+        result, logs = self.answer(type='image', text=None)
+        self.assertEqual((result.outcome, result.reason, result.reply), ('replied', 'not a text message (image)', UNSUPPORTED_REPLY))
+        self.ollama.chat.assert_not_called()  # no LLM: a fixed reply
+        session, = self.all(ChatSession)
+        self.assertEqual(
+            [(m['sent_by'], m['message']) for m in session.chat_message_json],
+            [('customer', '[Photo]'), ('business-automated', UNSUPPORTED_REPLY)],
+        )
+        self.assertEqual((session.display_name, session.chat_state_id), ('Alice', 'start'))
+        record, = self.all(InboundMessage)
+        self.assertEqual((record.message_id, record.status, record.chat_session_id), ('wamid.1', 'replied', session.id))
+        self.assertIsNotNone(record.replied_time)
+        sent, = self.all(OutboundMessage)
+        self.assertEqual(
+            (sent.inbound_message_id, sent.text, sent.status, sent.meta_message_id), (record.id, UNSUPPORTED_REPLY, 'sent', 'wamid.out1'),
+        )
+        self.send_text.assert_called_once_with(self.cafe.id, '+6591234567', UNSUPPORTED_REPLY)
+        self.assertIn('sent to +6591234567 on WhatsApp (wamid.out1)', logs[-1])
+
+    def test_every_kind_that_isnt_text_gets_a_placeholder(self):
+        for number, (message_type, placeholder) in enumerate((
+            ('document', '[Document]'), ('audio', '[Voice message]'), ('video', '[Video]'), ('sticker', '[Sticker]'),
+            ('location', '[Location]'), ('contacts', '[Contact]'), ('reaction', '[Reaction]'), ('system', '[System notice]'),
+            ('unsupported', '[Message]'),
+        )):
+            with self.subTest(message_type=message_type):
+                self.answer(type=message_type, text=None, message_id=f'wamid.{message_type}', **{'from': f'+659000000{number}'})
+                session = self.all(ChatSession, ChatSession.phone_number == f'+659000000{number}')[0]
+                self.assertEqual([m['message'] for m in session.chat_message_json], [placeholder, UNSUPPORTED_REPLY])
+
+    def test_a_photo_in_an_existing_chat_leaves_its_step_alone(self):
+        existing = self.make.session(self.cafe, phone_number='+6591234567', is_sandbox=False)
+        with self.sessions.begin() as db:
+            chat = db.get(ChatSession, existing.id)
+            chat.chat_state_id, chat.chat_state_data = 'product_selection', {'items': [{'product_id': 1}]}
+        self.answer(type='image', text=None)
+        chat = self.get(ChatSession, existing.id)
+        self.assertEqual((chat.chat_state_id, chat.chat_state_data), ('product_selection', {'items': [{'product_id': 1}]}))
+        self.assertEqual(len(chat.chat_message_json), 2)
+
+    def test_a_duplicate_photo_is_answered_once(self):
+        self.answer(type='image', text=None)
+        result = handle_inbound(self.sessions, {**self.payload, 'type': 'image', 'text': None})
+        self.assertEqual((result.outcome, result.reason), ('skipped', 'already replied (a duplicate)'))
+        self.assertEqual(len(self.all(ChatSession)[0].chat_message_json), 2)
+        self.assertEqual(len(self.all(OutboundMessage)), 1)
+        self.send_text.assert_called_once()
+
+    def test_a_failed_send_of_the_photo_reply_stays_in_the_outbox(self):
+        from app.whatsapp_sender import SendError
+
+        self.send_text.side_effect = SendError('Not sent (503): Could not reach Meta')
+        with self.assertLogs('app.outbox', level='WARNING'):
+            result = handle_inbound(self.sessions, {**self.payload, 'type': 'image', 'text': None})
+        self.assertEqual(result.outcome, 'replied')  # acked: the reply is safe in the outbox
+        pending, = self.all(OutboundMessage)
+        self.assertEqual((pending.text, pending.status, pending.attempts), (UNSUPPORTED_REPLY, 'pending', 1))
+        self.assertEqual(self.all(InboundMessage)[0].status, 'replied')
 
     def test_an_order_from_whatsapp(self):
         cake, = self.all(Product, Product.name == 'Pandan Chiffon Cake')
