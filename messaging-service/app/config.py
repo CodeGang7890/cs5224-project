@@ -121,6 +121,14 @@ JWT_ALGORITHM = 'HS256'
 CONFIGURATION_SERVICE_URL = os.getenv('CONFIGURATION_SERVICE_URL', 'http://localhost:8000/api').rstrip('/')
 INTERNAL_API_KEY = os.getenv('INTERNAL_API_KEY', 'dev-internal-api-key')  # must equal configuration-service's
 WHATSAPP_SEND_TIMEOUT_SECONDS = 20
+# The outbox (app/outbox.py): replies are saved with the chat, then sent. A failed send is retried
+# after these delays (one per attempt, the last repeated) and given up after OUTBOX_ATTEMPTS_MAX
+# attempts (the message is then `failed`). The consumer's sweeper sends what's due every
+# OUTBOX_SWEEP_SECONDS (env; 0 turns it off), e.g. a retry, or a reply left by a worker that died.
+OUTBOX_ATTEMPTS_MAX = 5
+OUTBOX_RETRY_DELAYS_SECONDS = (10, 30, 120, 600)
+OUTBOX_SWEEP_SECONDS = float(os.getenv('OUTBOX_SWEEP_SECONDS', '30'))
+OUTBOX_BATCH_MAX = 100  # at most this many messages per sending round
 
 # --- Payment links (payment-ingester's create endpoint) ---------------------------------------
 # When the chat flow saves an order / booking, it asks payment-ingester (POST /payments,

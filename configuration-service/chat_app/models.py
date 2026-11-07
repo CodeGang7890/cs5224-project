@@ -354,3 +354,77 @@ class InboundMessage(models.Model):
 
     def __str__(self) -> str:
         return self.message_id
+
+
+class OutboundMessageStatus(models.TextChoices):
+    PENDING = 'pending', 'Pending'  # saved with the reply; not sent yet (or a failed attempt, to retry)
+    SENT = 'sent', 'Sent'  # Meta accepted it
+    FAILED = 'failed', 'Failed'  # every attempt failed: not retried any more
+
+
+OUTBOUND_STATUS_MAX_LENGTH = 16
+
+
+class OutboundMessage(models.Model):
+    """A reply to a customer's WhatsApp message, waiting to be sent or sent: an outbox (the user
+    asked, so a reply is never lost when sending fails). messaging-service saves its replies here in
+    the same transaction as the chat (the reply, the InboundMessage marked replied), then sends them
+    through configuration-service's internal send endpoint, retrying failures. Written by
+    messaging-service only; the migration is here because this app owns the schema.
+    """
+
+    business = models.ForeignKey(
+        'configuration_app.BusinessConfiguration',
+        on_delete=models.CASCADE,
+        related_name='outbound_messages',
+    )
+    chat_session = models.ForeignKey(ChatSession, on_delete=models.CASCADE, related_name='outbound_messages')
+    inbound_message = models.ForeignKey(
+        InboundMessage,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='outbound_messages',
+        help_text='The customer message this replies to.',
+    )
+    text = models.TextField()
+    status = models.CharField(
+        max_length=OUTBOUND_STATUS_MAX_LENGTH,
+        choices=OutboundMessageStatus.choices,
+        default=OutboundMessageStatus.PENDING,
+    )
+    attempts = models.PositiveIntegerField(default=0, help_text='Send attempts so far.')
+    next_attempt_time = models.DateTimeField(
+        default=timezone.now, help_text='While pending: not sent before this (the retry backoff).'
+    )
+    last_error = models.TextField(blank=True, default='', help_text="Why the last attempt failed.")
+    meta_message_id = models.CharField(
+        max_length=WHATSAPP_MESSAGE_ID_MAX_LENGTH, blank=True, default='', help_text="Meta's message id, once sent."
+    )
+    created_time = models.DateTimeField(default=timezone.now, editable=False)
+    sent_time = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Outbound Message'
+        verbose_name_plural = 'Outbound Messages'
+        ordering = ['-created_time', '-id']
+        indexes = [
+            # messaging-service's sender: the pending messages that are due.
+            models.Index(fields=['status', 'next_attempt_time'], name='outbound_message_due'),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(status__in=OutboundMessageStatus.values), name='outbound_message_status_valid'
+            ),
+            models.CheckConstraint(condition=~Q(text=''), name='outbound_message_text_not_empty'),
+            models.CheckConstraint(
+                condition=(
+                    Q(status=OutboundMessageStatus.SENT, sent_time__isnull=False)
+                    | (~Q(status=OutboundMessageStatus.SENT) & Q(sent_time__isnull=True))
+                ),
+                name='outbound_message_sent_time',
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f'{self.status}: {self.text[:50]}'

@@ -47,9 +47,10 @@ turn can't run again (it would place it twice), so its reply is saved even if th
 """
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
 from .. import config, latency, llm
 from ..models import BusinessConfiguration, ChatSession
@@ -74,6 +75,9 @@ from .tools import (
 )
 
 logger = logging.getLogger(__name__)
+
+# save_turn's hook: on_saved(db, session, messages saved, placed an order / booking).
+OnSaved = Callable[[Session, ChatSession, list[dict], bool], None]
 
 # How many of the latest messages the LLM sees (keeps the prompt within the context window).
 HISTORY_MAX_MESSAGES = 20
@@ -105,7 +109,9 @@ class TurnResult:
     messages: list[dict] = field(default_factory=list)
 
 
-def handle_customer_message(sessions: sessionmaker, session_id: int, message: str, save_message: bool = True) -> TurnResult:
+def handle_customer_message(
+    sessions: sessionmaker, session_id: int, message: str, save_message: bool = True, on_saved: OnSaved | None = None,
+) -> TurnResult:
     """Saves the customer message, runs the flow, then saves and returns the assistant's reply.
 
     The customer message is saved first, so it's kept if an LLM call fails (llm.LLMError). The
@@ -123,13 +129,20 @@ def handle_customer_message(sessions: sessionmaker, session_id: int, message: st
     If the chat changes while the turn is worked out (its version, see the module docstring), the
     turn runs again from the start, without saving the customer message again; after
     TURN_ATTEMPTS_MAX attempts, ChatConflictError.
+
+    `on_saved(db, session, messages, placed)` (messaging-service's WhatsApp consumer, app/inbound.py):
+    called inside the transaction that saves the turn's messages, after they're added, so its writes
+    (the InboundMessage marked replied, the replies in the outbox) are saved with them or not at all.
+    `placed`: this turn placed an order / booking (saved already; trying and failing, e.g. sold
+    out, isn't placing). If it raises, nothing of the
+    save is kept and the error reaches the caller.
     """
     if save_message:
         append_chat_message(sessions, session_id, message, SENT_BY_CUSTOMER)
     for attempt in range(1, config.TURN_ATTEMPTS_MAX + 1):
         try:
             with latency.timed('TURN', attempt=attempt) as turn_timer:
-                result = _run_turn(sessions, session_id, message)
+                result = _run_turn(sessions, session_id, message, on_saved)
                 turn_timer.fields.update(
                     reply_kind=result.debug['reply_kind'], intents=result.debug['route']['intents'],
                     step=result.debug['after']['chat_state_id'], messages=len(result.messages),
@@ -144,7 +157,7 @@ def handle_customer_message(sessions: sessionmaker, session_id: int, message: st
     )
 
 
-def _run_turn(sessions: sessionmaker, session_id: int, message: str) -> TurnResult:
+def _run_turn(sessions: sessionmaker, session_id: int, message: str, on_saved: OnSaved | None = None) -> TurnResult:
     """One attempt at the turn: ChatChanged (nothing saved) if the chat changed meanwhile."""
     with latency.timed('DB', 'LOAD'), sessions() as db:
         session = db.get(ChatSession, session_id)
@@ -271,7 +284,10 @@ def _run_turn(sessions: sessionmaker, session_id: int, message: str) -> TurnResu
     if reply is not None:
         to_send.append(reply.strip() or '…')
     with latency.timed('DB', 'SAVE_TURN', messages=len(to_send)):
-        sent = save_turn(sessions, session_id, None if placing else turn, to_send, version, check=not placing)
+        sent = save_turn(
+            sessions, session_id, None if placing else turn, to_send, version, check=not placing, on_saved=on_saved,
+            placed=turn.placed_order_id is not None or turn.placed_booking_id is not None,
+        )
     debug = {
         'before': before,
         'after': {'chat_state_id': turn.step, 'chat_state_data': turn.data},
@@ -424,12 +440,14 @@ def to_llm_history(chat_messages: list[dict]) -> list[dict]:
 
 def save_turn(
     sessions: sessionmaker, session_id: int, turn: order_flow.Turn | None, messages: list[str], version: int,
-    check: bool = True,
+    check: bool = True, on_saved: OnSaved | None = None, placed: bool = False,
 ) -> list[dict]:
     """The end of a turn, in one transaction with the row locked: saves the turn's state (unless
     `turn` is None: commit_turn() saved it) and appends the assistant's messages. With `check`, only
     if the chat is still at `version` (else order_flow.ChatChanged, and nothing is saved); without
-    (the order / booking is placed already), a change is only logged. Returns the messages saved."""
+    (the order / booking is placed already), a change is only logged. `on_saved` (see
+    handle_customer_message) runs last, in the same transaction, told whether this turn `placed` an
+    order / booking (not only tried: placing can fail, e.g. sold out). Returns the messages saved."""
     with sessions.begin() as db:
         session = order_flow.lock_session(db, session_id)
         if session.version != version:
@@ -441,7 +459,10 @@ def save_turn(
             )
         if turn is not None:
             order_flow.apply_turn(db, session, turn, timezone.now())
-        return [add_message(session, text, SENT_BY_BUSINESS_AUTOMATED) for text in messages]
+        saved = [add_message(session, text, SENT_BY_BUSINESS_AUTOMATED) for text in messages]
+        if on_saved is not None:
+            on_saved(db, session, saved, placed)
+        return saved
 
 
 def append_chat_message(sessions: sessionmaker, session_id: int, message: str, sent_by: str) -> dict:

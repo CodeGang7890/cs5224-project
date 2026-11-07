@@ -22,7 +22,7 @@ Guidance for Claude Code that applies to every service. Each service also has it
 There is one PostgreSQL database, and **configuration-service (Django) owns its schema**:
 
 - **Every schema change is a Django model change plus a Django migration** (`python manage.py makemigrations` in `configuration-service/`). This includes new tables, columns, indexes, constraints, renames and data migrations. Nothing else ever runs DDL against PostgreSQL.
-- **Every other service only connects to query the data**: SELECT, plus INSERT / UPDATE / DELETE of rows where its job needs it. That covers messaging-service's chat flow (chat messages, orders, bookings, questions) and processing-service's payment updates. They map the tables they use with SQLAlchemy (`app/models.py`), and they must never:
+- **Every other service only connects to query the data**: SELECT, plus INSERT / UPDATE / DELETE of rows where its job needs it. That covers messaging-service's chat flow (chat messages, orders, bookings, questions, and its WhatsApp outbox) and processing-service's payment updates. They map the tables they use with SQLAlchemy (`app/models.py`), and they must never:
   - create, alter or drop tables;
   - add Alembic or any other migration tool;
   - call `Base.metadata.create_all()` against PostgreSQL. Only the tests may do that, on a throwaway SQLite database.

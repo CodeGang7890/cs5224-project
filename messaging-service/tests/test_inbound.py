@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 from app import llm
 from app.consumer import ConsumerStats, handle
 from app.inbound import handle_inbound
-from app.models import ChatSession, InboundMessage, Product
+from app.models import ChatSession, InboundMessage, OutboundMessage, Product
 
 from .chat_helpers import DatabaseTestCase, fake_ollama_chat
 
@@ -34,12 +34,12 @@ class InboundTests(DatabaseTestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
         self.ollama.chat.side_effect = fake_ollama_chat('Yes, we do! A whole cake is $25.')
-        sender = patch('app.inbound.whatsapp_sender.send_text', return_value='wamid.out1')
+        sender = patch('app.whatsapp_sender.send_text', return_value='wamid.out1')
         self.send_text = sender.start()
         self.addCleanup(sender.stop)
 
     def answer(self, **changes):
-        with self.assertLogs('app.inbound', level='INFO') as logs:
+        with self.assertLogs('app.outbox', level='INFO') as logs:
             result = handle_inbound(self.sessions, {**self.payload, **changes})
         return result, logs.output
 
@@ -61,17 +61,66 @@ class InboundTests(DatabaseTestCase):
         self.assertIsNotNone(record.replied_time)
         self.send_text.assert_called_once_with(self.cafe.id, '+6591234567', 'Yes, we do! A whole cake is $25.')
         self.assertIn('sent to +6591234567 on WhatsApp (wamid.out1)', logs[-1])
+        # The reply went through the outbox, saved with the chat.
+        sent, = self.all(OutboundMessage)
+        self.assertEqual(
+            (sent.chat_session_id, sent.inbound_message_id, sent.text, sent.status, sent.attempts, sent.meta_message_id),
+            (session.id, record.id, 'Yes, we do! A whole cake is $25.', 'sent', 1, 'wamid.out1'),
+        )
+        self.assertIsNotNone(sent.sent_time)
 
-    def test_a_failed_send_is_logged_and_the_reply_kept(self):
+    def test_a_failed_send_stays_in_the_outbox_to_retry(self):
         from app.whatsapp_sender import SendError
 
         self.send_text.side_effect = SendError('Not sent (503): Could not reach Meta')
-        with self.assertLogs('app.inbound', level='ERROR') as logs:
+        with self.assertLogs('app.outbox', level='WARNING') as logs:
             result = handle_inbound(self.sessions, self.payload)
-        self.assertEqual(result.outcome, 'replied')
-        self.assertIn('not sent to +6591234567: Not sent (503)', logs.output[-1])
+        self.assertEqual(result.outcome, 'replied')  # acked: the reply is safe in the outbox
+        self.assertIn('not sent to +6591234567 (attempt 1 of 5)', logs.output[-1])
         self.assertEqual(self.all(InboundMessage)[0].status, 'replied')
         self.assertEqual(self.all(ChatSession)[0].chat_message_json[-1]['sent_by'], 'business-automated')
+        pending, = self.all(OutboundMessage)
+        self.assertEqual((pending.status, pending.attempts, pending.sent_time), ('pending', 1, None))
+        self.assertIn('Not sent (503)', pending.last_error)
+        self.assertGreater(pending.next_attempt_time, pending.created_time)
+
+    def test_answered_by_another_worker_meanwhile_nothing_more_is_saved_or_sent(self):
+        # While this worker's LLM answers, another worker (a duplicate delivery) answers the message.
+        fake = fake_ollama_chat('Yes, we do!')
+
+        def chat(**kwargs):
+            with self.sessions.begin() as db:
+                record = db.query(InboundMessage).one()
+                record.status, record.replied_time = 'replied', record.received_time
+            return fake(**kwargs)
+
+        self.ollama.chat.side_effect = chat
+        result = handle_inbound(self.sessions, self.payload)
+        self.assertEqual((result.outcome, result.reason), ('skipped', 'answered by another worker meanwhile (a duplicate)'))
+        self.assertEqual([m['sent_by'] for m in self.all(ChatSession)[0].chat_message_json], ['customer'])
+        self.assertEqual(self.all(OutboundMessage), [])
+        self.send_text.assert_not_called()
+
+    def test_a_placed_order_is_confirmed_even_if_answered_meanwhile(self):
+        # The turn placed an order (saved already) when it finds the message answered by another
+        # worker: its confirmation (with the payment link) must still be sent.
+        from app.chat_flow import flow
+
+        real = flow.handle_customer_message
+
+        def placed_meanwhile(sessions, session_id, message, save_message=True, on_saved=None):
+            def answered_first(db, session, messages, placed):
+                record = db.query(InboundMessage).one()
+                record.status, record.replied_time = 'replied', record.received_time
+                on_saved(db, session, messages, True)
+            return real(sessions, session_id, message, save_message=save_message, on_saved=answered_first)
+
+        with patch('app.inbound.flow.handle_customer_message', side_effect=placed_meanwhile), \
+                self.assertLogs('app.inbound', level='WARNING') as logs:
+            result = handle_inbound(self.sessions, self.payload)
+        self.assertEqual(result.outcome, 'replied')
+        self.assertIn("sending this turn's confirmation too", logs.output[0])
+        self.assertEqual([item.status for item in self.all(OutboundMessage)], ['sent'])
 
     def test_an_existing_chat_is_used(self):
         existing = self.make.session(self.cafe, phone_number='+6591234567', is_sandbox=False, display_name='Al')
@@ -144,7 +193,7 @@ class ConsumerToChatFlowTests(DatabaseTestCase):
 
         pulled, stats, ollama = Pulled(), ConsumerStats(), MagicMock()
         ollama.chat.side_effect = fake_ollama_chat('Hello!')
-        with patch('app.llm.get_client', return_value=ollama), patch('app.inbound.whatsapp_sender.send_text', return_value='w1'), \
+        with patch('app.llm.get_client', return_value=ollama), patch('app.whatsapp_sender.send_text', return_value='w1'), \
                 self.assertLogs('app', level='INFO') as logs:
             handle(pulled, stats, self.sessions)
         self.assertTrue(pulled.acked)
@@ -159,3 +208,22 @@ class ConsumerToChatFlowTests(DatabaseTestCase):
         self.assertIn(f'chat={session.pk}', latency_lines[-3])
         self.assertIn('outcome=replied', latency_lines[-2])
         self.assertIn(' send=', latency_lines[-1])
+
+
+class SaveTurnPlacedTests(DatabaseTestCase):
+    """flow.save_turn tells its hook whether the turn placed an order / booking, not only tried."""
+
+    def test_placed_is_passed_through(self):
+        from app.chat_flow import flow
+
+        cafe = self.make.business('Kopi Café')
+        session = self.make.session(cafe, phone_number='+6591234567', is_sandbox=False)
+        calls = []
+        for placed in (False, True):
+            with self.subTest(placed=placed):
+                version = self.get(ChatSession, session.id).version
+                flow.save_turn(
+                    self.sessions, session.id, None, ['Hello!'], version, check=False,
+                    on_saved=lambda db, s, messages, placed: calls.append(placed), placed=placed,
+                )
+        self.assertEqual(calls, [False, True])

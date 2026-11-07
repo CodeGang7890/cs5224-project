@@ -15,12 +15,15 @@ handle_inbound(sessions, payload) for one message:
    - already `received`: a delivery after a failed attempt: the message is in the chat already, so
      the turn runs again without saving it twice;
    - new: saved now.
-4. The chat flow runs (router, order / booking steps, FAQ, order status, the reply) and saves the
-   reply; the row becomes `replied`.
-5. Every message sent this turn (a welcome message, the reply) goes to the customer on WhatsApp:
-   configuration-service's internal send endpoint (app/whatsapp_sender.py; it holds the access
-   token). A failed send is logged and doesn't redo the turn: the reply is saved in the chat
-   either way (TODO: an outbound queue, to retry).
+4. The chat flow runs (router, order / booking steps, FAQ, order status, the reply). The
+   transaction saving its messages also marks the row `replied` and puts every message of the
+   turn (a welcome message, the reply) in the outbox (chat_app.OutboundMessage, `pending`), so a
+   reply can't be lost. If another worker answered the same message meanwhile (a duplicate), that
+   save is rolled back and nothing is sent (unless this turn placed an order or booking: its
+   confirmation is kept).
+5. The outbox sends them (app/outbox.py, through configuration-service's internal send endpoint,
+   which holds the access token), in order. A failed send stays `pending` and is retried by the
+   consumer's sweeper with a backoff, then marked `failed`; the turn never runs again for it.
 
 An LLM failure (or any error) is raised: the consumer nacks the message, so Pub/Sub redelivers it.
 """
@@ -32,16 +35,20 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
-from . import latency, whatsapp_sender
+from . import latency, outbox
 from .chat_flow import dates, flow
 from .chat_flow.constants import SENT_BY_CUSTOMER, STEP_START
 from .chat_flow.validators import CHAT_MESSAGE_MAX_LENGTH
-from .models import BusinessConfiguration, ChatSession, InboundMessage
+from .models import BusinessConfiguration, ChatSession, InboundMessage, OutboundMessage
 
 logger = logging.getLogger(__name__)
 
 RECEIVED, REPLIED = 'received', 'replied'  # chat_app.InboundMessageStatus
 DISPLAY_NAME_MAX_LENGTH = 150  # chat_app.models
+
+
+class AlreadyReplied(Exception):
+    """The message was answered by another worker while this one was working on it."""
 
 
 @dataclass(frozen=True)
@@ -106,17 +113,43 @@ def handle_inbound(sessions: sessionmaker, payload: dict) -> InboundResult:
         return InboundResult('skipped', 'being answered by another worker (a duplicate)')
 
     latency.add_fields(chat=session_id)
-    result = flow.handle_customer_message(sessions, session_id, text, save_message=False)
-    with sessions.begin() as db:
-        record = db.scalars(select(InboundMessage).where(InboundMessage.message_id == message_id)).one()
-        record.status, record.replied_time = REPLIED, dates.now()
-    for number, sent in enumerate(result.messages, 1):
-        try:
-            with latency.timed('SEND', message=f'{number}/{len(result.messages)}'):
-                message_id = whatsapp_sender.send_text(payload['business_id'], payload['from'], sent['message'])
-        except whatsapp_sender.SendError as exc:
-            # TODO: retry (an outbound messages queue). The reply is saved in the chat either way.
-            logger.error('Reply in chat %s not sent to %s: %s', session_id, payload['from'], exc)
-        else:
-            logger.info('Reply in chat %s sent to %s on WhatsApp (%s)', session_id, payload['from'], message_id)
+
+    def mark_replied_and_queue(db, session: ChatSession, messages: list[dict], placed: bool) -> None:
+        """In the transaction saving the turn's messages: the InboundMessage replied, and every
+        message of the turn in the outbox, to send."""
+        record = db.scalars(
+            select(InboundMessage).where(InboundMessage.message_id == message_id).with_for_update()
+        ).one()
+        if record.status == REPLIED:
+            if not placed:
+                # Another worker answered this message while this one was working on it: keep its
+                # reply only (rolls this save back).
+                raise AlreadyReplied(message_id)
+            # This turn placed an order / booking (saved already): its confirmation (and payment
+            # link) must still go out, even though the message was answered meanwhile.
+            logger.warning('Message %s was answered meanwhile; sending this turn\'s confirmation too', message_id)
+        now = dates.now()
+        if record.status != REPLIED:
+            record.status, record.replied_time = REPLIED, now
+        for chat_message in messages:
+            db.add(OutboundMessage(
+                business_id=session.business_id, chat_session_id=session.id, inbound_message_id=record.id,
+                text=chat_message['message'], status=outbox.PENDING, attempts=0, next_attempt_time=now,
+                last_error='', meta_message_id='', created_time=now, sent_time=None,
+            ))
+            db.flush()  # one at a time: ids in the order they're sent
+
+    try:
+        result = flow.handle_customer_message(
+            sessions, session_id, text, save_message=False, on_saved=mark_replied_and_queue
+        )
+    except AlreadyReplied:
+        return InboundResult('skipped', 'answered by another worker meanwhile (a duplicate)', session_id)
+    # Saved: now send. A failed send stays in the outbox, retried by the consumer's sweeper; so does
+    # everything if sending can't even start (e.g. the database just went away): the message was
+    # answered, so it isn't nacked.
+    try:
+        outbox.send_due(sessions, chat_session_id=session_id)
+    except Exception:
+        logger.exception('Sending the replies in chat %s failed; the sweeper will retry', session_id)
     return InboundResult('replied', chat_session_id=session_id, reply=result.reply['message'])

@@ -138,6 +138,26 @@ class InboundMessage(Base):
     replied_time: Mapped[datetime | None] = mapped_column(AwareDateTime)
 
 
+class OutboundMessage(Base):
+    """chat_app.OutboundMessage: a WhatsApp reply in the outbox. Saved with the reply (app/inbound.py),
+    then sent, retried and marked by app/outbox.py. Written by this service only."""
+
+    __tablename__ = 'chat_app_outboundmessage'
+
+    id: Mapped[int] = mapped_column(BigId, primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey('configuration_app_businessconfiguration.id'))
+    chat_session_id: Mapped[int] = mapped_column(ForeignKey('chat_app_chatsession.id'))
+    inbound_message_id: Mapped[int | None] = mapped_column(ForeignKey('chat_app_inboundmessage.id'))
+    text: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(16))  # pending | sent | failed
+    attempts: Mapped[int] = mapped_column(Integer)
+    next_attempt_time: Mapped[datetime] = mapped_column(AwareDateTime)
+    last_error: Mapped[str] = mapped_column(Text)
+    meta_message_id: Mapped[str] = mapped_column(String(255))
+    created_time: Mapped[datetime] = mapped_column(AwareDateTime)
+    sent_time: Mapped[datetime | None] = mapped_column(AwareDateTime)
+
+
 class Product(Base):
     """product_app.Product. Only total_quantity is stored: on hold / sold / available come from the
     orders (chat_flow.stock), like Django's Product.quantity_* properties."""

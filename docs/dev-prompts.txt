@@ -1479,3 +1479,37 @@ Date & Time (GMT+8): 2026-11-06 23:27:38
 AI Model Used: claude-opus-5-5
 Original Prompt:
 Please extend the implementation to Terraform (prod), same config setting and setup like local
+
+Date & Time (GMT+8): 2026-11-07 11:49:23
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+We have a problem, that WhatsApp replies from messaging service is not fault tolerant yet
+In configuration service, add a new model Outbound Message (FK to a chat session, and the business)
+This new field should has a status field (pending, sent, failed)
+I want a system so that in messaging service, after a reply is crafted, I want in the same transaction reply and mark the message as replied (instead of just sending them and potentially has an untracked error).
+I also want a periodic sweep that runs every 30 seconds or so inside messaging service that tries and sends anything that is still pending. Ensure that the locking means no 2 message is gonna be sent twice. Also make a next_attempt_time or sth to be like exponential, so it will retry from the periodic sweep after some time when it failed, up to like 5 or a max number of retries.
+
+Date & Time (GMT+8): 2026-11-07 13:05:23
+AI Model Used: claude-opus-5-5
+Original Prompt:
+michael_andrew_chan@Michaels-MacBook-Pro cs5224-project % docker compose exec -T postgres psql -U postgres -d configuration_service -c "select status, count(*) from chat_app_outboundmessage group by status;"
+ status | count 
+--------+-------
+(0 rows)
+
+Date & Time (GMT+8): 2026-11-07 13:06:39
+AI Model Used: claude-opus-5-5
+Original Prompt:
+michael_andrew_chan@Michaels-MacBook-Pro cs5224-project % docker compose exec -T postgres psql -U postgres -d configuration_service -c "select id, chat_session_id, status, attempts, meta_message_id, left(last_error, 60) as last_error from chat_app_outboundmessage order by
+  id;"
+  docker compose logs messaging-service 2>&1 | grep -E "app.outbox|Traceback" | tail -5
+ id | chat_session_id | status  | attempts | meta_message_id |                         last_error                         
+----+-----------------+---------+----------+-----------------+------------------------------------------------------------
+  1 |              33 | pending |        2 |                 | Not sent (502): Meta refused the message (404): no details
+(1 row)
+
+messaging-service-1  | WARNING app.outbox: Reply 1 in chat 33 not sent to +6591234567 (attempt 1 of 5), retrying at 2026-11-07T05:05:48.978138+00:00: Not sent (502): Meta refused the message (404): no details
+messaging-service-1  | WARNING app.outbox: Reply 1 in chat 33 not sent to +6591234567 (attempt 2 of 5), retrying at 2026-11-07T05:06:33.702191+00:00: Not sent (502): Meta refused the message (404): no details
+
+^is this because it uses the "real whatsapp route"?

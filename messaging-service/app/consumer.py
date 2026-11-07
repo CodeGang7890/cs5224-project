@@ -212,12 +212,18 @@ def ensure_emulator_resources(subscriber, publisher, attempts: int = 30, delay_s
 class Consumer:
     """The streaming pull subscriber: start() when the app starts, stop() when it shuts down."""
 
-    def __init__(self, subscriber=None, publisher=None, sessions=None):
+    def __init__(self, subscriber=None, publisher=None, sessions=None, sweep_seconds: float | None = None):
         self._subscriber = subscriber
         self._sessions = sessions  # the database (default: config's, created on first use)
         self._publisher = publisher
         self._future = None
         self.stats = ConsumerStats()
+        # The outbox sweeper (app/outbox.py): sends replies that are due (retries, or left by a
+        # worker that died), every `sweep_seconds` (0: off). Each worker runs one; they never send
+        # the same message (rows locked with SKIP LOCKED).
+        self._sweep_seconds = config.OUTBOX_SWEEP_SECONDS if sweep_seconds is None else sweep_seconds
+        self._sweeper: threading.Thread | None = None
+        self._stopping = threading.Event()
 
     @property
     def running(self) -> bool:
@@ -238,9 +244,31 @@ class Consumer:
             flow_control=flow_control(),
         )
         logger.info('Pulling messages from %s (at most %d at a time)', self.subscription, config.PUBSUB_MAX_MESSAGES)
+        if self._sweep_seconds > 0:
+            self._stopping = threading.Event()  # a new one: an old sweeper still finishing keeps its own
+            self._sweeper = threading.Thread(target=self._sweep, args=(self._stopping,), name='outbox-sweeper', daemon=True)
+            self._sweeper.start()
+
+    def _sweep(self, stopping: threading.Event) -> None:
+        """The sweeper's loop: send what's due in the outbox, every `sweep_seconds`, until stop()."""
+        from . import outbox
+        from .db import get_sessionmaker  # here: building the app (and the tests) needs no database
+
+        while not stopping.wait(self._sweep_seconds):
+            try:
+                done = outbox.send_due(self._sessions or get_sessionmaker())
+            except Exception:  # e.g. the database is unreachable: try again next time
+                logger.exception('The outbox sweep failed')
+                continue
+            if done.sent or done.retrying or done.failed:
+                logger.info('Outbox sweep: %d sent, %d to retry, %d given up', done.sent, done.retrying, done.failed)
 
     def stop(self, timeout_seconds: float = 10) -> None:
-        """Stops pulling; messages being handled get up to `timeout_seconds` to finish."""
+        """Stops pulling (and the sweeper); messages being handled get up to `timeout_seconds` to finish."""
+        self._stopping.set()
+        if self._sweeper is not None:
+            self._sweeper.join(timeout=timeout_seconds)
+            self._sweeper = None
         if self._future is None:
             return
         self._future.cancel()

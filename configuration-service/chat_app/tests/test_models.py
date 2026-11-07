@@ -9,7 +9,14 @@ from django.utils import timezone
 from configuration_app.models import BusinessConfiguration
 
 from ..constants import CHAT_STEPS, DEFAULT_DETAIL_FIELDS, MESSAGE_SENDERS
-from ..models import ChatConfiguration, ChatSession, InboundMessage, InboundMessageStatus
+from ..models import (
+    ChatConfiguration,
+    ChatSession,
+    InboundMessage,
+    InboundMessageStatus,
+    OutboundMessage,
+    OutboundMessageStatus,
+)
 from ..validators import (
     CHAT_MESSAGE_MAX_LENGTH,
     is_required_detail,
@@ -605,3 +612,41 @@ class InboundMessageModelTests(TestCase):
                     business=self.business, chat_session=self.session, message_id=f'wamid.{status}',
                     status=status, replied_time=replied_time,
                 )
+
+
+class OutboundMessageModelTests(TestCase):
+    """A WhatsApp reply in messaging-service's outbox."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.business = BusinessConfiguration.objects.create(business_name='Café', location='Singapore')
+        cls.session = ChatSession.objects.create(business=cls.business, phone_number='+6591234567')
+
+    def test_defaults(self):
+        item = OutboundMessage.objects.create(business=self.business, chat_session=self.session, text='Hello!')
+        self.assertEqual(
+            (item.status, item.attempts, item.last_error, item.meta_message_id, item.sent_time, item.inbound_message),
+            (OutboundMessageStatus.PENDING, 0, '', '', None, None),
+        )
+        self.assertIsNotNone(item.next_attempt_time)
+
+    def test_sent_time_set_exactly_when_sent_and_status_and_text_checked(self):
+        for changes in (
+            {'status': 'sent', 'sent_time': None},
+            {'status': 'pending', 'sent_time': timezone.now()},
+            {'status': 'delivered'},
+            {'text': ''},
+        ):
+            with self.subTest(changes=changes), self.assertRaises(IntegrityError), transaction.atomic():
+                OutboundMessage.objects.create(
+                    business=self.business, chat_session=self.session, **{'text': 'Hello!', **changes}
+                )
+
+    def test_deleting_the_inbound_message_keeps_the_reply(self):
+        inbound = InboundMessage.objects.create(business=self.business, chat_session=self.session, message_id='wamid.1')
+        item = OutboundMessage.objects.create(
+            business=self.business, chat_session=self.session, inbound_message=inbound, text='Hello!'
+        )
+        inbound.delete()
+        item.refresh_from_db()
+        self.assertIsNone(item.inbound_message)
