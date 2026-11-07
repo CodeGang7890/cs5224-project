@@ -136,7 +136,7 @@ class SampleProductAndFAQFixtureTests(TestCase):
 
     def test_fixtures_are_valid(self):
         self.assertEqual(Product.objects.count(), 32)  # 20–29: Lumen & Lens's prints and frames, 30–34: Rally Point Courts
-        self.assertEqual(FAQ.objects.count(), 50)  # 35–44: Lumen & Lens, 45–52: Rally Point Courts
+        self.assertEqual(FAQ.objects.count(), 49)  # 35–44: Lumen & Lens, 45–51: Rally Point Courts
         for record in [*Product.objects.all(), *FAQ.objects.all()]:
             with self.subTest(record=str(record)):
                 record.full_clean()  # loaddata skips validation
@@ -169,7 +169,7 @@ class SampleProductAndFAQFixtureTests(TestCase):
                 self.assertTrue(product.is_active and product.description)
                 self.assertIn('delivered anywhere in Singapore', product.information)
         self.assertTrue(FAQ.objects.filter(business_id=4, question='Do you deliver prints and frames?').exists())
-        self.assertEqual(FAQ.objects.filter(business_id=5).count(), 8)
+        self.assertEqual(FAQ.objects.filter(business_id=5).count(), 7)
 
     def test_courts_sell_a_few_rackets_and_balls(self):
         # Rally Point Courts (business 5): collected at the counter; one sold out, one nearly.

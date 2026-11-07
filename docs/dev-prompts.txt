@@ -1560,3 +1560,9 @@ Date & Time (GMT+8): 2026-11-07 15:02:54
 AI Model Used: claude-opus-5-5
 Original Prompt:
 Please do that B+C, double check please as this is critical / core logic
+
+Date & Time (GMT+8): 2026-11-07 16:09:45
+AI Model Used: claude-opus-5-5
+Original Prompt:
+Please revise the FAQs fixture in rally court business:
+- how do i pay -> remove that, because we use xendit for this
