@@ -276,6 +276,17 @@ INTERNAL_API_KEY = os.getenv('INTERNAL_API_KEY', 'dev-internal-api-key' if DEBUG
 # Meta's Graph API (WhatsApp Cloud API): connecting numbers and sending replies (meta_api.py). Tests mock it.
 META_GRAPH_API_URL = os.getenv('META_GRAPH_API_URL', 'https://graph.facebook.com/v26.0').rstrip('/')
 
+# Where WhatsApp replies (meta_api.send_text_message) go: `meta` (default) through META_GRAPH_API_URL,
+# or `mock` through MOCK_WHATSAPP_GRAPH_API_URL, mock_whatsapp's fake Graph API (e.g.
+# https://mock-whatsapp-….run.app/v26.0), for demos. Only replies: connecting WhatsApp (Embedded
+# Signup) always uses META_GRAPH_API_URL.
+WHATSAPP_REPLIES_TO = os.getenv('WHATSAPP_REPLIES_TO', 'meta').strip().lower()
+MOCK_WHATSAPP_GRAPH_API_URL = os.getenv('MOCK_WHATSAPP_GRAPH_API_URL', '').strip().rstrip('/')
+if WHATSAPP_REPLIES_TO not in ('meta', 'mock'):
+    raise ImproperlyConfigured(f"WHATSAPP_REPLIES_TO must be 'meta' or 'mock', not {WHATSAPP_REPLIES_TO!r}.")
+if WHATSAPP_REPLIES_TO == 'mock' and not MOCK_WHATSAPP_GRAPH_API_URL:
+    raise ImproperlyConfigured('WHATSAPP_REPLIES_TO=mock needs MOCK_WHATSAPP_GRAPH_API_URL (mock_whatsapp\'s <url>/v26.0).')
+
 # Public URL of messaging-ingester: Embedded Signup points each business's WhatsApp webhooks at
 # <this>/webhook/<business_id>.
 MESSAGING_INGESTER_PUBLIC_URL = os.getenv('MESSAGING_INGESTER_PUBLIC_URL', 'http://localhost:8002').rstrip('/')

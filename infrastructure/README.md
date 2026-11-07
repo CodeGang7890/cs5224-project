@@ -139,6 +139,14 @@ Terraform enables `aiplatform.googleapis.com` and grants `roles/aiplatform.user`
 
 See Google's [Gen AI SDK for Vertex AI](https://cloud.google.com/vertex-ai/generative-ai/docs/sdks/overview), [Gemini API pricing](https://cloud.google.com/vertex-ai/generative-ai/pricing), and [model list](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models).
 
+## mock_whatsapp on Cloud Run
+
+`mock-whatsapp.tf` (off unless `enable_mock_whatsapp = true`) deploys `../mock_whatsapp` as the Singapore Cloud Run service `mock-whatsapp`: exactly one instance (min = max = 1), as its conversations live in a SQLite file inside the container and are lost on a restart or a new revision. It has its own runtime account with no roles. Its webhooks go to the Singapore messaging-ingester (`INGESTER_URL`). The `mock-whatsapp-sg-main` trigger (`cloudbuild-mock-whatsapp.yaml`) builds and deploys `mock_whatsapp/` on pushes, once the Singapore triggers are enabled; until then the service runs the hello placeholder. URL: `terraform output mock_whatsapp_url`.
+
+**Replies:** `whatsapp_replies_to` (default `"mock"`) sets the Singapore configuration-service's `WHATSAPP_REPLIES_TO` / `MOCK_WHATSAPP_GRAPH_API_URL` (`<mock_whatsapp_url>/v26.0`), so **every** WhatsApp reply goes to the mock instead of Meta, including replies to businesses connected with Embedded Signup (the mock refuses those: they stay failed in the outbox). Set `"meta"` and apply to go back to real WhatsApp. Connecting WhatsApp always uses Meta. While replies go to the mock it is **public** (configuration-service calls it without a Google ID token), so anyone with its URL can chat as a sample customer; with `"meta"` it's private unless `mock_whatsapp_allow_unauthenticated = true` (open it with `gcloud run services proxy mock-whatsapp --region asia-southeast1`).
+
+For a whole chat to work, the businesses in `mock_whatsapp/businesses.json` must exist in the database with those dummy WhatsApp credentials (the sample fixtures: `sample_whatsapp_configurations`).
+
 ## Cost notes
 
 Google's free quotas are shared at the billing-account level where stated and may change. Cloud Storage Always Free covers Standard storage in `us-west1`, `us-central1`, and `us-east1`; it does **not** mean unlimited free storage, requests, or transfer. Cloud Scheduler has three free jobs per billing account. Cloud Run, Pub/Sub, Cloud Build, Artifact Registry, and Secret Manager each have distinct limits. Cloud SQL's ordinary small instance is billed continuously; a separate, time-limited Cloud SQL trial may be available for a new project but is not the same as this Terraform instance. Cloud DNS charges for managed zones and queries. External APIs and network egress can also cost money. Set a GCP Billing budget and alerts before applying; a budget alert does not automatically stop spend.

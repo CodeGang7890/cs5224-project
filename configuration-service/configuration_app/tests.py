@@ -662,6 +662,33 @@ class SendTextMessageTests(SimpleTestCase):
             'type': 'text', 'text': {'preview_url': False, 'body': 'Hello!'},
         })
 
+    def sent_to(self) -> str:
+        url = urlsplit(str(self.requests[0].url))
+        return f'{url.scheme}://{url.netloc}{url.path}'
+
+    def test_replies_go_to_the_mock_when_asked(self):
+        with self.settings(WHATSAPP_REPLIES_TO='mock', MOCK_WHATSAPP_GRAPH_API_URL='https://mock-whatsapp.example/v26.0'):
+            self.assertEqual(self.send(), 'wamid.out1')
+        self.assertEqual(self.sent_to(), 'https://mock-whatsapp.example/v26.0/106540352242922/messages')
+        self.assertEqual(self.requests[0].headers['Authorization'], 'Bearer EAAGtoken')  # the same request as to Meta
+
+    def test_replies_go_to_meta_by_default(self):
+        with self.settings(WHATSAPP_REPLIES_TO='meta', MOCK_WHATSAPP_GRAPH_API_URL='https://mock-whatsapp.example/v26.0'):
+            self.send()
+        self.assertEqual(self.sent_to(), 'https://graph.example/v26.0/106540352242922/messages')
+
+    def test_only_replies_go_to_the_mock(self):
+        # Connecting WhatsApp (Embedded Signup) keeps using Meta.
+        requests = []
+
+        def handler(request):
+            requests.append(request)
+            return httpx.Response(200, json={'display_phone_number': '+65 8832 3212', 'verified_name': 'Kopi'})
+
+        with self.settings(WHATSAPP_REPLIES_TO='mock', MOCK_WHATSAPP_GRAPH_API_URL='https://mock-whatsapp.example/v26.0'):
+            meta_api.phone_number_info('106540352242922', 'EAAGtoken', 'appsecret', transport=httpx.MockTransport(handler))
+        self.assertEqual(str(requests[0].url).split('?')[0], 'https://graph.example/v26.0/106540352242922')
+
     def test_errors(self):
         with self.assertRaises(meta_api.MetaSendError):
             self.send(400, {'error': {'message': 'Invalid parameter', 'code': 100}})

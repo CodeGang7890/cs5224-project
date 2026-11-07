@@ -175,6 +175,9 @@ resource "google_cloud_run_v2_service" "singapore_backend" {
           META_APP_ID                   = var.meta_app_id
           FIREBASE_PROJECT_ID           = var.enable_firebase ? var.project_id : ""
           DJANGO_NUM_PROXIES            = "1"
+          # WhatsApp replies: to mock-whatsapp's fake Graph API or to Meta (mock-whatsapp.tf).
+          WHATSAPP_REPLIES_TO         = local.replies_to_mock_whatsapp ? "mock" : "meta"
+          MOCK_WHATSAPP_GRAPH_API_URL = local.mock_whatsapp_graph_api_url
         } : {}
         content {
           name  = env.key
