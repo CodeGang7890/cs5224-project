@@ -65,6 +65,7 @@ def create_payment(
     external_reference: str,
     customer: dict[str, str],
     description: str | None = None,
+    expiry_minutes: int | None = None,
 ) -> dict[str, str]:
     """Create the payment session (hosted link) the customer of this order / booking pays on.
 
@@ -93,7 +94,9 @@ def create_payment(
             'individual_detail': _individual_detail(customer['given_name']),
         },
         'expires_at': (
-            datetime.now(UTC) + timedelta(seconds=config.XENDIT_SESSION_EXPIRY_SECONDS)
+            datetime.now(UTC) + timedelta(
+                seconds=config.XENDIT_SESSION_EXPIRY_SECONDS if expiry_minutes is None else expiry_minutes * 60
+            )
         ).strftime('%Y-%m-%dT%H:%M:%SZ'),
     }
     if config.XENDIT_ALLOWED_PAYMENT_CHANNELS:

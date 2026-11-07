@@ -26,6 +26,7 @@ def create_payment(
     payment_reference: str,
     customer: dict[str, str],
     description: str | None = None,
+    expiry_minutes: int | None = None,
 ) -> dict[str, str]:
     """Create the Xendit payment (link) for the placed order / booking.
 
@@ -40,6 +41,8 @@ def create_payment(
         'payment_reference': payment_reference,
         'customer': {'given_name': customer['given_name'], 'email': customer['email']},
     }
+    if expiry_minutes is not None:
+        body['expiry_minutes'] = expiry_minutes
     if description:
         body['description'] = description
 

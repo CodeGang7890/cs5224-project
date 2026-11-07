@@ -22,6 +22,12 @@ processing-service ◀──Pub/Sub── payment-ingester ◀──POST /webhoo
 
 ## `POST /payments`
 
+The business portal's **Orders → Payment → Payment link expiry** setting is stored per business
+(default **180 minutes / 3 hours**). messaging-service sends it as `expiry_minutes` when creating
+each order or booking's payment. payment-ingester sets the Payment Session's top-level `expires_at`
+to the current UTC time plus that duration. Existing links are unchanged. Internal callers that omit
+`expiry_minutes` use `XENDIT_SESSION_EXPIRY_SECONDS` (default `10800`).
+
 Creates the hosted payment link the customer pays on.
 
 - Auth: `X-Internal-Api-Key` header (must equal `INTERNAL_API_KEY`)

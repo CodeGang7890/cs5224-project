@@ -187,7 +187,7 @@ class ApiTestCase(DatabaseTestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
         self.create_payment_stub = MagicMock(
-            side_effect=lambda kind, item_id, amount, payment_reference, customer, description=None: {
+            side_effect=lambda kind, item_id, amount, payment_reference, customer, description=None, expiry_minutes=180: {
                 'xendit_payment_id': f'pay_test_{item_id}',
                 'payment_url': f'https://pay.xendit.co/test/{item_id}',
             }

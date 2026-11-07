@@ -6,10 +6,13 @@ export interface Business {
   business_name: string;
   location: string;
   description: string;
+  payment_expiry_minutes: number;
 }
 
 /** What PUT /configuration/business/ takes: creates the business (a new account) or updates it. */
-export type BusinessInput = Omit<Business, "id">;
+export type BusinessInput = Omit<Business, "id" | "payment_expiry_minutes"> & {
+  payment_expiry_minutes?: number;
+};
 
 // configuration_app.models limits.
 export const BUSINESS_LIMITS = {

@@ -3,13 +3,27 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCurrentUser } from "@/features/auth";
 import type { ApiError } from "@/types/api";
 
-import { getMyBusiness, saveMyBusiness } from "../api/business-api";
+import {
+  getMyBusiness,
+  saveMyBusiness,
+  savePaymentExpiry,
+} from "../api/business-api";
 import type { Business, BusinessInput } from "../types";
 
 export const businessKeys = {
   all: ["my-business"] as const,
   detail: () => [...businessKeys.all, "detail"] as const,
 };
+
+export function useSavePaymentExpiry() {
+  const queryClient = useQueryClient();
+  return useMutation<Business, ApiError, number>({
+    mutationFn: savePaymentExpiry,
+    onSuccess: (saved) => {
+      queryClient.setQueryData(businessKeys.detail(), saved);
+    },
+  });
+}
 
 /** `data` is `null` while the account has no business. */
 export function useMyBusiness(enabled = true) {

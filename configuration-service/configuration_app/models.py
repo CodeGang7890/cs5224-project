@@ -2,7 +2,7 @@ import secrets
 from datetime import datetime, timedelta
 
 from django.conf import settings
-from django.core.validators import MaxLengthValidator, RegexValidator
+from django.core.validators import MaxLengthValidator, MinValueValidator, RegexValidator
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
@@ -36,12 +36,21 @@ class BusinessConfiguration(models.Model):
         validators=[MaxLengthValidator(DESCRIPTION_MAX_LENGTH)],
     )
     location = models.CharField(max_length=LOCATION_MAX_LENGTH)
+    payment_expiry_minutes = models.PositiveIntegerField(
+        default=180,
+        validators=[MinValueValidator(1)],
+        help_text='Minutes after a new payment link is issued before it expires. Existing links are unchanged.',
+    )
 
     class Meta:
         verbose_name = 'Business Configuration'
         verbose_name_plural = 'Business Configurations'
         ordering = ['business_name']
         constraints = [
+            models.CheckConstraint(
+                condition=Q(payment_expiry_minutes__gte=1),
+                name='business_payment_expiry_positive',
+            ),
             models.CheckConstraint(
                 condition=~Q(business_name=''),
                 name='business_configuration_name_not_empty',

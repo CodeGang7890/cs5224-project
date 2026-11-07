@@ -11,12 +11,22 @@ from decimal import Decimal
 
 from app import payment_client
 from app.chat_flow.prompts import PAYMENT_LINK_UNAVAILABLE_NOTE
-from app.models import ChatSession, OrderItem, ScheduleItem
+from app.models import BusinessConfiguration, ChatSession, OrderItem, ScheduleItem
 
 from .chat_helpers import ApiTestCase, FlowTestMixin
 from .schedule_helpers import at, future_monday, open_week
 
 WEEKDAYS = [(day, '09:00', '17:00') for day in range(5)]  # Mon–Fri 09:00–17:00
+
+
+class PaymentClientExpiryTests(unittest.TestCase):
+    @unittest.mock.patch('app.payment_client.httpx.post')
+    def test_the_business_duration_is_serialized_in_the_internal_request(self, post):
+        post.return_value.status_code = 201
+        post.return_value.json.return_value = {'xendit_payment_id': 'ps-1', 'payment_url': 'https://xen.to/test'}
+        payment_client.create_payment('order', 1, Decimal('5.50'), 'a' * 32,
+                                      {'given_name': 'Alice', 'email': 'a@example.com'}, expiry_minutes=90)
+        self.assertEqual(post.call_args.kwargs['json']['expiry_minutes'], 90)
 
 
 class OrderPaymentLinkTests(FlowTestMixin, ApiTestCase):
@@ -56,6 +66,13 @@ class OrderPaymentLinkTests(FlowTestMixin, ApiTestCase):
              {'given_name': 'Alice', 'email': 'alice@example.com'}),
         )
         self.assertEqual(kwargs['description'], f'Order #{order.pk} with Kopi Café')
+        self.assertEqual(kwargs['expiry_minutes'], 180)
+
+    def test_business_payment_expiry_is_sent_when_the_order_is_confirmed(self):
+        with self.sessions.begin() as db:
+            db.get(BusinessConfiguration, self.cafe.id).payment_expiry_minutes = 90
+        self.send('Yes', {'decision': 'confirm'})
+        self.assertEqual(self.create_payment_stub.call_args.kwargs['expiry_minutes'], 90)
 
     def test_creation_failure_degrades_to_the_note(self):
         self.create_payment_stub.side_effect = payment_client.PaymentClientError('payment-ingester is unreachable')
@@ -137,3 +154,4 @@ class BookingPaymentLinkTests(FlowTestMixin, ApiTestCase):
              {'given_name': 'Priya', 'email': 'priya@example.com'}),
         )
         self.assertEqual(kwargs['description'], f'Booking #{booking.pk} with Snap Studio')
+        self.assertEqual(kwargs['expiry_minutes'], 180)

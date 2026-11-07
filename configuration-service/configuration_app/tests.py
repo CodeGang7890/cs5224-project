@@ -369,7 +369,40 @@ class MyBusinessAPITests(APITestCase):
         self.assertEqual((business.business_name, business.location), ('Mei Bakes', 'Tiong Bahru'))
         self.new_user.refresh_from_db()
         self.assertEqual(self.new_user.business, business)
-        self.assertEqual(self.client.get(self.url).json(), {'id': business.pk, **self.data})
+        self.assertEqual(self.client.get(self.url).json(), {
+            'id': business.pk, **self.data, 'payment_expiry_minutes': 180,
+        })
+
+    def test_payment_expiry_is_saved_for_only_the_users_business(self):
+        other = BusinessConfiguration.objects.create(business_name='Other', location='Singapore')
+        self.client.force_authenticate(self.cafe_user)
+        response = self.client.patch(self.url, {'payment_expiry_minutes': 90}, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['payment_expiry_minutes'], 90)
+        self.cafe.refresh_from_db()
+        other.refresh_from_db()
+        self.assertEqual(self.cafe.payment_expiry_minutes, 90)
+        self.assertEqual(other.payment_expiry_minutes, 180)
+        self.assertEqual(self.cafe.business_name, 'Café')
+        # Updating unrelated business details must preserve the configured duration.
+        self.client.put(self.url, self.data, format='json')
+        self.cafe.refresh_from_db()
+        self.assertEqual(self.cafe.payment_expiry_minutes, 90)
+
+    def test_payment_expiry_validation(self):
+        self.client.force_authenticate(self.cafe_user)
+        for minutes in (0, -1, 1.5, 'invalid', None, 2147483648):
+            with self.subTest(minutes=minutes):
+                response = self.client.patch(self.url, {'payment_expiry_minutes': minutes}, format='json')
+                self.assertEqual(response.status_code, 400)
+                self.assertIn('payment_expiry_minutes', response.json())
+        self.cafe.refresh_from_db()
+        self.assertEqual(self.cafe.payment_expiry_minutes, 180)
+
+    def test_payment_settings_require_authentication_and_an_existing_business(self):
+        self.assertEqual(self.client.patch(self.url, {'payment_expiry_minutes': 60}, format='json').status_code, 401)
+        self.client.force_authenticate(self.new_user)
+        self.assertEqual(self.client.patch(self.url, {'payment_expiry_minutes': 60}, format='json').status_code, 404)
 
     def test_then_updates_it(self):
         self.client.force_authenticate(self.cafe_user)

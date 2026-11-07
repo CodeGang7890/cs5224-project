@@ -22,6 +22,7 @@ class CreatePaymentRequest(BaseModel):
     payment_reference: str = Field(pattern=r'^[0-9a-f]{32}$')
     customer: CustomerSchema
     description: str | None = Field(default=None, max_length=500)
+    expiry_minutes: int | None = Field(default=None, strict=True, ge=1, le=2147483647)
 
 
 class CreatePaymentResponse(BaseModel):

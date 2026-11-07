@@ -68,6 +68,18 @@ class MyBusinessView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(tags=['Business'], summary='Update your business settings',
+                   request=BusinessConfigurationSerializer, responses=BusinessConfigurationSerializer)
+    def patch(self, request: Request) -> Response:
+        with transaction.atomic():
+            user = type(request.user).objects.select_for_update().get(pk=request.user.pk)
+            if user.business_id is None:
+                raise NotFound(NO_BUSINESS_YET_MESSAGE)
+            serializer = BusinessConfigurationSerializer(user.business, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+        return Response(serializer.data)
+
     @extend_schema(
         tags=['Business'],
         summary='Get your business',

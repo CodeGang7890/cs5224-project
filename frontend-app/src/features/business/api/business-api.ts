@@ -6,6 +6,13 @@ import type { Business, BusinessInput } from "../types";
 // The backend always uses the logged-in user's business, so there's no ID in the URL.
 const PATH = "/configuration/business/";
 
+export async function savePaymentExpiry(minutes: number): Promise<Business> {
+  const { data } = await configurationApiClient.patch<Business>(PATH, {
+    payment_expiry_minutes: minutes,
+  });
+  return data;
+}
+
 /** The user's business, or `null` if the account has none yet (404). */
 export async function getMyBusiness(): Promise<Business | null> {
   try {

@@ -81,6 +81,7 @@ def store_payment_for_placed(sessions: sessionmaker, turn: Turn, business) -> No
             reference,
             {'given_name': customer[0], 'email': customer[1]},
             description=description,
+            expiry_minutes=business.payment_expiry_minutes,
         )
     except payment_client.PaymentClientError as exc:
         turn.payment_error = str(exc)

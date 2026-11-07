@@ -55,6 +55,7 @@ class BusinessConfiguration(Base):
     business_name: Mapped[str] = mapped_column(String(150))
     description: Mapped[str] = mapped_column(Text, default='')
     location: Mapped[str] = mapped_column(String(255))
+    payment_expiry_minutes: Mapped[int] = mapped_column(Integer, default=180)
 
 
 class BusinessUser(Base):

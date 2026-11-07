@@ -21,9 +21,11 @@ class MetaUnavailable(APIException):
 class BusinessConfigurationSerializer(serializers.ModelSerializer):
     """The logged-in user's own business (its name, location and description)."""
 
+    payment_expiry_minutes = serializers.IntegerField(min_value=1, max_value=2147483647, required=False)
+
     class Meta:
         model = BusinessConfiguration
-        fields = ('id', 'business_name', 'location', 'description')
+        fields = ('id', 'business_name', 'location', 'description', 'payment_expiry_minutes')
         read_only_fields = ('id',)
 
 

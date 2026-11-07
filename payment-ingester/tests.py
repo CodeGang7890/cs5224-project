@@ -2,6 +2,7 @@
 
 import json
 import unittest
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
@@ -259,6 +260,25 @@ class TestCreatePaymentApi(unittest.TestCase):
         self.assertEqual(data['payment_url'], 'https://xen.to/abc')
         mock_create.assert_called_once()
 
+    @patch('app.routes.hmac.compare_digest', return_value=True)
+    @patch('app.routes.xendit_api.create_payment')
+    def test_custom_payment_expiry_is_forwarded(self, mock_create, _mock_digest):
+        mock_create.return_value = {'xendit_payment_id': 'ps-123', 'payment_url': 'https://xen.to/abc'}
+        response = self.client.post('/payments', json={**self.VALID_BODY, 'expiry_minutes': 90},
+                                    headers={'X-Internal-Api-Key': 'some-key'})
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(mock_create.call_args.kwargs['expiry_minutes'], 90)
+
+    @patch('app.routes.hmac.compare_digest', return_value=True)
+    @patch('app.routes.xendit_api.create_payment')
+    def test_invalid_payment_expiry_is_rejected_before_contacting_xendit(self, mock_create, _mock_digest):
+        for minutes in (0, -1, 1.5, True, '90', 2147483648):
+            with self.subTest(minutes=minutes):
+                response = self.client.post('/payments', json={**self.VALID_BODY, 'expiry_minutes': minutes},
+                                            headers={'X-Internal-Api-Key': 'some-key'})
+                self.assertEqual(response.status_code, 422)
+        mock_create.assert_not_called()
+
     def test_create_payment_missing_key(self):
         response = self.client.post('/payments', json=self.VALID_BODY)
         self.assertEqual(response.status_code, 401)
@@ -304,6 +324,27 @@ class TestCreatePaymentApi(unittest.TestCase):
 
 class TestXenditApi(unittest.TestCase):
     """The Payment Sessions request (POST /sessions) and its answer."""
+
+    @patch('app.xendit_api.httpx.post')
+    def test_expiry_is_utc_and_relative_to_when_the_payment_is_issued(self, mock_post):
+        mock_post.return_value.status_code = 201
+        mock_post.return_value.json.return_value = {
+            'payment_session_id': 'ps-123', 'payment_link_url': 'https://xen.to/abc',
+        }
+        issued = datetime(2026, 11, 8, 23, 30, tzinfo=UTC)
+        with patch('app.xendit_api.datetime') as clock, patch.multiple(
+            'app.xendit_api.config', XENDIT_SECRET_KEY='secret', XENDIT_SESSION_EXPIRY_SECONDS=10800,
+        ):
+            clock.now.return_value = issued
+            for minutes in (None, 90, 240):
+                with self.subTest(minutes=minutes):
+                    xendit_api.create_payment(5.5, 'a' * 32,
+                                             {'given_name': 'Alice', 'email': 'a@example.com'},
+                                             expiry_minutes=minutes)
+                    body = mock_post.call_args.kwargs['json']
+                    expected = issued + timedelta(minutes=180 if minutes is None else minutes)
+                    self.assertEqual(body['expires_at'], expected.strftime('%Y-%m-%dT%H:%M:%SZ'))
+                    clock.now.assert_called_with(UTC)
 
     def test_not_configured(self):
         with patch('app.xendit_api.config.XENDIT_SECRET_KEY', ''):

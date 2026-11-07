@@ -2,6 +2,16 @@
 
 Django REST API backend for Ansera Business Admin. It has five Django apps: `configuration_app`, `auth_app`, `product_app`, `chat_app` and `checkout_app`. So far they contain the data models, Django Admin screens, sample fixtures, CRUD APIs for products and FAQs, a chat endpoint backed by a local LLM (Ollama), and one sample endpoint. It uses a local SQLite database for now.
 
+## Payment settings
+
+Payment link expiry is configured per business in **Orders → Payment → Payment link expiry**
+in the web portal. It defaults to **180 minutes (3 hours)** for existing and new businesses.
+`GET /api/configuration/business/` returns `payment_expiry_minutes`; authenticated
+`PATCH /api/configuration/business/` updates it without replacing the other business details.
+The setting accepts positive whole minutes and applies only to newly issued payment links.
+Apply migration `configuration_app.0012_business_payment_expiry` before deploying the updated
+configuration-service and messaging-service.
+
 ## Tech stack
 
 | Concern                 | Library                                                                                                              |

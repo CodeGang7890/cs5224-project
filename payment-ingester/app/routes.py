@@ -140,6 +140,7 @@ def create_payment(
             external_reference=request.payment_reference,
             customer={'given_name': request.customer.given_name, 'email': request.customer.email},
             description=request.description,
+            expiry_minutes=request.expiry_minutes,
         )
     except xendit_api.XenditUnavailableError as exc:
         logger.error('Could not create the Xendit payment for %s #%s: %s', request.kind, request.item_id, exc)
