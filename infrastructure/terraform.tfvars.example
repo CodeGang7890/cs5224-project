@@ -64,6 +64,13 @@ vertex_ai_model        = "gemini-3.5-flash-lite"
 enable_vertex_ai_demo                 = false
 vertex_ai_demo_allow_unauthenticated = false
 
+# mock_whatsapp on Cloud Run (mock-whatsapp.tf): a WhatsApp stand-in for demos, one instance in Singapore.
+# whatsapp_replies_to = "mock" sends every WhatsApp reply to it instead of Meta ("meta": real WhatsApp),
+# and makes it public (anyone with the URL can chat as a sample customer: LLM charges).
+enable_mock_whatsapp                = true
+whatsapp_replies_to                 = "mock"
+mock_whatsapp_allow_unauthenticated = false
+
 # Email for the trial Cloud Run HTTP 4xx/5xx alert; blank creates incidents only.
 alert_notification_email = ""
 

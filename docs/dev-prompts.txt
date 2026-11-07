@@ -1582,3 +1582,19 @@ Please add to the prompt to fix this issue:
 - for example, rally_owner business cleraly oonly have badminton and tennis court, if user ask about table tennis court or otheer courts, then it should reject it
 - if it ask for a product (e.g., “do u sell xxx”) and the product doesn’t exist (not only ran out), then it should tell that we don’t sell that product (instead of becoming an “unanswered question”)
 Keep the change minimal please, add tests too
+
+Date & Time (GMT+8): 2026-11-07 16:40:30
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Now I want to add the mock_whatsapp service to be something deployable too in the GCP infra, a standard Cloud Run would do
+Please draft me the configuration
+I want min and max instance to be 1
+Let me know if there's any details I need to decide on this service
+
+Date & Time (GMT+8): 2026-11-07 16:49:14
+AI Model Used: claude-opus-5-5
+Original Prompt:
+As of now, please make reply goes to the mock, maybe have an env var or toggler that decides to send it to real whatsapp or mock?
+Here in the terraform setup, make it so it uses the mock whatsapp instead of the real whatsapp
+Update application appropriately if needed

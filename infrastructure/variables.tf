@@ -334,6 +334,34 @@ variable "vertex_ai_demo_allow_unauthenticated" {
   default     = false
 }
 
+variable "enable_mock_whatsapp" {
+  description = "Create the mock-whatsapp Cloud Run service (mock-whatsapp.tf): a stand-in for WhatsApp / Meta for demos, one instance in the Singapore region."
+  type        = bool
+  default     = true
+}
+
+variable "whatsapp_replies_to" {
+  description = "Where the Singapore configuration-service sends WhatsApp replies: \"mock\" (mock-whatsapp's fake Graph API; needs enable_mock_whatsapp) or \"meta\" (real WhatsApp)."
+  type        = string
+  default     = "mock"
+  validation {
+    condition     = contains(["mock", "meta"], var.whatsapp_replies_to)
+    error_message = "whatsapp_replies_to must be \"mock\" or \"meta\"."
+  }
+}
+
+variable "mock_whatsapp_allow_unauthenticated" {
+  description = "Allow public access to mock-whatsapp even when replies go to Meta (it's public anyway while whatsapp_replies_to = \"mock\"). Anyone with its URL can chat as a customer of the sample businesses, which runs the LLM."
+  type        = bool
+  default     = false
+}
+
+variable "mock_whatsapp_image" {
+  description = "Initial image for the mock-whatsapp Cloud Run service before Cloud Build deploys its Docker image."
+  type        = string
+  default     = "us-docker.pkg.dev/cloudrun/container/hello"
+}
+
 variable "vertex_ai_demo_image" {
   description = "Initial image for the separate Vertex AI demo Cloud Run service before Cloud Build deploys its Docker image."
   type        = string

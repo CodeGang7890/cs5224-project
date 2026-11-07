@@ -1,0 +1,28 @@
+# mock_whatsapp: build ../mock_whatsapp, push it, and deploy it to the mock-whatsapp Cloud Run
+# service (mock-whatsapp.tf; created by Terraform first).
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/mock-whatsapp:${SHORT_SHA}
+      - ./mock_whatsapp
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/mock-whatsapp:${SHORT_SHA}
+  - name: gcr.io/google.com/cloudsdktool/google-cloud-cli:stable
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - mock-whatsapp
+      - --image=${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/mock-whatsapp:${SHORT_SHA}
+      - --service-account=${_RUNTIME_SERVICE_ACCOUNT}
+      - --region=${_REGION}
+      - --project=${_PROJECT_ID}
+      - --quiet
+images:
+  - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/mock-whatsapp:${SHORT_SHA}
+options:
+  logging: CLOUD_LOGGING_ONLY

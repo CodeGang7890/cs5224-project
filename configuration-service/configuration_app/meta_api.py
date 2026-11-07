@@ -21,7 +21,8 @@ keyed by the App Secret).
     POST {waba_id}/subscribed_apps [{"override_callback_uri": …, "verify_token": …}]   (subscribe_app)
     DELETE {waba_id}/subscribed_apps   (unsubscribe_app)
 
-Locally, META_GRAPH_API_URL can point at mock_whatsapp's fake Graph API.
+Locally, META_GRAPH_API_URL can point at mock_whatsapp's fake Graph API. With WHATSAPP_REPLIES_TO=mock,
+only the replies go to it (MOCK_WHATSAPP_GRAPH_API_URL; replies_graph_api_url()), the rest to Meta.
 """
 
 import hashlib
@@ -92,6 +93,7 @@ def _call(
     retryable: tuple[int, ...] = RETRYABLE_ERROR_CODES,
     timeout: float = META_TIMEOUT_SECONDS,
     transport: httpx.BaseTransport | None = None,  # tests pass an httpx.MockTransport
+    base_url: str | None = None,  # default: settings.META_GRAPH_API_URL
 ) -> tuple[int, dict]:
     """One Graph API call. Returns (status, JSON object); raises MetaUnavailableError if Meta can't be
     reached, answers 5xx or one of the `retryable` error codes, or doesn't answer with a JSON object.
@@ -105,7 +107,7 @@ def _call(
     try:
         with httpx.Client(timeout=timeout, transport=transport) as client:
             response = client.request(
-                method, f'{settings.META_GRAPH_API_URL}/{path}', params=params, json=json, headers=headers
+                method, f'{base_url or settings.META_GRAPH_API_URL}/{path}', params=params, json=json, headers=headers
             )
     except httpx.HTTPError as exc:
         raise MetaUnavailableError(f'Could not reach Meta ({call}): {type(exc).__name__} {exc}') from exc
@@ -150,6 +152,13 @@ def phone_number_info(
     )
 
 
+def replies_graph_api_url() -> str:
+    """Where replies go (settings.WHATSAPP_REPLIES_TO): Meta's Graph API, or mock_whatsapp's fake one."""
+    if settings.WHATSAPP_REPLIES_TO == 'mock':
+        return settings.MOCK_WHATSAPP_GRAPH_API_URL
+    return settings.META_GRAPH_API_URL
+
+
 def send_text_message(
     phone_number_id: str,
     access_token: str,
@@ -160,7 +169,7 @@ def send_text_message(
 ) -> str:
     """Sends `text` to the customer `to` (E.164, e.g. +6591234567) from the business's number.
     Returns Meta's message id (wamid…). Raises MetaSendError if Meta refuses it, MetaUnavailableError
-    if Meta can't be reached (worth retrying)."""
+    if Meta can't be reached (worth retrying). Sent to replies_graph_api_url(): Meta, or the mock."""
     body = {
         'messaging_product': 'whatsapp',
         'recipient_type': 'individual',
@@ -176,6 +185,7 @@ def send_text_message(
         json=body,
         retryable=SEND_RETRYABLE_ERROR_CODES,
         transport=transport,
+        base_url=replies_graph_api_url(),
     )
     if status != 200:
         raise MetaSendError(f'Meta refused the message ({status}): {_error_message(data)}')
