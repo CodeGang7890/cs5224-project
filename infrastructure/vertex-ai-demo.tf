@@ -13,7 +13,7 @@ resource "google_project_iam_member" "vertex_ai_demo_user" {
 }
 
 resource "google_cloud_run_v2_service" "vertex_ai_demo" {
-  count               = var.enable_vertex_ai_demo ? 1 : 0
+  count               = var.enable_vertex_ai_demo && !var.retire_us_resources ? 1 : 0
   name                = "vertex-ai-demo"
   location            = var.region
   deletion_protection = false
@@ -69,7 +69,7 @@ resource "google_cloud_run_v2_service" "vertex_ai_demo" {
 }
 
 resource "google_cloud_run_v2_service_iam_member" "vertex_ai_demo_public" {
-  count    = var.enable_vertex_ai_demo && var.vertex_ai_demo_allow_unauthenticated && var.us_vertex_ai_demo_public ? 1 : 0
+  count    = var.enable_vertex_ai_demo && var.vertex_ai_demo_allow_unauthenticated && var.us_vertex_ai_demo_public && !var.retire_us_resources ? 1 : 0
   project  = var.project_id
   location = var.region
   name     = google_cloud_run_v2_service.vertex_ai_demo[0].name

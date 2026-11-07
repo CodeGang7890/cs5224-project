@@ -1,5 +1,6 @@
 project_id = "YOUR_GCP_PROJECT_ID"
 region     = "us-central1"
+retire_us_resources = true # Keep the retired US regional stack absent. This project's active stack is in Singapore.
 enable_singapore_staging = false
 singapore_region          = "asia-southeast1"
 singapore_github_app_installation_id = 0 # Set to the existing Cloud Build GitHub App installation ID during migration.

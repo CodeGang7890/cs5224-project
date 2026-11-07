@@ -280,7 +280,7 @@ resource "google_cloud_run_v2_service" "singapore_backend" {
 
   lifecycle {
     prevent_destroy = true
-    ignore_changes  = [template[0].containers[0].image]
+    ignore_changes  = [template[0].containers[0].image, client, client_version]
   }
   depends_on = [google_project_service.api, google_secret_manager_secret_iam_member.configuration_secret, google_secret_manager_secret_iam_member.configuration_encryption, google_secret_manager_secret_iam_member.configuration_sql_password, google_secret_manager_secret_iam_member.messaging_sql_password, google_secret_manager_secret_iam_member.processing_sql_password, google_secret_manager_secret_iam_member.processing_smtp_password, google_secret_manager_secret_iam_member.jwt, google_secret_manager_secret_version.django, google_secret_manager_secret_version.jwt, google_secret_manager_secret_version.internal_api, google_secret_manager_secret_iam_member.internal_api, google_secret_manager_secret_iam_member.configuration_meta, google_secret_manager_secret_version.meta_webhook_verify_token, google_secret_manager_secret_iam_member.payment_xendit_api, google_secret_manager_secret_iam_member.payment_xendit_webhook, google_storage_bucket_iam_member.singapore_processing_object_user, google_storage_bucket_iam_member.singapore_messaging_object_user, google_service_account_iam_member.processing_invoice_signer]
 }

@@ -87,6 +87,26 @@ resource "google_storage_bucket" "singapore_objects" {
   }
 }
 
+# Manual `gcloud builds submit` must stage source archives in Singapore.
+resource "google_storage_bucket" "singapore_build_source" {
+  count                       = var.enable_singapore_staging && var.enable_ci_cd ? 1 : 0
+  name                        = "${var.project_id}-build-source-sg"
+  location                    = upper(var.singapore_region)
+  storage_class               = "STANDARD"
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+  force_destroy               = false
+
+  lifecycle { prevent_destroy = true }
+}
+
+resource "google_storage_bucket_iam_member" "singapore_builder_build_source_reader" {
+  count  = var.enable_singapore_staging && var.enable_ci_cd ? 1 : 0
+  bucket = google_storage_bucket.singapore_build_source[0].name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.builder.email}"
+}
+
 resource "google_storage_bucket_iam_member" "singapore_processing_object_user" {
   count  = var.enable_singapore_staging ? 1 : 0
   bucket = google_storage_bucket.singapore_objects[0].name
@@ -106,8 +126,8 @@ resource "google_sql_database_instance" "singapore_replica" {
   name                 = "main-postgres-sg"
   region               = var.singapore_region
   database_version     = "POSTGRES_17"
-  master_instance_name = google_sql_database_instance.main[0].name
-  instance_type        = "READ_REPLICA_INSTANCE"
+  master_instance_name = var.singapore_sql_promoted ? null : google_sql_database_instance.main[0].name
+  instance_type        = var.singapore_sql_promoted ? "CLOUD_SQL_INSTANCE" : "READ_REPLICA_INSTANCE"
   deletion_protection  = true
 
   settings {

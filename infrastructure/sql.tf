@@ -5,7 +5,7 @@ resource "random_password" "sql" {
 }
 
 resource "google_sql_database_instance" "main" {
-  count               = var.enable_cloud_sql ? 1 : 0
+  count               = var.enable_cloud_sql && !var.retire_us_resources ? 1 : 0
   name                = "main-postgres"
   region              = var.region
   database_version    = "POSTGRES_17"
@@ -23,19 +23,16 @@ resource "google_sql_database_instance" "main" {
   }
   depends_on = [google_project_service.api]
 
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
 resource "google_sql_database" "configuration" {
-  count    = var.enable_cloud_sql ? 1 : 0
+  count    = var.enable_cloud_sql && !var.retire_us_resources ? 1 : 0
   name     = "configuration_service"
   instance = google_sql_database_instance.main[0].name
 }
 
 resource "google_sql_user" "app" {
-  count    = var.enable_cloud_sql ? 1 : 0
+  count    = var.enable_cloud_sql && !var.retire_us_resources ? 1 : 0
   name     = "app"
   instance = google_sql_database_instance.main[0].name
   password = random_password.sql[0].result

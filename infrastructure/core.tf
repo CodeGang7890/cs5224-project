@@ -5,6 +5,7 @@ locals {
 }
 
 resource "google_artifact_registry_repository" "apps" {
+  count         = var.retire_us_resources ? 0 : 1
   repository_id = "apps"
   location      = var.region
   format        = "DOCKER"
@@ -13,6 +14,7 @@ resource "google_artifact_registry_repository" "apps" {
 }
 
 resource "google_storage_bucket" "objects" {
+  count                       = var.retire_us_resources ? 0 : 1
   name                        = local.objects_bucket
   location                    = upper(var.region)
   storage_class               = "STANDARD"
@@ -21,9 +23,6 @@ resource "google_storage_bucket" "objects" {
   force_destroy               = false
   depends_on                  = [google_project_service.api]
 
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
 # The queues and their worker subscriptions (docker-compose's pubsub-init sets up the same locally).
@@ -37,7 +36,7 @@ locals {
     "messaging-queue" = { ack_deadline_seconds = 120, ordered = true, dead_letter = true }
     # Xendit payment events → processing-service.
     "payment-queue" = { ack_deadline_seconds = 60, ordered = false, dead_letter = true }
-    # Unused by the notification job (Cloud Scheduler runs it directly): unchanged.
+    # Retained topic; Cloud Scheduler invokes the notification job directly, so it has no worker subscription.
     "notification-tick" = { ack_deadline_seconds = 30, ordered = false, dead_letter = false }
   }
   pubsub_dead_letter_queues    = toset([for name, queue in local.pubsub_queues : name if queue.dead_letter])
@@ -69,7 +68,7 @@ resource "google_pubsub_topic" "dead_letter" {
 }
 
 resource "google_pubsub_subscription" "queue" {
-  for_each                   = local.pubsub_queues
+  for_each                   = { for name, queue in local.pubsub_queues : name => queue if name != "notification-tick" }
   name                       = "${each.key}-worker"
   topic                      = google_pubsub_topic.queue[each.key].id
   ack_deadline_seconds       = each.value.ack_deadline_seconds

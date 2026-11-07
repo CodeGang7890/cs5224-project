@@ -1,13 +1,13 @@
 output "artifact_registry_path" {
-  value = var.singapore_build_triggers_enabled ? "${var.singapore_region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.singapore_apps[0].repository_id}" : "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.apps.repository_id}"
+  value = var.enable_singapore_staging && (var.retire_us_resources || var.singapore_build_triggers_enabled) ? "${var.singapore_region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.singapore_apps[0].repository_id}" : (var.retire_us_resources ? null : "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.apps[0].repository_id}")
 }
 
 output "active_region" {
-  value = var.singapore_public_endpoints_enabled ? var.singapore_region : var.region
+  value = var.enable_singapore_staging && (var.retire_us_resources || var.singapore_public_endpoints_enabled) ? var.singapore_region : (var.retire_us_resources ? null : var.region)
 }
 
 output "singapore_staging" {
-  description = "Singapore resources staged alongside the active US deployment."
+  description = "Singapore application resources, now the active deployment after US retirement."
   value = var.enable_singapore_staging ? {
     artifact_registry_path = "${var.singapore_region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.singapore_apps[0].repository_id}"
     object_bucket          = google_storage_bucket.singapore_objects[0].name
@@ -19,15 +19,15 @@ output "singapore_staging" {
 }
 
 output "object_bucket" {
-  value = var.singapore_sql_promoted ? google_storage_bucket.singapore_objects[0].name : google_storage_bucket.objects.name
+  value = var.enable_singapore_staging && (var.retire_us_resources || var.singapore_sql_promoted) ? google_storage_bucket.singapore_objects[0].name : (var.retire_us_resources ? null : google_storage_bucket.objects[0].name)
 }
 
 output "cloud_run_urls" {
-  value = var.singapore_public_endpoints_enabled ? { for name, service in google_cloud_run_v2_service.singapore_backend : name => service.uri } : { for name, service in google_cloud_run_v2_service.backend : name => service.uri }
+  value = var.retire_us_resources || var.singapore_public_endpoints_enabled ? { for name, service in google_cloud_run_v2_service.singapore_backend : name => service.uri } : { for name, service in google_cloud_run_v2_service.backend : name => service.uri }
 }
 
 output "vertex_ai_demo_url" {
-  value = var.enable_vertex_ai_demo ? (var.singapore_public_endpoints_enabled ? google_cloud_run_v2_service.singapore_vertex_ai_demo[0].uri : google_cloud_run_v2_service.vertex_ai_demo[0].uri) : null
+  value = var.enable_vertex_ai_demo ? (var.enable_singapore_staging && (var.retire_us_resources || var.singapore_public_endpoints_enabled) ? google_cloud_run_v2_service.singapore_vertex_ai_demo[0].uri : (var.retire_us_resources ? null : google_cloud_run_v2_service.vertex_ai_demo[0].uri)) : null
 }
 
 output "mock_whatsapp_url" {
@@ -39,11 +39,11 @@ output "vertex_ai_demo_service_account" {
 }
 
 output "notification_job_name" {
-  value = var.enable_cloud_sql ? google_cloud_run_v2_job.notification[0].name : null
+  value = var.enable_cloud_sql ? (var.enable_singapore_staging && (var.retire_us_resources || var.singapore_notification_scheduler_enabled) ? google_cloud_run_v2_job.singapore_notification[0].name : (var.retire_us_resources ? null : google_cloud_run_v2_job.notification[0].name)) : null
 }
 
 output "notification_job_region" {
-  value = var.singapore_notification_scheduler_enabled ? var.singapore_region : var.region
+  value = var.enable_singapore_staging && (var.retire_us_resources || var.singapore_notification_scheduler_enabled) ? var.singapore_region : (var.retire_us_resources ? null : var.region)
 }
 
 output "pubsub_topics" {
@@ -55,7 +55,7 @@ output "pubsub_dead_letter_subscriptions" {
 }
 
 output "sql_connection_name" {
-  value = var.enable_cloud_sql ? (var.singapore_sql_promoted ? google_sql_database_instance.singapore_replica[0].connection_name : google_sql_database_instance.main[0].connection_name) : null
+  value = var.enable_cloud_sql ? (var.enable_singapore_staging && (var.retire_us_resources || var.singapore_sql_promoted) ? google_sql_database_instance.singapore_replica[0].connection_name : (var.retire_us_resources ? null : google_sql_database_instance.main[0].connection_name)) : null
 }
 
 output "dns_nameservers" {
@@ -78,7 +78,7 @@ output "meta_webhook_verify_token" {
 
 output "meta_app_webhook_url" {
   description = "Callback URL for our Meta app's webhook (App Dashboard → WhatsApp → Configuration)."
-  value       = "${var.singapore_public_endpoints_enabled ? local.singapore_messaging_ingester_public_url : local.messaging_ingester_public_url}/webhook"
+  value       = var.enable_singapore_staging && (var.retire_us_resources || var.singapore_public_endpoints_enabled) ? "${local.singapore_messaging_ingester_public_url}/webhook" : (var.retire_us_resources ? null : "${local.messaging_ingester_public_url}/webhook")
 }
 
 output "firebase_web_config" {

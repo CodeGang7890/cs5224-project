@@ -5,8 +5,9 @@ resource "google_service_account" "builder" {
 }
 
 resource "google_artifact_registry_repository_iam_member" "builder_writer" {
+  count      = var.retire_us_resources ? 0 : 1
   location   = var.region
-  repository = google_artifact_registry_repository.apps.name
+  repository = google_artifact_registry_repository.apps[0].name
   role       = "roles/artifactregistry.writer"
   member     = "serviceAccount:${google_service_account.builder.email}"
 }
@@ -25,6 +26,7 @@ resource "google_project_iam_member" "builder_log_writer" {
 
 # Manual `gcloud builds submit` uploads source archives to this Cloud Build staging bucket.
 resource "google_storage_bucket_iam_member" "builder_build_source_reader" {
+  count  = var.retire_us_resources ? 0 : 1
   bucket = "${var.project_id}_cloudbuild"
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${google_service_account.builder.email}"
@@ -68,7 +70,7 @@ resource "google_project_iam_member" "builder_service_usage_consumer" {
 }
 
 resource "google_cloudbuildv2_repository" "github" {
-  count             = var.enable_ci_cd && var.github_connection_name != "" ? 1 : 0
+  count             = var.enable_ci_cd && var.github_connection_name != "" && !var.retire_us_resources ? 1 : 0
   project           = var.project_id
   location          = var.region
   name              = var.github_repository_name
@@ -77,7 +79,7 @@ resource "google_cloudbuildv2_repository" "github" {
 }
 
 resource "google_cloudbuild_trigger" "configuration" {
-  for_each        = var.enable_ci_cd && var.github_connection_name != "" ? var.ci_cd_services : toset([])
+  for_each        = var.enable_ci_cd && var.github_connection_name != "" && !var.retire_us_resources ? var.ci_cd_services : toset([])
   disabled        = !var.us_build_triggers_enabled
   name            = "${each.key}-main"
   location        = var.region
@@ -93,7 +95,7 @@ resource "google_cloudbuild_trigger" "configuration" {
   substitutions = {
     _REGION     = var.region
     _PROJECT_ID = var.project_id
-    _REPOSITORY = google_artifact_registry_repository.apps.repository_id
+    _REPOSITORY = google_artifact_registry_repository.apps[0].repository_id
     _SERVICE    = each.key
   }
 
@@ -101,7 +103,7 @@ resource "google_cloudbuild_trigger" "configuration" {
 }
 
 resource "google_cloudbuild_trigger" "notification_job" {
-  count           = var.enable_ci_cd && var.enable_cloud_sql && var.github_connection_name != "" ? 1 : 0
+  count           = var.enable_ci_cd && var.enable_cloud_sql && var.github_connection_name != "" && !var.retire_us_resources ? 1 : 0
   disabled        = !var.us_build_triggers_enabled
   name            = "notification-job-main"
   location        = var.region
@@ -117,7 +119,7 @@ resource "google_cloudbuild_trigger" "notification_job" {
   substitutions = {
     _REGION     = var.region
     _PROJECT_ID = var.project_id
-    _REPOSITORY = google_artifact_registry_repository.apps.repository_id
+    _REPOSITORY = google_artifact_registry_repository.apps[0].repository_id
   }
 
   depends_on = [
@@ -130,7 +132,7 @@ resource "google_cloudbuild_trigger" "notification_job" {
 }
 
 resource "google_cloudbuild_trigger" "vertex_ai_demo" {
-  count           = var.enable_ci_cd && var.enable_vertex_ai_demo && var.github_connection_name != "" ? 1 : 0
+  count           = var.enable_ci_cd && var.enable_vertex_ai_demo && var.github_connection_name != "" && !var.retire_us_resources ? 1 : 0
   disabled        = !var.us_build_triggers_enabled
   name            = "vertex-ai-demo-main"
   location        = var.region
@@ -146,7 +148,7 @@ resource "google_cloudbuild_trigger" "vertex_ai_demo" {
   substitutions = {
     _REGION                  = var.region
     _PROJECT_ID              = var.project_id
-    _REPOSITORY              = google_artifact_registry_repository.apps.repository_id
+    _REPOSITORY              = google_artifact_registry_repository.apps[0].repository_id
     _RUNTIME_SERVICE_ACCOUNT = google_service_account.vertex_ai_demo[0].email
   }
 
@@ -160,7 +162,7 @@ resource "google_cloudbuild_trigger" "vertex_ai_demo" {
 }
 
 resource "google_cloudbuild_trigger" "frontend_hosting" {
-  count           = var.enable_ci_cd && var.enable_firebase && var.github_connection_name != "" ? 1 : 0
+  count           = var.enable_ci_cd && var.enable_firebase && var.github_connection_name != "" && !var.retire_us_resources ? 1 : 0
   disabled        = !var.us_build_triggers_enabled
   name            = "frontend-hosting-main"
   location        = var.region

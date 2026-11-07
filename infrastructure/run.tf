@@ -127,13 +127,15 @@ resource "google_secret_manager_secret_iam_member" "processing_smtp_password" {
 }
 
 resource "google_storage_bucket_iam_member" "messaging_object_user" {
-  bucket = google_storage_bucket.objects.name
+  count  = var.retire_us_resources ? 0 : 1
+  bucket = google_storage_bucket.objects[0].name
   role   = "roles/storage.objectUser"
   member = "serviceAccount:${google_service_account.runtime["messaging-service"].email}"
 }
 
 resource "google_storage_bucket_iam_member" "processing_object_user" {
-  bucket = google_storage_bucket.objects.name
+  count  = var.retire_us_resources ? 0 : 1
+  bucket = google_storage_bucket.objects[0].name
   role   = "roles/storage.objectUser"
   member = "serviceAccount:${google_service_account.runtime["processing-service"].email}"
 }
@@ -168,14 +170,8 @@ resource "google_pubsub_subscription_iam_member" "messaging_subscriber" {
   member       = "serviceAccount:${google_service_account.runtime["messaging-service"].email}"
 }
 
-resource "google_pubsub_subscription_iam_member" "notification_subscriber" {
-  subscription = google_pubsub_subscription.queue["notification-tick"].name
-  role         = "roles/pubsub.subscriber"
-  member       = "serviceAccount:${google_service_account.runtime["processing-service"].email}"
-}
-
 resource "google_cloud_run_v2_service" "backend" {
-  for_each            = local.service_names
+  for_each            = var.retire_us_resources ? toset([]) : local.service_names
   name                = each.key
   location            = var.region
   deletion_protection = false
@@ -226,7 +222,7 @@ resource "google_cloud_run_v2_service" "backend" {
           PUBSUB_CONSUMER_ENABLED     = tostring(var.us_queue_consumers_enabled)
           PUBSUB_MAX_MESSAGES         = "5"
           WEB_CONCURRENCY             = "2"
-          GCS_BUCKET                  = google_storage_bucket.objects.name
+          GCS_BUCKET                  = google_storage_bucket.objects[0].name
           INVOICE_CURRENCY            = "SGD"
           EMAIL_ENABLED               = "true"
           EMAIL_FROM                  = "ansera.admin@gmail.com"
@@ -441,6 +437,7 @@ resource "google_cloud_run_v2_service" "backend" {
 }
 
 resource "google_cloud_run_v2_service_iam_member" "configuration_calls_messaging" {
+  count    = var.retire_us_resources ? 0 : 1
   project  = var.project_id
   location = var.region
   name     = google_cloud_run_v2_service.backend["messaging-service"].name

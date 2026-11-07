@@ -1,5 +1,5 @@
 resource "google_cloud_run_v2_job" "notification" {
-  count               = var.enable_cloud_sql ? 1 : 0
+  count               = var.enable_cloud_sql && !var.retire_us_resources ? 1 : 0
   name                = "notification-job"
   location            = var.region
   deletion_protection = false
@@ -81,7 +81,7 @@ resource "google_service_account" "scheduler_invoker" {
 }
 
 resource "google_cloud_run_v2_job_iam_member" "scheduler_invoker" {
-  count    = var.enable_cloud_sql ? 1 : 0
+  count    = var.enable_cloud_sql && !var.retire_us_resources ? 1 : 0
   project  = var.project_id
   location = var.region
   name     = google_cloud_run_v2_job.notification[0].name
@@ -90,7 +90,7 @@ resource "google_cloud_run_v2_job_iam_member" "scheduler_invoker" {
 }
 
 resource "google_cloud_scheduler_job" "notification_tick" {
-  count            = var.enable_cloud_sql ? 1 : 0
+  count            = var.enable_cloud_sql && !var.retire_us_resources ? 1 : 0
   name             = "notification-tick"
   region           = var.region
   schedule         = var.notification_schedule

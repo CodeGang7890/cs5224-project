@@ -9,6 +9,12 @@ variable "region" {
   default     = "us-central1"
 }
 
+variable "retire_us_resources" {
+  description = "Destroy the superseded US regional stack after Singapore is active and backed up. Shared global resources remain."
+  type        = bool
+  default     = true
+}
+
 variable "enable_singapore_staging" {
   description = "Create parallel Singapore resources while US resources remain active for migration."
   type        = bool
