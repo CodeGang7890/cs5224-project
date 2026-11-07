@@ -439,5 +439,14 @@
       "question": "Is there parking and showers?",
       "answer": "Yes: there is a car park next to the building ($1.20 an hour), and changing rooms with lockers and showers on level 1."
     }
+  },
+  {
+    "model": "product_app.faq",
+    "pk": 53,
+    "fields": {
+      "business": 7,
+      "question": "What is your business hours?",
+      "answer": "Everyday 9am - 9pm."
+    }
   }
 ]

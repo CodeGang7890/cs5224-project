@@ -58,5 +58,26 @@
       "created_time": "2026-09-01T09:00:00+08:00",
       "last_updated": "2026-09-01T09:00:00+08:00"
     }
+  },
+  {
+    "model": "configuration_app.whatsappconfiguration",
+    "pk": 7,
+    "fields": {
+      "business": 7,
+      "phone_number_id": "1376041375583925",
+      "access_token": "EAAfqqTiybrQBS3gIxBlAPFkei6AVFU9yg9e1bRstZAY0GgX0gZBliZCW4BVDSr3ZB1ZCdOyttCaRKArQrVDONwFaiik5ri1PrfAWFMnsoZBfXgE9c9ASnrsjZBFI8nZBvoANdjaU7ZAdsLh7tzIIVi6hL1n0PPDIfxk6ZA8GFKCD92cePoBpwZAqOvNiGoecmRqZC1fLn1FC1hvQAgDFf96qsuImpDGkdCnIrJfZAlI4FhZBT8L6yDe8aZBDob4WkRILsZB8S8jb8tdAqV3WiXepFLS4ZBLE72IiHryPRwXnaaoKNAQH530xDBZA41hGlnvKuMUcGZB3SrjnocjgN7zZARZAyi5K09fSZCq12GZBQP5nbuIZAENsWmhbXBrqNStNNgZDZD",
+      "app_secret": "",
+      "display_phone_number": "+1 555-498-0976",
+      "verified_name": "Mandiri Sei Sapi",
+      "verify_token": "D7DeqgJ9i9k6dpqniYBRkvCZ3LT3_Zo-W7uLxAU1T6U",
+      "waba_id": "2351910032245420",
+      "two_step_pin": "993513",
+      "access_token_expires_time": "2027-01-05T15:12:07.448Z",
+      "connection_method": "embedded_signup",
+      "status": "connected",
+      "status_updated_time": null,
+      "created_time": "2026-11-06T15:12:15.004Z",
+      "last_updated": "2026-11-06T15:12:15.004Z"
+    }
   }
 ]

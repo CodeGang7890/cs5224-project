@@ -141,13 +141,13 @@ class SampleOrderItemFixtureTests(TestCase):
 
     def test_fixture_is_valid(self):
         orders = OrderItem.objects.all()
-        self.assertEqual(orders.count(), 61)  # 31–49: Lumen & Lens print orders; 50–61: Rally Point Courts
+        self.assertEqual(orders.count(), 64)  # 31–49: Lumen & Lens print orders; 50–61: Rally Point Courts; 62–64: Business Test (kept from production)
         self.assertEqual(set(orders.values_list('order_status', flat=True)), set(OrderStatus.values))
         for order in orders:
             with self.subTest(order=order.pk):
                 order.full_clean()  # loaddata skips validation
                 self.assertRegex(order.payment_reference, PAYMENT_REFERENCE_PATTERN)
-        self.assertEqual(len(set(orders.values_list('payment_reference', flat=True))), 61)
+        self.assertEqual(len(set(orders.values_list('payment_reference', flat=True))), 64)
 
     def test_florist_has_many_realistic_orders(self):
         orders = OrderItem.objects.filter(business_id=2)
@@ -298,12 +298,12 @@ class SampleScheduleItemFixtureTests(TestCase):
 
     def test_fixture_is_valid(self):
         bookings = list(ScheduleItem.objects.select_related('service', 'service_provider'))
-        self.assertEqual(len(bookings), 110)
+        self.assertEqual(len(bookings), 113)  # 111–113: Business Test, kept from production
         providers_of = {s.pk: set(s.service_providers.values_list('pk', flat=True)) for s in Service.objects.all()}
         for booking in bookings:
             with self.subTest(booking=booking.pk):
                 booking.full_clean()  # loaddata skips validation; this also checks the times match the snapshot
-                self.assertIn(booking.business_id, (4, 5))
+                self.assertIn(booking.business_id, (4, 5, 7))
                 self.assertIn(booking.service_provider_id, providers_of[booking.service_id])
                 self.assertLessEqual(booking.created_time, booking.start_time)
                 self.assertGreaterEqual(booking.updated_time, booking.created_time)
@@ -316,10 +316,10 @@ class SampleScheduleItemFixtureTests(TestCase):
                 self.assertLessEqual(a.blocked_until, b.start_time, (a.pk, b.pk))
         self.assertEqual({b.order_status for b in bookings}, set(OrderStatus.values))
         references = [b.payment_reference for b in bookings]
-        self.assertEqual(len(set(references)), 110)
+        self.assertEqual(len(set(references)), 113)
         for reference in references:
             self.assertRegex(reference, PAYMENT_REFERENCE_PATTERN)
-        self.assertEqual([b.pk for b in bookings if b.is_sandbox], [5])
+        self.assertEqual(sorted(b.pk for b in bookings if b.is_sandbox), [5, 111, 112, 113])  # 111–113: Business Test's Chat Sandbox
 
     def test_the_letters_match_the_bookings(self):
         """Each booking's blocks are H while pending, X once paid, and its buffer too where it was
@@ -349,7 +349,7 @@ class SampleScheduleItemFixtureTests(TestCase):
 
     def test_a_few_payments_failed_and_their_time_is_free(self):
         failed = ScheduleItem.objects.filter(order_status=OrderStatus.PAYMENT_FAILED)
-        self.assertEqual(sorted(failed.values_list('business_id', flat=True)), [4, 5, 5, 5, 5, 5, 5])
+        self.assertEqual(sorted(failed.values_list('business_id', flat=True)), [4, 5, 5, 5, 5, 5, 5, 7, 7])
         for booking in failed:
             local = booking.start_time.astimezone(dt_timezone(timedelta(hours=8)))
             week = WeeklyAvailability.objects.get(
