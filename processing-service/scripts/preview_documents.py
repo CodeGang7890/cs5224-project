@@ -20,6 +20,7 @@ COMMON = dict(
     payment_reference='0123456789abcdef0123456789abcdef',
     business_name='Kopi & Toast',
     business_location='1 Raffles Place, Singapore',
+    business_whatsapp='+65 9123 4567',
     customer_name='Mei Ling',
     customer_phone='+6591234567',
     customer_email='meiling@example.com',

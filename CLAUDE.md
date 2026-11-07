@@ -11,7 +11,7 @@ Guidance for Claude Code that applies to every service. Each service also has it
 | `messaging-ingester` | FastAPI: WhatsApp webhooks → Pub/Sub (no database) | 8002 |
 | `processing-service` | FastAPI + Gunicorn: pulls payment events, updates orders / bookings | 8003 |
 | `messaging-service` | FastAPI + Gunicorn: the chat flow (LLM): the Chat Sandbox's API, and answering the WhatsApp messages it pulls from Pub/Sub; one-off `/chat` | 8004 |
-| `notification-job` | Python script, run hourly by cron: payment and appointment reminders (logged for now; reads the database) | none |
+| `notification-job` | Python script, run hourly (cron locally, Cloud Scheduler + a Cloud Run Job in production): sends the payment reminders (an unpaid order / booking 1–2 h old, with its payment link) and the appointment reminders (~24 h before a booking) on WhatsApp and by email; the WhatsApp reconnect alerts are logged for now; reads the database | none |
 | `frontend-app` | Vite / React | 5173 |
 | `mock_whatsapp` | Local stand-in for WhatsApp / Meta (FastAPI + Jinja2 + SQLite; `mock-whatsapp` in docker-compose): sends Meta's webhooks, fakes the Graph API for replies | 9000 |
 

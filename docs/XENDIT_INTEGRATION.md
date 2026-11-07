@@ -163,7 +163,7 @@ XENDIT_API_BASE_URL=https://api.xendit.co
 XENDIT_COUNTRY=SG
 XENDIT_CURRENCY=SGD
 XENDIT_ALLOWED_PAYMENT_CHANNELS=CARDS
-XENDIT_SESSION_EXPIRY_SECONDS=1800
+XENDIT_SESSION_EXPIRY_SECONDS=10800
 XENDIT_SUCCESS_URL=
 XENDIT_FAILURE_URL=
 ```
@@ -213,7 +213,7 @@ If empty, Xendit's hosted result page is used.
 | Xendit refuses session creation | The order / booking stays `pending_payment`. The customer gets a note. |
 | Webhook token invalid | `payment-ingester` returns 401. Nothing is published. |
 | Webhook amount mismatches the order / booking total | `processing-service` rejects the event, logs it, and acks it. The status is not changed. |
-| Payment expires or fails | The order / booking becomes `payment_failed`. A failed booking frees its time slot. A failed order frees its held stock. No retry is offered. |
+| Payment expires (the link lasts 3 hours) or fails | The order / booking becomes `payment_failed`. A failed booking frees its time slot. A failed order frees its held stock. No retry is offered. |
 | Duplicate webhook / Pub/Sub redelivery | Applying the same event again changes nothing. |
 
 ## Testing the webhook locally

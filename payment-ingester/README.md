@@ -106,7 +106,7 @@ If the event can't be published the payment link still works (the response is st
 | `XENDIT_COUNTRY` | `SG` | Customer country |
 | `XENDIT_CURRENCY` | `SGD` | Payment currency |
 | `XENDIT_ALLOWED_PAYMENT_CHANNELS` | `CARDS` | Comma-separated allowed channels |
-| `XENDIT_SESSION_EXPIRY_SECONDS` | `1800` | Payment link expiry |
+| `XENDIT_SESSION_EXPIRY_SECONDS` | `10800` | Payment link expiry (3 hours, needed for notification-job) |
 | `XENDIT_TIMEOUT_SECONDS` | `15` | Xendit API timeout |
 | `XENDIT_SUCCESS_URL` | empty | Must be HTTPS if set |
 | `XENDIT_FAILURE_URL` | empty | Must be HTTPS if set |

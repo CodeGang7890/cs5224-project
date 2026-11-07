@@ -29,6 +29,14 @@ def _what(document: Document) -> str:
     return 'booking' if document.kind == BOOKING else 'order'
 
 
+def _message_us(document: Document) -> str:
+    """How the customer can reach the business, for an email: "just message Kopi & Toast on WhatsApp at
+    +65 9123 4567", or, when its number isn't known, "just message Kopi & Toast in your WhatsApp chat"."""
+    if document.business_whatsapp:
+        return f'just message {document.business_name} on WhatsApp at {document.business_whatsapp}'
+    return f'just message {document.business_name} in your WhatsApp chat'
+
+
 def _summary(document: Document) -> str:
     """What was ordered / booked, in one line."""
     if document.booking:
@@ -79,7 +87,7 @@ def invoice_email_subject_and_text(document: Document) -> tuple[str, str]:
         '',
         "Once we receive your payment, we'll send you a receipt.",
         '',
-        f'If anything looks wrong, just message {document.business_name} in your WhatsApp chat.',
+        f'If anything looks wrong, {_message_us(document)}.',
         '',
         'Thank you,',
         document.business_name,
@@ -114,7 +122,7 @@ def receipt_email_subject_and_text(document: Document) -> tuple[str, str]:
         '',
         f'Your receipt ({document.number}) is attached to this email as a PDF. Please keep it for your records.',
         '',
-        f'If anything looks wrong, just message {document.business_name} in your WhatsApp chat.',
+        f'If anything looks wrong, {_message_us(document)}.',
         '',
         'Thank you,',
         document.business_name,

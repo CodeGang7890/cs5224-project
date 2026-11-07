@@ -14,12 +14,12 @@ from app.whatsapp_sender import SendError
 PAY_URL = 'https://checkout.xendit.example/pay/abc123'
 
 
-def make_document(kind=ORDER, doc_type=RECEIPT, phone='+6591234567', email='daniel@example.com', is_sandbox=False, payment_url=''):
+def make_document(kind=ORDER, doc_type=RECEIPT, phone='+6591234567', email='daniel@example.com', is_sandbox=False, payment_url='', whatsapp=''):
     prefix = 'INV' if doc_type == INVOICE else 'RCT'
     return Document(
         number=f'{prefix}-O-000012' if kind == ORDER else f'{prefix}-B-000028', doc_type=doc_type, kind=kind,
         issued_at=datetime(2026, 10, 1, tzinfo=UTC), payment_reference='a' * 32, business_name='Kopi & Toast',
-        business_location='', customer_name='Daniel', customer_phone=phone, details=(),
+        business_location='', business_whatsapp=whatsapp, customer_name='Daniel', customer_phone=phone, details=(),
         lines=(DocumentLine('Kopi C', 2, Decimal('1.80')),), currency='SGD',
         customer_email=email, is_sandbox=is_sandbox, payment_url=payment_url,
         booking=Booking('Portrait shoot', 'Bob', datetime(2026, 10, 12, 2, tzinfo=UTC), datetime(2026, 10, 12, 3, tzinfo=UTC))
@@ -105,6 +105,27 @@ class ReceiptWordingTests(unittest.TestCase):
         subject, text = notifications.email_subject_and_text(make_document(BOOKING))
         self.assertIn('your booking with Kopi & Toast', subject)
         self.assertIn('Your booking: Portrait shoot with Bob, Monday, 12 October 2026, 10:00 to 11:00.', text)
+
+
+class ContactNumberTests(unittest.TestCase):
+    """The emails tell the customer how to reach the business: its WhatsApp number, when it is known."""
+
+    def test_the_number_is_in_the_invoice_and_the_receipt_email(self):
+        for document in (make_invoice(whatsapp='+65 9123 4567'), make_document(whatsapp='+65 9123 4567')):
+            with self.subTest(document.doc_type):
+                _, text = notifications.email_subject_and_text(document)
+                self.assertIn('If anything looks wrong, just message Kopi & Toast on WhatsApp at +65 9123 4567.', text)
+                self.assertNotIn('in your WhatsApp chat', text)
+
+    def test_without_a_number_it_says_in_your_whatsapp_chat(self):
+        for document in (make_invoice(), make_document()):
+            with self.subTest(document.doc_type):
+                _, text = notifications.email_subject_and_text(document)
+                self.assertIn('If anything looks wrong, just message Kopi & Toast in your WhatsApp chat.', text)
+
+    def test_the_whatsapp_messages_do_not_repeat_the_number(self):
+        text = notifications.message_text(make_document(whatsapp='+65 9123 4567'), 'payment_received')
+        self.assertNotIn('+65 9123 4567', text)  # they are already chatting with it
 
 
 class FailedPaymentTests(unittest.TestCase):
