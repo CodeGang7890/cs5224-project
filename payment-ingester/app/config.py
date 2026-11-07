@@ -27,8 +27,8 @@ XENDIT_ALLOWED_PAYMENT_CHANNELS = [
     for channel in os.getenv('XENDIT_ALLOWED_PAYMENT_CHANNELS', 'CARDS').split(',')
     if channel.strip()
 ]
-# How long the payment link stays open (seconds). Xendit's default is 30 minutes.
-XENDIT_SESSION_EXPIRY_SECONDS = int(os.getenv('XENDIT_SESSION_EXPIRY_SECONDS', '1800'))
+# How long the payment link stays open (seconds): 3 hours
+XENDIT_SESSION_EXPIRY_SECONDS = int(os.getenv('XENDIT_SESSION_EXPIRY_SECONDS', '10800'))
 XENDIT_TIMEOUT_SECONDS = int(os.getenv('XENDIT_TIMEOUT_SECONDS', '15'))
 # Where the customer lands after the payment session completes or is stopped/canceled. Xendit
 # requires HTTPS; leave empty for local development (the hosted page then uses its own result page).

@@ -33,9 +33,7 @@ What happens when a send fails:
 
 ## The payment reminders and the payment link
 
-A payment reminder carries the Xendit **payment link** (`payment_link` on the order / booking), the same link the customer got in the chat and on their invoice. Without a link (payment-ingester couldn't create one) it offers help instead ("Reply here if you need any help completing it"): a payment reference means nothing to a customer.
-
-**It only has something to remind if the link is still valid.** The reminder looks at orders / bookings still `pending_payment` that are **1 to 2 hours old**, but Xendit's payment link expires after **30 minutes** by default (`XENDIT_SESSION_EXPIRY_SECONDS=1800` in payment-ingester), and an expired payment makes the order / booking `payment_failed`, which is final. So with the default, an unpaid order is already failed by the time it is 1 hour old, and **no payment reminder is ever found**. For the reminders to be useful, the link has to stay valid beyond the reminder (for example `XENDIT_SESSION_EXPIRY_SECONDS=10800`, 3 hours), which also keeps the order's stock / the booking's time held that long. That is a team decision about payment-ingester's setting (docker-compose and the Cloud Run service), not this job's.
+A payment reminder carries the Xendit **payment link** (`payment_link` on the order / booking), the same link the customer got in the chat and on their invoice. Without a link (payment-ingester couldn't create one) it offers help instead ("Reply here if you need any help completing it").
 
 ## Stack
 
