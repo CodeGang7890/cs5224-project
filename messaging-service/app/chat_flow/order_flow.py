@@ -23,6 +23,18 @@ the state, and only then is the customer told it's confirmed (again a fixed temp
 then goes back to `start`, keeping only `last_order_id` / `last_booking_id`, so the customer can
 order or book again.
 
+Leaving an order or booking before it's placed (the router's intents; see _leave_branch):
+- `cancel`: it's dropped, back to `start` (keeping `last_order_id` / `last_booking_id`).
+- Asking for the other branch (booking during an order, or ordering during a booking): it switches
+  over by itself if nothing has been chosen yet (no items, service, time or details), so nothing
+  is lost. Otherwise it stays where it is (`held_back`): the reply asks the customer to finish
+  it first, or cancel it.
+- Cancelling and asking for the other branch in one message cancels and starts that one. The same
+  branch is never restarted on the message that cancels it.
+- The extractions read the conversation, so a cancelled cart could come back with the next order:
+  cancelling saves `history_start` (the cancelling message's index in chat_message_json), and the
+  steps' extractions only read from there on (_steps_history) until an order or booking is placed.
+
 A port of configuration-service's chat_app/order_flow.py to SQLAlchemy: the checks that need the
 database (the free times) open short sessions from StepContext.sessions; commit_turn() takes a
 sessionmaker and runs one transaction.
@@ -50,6 +62,8 @@ from .schedule import free_slots, local, schedule_tz, start_problem
 from .settings import ChatSettings
 from .constants import (
     BOOKING_STEPS,
+    BRANCH_BOOKING,
+    BRANCH_ORDER,
     CHAT_STEPS,
     CONFIRMATION_CONFIRMED,
     CONFIRMATION_NOT_CONFIRMED,
@@ -102,6 +116,12 @@ GO_BACK_TARGETS = {
     STEP_BOOKING_DETAILS: [STEP_SERVICE_SELECTION, STEP_SLOT_SELECTION],
     STEP_BOOKING_CONFIRMATION: [STEP_SERVICE_SELECTION, STEP_SLOT_SELECTION, STEP_BOOKING_DETAILS],
 }
+# Which branch each step is in (`start` is in neither).
+BRANCH_OF = {step: BRANCH_ORDER for step in ORDER_STEPS} | {step: BRANCH_BOOKING for step in BOOKING_STEPS}
+# What a branch has chosen so far, in chat_state_data: any of them and switching over would lose it.
+BRANCH_PROGRESS_KEYS = {BRANCH_ORDER: ('items', 'details'), BRANCH_BOOKING: ('service', 'slot', 'details')}
+# Kept when an order or booking is dropped: the last ones placed, and where the steps' history starts.
+KEPT_AFTER_LEAVING = ('last_order_id', 'last_booking_id', 'history_start')
 # Each step is visited at most twice in one message (once more after a "change" at confirmation).
 MAX_STEPS_PER_MESSAGE = 2 * max(len(ORDER_STEPS), len(BOOKING_STEPS)) + 1
 
@@ -156,6 +176,12 @@ class Turn:
     # customer pays with (None: no link was created; see payment_error).
     payment_link: str | None = None
     payment_error: str | None = None
+    # Leaving a branch with this message (see _leave_branch), for the reply: the branch cancelled
+    # (`order` / `booking`), the one switched away from (nothing had been chosen), or the one the
+    # customer asked for but that didn't start, because the other one has progress to finish first.
+    cancelled: str | None = None
+    switched_from: str | None = None
+    held_back: str | None = None
 
     @property
     def confirmation_status(self) -> str | None:
@@ -175,9 +201,11 @@ def advance(
     *,
     start_order: bool,
     start_booking: bool = False,
+    cancel: bool = False,
     services: list[Service] = (),
     now: datetime | None = None,
     sessions: sessionmaker | None = None,
+    message_count: int | None = None,
 ) -> Turn:
     """Runs the extraction + check of the current step, moving on while steps complete.
 
@@ -185,17 +213,25 @@ def advance(
     progress), nothing happens unless the router found the customer wants to order (`start_order`:
     the order starts at Product selection) or book (`start_booking`, if `services` (the bookable
     ones) isn't empty: the booking starts at Service selection), on this same message. Ordering
-    wins if it's both.
+    wins if it's both. During an order or booking, `cancel` drops it and asking for the other
+    branch may switch over (_leave_branch; the module docstring). `message_count`: the chat's
+    messages so far, this one included (len(chat_message_json); for `history_start`).
     """
     step = step if step in CHAT_STEPS else STEP_START
     turn = Turn(step=step, data=copy.deepcopy(state_data))
+    note = ''
+    if step != STEP_START:
+        start_order, start_booking, note = _leave_branch(
+            turn, start_order, start_booking and bool(services), cancel, message_count
+        )
+        step = turn.step
     if step == STEP_START:
         if start_order:
             step = STEP_PRODUCT_SELECTION
         elif start_booking and services:
             step = STEP_SERVICE_SELECTION
         else:
-            turn.stop_reason = 'Nothing in progress, and the router found no wish to order or book: reply only.'
+            turn.stop_reason = note or 'Nothing in progress, and the router found no wish to order or book: reply only.'
             return turn
 
     # The order steps ask for the product details, the booking steps for the schedule details (a
@@ -208,7 +244,8 @@ def advance(
     # reached during this message (e.g. Details collection, right after "That's all" finished
     # Product selection) would otherwise read the message that completed the earlier step as a
     # request to go back to it. This also means one go-back per message at most.
-    entered_now = turn.step == STEP_START
+    entered_now = turn.step == STEP_START  # also after cancelling or switching over: a new branch
+    history = _steps_history(history, turn.data, message_count)
     for _ in range(MAX_STEPS_PER_MESSAGE):
         # A confirmation reached with this message hasn't shown the customer the summary yet: the
         # reply will (substage not_confirmed).
@@ -264,7 +301,53 @@ def advance(
     else:
         turn.stop_reason = f'Stopped after {MAX_STEPS_PER_MESSAGE} steps in one message.'
     turn.step = step
+    if note:
+        turn.stop_reason = f'{note} {turn.stop_reason}'
     return turn
+
+
+def _steps_history(history: list[dict], data: dict, message_count: int | None) -> list[dict]:
+    """The conversation the steps' extractions read: from `history_start` (the message that
+    cancelled the last order / booking) on, if set. `history` is the latest messages
+    (flow.to_llm_history), `message_count` all of them."""
+    start = data.get('history_start')
+    if start is None or message_count is None:
+        return history
+    return history[-max(message_count - start, 1):]
+
+
+def _leave_branch(
+    turn: Turn, start_order: bool, start_booking: bool, cancel: bool, message_count: int | None = None,
+) -> tuple[bool, bool, str]:
+    """During an order or booking (turn.step): cancels it, switches to the other branch, or holds
+    the other branch back (the module docstring). `start_booking` only if there are services to book.
+    Cancelled or switched: the turn is back at `start` with the progress dropped (turn.data keeps
+    KEPT_AFTER_LEAVING; cancelled: `history_start` is this message, the last of `message_count`). Returns (start_order, start_booking, a note for the stop reason): what to
+    start from `start` now, only ever the other branch."""
+    branch = BRANCH_OF[turn.step]
+    other = BRANCH_BOOKING if branch == BRANCH_ORDER else BRANCH_ORDER
+    wants_this = start_order if branch == BRANCH_ORDER else start_booking
+    wants_other = start_booking if branch == BRANCH_ORDER else start_order
+    progress = any(turn.data.get(key) for key in BRANCH_PROGRESS_KEYS[branch])
+    if cancel:
+        turn.cancelled = branch
+        note = f'The customer cancelled the {branch} in progress (at {STEP_LABELS[turn.step]}): back to the start.'
+    elif wants_other and not wants_this and not progress:
+        turn.switched_from = branch
+        note = f'The customer asked for a {other} instead, and nothing had been chosen for the {branch}: switched over.'
+    else:
+        if wants_other:
+            turn.held_back = other
+            return False, False, (
+                f'The customer also asked for a {other}, but the {branch} in progress has to be finished '
+                'or cancelled first: not started.'
+            )
+        return False, False, ''
+    turn.step = STEP_START
+    turn.data = {key: turn.data[key] for key in KEPT_AFTER_LEAVING if key in turn.data}
+    if cancel and message_count:
+        turn.data['history_start'] = message_count - 1
+    return other == BRANCH_ORDER and wants_other, other == BRANCH_BOOKING and wants_other, note
 
 
 def _debug_step(step: str, system_prompt: str, extracted: dict, result: CheckResult, data: dict, go_back_to=None):

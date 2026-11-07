@@ -458,6 +458,7 @@ class ValidateChatStateDataTests(SimpleTestCase):
         validate_chat_state_data({})  # nothing collected yet
         validate_chat_state_data({'details': {'name': 'Alice'}})  # partial details
         validate_chat_state_data({'details': {'postal_code': 123456, 'notes': 'No sugar', 'weight_kg': 1.5}})
+        validate_chat_state_data({'last_order_id': 3, 'history_start': 0})  # after a cancel (messaging-service)
 
     def test_invalid(self):
         item = VALID_STATE_DATA['items'][0]
@@ -480,6 +481,8 @@ class ValidateChatStateDataTests(SimpleTestCase):
             'last_order_id zero': ({'last_order_id': 0}, 'last_order_id must be a positive integer'),
             'last_order_id text': ({'last_order_id': '3'}, 'last_order_id must be a positive integer'),
             'items_confirmed not bool': ({'items_confirmed': 1}, 'items_confirmed must be true or false'),
+            'history_start negative': ({'history_start': -1}, 'history_start must be a non-negative integer'),
+            'history_start bool': ({'history_start': True}, 'history_start must be a non-negative integer'),
         }
         for label, (value, message_part) in cases.items():
             with self.subTest(label):

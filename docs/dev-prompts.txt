@@ -1547,3 +1547,16 @@ Original Prompt:
 In messaging service, if the message received is another type apart from “text”, it should not just leave it silently like this
 Please make it that it just return a generic and short response that we only accept text format as of now
 Yet make sure we also record that message to the DB and ensure a reply is sent
+
+Date & Time (GMT+8): 2026-11-07 14:58:55
+AI Model Used: claude-opus-5-5
+Original Prompt:
+[Image #21]
+There's a bug where let's say you're already in product selection state, you're kinda stuck there and unable to go to other places (e.g., to booking selection state)
+Can you please check?
+Dont make any code change first, check and see if you can spot this bug somewhere
+
+Date & Time (GMT+8): 2026-11-07 15:02:54
+AI Model Used: claude-opus-5-5
+Original Prompt:
+Please do that B+C, double check please as this is critical / core logic

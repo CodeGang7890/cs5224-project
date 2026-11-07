@@ -43,6 +43,8 @@ export interface ChatStateData {
   slot_options?: string[];
   /** The last booking (Orders tab → Services) made in this chat. */
   last_booking_id?: number;
+  /** Set when an order or booking is cancelled: the index of the cancelling message (the next one's steps read from there). */
+  history_start?: number;
 }
 
 /** A conversation between a business and one customer, or a sandbox (test) chat. */
@@ -144,9 +146,9 @@ export interface OrderStatusDebug {
   };
 }
 
-/** The router's intents, mirrored from configuration-service `chat_app/constants.py` `INTENTS`. */
+/** The router's intents, mirrored from messaging-service `app/chat_flow/constants.py` `INTENTS`. */
 export type Intent =
-  "order" | "booking" | "question" | "order_status" | "off_topic";
+  "order" | "booking" | "question" | "order_status" | "off_topic" | "cancel";
 
 export interface RouteDebug {
   intents: Intent[];

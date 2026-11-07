@@ -180,8 +180,8 @@ def _run_turn(sessions: sessionmaker, session_id: int, message: str, on_saved: O
         timer.fields['intents'] = route.intents
     turn = order_flow.advance(
         chat_config, session.chat_state_id, session.chat_state_data, history, products,
-        start_order=route.start_order, start_booking=route.start_booking, services=services, now=now,
-        sessions=sessions,
+        start_order=route.start_order, start_booking=route.start_booking, cancel=route.cancel, services=services,
+        now=now, sessions=sessions, message_count=len(session.chat_message_json),
     )
     # Placing an order / booking: now, as the reply needs its number (and payment link). Otherwise
     # the state is saved with the reply, at the end. Either way, only if the chat hasn't changed.
@@ -217,6 +217,9 @@ def _run_turn(sessions: sessionmaker, session_id: int, message: str, on_saved: O
         history = [*history, {'role': 'assistant', 'content': welcome}]
 
     toolbox = Toolbox(business, sessions)
+    placed = turn.placed_order_id is not None or turn.placed_booking_id is not None
+    # What this message did to an order or booking in progress (cancelled, switched, not started).
+    branch_change = {'cancelled': turn.cancelled, 'switched_from': turn.switched_from, 'held_back': turn.held_back}
     labels = {
         'order': prompts.detail_labels(chat_config.product_detail_fields),
         'booking': prompts.detail_labels(chat_config.schedule_detail_fields),
@@ -230,9 +233,10 @@ def _run_turn(sessions: sessionmaker, session_id: int, message: str, on_saved: O
         reply_kind, text, context, aside_first = template
         system_prompt, parts = '', [text]
         answered = check is not None and check['kind'] != prompts.QUESTION_NONE
-        if answered or route.order_status or route.off_topic:
+        if answered or route.order_status or route.off_topic or route.cancel or any(branch_change.values()):
             system_prompt = prompts.build_aside_prompt(
-                business, context=context, intents=route.intents, question_check=check, order_records=records, style=style
+                business, context=context, intents=route.intents, question_check=check, order_records=records, style=style,
+                placed=placed, **branch_change,
             )
             with latency.timed('LLM', 'ASIDE', kind=reply_kind) as timer:
                 aside = llm.generate_chat_reply(system_prompt, history, toolbox).strip()
@@ -277,6 +281,7 @@ def _run_turn(sessions: sessionmaker, session_id: int, message: str, on_saved: O
             order_records=records,
             style=style,
             welcomed=bool(welcome),
+            **branch_change,
         )
         with latency.timed('LLM', 'REPLY', step=turn.step) as timer:
             reply = llm.generate_chat_reply(system_prompt, history, toolbox)
@@ -286,7 +291,7 @@ def _run_turn(sessions: sessionmaker, session_id: int, message: str, on_saved: O
     with latency.timed('DB', 'SAVE_TURN', messages=len(to_send)):
         sent = save_turn(
             sessions, session_id, None if placing else turn, to_send, version, check=not placing, on_saved=on_saved,
-            placed=turn.placed_order_id is not None or turn.placed_booking_id is not None,
+            placed=placed,
         )
     debug = {
         'before': before,

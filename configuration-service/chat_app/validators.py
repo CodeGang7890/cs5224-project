@@ -209,7 +209,7 @@ def validate_chat_messages(value) -> None:
 
 STATE_DATA_FIELDS = {
     'items', 'items_confirmed', 'details', 'last_order_id',
-    'service', 'slot', 'slot_options', 'last_booking_id',
+    'service', 'slot', 'slot_options', 'last_booking_id', 'history_start',
 }
 STATE_SERVICE_FIELDS = {'service_id', 'name', 'price', 'duration_minutes', 'buffer_minutes'}
 SLOT_OPTIONS_MAX = 10
@@ -247,6 +247,9 @@ def validate_chat_state_data(value) -> None:
     - ``slot_options``: the start times offered to the customer, numbered from 1 in this order
       (ISO 8601 date-times, at most SLOT_OPTIONS_MAX).
     - ``last_booking_id``: the checkout_app ScheduleItem booked last in this chat.
+    - ``history_start``: set when the customer cancels an order or booking: the index in
+      chat_message_json of the message that cancelled it. The order / booking steps' extractions
+      only read from there on, so a cancelled cart can't come back. Dropped when one is placed.
 
     Raises a ``ValidationError`` listing every problem found.
     """
@@ -291,6 +294,8 @@ def validate_chat_state_data(value) -> None:
     for key in ('last_order_id', 'last_booking_id'):
         if key in value and (not _is_int(value[key]) or value[key] < 1):
             errors.append(f'{key} must be a positive integer.')
+    if 'history_start' in value and (not _is_int(value['history_start']) or value['history_start'] < 0):
+        errors.append('history_start must be a non-negative integer.')
 
     if 'service' in value:
         service = value['service']

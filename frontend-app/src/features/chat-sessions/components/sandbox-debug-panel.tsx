@@ -264,6 +264,7 @@ const INTENT_LABELS: Record<Intent, string> = {
   question: "Question",
   order_status: "Past orders / bookings",
   off_topic: "Off topic",
+  cancel: "Cancel",
 };
 
 const CONFIRMATION_LABELS: Record<
