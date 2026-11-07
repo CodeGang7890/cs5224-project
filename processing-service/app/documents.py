@@ -19,10 +19,11 @@ from zoneinfo import ZoneInfo
 
 from fpdf import FPDF
 from fpdf.enums import XPos, YPos
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from . import config
-from .models import BusinessConfiguration, ChatSession, OrderItem, ScheduleItem, ServiceProvider
+from .models import BusinessConfiguration, ChatSession, OrderItem, ScheduleItem, ServiceProvider, WhatsAppConfiguration
 
 ORDER, BOOKING = 'order', 'booking'  # the kind of item
 INVOICE, RECEIPT = 'invoice', 'receipt'  # the type of document
@@ -58,6 +59,7 @@ class Document:
     payment_reference: str
     business_name: str
     business_location: str
+    business_whatsapp: str
     customer_name: str
     customer_phone: str
     details: tuple[tuple[str, str], ...]
@@ -107,6 +109,7 @@ def build_document(
 
     business = session.get(BusinessConfiguration, item.business_id)
     chat = session.get(ChatSession, item.chat_session_id) if item.chat_session_id else None
+    whatsapp = session.scalars(select(WhatsAppConfiguration).where(WhatsAppConfiguration.business_id == item.business_id)).first()
     customer_name = str(details.pop('name', '') or (chat.display_name if chat else '') or 'Customer')
 
     booking = None
@@ -133,6 +136,7 @@ def build_document(
         payment_reference=item.payment_reference,
         business_name=business.business_name if business else f'Business #{item.business_id}',
         business_location=business.location if business else '',
+        business_whatsapp=whatsapp.display_phone_number if whatsapp else '',
         customer_name=customer_name,
         customer_phone=chat.phone_number if chat else '',
         details=tuple((detail_label(key), str(value)) for key, value in details.items()),

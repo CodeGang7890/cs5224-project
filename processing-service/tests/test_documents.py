@@ -11,7 +11,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app import documents
 from app.documents import INVOICE, RECEIPT
-from app.models import Base, BusinessConfiguration, ChatSession, OrderItem, ScheduleItem, ServiceProvider
+from app.models import Base, BusinessConfiguration, ChatSession, OrderItem, ScheduleItem, ServiceProvider, WhatsAppConfiguration
 
 PLACED = datetime(2026, 9, 30, 4, 5, tzinfo=UTC)  # when the order was placed (the invoice's date)
 PAID = datetime(2026, 10, 1, 4, 5, tzinfo=UTC)  # when it was paid (the receipt's date)
@@ -55,6 +55,8 @@ class DocumentTests(unittest.TestCase):
         self.addCleanup(self.session.close)
         self.session.add_all([
             BusinessConfiguration(id=1, business_name='Kopi & Toast', location='1 Raffles Place'),
+            BusinessConfiguration(id=2, business_name='No WhatsApp Yet', location=''),
+            WhatsAppConfiguration(id=1, business_id=1, display_phone_number='+65 9123 4567'),
             ChatSession(id=1, phone_number='+6591234567', display_name='Daniel'),
             ServiceProvider(id=1, name='Mei Lin'),
             OrderItem(id=12, business_id=1, chat_session_id=1, is_sandbox=False, order_data=ORDER_DATA,
@@ -101,6 +103,11 @@ class DocumentTests(unittest.TestCase):
         self.assertEqual(built.details, (('Pickup time', '8:45am'),))  # and isn't repeated
         self.assertEqual((built.business_name, built.customer_phone), ('Kopi & Toast', '+6591234567'))
         self.assertIsNone(built.booking)
+
+    def test_the_business_whatsapp_number_is_read_when_it_has_a_connection(self):
+        self.assertEqual(self.build(self.order).business_whatsapp, '+65 9123 4567')
+        self.order.business_id = 2  # a business that never connected WhatsApp
+        self.assertEqual(self.build(self.order).business_whatsapp, '')
 
     def test_a_booking(self):
         built = self.build(self.booking)

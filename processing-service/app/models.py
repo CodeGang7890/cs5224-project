@@ -47,6 +47,17 @@ class BusinessConfiguration(Base):
     location: Mapped[str] = mapped_column(String(255))
 
 
+class WhatsAppConfiguration(Base):
+    """configuration_app.WhatsAppConfiguration: a business's WhatsApp connection (one per business). Only the number
+    customers can message is read, for the emails ("just message us on WhatsApp at +65 9123 4567")."""
+
+    __tablename__ = 'configuration_app_whatsappconfiguration'
+
+    id: Mapped[int] = mapped_column(BigId, primary_key=True)
+    business_id: Mapped[int] = mapped_column(BigInteger)
+    display_phone_number: Mapped[str] = mapped_column(String(32))
+
+
 class ChatSession(Base):
     """chat_app.ChatSession: a customer's chat. Only who the customer is is read, for the invoice and receipt."""
 
