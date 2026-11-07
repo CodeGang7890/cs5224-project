@@ -130,3 +130,17 @@ resource "google_secret_manager_secret_iam_member" "notification_sql_password" {
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.runtime["notification-job"].email}"
 }
+
+resource "google_secret_manager_secret_iam_member" "notification_smtp_password" {
+  count     = var.enable_cloud_sql ? 1 : 0
+  secret_id = "projects/${var.project_id}/secrets/smtp-password"
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.runtime["notification-job"].email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "notification_internal_api" {
+  count     = var.enable_cloud_sql ? 1 : 0
+  secret_id = google_secret_manager_secret.app["internal-api-key"].id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.runtime["notification-job"].email}"
+}

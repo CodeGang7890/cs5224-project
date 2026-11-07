@@ -25,7 +25,7 @@ pubsub_allowed_persistence_regions       = [] # Set to ["asia-southeast1"] after
 
 # Only set image URLs for services that are ready to deploy.
 service_images = {}
-messaging_service_url = "https://messaging-service-gq6jjn4afq-uc.a.run.app"
+messaging_service_url = "https://messaging-service-gq6jjn4afq-as.a.run.app"
 
 # Cloud SQL incurs ongoing charges. DNS requires a domain you own.
 enable_cloud_sql = false

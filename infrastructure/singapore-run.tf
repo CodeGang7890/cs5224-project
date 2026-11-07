@@ -3,10 +3,10 @@
 # and min instances are zero so staging cannot steal queue messages.
 locals {
   singapore_sql_connection_name           = var.singapore_sql_promoted ? google_sql_database_instance.singapore_replica[0].connection_name : google_sql_database_instance.main[0].connection_name
-  singapore_configuration_api_url         = "${trimsuffix(lookup(var.singapore_service_urls, "configuration-service", "https://configuration-service-gq6jjn4afq-uc.a.run.app"), "/")}/api"
-  singapore_messaging_service_url         = lookup(var.singapore_service_urls, "messaging-service", var.messaging_service_url)
-  singapore_payment_ingester_url          = lookup(var.singapore_service_urls, "payment-ingester", var.payment_ingester_url)
-  singapore_messaging_ingester_public_url = lookup(var.singapore_service_urls, "messaging-ingester", local.messaging_ingester_public_url)
+  singapore_configuration_api_url         = "${trimsuffix(lookup(var.singapore_service_urls, "configuration-service", "https://configuration-service-gq6jjn4afq-as.a.run.app"), "/")}/api"
+  singapore_messaging_service_url         = lookup(var.singapore_service_urls, "messaging-service", "https://messaging-service-gq6jjn4afq-as.a.run.app")
+  singapore_payment_ingester_url          = lookup(var.singapore_service_urls, "payment-ingester", "https://payment-ingester-gq6jjn4afq-as.a.run.app")
+  singapore_messaging_ingester_public_url = lookup(var.singapore_service_urls, "messaging-ingester", "https://messaging-ingester-gq6jjn4afq-as.a.run.app")
   singapore_staging_images = {
     "configuration-service" = "asia-southeast1-docker.pkg.dev/${var.project_id}/apps/configuration-service:a144dfc"
     "messaging-ingester"    = "asia-southeast1-docker.pkg.dev/${var.project_id}/apps/messaging-ingester:f40f292"

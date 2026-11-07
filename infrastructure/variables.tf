@@ -183,13 +183,13 @@ variable "django_allowed_hosts" {
 variable "messaging_service_url" {
   description = "Root Cloud Run URL of the private messaging-service, without /api or a trailing slash."
   type        = string
-  default     = "https://messaging-service-gq6jjn4afq-uc.a.run.app"
+  default     = "https://messaging-service-gq6jjn4afq-as.a.run.app"
 }
 
 variable "payment_ingester_url" {
   description = "Cloud Run URL used by messaging-service to create Xendit payment links."
   type        = string
-  default     = "https://payment-ingester-gq6jjn4afq-uc.a.run.app"
+  default     = "https://payment-ingester-gq6jjn4afq-as.a.run.app"
 }
 
 variable "enable_cloud_sql" {

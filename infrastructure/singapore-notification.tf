@@ -39,6 +39,52 @@ resource "google_cloud_run_v2_job" "singapore_notification" {
             }
           }
         }
+        env {
+          name  = "EMAIL_ENABLED"
+          value = "true"
+        }
+        env {
+          name  = "EMAIL_FROM"
+          value = "ansera.admin@gmail.com"
+        }
+        env {
+          name  = "EMAIL_FROM_NAME"
+          value = "Ansera"
+        }
+        env {
+          name  = "SMTP_HOST"
+          value = "smtp-relay.brevo.com"
+        }
+        env {
+          name  = "SMTP_PORT"
+          value = "587"
+        }
+        env {
+          name  = "SMTP_USERNAME"
+          value = "bec985001@smtp-brevo.com"
+        }
+        env {
+          name = "SMTP_PASSWORD"
+          value_source {
+            secret_key_ref {
+              secret  = "smtp-password"
+              version = "latest"
+            }
+          }
+        }
+        env {
+          name  = "CONFIGURATION_SERVICE_URL"
+          value = local.singapore_configuration_api_url
+        }
+        env {
+          name = "INTERNAL_API_KEY"
+          value_source {
+            secret_key_ref {
+              secret  = google_secret_manager_secret.app["internal-api-key"].secret_id
+              version = "latest"
+            }
+          }
+        }
 
         resources {
           limits = {
@@ -72,6 +118,8 @@ resource "google_cloud_run_v2_job" "singapore_notification" {
     google_project_service.api,
     google_project_iam_member.sql_client,
     google_secret_manager_secret_iam_member.notification_sql_password,
+    google_secret_manager_secret_iam_member.notification_smtp_password,
+    google_secret_manager_secret_iam_member.notification_internal_api,
   ]
 }
 
