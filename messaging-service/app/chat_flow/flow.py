@@ -49,6 +49,7 @@ turn can't run again (it would place it twice), so its reply is saved even if th
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -56,12 +57,15 @@ from .. import config, latency, llm
 from ..models import BusinessConfiguration, ChatSession
 from . import dates as timezone  # timezone.now(), like django.utils.timezone
 from . import order_flow, past_orders, payments, prompts, router
+from .dates import parse_datetime
 from .constants import (
     SENT_BY_BUSINESS_AUTOMATED,
     SENT_BY_CUSTOMER,
     STEP_BOOKING_CONFIRMATION,
     STEP_CONFIRMATION,
     STEP_SLOT_SELECTION,
+    UNSUPPORTED_PLACEHOLDERS,
+    UNSUPPORTED_REPLY,
 )
 from .settings import ChatSettings
 from .tools import (
@@ -76,8 +80,8 @@ from .tools import (
 
 logger = logging.getLogger(__name__)
 
-# save_turn's hook: on_saved(db, session, messages saved, placed an order / booking).
-OnSaved = Callable[[Session, ChatSession, list[dict], bool], None]
+# save_turn's hook: on_saved(db, session, messages saved, placed an order / booking, saw every message).
+OnSaved = Callable[[Session, ChatSession, list[dict], bool, bool], None]
 
 # How many of the latest messages the LLM sees (keeps the prompt within the context window).
 HISTORY_MAX_MESSAGES = 20
@@ -111,6 +115,7 @@ class TurnResult:
 
 def handle_customer_message(
     sessions: sessionmaker, session_id: int, message: str, save_message: bool = True, on_saved: OnSaved | None = None,
+    before_attempt: Callable[[], None] | None = None,
 ) -> TurnResult:
     """Saves the customer message, runs the flow, then saves and returns the assistant's reply.
 
@@ -123,23 +128,30 @@ def handle_customer_message(
     the business's reply style (prompts.reply_style_section).
 
     `save_message=False` (messaging-service only: the WhatsApp consumer, app/inbound.py): the
-    customer message is already the chat's last one (saved with its InboundMessage record, so a
-    redelivered message is never saved twice).
+    customer message is already in the chat, among the unanswered ones (saved with its InboundMessage
+    record, so a redelivered message is never saved twice).
 
     If the chat changes while the turn is worked out (its version, see the module docstring), the
     turn runs again from the start, without saving the customer message again; after
     TURN_ATTEMPTS_MAX attempts, ChatConflictError.
 
-    `on_saved(db, session, messages, placed)` (messaging-service's WhatsApp consumer, app/inbound.py):
+    `on_saved(db, session, messages, placed, saw_all)` (messaging-service's WhatsApp consumer, app/inbound.py):
     called inside the transaction that saves the turn's messages, after they're added, so its writes
     (the InboundMessage marked replied, the replies in the outbox) are saved with them or not at all.
     `placed`: this turn placed an order / booking (saved already; trying and failing, e.g. sold
     out, isn't placing). If it raises, nothing of the
     save is kept and the error reaches the caller.
+
+    `before_attempt()` (app/inbound.py): called before every attempt; it raises to stop the turn
+    (e.g. its message was answered meanwhile, together with a later one), and the error reaches the
+    caller. A turn answers every customer message since the business's last one (pending_text), so
+    messages sent close together get one reply.
     """
     if save_message:
         append_chat_message(sessions, session_id, message, SENT_BY_CUSTOMER)
     for attempt in range(1, config.TURN_ATTEMPTS_MAX + 1):
+        if before_attempt is not None:
+            before_attempt()
         try:
             with latency.timed('TURN', attempt=attempt) as turn_timer:
                 result = _run_turn(sessions, session_id, message, on_saved)
@@ -152,6 +164,8 @@ def handle_customer_message(
             continue
         result.debug['attempts'] = attempt
         return result
+    if before_attempt is not None:
+        before_attempt()  # answered meanwhile by the turn that kept changing the chat: stop, not a conflict
     raise ChatConflictError(
         f'Chat {session_id} kept changing while the reply was written ({config.TURN_ATTEMPTS_MAX} attempts).'
     )
@@ -167,8 +181,10 @@ def _run_turn(sessions: sessionmaker, session_id: int, message: str, on_saved: O
         services = active_services(db, business)
         chat_config = ChatSettings.for_business(db, business)
     history = to_llm_history(session.chat_message_json)
+    message = pending_text(session.chat_message_json) or message  # all of them, if several came in a row
     style = prompts.reply_style_section(chat_config.reply_style, chat_config.custom_style)
-    first_message = len(session.chat_message_json) == 1  # nothing before the message just saved
+    # The business hasn't written yet: the chat's first message, or its first few, answered together.
+    first_message = all(item['sent_by'] == SENT_BY_CUSTOMER for item in session.chat_message_json)
     welcome = prompts.welcome_message_text(business, chat_config.welcome_message) if first_message else ''
     before = {'chat_state_id': session.chat_state_id, 'chat_state_data': session.chat_state_data}
     now = timezone.now()
@@ -435,11 +451,42 @@ def check_order_status(
 
 # --- Persistence --------------------------------------------------------------------------
 
+def _unsupported(item: dict) -> bool:
+    """A WhatsApp message that isn't text (its placeholder, e.g. "[Photo]") or its fixed reply (app/inbound.py)."""
+    if item['sent_by'] == SENT_BY_CUSTOMER:
+        return item['message'] in UNSUPPORTED_PLACEHOLDERS
+    return item['sent_by'] == SENT_BY_BUSINESS_AUTOMATED and item['message'] == UNSUPPORTED_REPLY
+
+
+def conversation(chat_messages: list[dict]) -> list[dict]:
+    """The chat's messages as the turn reads them: the same ones, but a non-text message and its fixed
+    reply among the customer messages not answered yet (a photo sent during a burst: its reply is
+    instant) go before those messages, so the conversation still ends on what the turn answers.
+    Nothing is dropped, so positions from the end (history_start) still line up."""
+    start = len(chat_messages)  # the end segment: after the business's last real message
+    while start and (chat_messages[start - 1]['sent_by'] == SENT_BY_CUSTOMER or _unsupported(chat_messages[start - 1])):
+        start -= 1
+    tail = chat_messages[start:]
+    return [*chat_messages[:start], *(m for m in tail if _unsupported(m)), *(m for m in tail if not _unsupported(m))]
+
+
+def pending_text(chat_messages: list[dict]) -> str:
+    """The customer messages since the business's last one (the ones the turn answers), one per line:
+    a non-text message's placeholder and fixed reply aside (conversation)."""
+    pending = []
+    for item in reversed(conversation(chat_messages)):
+        if item['sent_by'] != SENT_BY_CUSTOMER:
+            break
+        pending.append(item['message'])
+    return '\n'.join(reversed(pending))
+
+
 def to_llm_history(chat_messages: list[dict]) -> list[dict]:
-    """The latest messages as LLM chat messages: the customer is `user`, the business `assistant`."""
+    """The latest messages (conversation()'s order) as LLM chat messages: the customer is `user`,
+    the business `assistant`."""
     return [
         {'role': 'user' if item['sent_by'] == SENT_BY_CUSTOMER else 'assistant', 'content': item['message']}
-        for item in chat_messages[-HISTORY_MAX_MESSAGES:]
+        for item in conversation(chat_messages)[-HISTORY_MAX_MESSAGES:]
     ]
 
 
@@ -452,10 +499,13 @@ def save_turn(
     if the chat is still at `version` (else order_flow.ChatChanged, and nothing is saved); without
     (the order / booking is placed already), a change is only logged. `on_saved` (see
     handle_customer_message) runs last, in the same transaction, told whether this turn `placed` an
-    order / booking (not only tried: placing can fail, e.g. sold out). Returns the messages saved."""
+    order / booking (not only tried: placing can fail, e.g. sold out), and whether it saw every
+    message in the chat (`saw_all`: the chat is still at `version`; without `check`, it may not be).
+    Returns the messages saved."""
     with sessions.begin() as db:
         session = order_flow.lock_session(db, session_id)
-        if session.version != version:
+        saw_all = session.version == version
+        if not saw_all:
             if check:
                 raise order_flow.ChatChanged(session_id, version, session.version)
             logger.warning(
@@ -466,12 +516,12 @@ def save_turn(
             order_flow.apply_turn(db, session, turn, timezone.now())
         saved = [add_message(session, text, SENT_BY_BUSINESS_AUTOMATED) for text in messages]
         if on_saved is not None:
-            on_saved(db, session, saved, placed)
+            on_saved(db, session, saved, placed, saw_all)
         return saved
 
 
 def append_chat_message(sessions: sessionmaker, session_id: int, message: str, sent_by: str) -> dict:
-    """Appends a message (timestamped now) to a session and updates its last_chat_time.
+    """Appends a message (timestamped now: add_message) to a session and updates its last_chat_time.
 
     Row-locked in its own short transaction, so concurrent messages aren't lost. (The lock
     isn't held during the LLM call, which can take a while.)
@@ -480,17 +530,46 @@ def append_chat_message(sessions: sessionmaker, session_id: int, message: str, s
         return append_in_transaction(db, session_id, message, sent_by)
 
 
-def append_in_transaction(db, session_id: int, message: str, sent_by: str) -> dict:
+def append_in_transaction(db, session_id: int, message: str, sent_by: str, sent_time: datetime | None = None) -> dict:
     """append_chat_message() inside the caller's transaction (`db`), with the row locked."""
-    return add_message(order_flow.lock_session(db, session_id), message, sent_by)
+    return add_message(order_flow.lock_session(db, session_id), message, sent_by, sent_time)
 
 
-def add_message(session: ChatSession, message: str, sent_by: str) -> dict:
-    """Appends a message (timestamped now) to a loaded (and locked) session; saved when its
-    transaction commits, adding 1 to the chat's version."""
+def _message_time(item: dict) -> datetime | None:
+    """A chat message's message_time (aware), or None if it can't be read."""
+    moment = parse_datetime(item.get('message_time'))
+    return moment if moment is not None and timezone.is_aware(moment) else None
+
+
+def add_message(session: ChatSession, message: str, sent_by: str, sent_time: datetime | None = None) -> dict:
+    """Appends a message (timestamped now, or just after the last message if its time is later: another
+    clock) to a loaded (and locked) session; saved when its transaction commits, adding 1 to the
+    chat's version.
+
+    `sent_time` (a customer's WhatsApp message: when they sent it, from Meta): the message is
+    timestamped with it and put in that order among the customer messages not answered yet at the
+    end of the chat, as messages sent close together can come in out of order (app/inbound.py).
+    Never before the business's last message (those are answered: a later message goes after it),
+    and never after now unless the message before it is (another clock), so the messages stay in
+    chronological order (validate_chat_messages). If a stored time can't be read, it's appended."""
     now = timezone.now()
-    chat_message = {'message': message, 'sent_by': sent_by, 'message_time': now.isoformat()}
+    messages = list(session.chat_message_json)
+    times = [_message_time(item) for item in messages]
+    position, at = len(messages), now
+    if sent_time is not None and None not in times:  # an unreadable stored time: just append
+        start = len(messages)  # the unanswered customer messages at the end: messages[start:]
+        while start and messages[start - 1]['sent_by'] == SENT_BY_CUSTOMER:
+            start -= 1
+        at = min(sent_time, now)
+        position = start
+        while position < len(messages) and times[position] <= at:
+            position += 1  # after those sent before it, or in the same second (they came in first)
+    if position and times[position - 1] is not None:
+        # Never before the message it follows (e.g. the business's last one, from a clock a little ahead).
+        at = max(at, times[position - 1])
+    chat_message = {'message': message, 'sent_by': sent_by, 'message_time': at.isoformat()}
+    messages.insert(position, chat_message)
     # A new list (not append): SQLAlchemy only saves a JSON column that's assigned.
-    session.chat_message_json = [*session.chat_message_json, chat_message]
+    session.chat_message_json = messages
     session.last_chat_time = now
     return chat_message

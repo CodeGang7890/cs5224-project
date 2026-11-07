@@ -118,13 +118,13 @@ class EmulatorResourcesTests(unittest.TestCase):
         subscriber.subscription_path.return_value = 'projects/p/subscriptions/s'
         return subscriber, publisher
 
-    def test_creates_the_topic_and_an_ordered_subscription(self):
+    def test_creates_the_topic_and_an_unordered_subscription(self):
+        # No message ordering: a customer's messages sent close together are handled at once (one reply).
         subscriber, publisher = self.clients()
         ensure_emulator_resources(subscriber, publisher)
         publisher.create_topic.assert_called_once_with(request={'name': 'projects/p/topics/t'}, timeout=5)
         subscriber.create_subscription.assert_called_once_with(
-            request={'name': 'projects/p/subscriptions/s', 'topic': 'projects/p/topics/t', 'enable_message_ordering': True},
-            timeout=5,
+            request={'name': 'projects/p/subscriptions/s', 'topic': 'projects/p/topics/t'}, timeout=5,
         )
 
     def test_already_existing_is_fine(self):

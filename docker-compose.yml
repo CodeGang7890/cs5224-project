@@ -112,7 +112,8 @@ services:
   # Runs once the emulator is up, creates the queues (as Terraform would on Google Cloud), and exits.
   # The services wait for it.
   #   whatsapp-inbound-messages: messaging-ingester → messaging-service (subscription messaging-service-inbound,
-  #     ordered, ack deadline 120s), dead letters → whatsapp-inbound-messages-dlq
+  #     ack deadline 120s; not ordered, so a customer's messages sent close together are handled at once and
+  #     get one reply: messaging-service/app/inbound.py), dead letters → whatsapp-inbound-messages-dlq
   #   payment-events: payment-ingester (Xendit; or payment-ingester/scripts/publish_dummy_payments.py) →
   #     processing-service (subscription processing-service-payments, ack deadline 60s), dead letters → payment-events-dlq
   # Each dead-letter topic has a subscription (…-dlq-sub) keeping what lands there, to look at, e.g.
@@ -155,7 +156,7 @@ services:
           create topics "$$topic-dlq" '{}'
           create subscriptions "$$topic-dlq-sub" "{\"topic\": \"$$project/topics/$$topic-dlq\"}"
         done
-        create_subscription messaging-service-inbound whatsapp-inbound-messages "$$MESSAGES_ACK_DEADLINE_SECONDS" true
+        create_subscription messaging-service-inbound whatsapp-inbound-messages "$$MESSAGES_ACK_DEADLINE_SECONDS" false
         create_subscription processing-service-payments payment-events "$$PAYMENTS_ACK_DEADLINE_SECONDS" false
     depends_on:
       pubsub-emulator:

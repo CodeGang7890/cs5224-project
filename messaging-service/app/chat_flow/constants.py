@@ -51,6 +51,16 @@ INTENTS = [INTENT_ORDER, INTENT_BOOKING, INTENT_QUESTION, INTENT_ORDER_STATUS, I
 # The two branches a chat can be in (order_flow.advance): ordering products, or booking a service.
 BRANCH_ORDER, BRANCH_BOOKING = 'order', 'booking'
 
+# A WhatsApp message that isn't text (app/inbound.py answer_unsupported): what the chat shows for it
+# (Meta's message types; anything else: "[Message]"), and the fixed reply. The flow tells them apart
+# from the conversation by these exact texts (flow.conversation).
+UNSUPPORTED_LABELS = {
+    'image': 'Photo', 'document': 'Document', 'audio': 'Voice message', 'video': 'Video', 'sticker': 'Sticker',
+    'location': 'Location', 'contacts': 'Contact', 'reaction': 'Reaction', 'system': 'System notice',
+}
+UNSUPPORTED_REPLY = 'Sorry, I can only read text messages for now. Could you type your message instead?'
+UNSUPPORTED_PLACEHOLDERS = {f'[{label}]' for label in [*UNSUPPORTED_LABELS.values(), 'Message']}
+
 # Who sent a ChatSession message (chat_message_json[].sent_by).
 SENT_BY_CUSTOMER = 'customer'
 SENT_BY_BUSINESS_MANUAL = 'business-manual'  # typed by a person at the business

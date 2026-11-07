@@ -1598,3 +1598,16 @@ Original Prompt:
 As of now, please make reply goes to the mock, maybe have an env var or toggler that decides to send it to real whatsapp or mock?
 Here in the terraform setup, make it so it uses the mock whatsapp instead of the real whatsapp
 Update application appropriately if needed
+
+Date & Time (GMT+8): 2026-11-07 20:26:07
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+We want to have a feature to handle burst messages properly. Let’s say message 1 is sent and then message 2 is sent 1 second afterward while message 1 is still processing, in this case we only want to reply once.
+So the idea is, we want to save the message first in the database before going through the LLM flow, and use the timestamp of WhatsApp to reorder the message (this is how we handle out of order now) right when it’s saved.
+When it’s the end of turn, before replying, see the db if the message changed, if it changed then ignore the turn (it means another worker that has the complete message is currently working on it / have replied this).
+
+Date & Time (GMT+8): 2026-11-07 22:05:15
+AI Model Used: claude-opus-5-5
+Original Prompt:
+Please fix the remaining ones, I put in temp.txt current directory
