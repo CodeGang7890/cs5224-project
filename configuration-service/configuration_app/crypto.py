@@ -5,7 +5,7 @@ settings.CONFIGURATION_ENCRYPTION_KEY, which may be any secret string: it's hash
 Fernet key, so e.g. a random password from a secret manager works as-is. When it's empty, SECRET_KEY
 is used instead; set a separate key in deployments so SECRET_KEY can be rotated on its own.
 
-Changing the key makes the existing ciphertexts unreadable: re-enter the secrets afterwards.
+Changing the key makes the existing ciphertexts unreadable: the businesses must reconnect WhatsApp.
 """
 
 import base64

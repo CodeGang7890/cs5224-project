@@ -1,16 +1,16 @@
-import { isRouteErrorResponse, Link, useRouteError } from 'react-router'
+import { isRouteErrorResponse, Link, useRouteError } from "react-router";
 
-import { Button } from '@/components/ui/button'
+import { Button } from "@/components/ui/button";
 
 /** Rendered by React Router when a route throws during rendering or loading. */
 export function ErrorPage() {
-  const error = useRouteError()
+  const error = useRouteError();
 
   const message = isRouteErrorResponse(error)
     ? `${error.status} ${error.statusText}`
     : error instanceof Error
       ? error.message
-      : 'Unknown error'
+      : "Unknown error";
 
   return (
     <section className="flex min-h-svh flex-col items-center justify-center gap-4 p-4 text-center">
@@ -20,5 +20,5 @@ export function ErrorPage() {
         <Link to="/">Go home</Link>
       </Button>
     </section>
-  )
+  );
 }

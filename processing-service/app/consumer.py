@@ -1,22 +1,27 @@
 """Pull-based Pub/Sub consumer: payment events published by payment-ingester.
 
 Topic `payment-events`, one message per payment event; the data is JSON
-`{payment_reference, status}`: the order's / booking's 128-bit payment reference (32 hex
-characters, from configuration-service) and `success` or `fail` (see payment-ingester/README.md).
+`{payment_reference, status, amount?}`: the order's / booking's 128-bit payment reference (32 hex
+characters, from configuration-service), the status and the amount (used to check a payment against
+the order's / booking's total). payment-ingester publishes two kinds:
+- `success` / `fail`: a payment's result (Xendit's webhook). The payment flow (app/payments.py)
+  updates the order / booking in PostgreSQL, then sends the RECEIPT (a success) or a failure notice.
+- `created`: the order / booking was just placed and its payment link made (`payment_url`). Sends the
+  INVOICE (what to pay, and where) and changes nothing in the database.
 
-Each event goes through the payment flow (app/payments.py: updates the order / booking in
-PostgreSQL). The subscriber uses streaming pull: the client library keeps a connection open and
+The subscriber uses streaming pull: the client library keeps a connection open and
 calls `handle()` on its own threads, at most PUBSUB_MAX_MESSAGES at a time.
 
 - Applied → ack. Pub/Sub delivers at least once: a repeated event changes nothing.
-- No such payment reference, or the order / booking isn't waiting for this payment → logged as an
-  error and acked: redelivering it would never help.
+- No such payment reference, the amount doesn't match, or the order / booking isn't waiting for
+  this payment → logged as an error and acked: redelivering it would never help.
 - Not JSON, or not the contract's shape → logged and acked, for the same reason.
 - Anything else raised (e.g. the database is down) → nack, so Pub/Sub redelivers it.
 """
 
 import json
 import logging
+import math
 import re
 import time
 from collections.abc import Callable
@@ -26,11 +31,12 @@ from google.cloud import pubsub_v1
 
 from . import config
 from .db import get_session
-from .payments import STATUS_AFTER, PaymentEventError, apply_payment
+from .payments import STATUS_AFTER, PaymentEventError, apply_payment, send_invoice
 
 logger = logging.getLogger(__name__)
 
-STATUSES = tuple(STATUS_AFTER)  # success, fail
+CREATED = 'created'  # the order / booking was placed: send its invoice
+STATUSES = (*STATUS_AFTER, CREATED)  # success, fail, created
 PAYMENT_REFERENCE = re.compile(r'^[0-9a-f]{32}$')  # configuration-service's 128-bit references
 
 
@@ -39,27 +45,66 @@ class InvalidMessageError(ValueError):
 
 
 def parse(data: bytes) -> dict:
-    """The message's JSON, checked against the contract: a `payment_reference` and a known `status`."""
+    """The message's JSON, checked against the contract: a `payment_reference`, a known `status`,
+    and (when present) a non-negative numeric `amount`."""
     try:
         payload = json.loads(data)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise InvalidMessageError(f'not JSON: {exc}') from exc
     if not isinstance(payload, dict):
         raise InvalidMessageError('not a JSON object')
-    reference = payload.get('payment_reference')
+    
+    # payment-ingester publishes a normalized event, not the original webhook.
+    # Keep accepting nested Xendit payloads for existing queue producers.
+    if 'payment_reference' in payload:
+        reference = payload.get('payment_reference')
+        status = payload.get('status')
+        amount = payload.get('amount')
+    else:
+        event_data = payload.get('data')
+        if not isinstance(event_data, dict) or not event_data:
+            raise InvalidMessageError('Missing payment_reference or valid Xendit "data" object')
+        reference = event_data.get('reference_id')
+        xendit_status = event_data.get('status')
+        if xendit_status in ('COMPLETED', 'SUCCEEDED'):
+            status = 'success'
+        elif xendit_status in ('EXPIRED', 'FAILED', 'CANCELED'):
+            status = 'fail'
+        else:
+            raise InvalidMessageError(f'Unsupported Xendit payment status: {xendit_status!r}')
+        amount = event_data.get('amount')
+
     if not isinstance(reference, str) or not PAYMENT_REFERENCE.match(reference.lower()):
         raise InvalidMessageError(f'payment_reference must be 32 hex characters, not {reference!r}')
-    payload['payment_reference'] = reference.lower()
-    if payload.get('status') not in STATUSES:
-        raise InvalidMessageError(f'status must be one of {", ".join(STATUSES)}, not {payload.get("status")!r}')
-    return payload
+    if status not in STATUSES:
+        raise InvalidMessageError(f'status must be one of {", ".join(STATUSES)}, not {status!r}')
+    new_payload = {
+        'payment_reference': reference.lower(),
+        'status': status,
+        'amount': amount
+    }
+    payment_url = payload.get('payment_url') if 'payment_reference' in payload else None
+    if payment_url is not None:
+        if not isinstance(payment_url, str) or not payment_url.startswith(('https://', 'http://')) or len(payment_url) > 2000:
+            raise InvalidMessageError(f'payment_url must be a link, not {payment_url!r}')
+        new_payload['payment_url'] = payment_url
+
+    if amount is not None:
+        if isinstance(amount, bool) or not isinstance(amount, (int, float)) or not math.isfinite(amount) or amount < 0:
+            raise InvalidMessageError(f'amount must be a finite non-negative number, not {amount!r}')
+        new_payload['amount'] = float(amount)
+
+    return new_payload
 
 
 def process(payload: dict, session_factory: Callable = get_session) -> None:
     """The work for one payment event: the payment flow, in its own session."""
-    logger.info('Payment %s: %s', payload['payment_reference'], payload['status'])
+    logger.info('Payment %s: %s (amount %s)', payload['payment_reference'], payload['status'], payload.get('amount'))
     with session_factory() as session:
-        apply_payment(session, payload['payment_reference'], payload['status'])
+        if payload['status'] == CREATED:
+            send_invoice(session, payload['payment_reference'], payload.get('payment_url'))
+        else:
+            apply_payment(session, payload['payment_reference'], payload['status'], payload.get('amount'))
 
 
 def handle(message, session_factory: Callable = get_session) -> None:
@@ -84,8 +129,9 @@ def handle(message, session_factory: Callable = get_session) -> None:
 
 
 def ensure_emulator_resources(subscriber, publisher, attempts: int = 30, delay_seconds: float = 1.0) -> None:
-    """With the local emulator only: creates the topic (docker-compose's pubsub-init normally has
-    already) and this service's subscription. The emulator may still be starting, so this retries."""
+    """With the local emulator only: creates the topic and this service's subscription, if
+    docker-compose's pubsub-init hasn't (it normally has, with the ack deadline, retry backoff and
+    dead-letter topic). The emulator may still be starting, so this retries."""
     topic = publisher.topic_path(config.GCP_PROJECT_ID, config.PUBSUB_TOPIC)
     subscription = subscriber.subscription_path(config.GCP_PROJECT_ID, config.PUBSUB_SUBSCRIPTION)
     for attempt in range(1, attempts + 1):
@@ -126,7 +172,12 @@ class Consumer:
         self._future = self._subscriber.subscribe(
             self.subscription,
             callback=handle,
-            flow_control=pubsub_v1.types.FlowControl(max_messages=config.PUBSUB_MAX_MESSAGES),
+            # Leases of PUBSUB_ACK_DEADLINE_SECONDS (the library's own default is 60s, whatever the subscription says).
+            flow_control=pubsub_v1.types.FlowControl(
+                max_messages=config.PUBSUB_MAX_MESSAGES,
+                min_duration_per_lease_extension=config.PUBSUB_ACK_DEADLINE_SECONDS,
+                max_duration_per_lease_extension=config.PUBSUB_ACK_DEADLINE_SECONDS,
+            ),
         )
         logger.info('Pulling payment events from %s (at most %d at a time)', self.subscription, config.PUBSUB_MAX_MESSAGES)
 

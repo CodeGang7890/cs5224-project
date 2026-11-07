@@ -1,23 +1,23 @@
 /** A product as returned by configuration-service (`/api/products/`). */
 export interface Product {
-  id: number
-  business: number
-  name: string
+  id: number;
+  business: number;
+  name: string;
   /** Short summary the chat assistant tells customers when they ask what the product is. */
-  description: string
+  description: string;
   /** Long extra details (ingredients, options, FAQs…) the assistant looks up only when a question needs them. */
-  information: string
+  information: string;
   /** Decimal string, e.g. "12.50". */
-  price: string
+  price: string;
   /** How many the business has in total, including those on hold or sold: the only stored quantity. */
-  total_quantity: number
+  total_quantity: number;
   /** Read-only, derived from the orders: total_quantity − quantity_on_hold − quantity_sold. */
-  quantity_available: number
+  quantity_available: number;
   /** Read-only, derived: the quantity in orders pending payment or paid (not completed yet). */
-  quantity_on_hold: number
+  quantity_on_hold: number;
   /** Read-only, derived: the quantity in completed orders. */
-  quantity_sold: number
-  is_active: boolean
+  quantity_sold: number;
+  is_active: boolean;
 }
 
 /**
@@ -27,5 +27,10 @@ export interface Product {
  */
 export type ProductInput = Pick<
   Product,
-  'name' | 'description' | 'information' | 'price' | 'total_quantity' | 'is_active'
->
+  | "name"
+  | "description"
+  | "information"
+  | "price"
+  | "total_quantity"
+  | "is_active"
+>;

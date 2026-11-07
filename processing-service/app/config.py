@@ -18,6 +18,9 @@ PUBSUB_CONSUMER_ENABLED = os.getenv('PUBSUB_CONSUMER_ENABLED', '').lower() in ('
 GCP_PROJECT_ID = os.getenv('GCP_PROJECT_ID', 'local-project')
 PUBSUB_TOPIC = os.getenv('PUBSUB_TOPIC', 'payment-events')
 PUBSUB_SUBSCRIPTION = os.getenv('PUBSUB_SUBSCRIPTION', 'processing-service-payments')
+# The ack deadline, in seconds: the subscription's (docker-compose's pubsub-init creates it with
+# this) and the client's leases, extended by this much while an event is handled.
+PUBSUB_ACK_DEADLINE_SECONDS = int(os.getenv('PUBSUB_ACK_DEADLINE_SECONDS', '60'))
 # At most this many messages are handled at once, per worker (Pub/Sub flow control).
 PUBSUB_MAX_MESSAGES = int(os.getenv('PUBSUB_MAX_MESSAGES', '5'))
 
@@ -26,8 +29,18 @@ CONFIGURATION_SERVICE_URL = os.getenv('CONFIGURATION_SERVICE_URL', 'http://local
 INTERNAL_API_KEY = os.getenv('INTERNAL_API_KEY', 'dev-internal-api-key')
 WHATSAPP_SEND_TIMEOUT_SECONDS = 20
 
-# --- Invoices (Google Cloud Storage) ---------------------------------------------------------
-# The bucket for the invoice PDFs (Terraform: cs5224-ansera-app-objects). Unset: invoices are made
+# --- Email (Brevo) ---------------------------------------------------------------
+EMAIL_ENABLED = os.getenv('EMAIL_ENABLED', '').lower() in ('1', 'true', 'yes')
+EMAIL_FROM = os.getenv('EMAIL_FROM', '')
+EMAIL_FROM_NAME = os.getenv('EMAIL_FROM_NAME', 'Ansera')
+SMTP_HOST = os.getenv('SMTP_HOST', 'smtp-relay.brevo.com')
+SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
+SMTP_USERNAME = os.getenv('SMTP_USERNAME', '')
+SMTP_PASSWORD = os.getenv('SMTP_PASSWORD', '')
+SMTP_TIMEOUT_SECONDS = 20
+
+# --- Invoice and receipt PDFs (Google Cloud Storage) ---------------------------------------
+# The bucket for the invoice and receipt PDFs (Terraform: cs5224-ansera-app-objects). Unset: they are made
 # but not uploaded (local development, the tests).
 GCS_BUCKET = os.getenv('GCS_BUCKET', '')
 INVOICE_CURRENCY = os.getenv('INVOICE_CURRENCY', 'SGD')

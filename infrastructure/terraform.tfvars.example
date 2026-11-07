@@ -1,8 +1,30 @@
 project_id = "YOUR_GCP_PROJECT_ID"
 region     = "us-central1"
+enable_singapore_staging = false
+singapore_region          = "asia-southeast1"
+singapore_github_app_installation_id = 0 # Set to the existing Cloud Build GitHub App installation ID during migration.
+singapore_github_token_version       = "1"
+singapore_stage_backend_services      = ["messaging-ingester", "payment-ingester", "messaging-service", "processing-service"]
+singapore_build_triggers_enabled       = false
+singapore_notification_scheduler_enabled = false
+singapore_sql_promoted                   = false
+singapore_queue_consumers_enabled        = false
+singapore_min_instances                  = 0
+singapore_public_endpoints_enabled       = false
+singapore_service_urls                   = {} # Fill with Cloud Run URLs after creating Singapore services.
+us_queue_consumers_enabled              = true
+us_build_triggers_enabled                = true
+us_public_endpoints_enabled              = true
+us_legacy_messaging_ingester_public      = false # Temporary Meta bridge only; disable after all Meta callbacks use Singapore.
+us_legacy_payment_ingester_public        = false # Temporary Xendit bridge only; disable after Xendit callbacks use Singapore.
+us_vertex_ai_demo_public                 = true # Set false once the Singapore demo is deployed.
+us_legacy_messaging_ingester_configuration_service_url = "https://configuration-service-gq6jjn4afq-uc.a.run.app/api"
+us_min_instances                         = 1
+pubsub_allowed_persistence_regions       = [] # Set to ["asia-southeast1"] after cutover.
 
 # Only set image URLs for services that are ready to deploy.
 service_images = {}
+messaging_service_url = "https://messaging-service-gq6jjn4afq-uc.a.run.app"
 
 # Cloud SQL incurs ongoing charges. DNS requires a domain you own.
 enable_cloud_sql = false
@@ -11,6 +33,8 @@ dns_domain       = ""
 # Firebase enrollment is permanent for the project. Enable when ready.
 enable_firebase         = false
 firebase_hosting_site_id = "cs5224-ansera"
+# Add a custom frontend origin here if you use one; the Firebase Hosting domains are included automatically.
+additional_browser_origins = []
 
 # Existing Cloud Build 2nd gen GitHub connection and repository.
 github_connection_name = "ansera"
@@ -25,15 +49,40 @@ ci_cd_services = [
   "messaging-service",
   "messaging-ingester",
   "processing-service",
+  "payment-ingester",
 ]
 
 notification_schedule = "0 * * * *"
 enable_notification_scheduler = false
 notification_job_image       = "us-docker.pkg.dev/cloudrun/container/hello"
 enable_vertex_ai       = true
-vertex_ai_location     = "us-central1"
-vertex_ai_model        = "gemini-2.5-flash"
+vertex_ai_services      = ["messaging-service"]
+vertex_ai_location     = "global"
+vertex_ai_model        = "gemini-3.5-flash-lite"
 
 # Standalone browser demo. Public access can allow untrusted model requests and charges.
 enable_vertex_ai_demo                 = false
 vertex_ai_demo_allow_unauthenticated = false
+
+# mock_whatsapp on Cloud Run (mock-whatsapp.tf): a WhatsApp stand-in for demos, one instance in Singapore.
+# whatsapp_replies_to = "mock" sends every WhatsApp reply to it instead of Meta ("meta": real WhatsApp),
+# and makes it public (anyone with the URL can chat as a sample customer: LLM charges).
+enable_mock_whatsapp                = true
+whatsapp_replies_to                 = "mock"
+mock_whatsapp_allow_unauthenticated = false
+
+# Email for the trial Cloud Run HTTP 4xx/5xx alert; blank creates incidents only.
+alert_notification_email = ""
+
+# WhatsApp Embedded Signup ("Connect with Facebook"), always on. Before the first apply, add the
+# App Secret: gcloud secrets versions add meta-app-secret --data-file=… .
+# Terraform stores the webhook verify token from private terraform.tfvars in Secret Manager.
+meta_app_id                    = "2228337358565044"
+meta_embedded_signup_config_id = "1330129685818612"
+meta_app_secret_version        = "3"
+# Keep the exact Meta webhook verify token in the ignored terraform.tfvars only.
+meta_webhook_verify_token      = ""
+messaging_ingester_public_url  = ""
+
+# Logging in with Google / Facebook comes with enable_firebase (identity.tf; enabling Identity Platform
+# can't be undone). The providers are set up in the console (README).

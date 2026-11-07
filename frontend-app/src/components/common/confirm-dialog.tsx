@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react'
+import type { ReactNode } from "react";
 
-import { Button } from '@/components/ui/button'
+import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -9,19 +9,19 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+} from "@/components/ui/alert-dialog";
 
 interface ConfirmDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  title: string
-  description: ReactNode
-  confirmLabel: string
-  pendingLabel?: string
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  description: ReactNode;
+  confirmLabel: string;
+  pendingLabel?: string;
   /** Red confirm button, for deletes. */
-  destructive?: boolean
-  isPending?: boolean
-  onConfirm: () => void
+  destructive?: boolean;
+  isPending?: boolean;
+  onConfirm: () => void;
 }
 
 /**
@@ -34,13 +34,16 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel,
-  pendingLabel = 'Working…',
+  pendingLabel = "Working…",
   destructive = false,
   isPending = false,
   onConfirm,
 }: ConfirmDialogProps) {
   return (
-    <AlertDialog open={open} onOpenChange={(next) => !isPending && onOpenChange(next)}>
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => !isPending && onOpenChange(next)}
+    >
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
@@ -49,7 +52,7 @@ export function ConfirmDialog({
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
           <Button
-            variant={destructive ? 'destructive' : 'default'}
+            variant={destructive ? "destructive" : "default"}
             disabled={isPending}
             onClick={onConfirm}
           >
@@ -58,5 +61,5 @@ export function ConfirmDialog({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
-  )
+  );
 }

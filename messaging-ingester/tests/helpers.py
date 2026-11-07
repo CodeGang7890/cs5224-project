@@ -2,9 +2,9 @@
 
 import json
 
-from app.parsing import InboundMessage
+from app.parsing import AccountUpdate, InboundMessage
 from app.publisher import PublishError
-from app.verification import BusinessNotConnectedError, Verification, VerificationUnavailableError
+from app.verification import BusinessNotConnectedError, Verification, ConfigurationServiceUnavailableError
 
 BUSINESS_ID = 7
 PHONE_NUMBER_ID = '106540352242922'
@@ -31,6 +31,11 @@ def change(messages=(), phone_number_id=PHONE_NUMBER_ID, contacts=None, statuses
     return {'field': field, 'value': value}
 
 
+def account_update(event='DISABLED_UPDATE', **value):
+    """An account_update change (our app's webhook), e.g. account_update(ban_info={'waba_ban_state': 'DISABLE'})."""
+    return {'field': 'account_update', 'value': {'event': event, **value}}
+
+
 def webhook(*changes):
     return {'object': 'whatsapp_business_account', 'entry': [{'id': '102290129340398', 'changes': list(changes)}]}
 
@@ -46,6 +51,8 @@ class FakeVerifier:
         self.verify_token_value = verify_token
         self.signature_value = signature
         self.error = error
+        self.report_error = None  # only report_account_updates raises it
+        self.reported: list[AccountUpdate] = []
         self.calls = []
 
     def verify_token(self, business_id, verify_token):
@@ -63,6 +70,26 @@ class FakeVerifier:
         return Verification(valid=valid, phone_number_id=PHONE_NUMBER_ID if valid else None)
 
 
+    def verify_app_token(self, verify_token):
+        self.calls.append(('verify_app_token', verify_token))
+        if self.error:
+            raise self.error
+        return Verification(valid=verify_token == self.verify_token_value, phone_number_id=None)
+
+    def verify_app_signature(self, body, signature):
+        self.calls.append(('verify_app_signature', body, signature))
+        if self.error:
+            raise self.error
+        return Verification(valid=signature == self.signature_value, phone_number_id=None)
+
+    def report_account_updates(self, updates):
+        self.calls.append(('report_account_updates', list(updates)))
+        if self.error or self.report_error:
+            raise self.error or self.report_error
+        self.reported += updates
+        return len(updates)  # as if each changed one connection
+
+
 class FakePublisher:
     def __init__(self, fail=False):
         self.fail = fail
@@ -77,4 +104,4 @@ class FakePublisher:
 
 
 NOT_CONNECTED = BusinessNotConnectedError('not connected')
-UNAVAILABLE = VerificationUnavailableError('configuration-service is down')
+UNAVAILABLE = ConfigurationServiceUnavailableError('configuration-service is down')

@@ -14,9 +14,9 @@ RESET_DB=true docker compose up --build   # reset the database to the sample dat
 | Service | URL |
 | --- | --- |
 | frontend-app (Vite dev server, hot reload) | <http://localhost:5173> |
-| mock_whatsapp (WhatsApp stand-in, run on your machine: see [below](#trying-whatsapp-end-to-end-mock_whatsapp)) | <http://localhost:9000> |
+| mock-whatsapp (WhatsApp stand-in: see [below](#trying-whatsapp-end-to-end-mock_whatsapp)) | <http://localhost:9000> |
 | configuration-service (Django API, Swagger at `/api/docs/`) | <http://localhost:8000> |
-| payment-ingester (coming soon: port reserved) | <http://localhost:8001> |
+| payment-ingester (Gunicorn: creates Xendit Payment Sessions for the chat flow, receives Xendit webhooks → Pub/Sub payment-events, Swagger at `/docs`) | <http://localhost:8001> |
 | messaging-ingester (WhatsApp webhook → Pub/Sub, Swagger at `/docs`) | <http://localhost:8002> |
 | processing-service (Gunicorn: pull consumer of the payment events, Swagger at `/docs`) | <http://localhost:8003> |
 | messaging-service (Gunicorn: the chat flow behind the Chat Sandbox, LLM chat, and the pull consumer of the ingester's messages, Swagger at `/docs`) | <http://localhost:8004> |
@@ -28,14 +28,14 @@ To see the WhatsApp messages the ingester published: `docker compose exec messag
 (see `messaging-ingester/README.md`). messaging-service pulls them too, on its own subscription, and answers each one with the chat flow and sends the reply (try it with mock_whatsapp, below):
 `docker compose logs -f messaging-service` (see `messaging-service/README.md`).
 
-To publish dummy payment events (`payment_reference`, `status` success / fail) to the `payment-events` topic, with the stack running (by default for random orders / bookings still pending payment):
+To publish dummy payment events (`payment_reference`, `status` success / fail, and the order / booking's `amount`) to the `payment-events` topic, with the stack running (by default for random orders / bookings still pending payment):
 
 ```bash
 cd payment-ingester && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # once
 .venv/bin/python scripts/publish_dummy_payments.py --count 5
 ```
 
-processing-service pulls them and updates those orders / bookings (payment received or failed, and the booking's calendar): `docker compose logs -f processing-service` (see `payment-ingester/README.md`).
+processing-service pulls them, checks the amount, and updates those orders / bookings (payment received or failed, and the booking's calendar): `docker compose logs -f processing-service` (see `payment-ingester/README.md`).
 
 notification-job runs every hour (cron, no port) and logs the payment and appointment reminders it would send: `docker compose logs -f notification-job`. To run it once now:
 `docker compose exec notification-job python run.py` (see `notification-job/README.md`).
@@ -47,15 +47,47 @@ After changing `frontend-app/package.json`, rebuild it: `docker compose up --bui
 
 `mock_whatsapp/` stands in for WhatsApp: you chat as a customer with the sample businesses, and the assistant's replies come back through the whole system.
 
-Start the mock server (on your machine):
+docker compose runs it (`mock-whatsapp`) on <http://localhost:9000>, and points configuration-service's replies at its fake Graph API (`META_GRAPH_API_URL` = `http://mock-whatsapp:9000/v26.0`; set it in the root `.env` for the real Meta). Its conversations are kept in the `mock-whatsapp-data` volume. To run it on your machine instead, see `mock_whatsapp/README.md`.
 
-```bash
-cd mock_whatsapp
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # once
-.venv/bin/python run.py
-```
+## Xendit payments
 
-It opens on <http://localhost:9000>.
+The chat flow creates a Xendit payment link after an order or booking is confirmed. The customer pays on Xendit's hosted page, and Xendit's webhook updates the order / booking through `payment-ingester` → Pub/Sub → `processing-service`.
+
+1. Copy the root env template and fill in your Xendit values:
+
+   ```powershell
+   Copy-Item .env.example .env
+   ```
+
+   Set at least:
+
+   ```env
+   XENDIT_SECRET_KEY=your-xendit-secret-key
+   XENDIT_WEBHOOK_SECRET=your-xendit-webhook-token
+   ```
+
+   Leave `XENDIT_SUCCESS_URL` and `XENDIT_FAILURE_URL` empty for local development (Xendit then uses its own hosted result page).
+
+2. Expose the local webhook with a public HTTPS tunnel (for example ngrok):
+
+   ```bash
+   ngrok http 8001
+   ```
+
+3. In the Xendit dashboard:
+   - add the ngrok URL as the webhook callback URL (`https://…/webhook`)
+   - set the webhook token to the same value as `XENDIT_WEBHOOK_SECRET`
+   - enable `payment_session.completed` and `payment_session.expired` (optionally `payment.failure`, `payment.capture`, `payment.succeeded`)
+
+4. Restart the stack so the new `.env` values are used:
+
+   ```bash
+   docker compose up --build
+   ```
+
+The business payment dashboard is at `http://localhost:5173/orders/payment`. Public customer result pages are available at `/payment/success` and `/payment/failed`, but they are only used when `XENDIT_SUCCESS_URL` / `XENDIT_FAILURE_URL` are set to HTTPS URLs.
+
+See `docs/XENDIT_INTEGRATION.md` for the full flow, failure paths, and GCP Secret Manager notes.
 
 ## Local LLM (Ollama)
 
@@ -99,6 +131,6 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every pull request to `main`
 
 - configuration-service: checks, migrations, fixtures and tests (PostgreSQL)
 - frontend-app: lint, type-check and build
-- messaging-ingester, messaging-service, processing-service, notification-job and mock_whatsapp: `python -m unittest` (messaging-ingester with a Pub/Sub emulator)
+- messaging-ingester, messaging-service, payment-ingester, processing-service, notification-job and mock_whatsapp: `python -m unittest` (messaging-ingester with a Pub/Sub emulator)
 
 The ruleset in `.github/rulesets/main.json` requires the **CI passed** check (green only when every job is) before anything can be merged to `main`. To apply it: repository Settings → Rules → Rulesets → New ruleset → Import a ruleset.

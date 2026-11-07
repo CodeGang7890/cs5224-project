@@ -1,52 +1,67 @@
-import type { ReactNode } from 'react'
-import { CalendarCheck, CircleCheck } from 'lucide-react'
-import { Link } from 'react-router'
+import type { ReactNode } from "react";
+import { CalendarCheck, CircleCheck } from "lucide-react";
+import { Link } from "react-router";
 
-import { Badge } from '@/components/ui/badge'
-import { paths } from '@/config/navigation'
-import { useDetailLabels } from '@/features/workflow'
-import { cn } from '@/lib/utils'
+import { Badge } from "@/components/ui/badge";
+import { paths } from "@/config/navigation";
+import { useDetailLabels } from "@/features/workflow";
+import { cn } from "@/lib/utils";
 
-import type { ChatStateData, ChatStateItem } from '../types'
+import type { ChatStateData, ChatStateItem } from "../types";
 
 /** Order total as a "12.34" string (summed in cents, so 3 × 1.10 is 3.30). */
 function orderTotal(items: ChatStateItem[]): string {
-  const cents = items.reduce((sum, item) => sum + Math.round(Number(item.unit_price) * 100) * item.quantity, 0)
-  return (cents / 100).toFixed(2)
+  const cents = items.reduce(
+    (sum, item) =>
+      sum + Math.round(Number(item.unit_price) * 100) * item.quantity,
+    0,
+  );
+  return (cents / 100).toFixed(2);
 }
 
 interface ChatStateSummaryProps {
-  data: ChatStateData
-  className?: string
+  data: ChatStateData;
+  className?: string;
 }
 
 /** "Tue 14 Oct, 2:00 pm" (browser local time). */
 function formatSlot(iso: string): string {
-  return new Date(iso).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+  return new Date(iso).toLocaleString([], {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 /** What the order / booking steps have collected (order or booking, customer details), and the last ones placed in the chat. */
 export function ChatStateSummary({ data, className }: ChatStateSummaryProps) {
   // A booking's details use the booking details' labels, an order's the order details'.
-  const labels = useDetailLabels(data.service ? 'booking' : 'order')
-  const items = data.items ?? []
-  const details = Object.entries(data.details ?? {})
+  const labels = useDetailLabels(data.service ? "booking" : "order");
+  const items = data.items ?? [];
+  const details = Object.entries(data.details ?? {});
   return (
-    <dl className={cn('flex flex-wrap items-center gap-x-4 gap-y-1 text-xs', className)}>
+    <dl
+      className={cn(
+        "flex flex-wrap items-center gap-x-4 gap-y-1 text-xs",
+        className,
+      )}
+    >
       {data.service ? (
         <Field label="Booking">
           {`${data.service.name} · $${data.service.price} · `}
           {data.slot
             ? formatSlot(data.slot)
             : data.slot_options?.length
-              ? `${data.slot_options.length} time${data.slot_options.length === 1 ? '' : 's'} offered`
-              : 'no time yet'}
+              ? `${data.slot_options.length} time${data.slot_options.length === 1 ? "" : "s"} offered`
+              : "no time yet"}
         </Field>
       ) : (
         <Field label="Order">
           {items.length > 0
-            ? `${items.map((item) => `${item.quantity} × ${item.name}`).join(', ')} · $${orderTotal(items)}`
-            : '—'}
+            ? `${items.map((item) => `${item.quantity} × ${item.name}`).join(", ")} · $${orderTotal(items)}`
+            : "—"}
         </Field>
       )}
       {details.length === 0 ? (
@@ -60,21 +75,35 @@ export function ChatStateSummary({ data, className }: ChatStateSummaryProps) {
         ))
       )}
       {data.last_booking_id && (
-        <Badge variant="outline" className="border-emerald-500/50 text-emerald-700 dark:text-emerald-400" asChild>
-          <Link to={`${paths.serviceOrders}?booking=${data.last_booking_id}`} title="Open this booking in the Orders tab">
+        <Badge
+          variant="outline"
+          className="border-emerald-500/50 text-emerald-700 dark:text-emerald-400"
+          asChild
+        >
+          <Link
+            to={`${paths.serviceOrders}?booking=${data.last_booking_id}`}
+            title="Open this booking in the Orders tab"
+          >
             <CalendarCheck /> Booking #{data.last_booking_id} made
           </Link>
         </Badge>
       )}
       {data.last_order_id && (
-        <Badge variant="outline" className="border-emerald-500/50 text-emerald-700 dark:text-emerald-400" asChild>
-          <Link to={`${paths.productOrders}?order=${data.last_order_id}`} title="Open this order in the Orders tab">
+        <Badge
+          variant="outline"
+          className="border-emerald-500/50 text-emerald-700 dark:text-emerald-400"
+          asChild
+        >
+          <Link
+            to={`${paths.productOrders}?order=${data.last_order_id}`}
+            title="Open this order in the Orders tab"
+          >
             <CircleCheck /> Order #{data.last_order_id} placed
           </Link>
         </Badge>
       )}
     </dl>
-  )
+  );
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -83,5 +112,5 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
       <dt className="text-muted-foreground shrink-0">{label}</dt>
       <dd className="truncate font-medium">{children}</dd>
     </div>
-  )
+  );
 }

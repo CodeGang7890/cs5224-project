@@ -4,7 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Mock WhatsApp · {{ business.name }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+  <!-- Paths only (no scheme or host): behind an HTTPS proxy (Cloud Run) the app sees http, and an
+       http:// URL would be blocked on the https page. -->
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css').path }}?v={{ static_version }}">
 </head>
 <body>
 {% macro avatar(name, extra='') -%}
@@ -66,7 +68,7 @@
             <span class="chat-preview">
               {%- if c.last -%}
                 {%- if c.last.from_customer %}<span class="tick-mini {{ c.last.status }}"></span>{% endif -%}
-                <span class="preview-text">{{ c.last.text }}</span>
+                <span class="preview-text">{{ c.last.preview }}</span>
               {%- else -%}
                 <span class="preview-text">{{ c.display_phone_number }}</span>
               {%- endif -%}
@@ -94,14 +96,38 @@
         Mock WhatsApp: messages go to messaging-ingester as Meta's webhook, and replies come back to the fake Graph API.
       </div>
       {% for m in messages %}
-      <div class="row {{ 'out' if m.from_customer else 'in' }}" data-id="{{ m.id }}" data-time="{{ m.created_time }}" data-out="{{ 1 if m.from_customer else 0 }}" data-status="{{ m.status }}" data-error="{{ m.error }}"><span class="text">{{ m.text }}</span></div>
+      <div class="row {{ 'out' if m.from_customer else 'in' }}" data-id="{{ m.id }}" data-time="{{ m.created_time }}" data-out="{{ 1 if m.from_customer else 0 }}" data-status="{{ m.status }}" data-error="{{ m.error }}" data-media='{{ m.media | tojson }}'><span class="text">{{ m.text }}</span></div>
       {% endfor %}
     </section>
 
+    <!-- A photo or document picked to send: only its name, type and size are sent (app/media.py) -->
+    <div class="attachment-bar" id="attachment-bar" hidden>
+      <span class="attachment-bar-icon" id="attachment-icon"></span>
+      <span class="attachment-bar-text"><span class="attachment-bar-name" id="attachment-name"></span><span class="attachment-bar-info" id="attachment-info"></span></span>
+      <button type="button" class="icon-button" id="attachment-remove" title="Remove">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+
     <form class="composer" id="composer" autocomplete="off">
-      <span class="composer-icon" title="Attachments are not mocked">
-        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-      </span>
+      <div class="attach">
+        <button type="button" class="composer-icon" id="attach-button" title="Attach" aria-haspopup="menu" aria-expanded="false">
+          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+        <!-- Only a placeholder is sent: the file's name, type and size (app/media.py) -->
+        <div class="attach-menu" id="attach-menu" role="menu" hidden>
+          <button type="button" role="menuitem" data-input="photo-input">
+            <span class="attach-menu-icon photo"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="8.5" cy="9.5" r="1.8" fill="currentColor"/><path d="M4 18l5-5 3.5 3.5L15 14l5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></span>
+            Photo
+          </button>
+          <button type="button" role="menuitem" data-input="document-input">
+            <span class="attach-menu-icon document"><svg viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 3v5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></span>
+            Document
+          </button>
+        </div>
+        <input type="file" id="photo-input" data-kind="image" accept="image/*" hidden>
+        <input type="file" id="document-input" data-kind="document" hidden>
+      </div>
       <div class="composer-box">
         <textarea id="message-input" rows="1" placeholder="Type a message" maxlength="4096" autofocus></textarea>
       </div>
@@ -143,6 +169,6 @@
   </form>
 </dialog>
 
-<script src="{{ url_for('static', path='app.js') }}"></script>
+<script src="{{ url_for('static', path='app.js').path }}?v={{ static_version }}"></script>
 </body>
 </html>

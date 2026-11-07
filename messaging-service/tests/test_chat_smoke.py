@@ -35,7 +35,7 @@ class SmokeTests(FlowTestMixin, ApiTestCase):
 
 class BookingSmokeTests(FlowTestMixin, ApiTestCase):
     def setUp(self):
-        from datetime import date, datetime, timedelta
+        from datetime import date, datetime
         from unittest.mock import patch
         from zoneinfo import ZoneInfo
 

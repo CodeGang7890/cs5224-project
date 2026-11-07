@@ -23,6 +23,13 @@ resource "google_project_iam_member" "builder_log_writer" {
   member  = "serviceAccount:${google_service_account.builder.email}"
 }
 
+# Manual `gcloud builds submit` uploads source archives to this Cloud Build staging bucket.
+resource "google_storage_bucket_iam_member" "builder_build_source_reader" {
+  bucket = "${var.project_id}_cloudbuild"
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.builder.email}"
+}
+
 resource "google_service_account_iam_member" "builder_act_as" {
   for_each           = var.enable_ci_cd ? var.ci_cd_services : toset([])
   service_account_id = google_service_account.runtime[each.key].name
@@ -51,6 +58,15 @@ resource "google_project_iam_member" "builder_firebase_hosting_admin" {
   member  = "serviceAccount:${google_service_account.builder.email}"
 }
 
+# `firebase deploy` (firebase-tools 15.34.1+) checks that the Hosting API is enabled
+# (serviceusage.services.get), which Firebase Hosting Admin doesn't include.
+resource "google_project_iam_member" "builder_service_usage_consumer" {
+  count   = var.enable_ci_cd && var.enable_firebase ? 1 : 0
+  project = var.project_id
+  role    = "roles/serviceusage.serviceUsageConsumer"
+  member  = "serviceAccount:${google_service_account.builder.email}"
+}
+
 resource "google_cloudbuildv2_repository" "github" {
   count             = var.enable_ci_cd && var.github_connection_name != "" ? 1 : 0
   project           = var.project_id
@@ -62,6 +78,7 @@ resource "google_cloudbuildv2_repository" "github" {
 
 resource "google_cloudbuild_trigger" "configuration" {
   for_each        = var.enable_ci_cd && var.github_connection_name != "" ? var.ci_cd_services : toset([])
+  disabled        = !var.us_build_triggers_enabled
   name            = "${each.key}-main"
   location        = var.region
   service_account = google_service_account.builder.id
@@ -85,6 +102,7 @@ resource "google_cloudbuild_trigger" "configuration" {
 
 resource "google_cloudbuild_trigger" "notification_job" {
   count           = var.enable_ci_cd && var.enable_cloud_sql && var.github_connection_name != "" ? 1 : 0
+  disabled        = !var.us_build_triggers_enabled
   name            = "notification-job-main"
   location        = var.region
   service_account = google_service_account.builder.id
@@ -113,6 +131,7 @@ resource "google_cloudbuild_trigger" "notification_job" {
 
 resource "google_cloudbuild_trigger" "vertex_ai_demo" {
   count           = var.enable_ci_cd && var.enable_vertex_ai_demo && var.github_connection_name != "" ? 1 : 0
+  disabled        = !var.us_build_triggers_enabled
   name            = "vertex-ai-demo-main"
   location        = var.region
   service_account = google_service_account.builder.id
@@ -142,6 +161,7 @@ resource "google_cloudbuild_trigger" "vertex_ai_demo" {
 
 resource "google_cloudbuild_trigger" "frontend_hosting" {
   count           = var.enable_ci_cd && var.enable_firebase && var.github_connection_name != "" ? 1 : 0
+  disabled        = !var.us_build_triggers_enabled
   name            = "frontend-hosting-main"
   location        = var.region
   service_account = google_service_account.builder.id
@@ -155,7 +175,15 @@ resource "google_cloudbuild_trigger" "frontend_hosting" {
 
   substitutions = {
     _PROJECT_ID = var.project_id
+    # WhatsApp Embedded Signup ("Connect with Facebook"); no configuration ID: the button does nothing.
+    _META_APP_ID    = var.meta_app_id
+    _META_CONFIG_ID = var.meta_embedded_signup_config_id
+    # Logging in with Google / Facebook (identity.tf): the Firebase web app's config; empty: the buttons
+    # do nothing.
+    _FIREBASE_API_KEY          = try(data.google_firebase_web_app_config.frontend[0].api_key, "")
+    _FIREBASE_AUTH_DOMAIN      = local.identity_auth_domain
+    _CONFIGURATION_SERVICE_URL = "https://configuration-service-gq6jjn4afq-uc.a.run.app/api"
   }
 
-  depends_on = [google_project_service.api, google_project_iam_member.builder_log_writer, google_project_iam_member.builder_firebase_hosting_admin]
+  depends_on = [google_project_service.api, google_project_iam_member.builder_log_writer, google_project_iam_member.builder_firebase_hosting_admin, google_project_iam_member.builder_service_usage_consumer]
 }

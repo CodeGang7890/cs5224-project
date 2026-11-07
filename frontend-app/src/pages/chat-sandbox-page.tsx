@@ -1,5 +1,5 @@
-import { TabPage } from '@/components/common/tab-page'
-import { ChatSandbox } from '@/features/chat-sessions'
+import { TabPage } from "@/components/common/tab-page";
+import { ChatSandbox } from "@/features/chat-sessions";
 
 export function ChatSandboxPage() {
   return (
@@ -10,5 +10,5 @@ export function ChatSandboxPage() {
     >
       <ChatSandbox />
     </TabPage>
-  )
+  );
 }

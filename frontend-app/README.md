@@ -49,6 +49,7 @@ the source mounted, so hot reload works; file watching uses polling (`CHOKIDAR_U
 | `npm run build` | Type-checks (`tsc -b`) and builds for production into `dist/` |
 | `npm run preview` | Serves the production build locally so you can check it |
 | `npm run lint` | Lints the code with oxlint |
+| `npm run format` | Formats the code with Prettier (its default style; `npm run format:check` only checks) |
 
 ## Pages
 
@@ -68,17 +69,14 @@ The top right shows **Log In** when you're logged out. When you're logged in, it
 
 ## Connecting WhatsApp
 
-The **WhatsApp** card on Home (login required; your account must belong to a business) connects your business's WhatsApp Business number, so customers' messages reach your assistant (through `messaging-ingester`). It uses `GET`/`PUT`/`DELETE /api/configuration/whatsapp/` on configuration-service.
+The **WhatsApp** card on Home (login required; your account must belong to a business) connects your business's WhatsApp Business number with **Connect with Facebook** (Meta's WhatsApp Embedded Signup), so customers' messages reach your assistant.
 
-1. From your Meta app, enter:
-   - **Phone Number ID**: WhatsApp → API Setup, the digits under your phone number (not the number itself).
-   - **Access token**: a permanent System User token (Business Settings → System users). The one on API Setup expires after 24 hours.
-   - **App Secret**: App settings → Basic.
-2. Click **Connect WhatsApp** and confirm.
-   The details are **checked with Meta** first ("Checking with Meta…"): a wrong Phone Number ID, an invalid or expired token, or an App Secret from another app is shown under that field, and nothing is saved.
-3. The card then shows the number Meta verified (e.g. "+65 9123 4567 · Kopi & Co. Café"), a **Callback URL** and a **Verify token**, with copy buttons. In Meta, open WhatsApp → Configuration → Webhook, paste both, click *Verify and save*, and subscribe to the **messages** field.
+1. Click **Connect with Facebook**, then **Continue to Facebook**.
+2. In Facebook's window: log in, choose or create your WhatsApp Business account, and add and verify your business phone number.
+3. When you finish, the card shows *Connecting…*, then the number Meta verified (e.g. "+65 9123 4567 · Kopi & Co. Café"). The webhook is set up automatically: there's nothing to enter in Meta.
 
-The access token and App Secret are stored encrypted and never shown again. Once connected, the details are shown locked. To change them, click **Edit**: the Phone Number ID becomes editable, and each saved secret (shown as dots) gets a **Replace** button, which opens an empty field for the new value (**Keep current** undoes it). Then **Save changes**; **Cancel** discards everything you typed. **Disconnect** deletes the saved settings; connecting again gives a new verify token. Every save and disconnect asks for confirmation.
+Once connected, **Reconnect with Facebook** replaces the connection and **Disconnect** removes it (both ask for confirmation). The button needs `VITE_META_APP_ID` and `VITE_META_CONFIG_ID`; until they're set it does nothing. Meta only allows the Facebook window on HTTPS domains set on our app, so it can't be completed on localhost.
+
 ## Connecting to configuration-service
 
 The Home tab calls `GET /api/configuration/random-number/` on the Django backend in `../configuration-service`. To see it working:
@@ -180,12 +178,14 @@ The **Orders** tab (login required) has two sub-tabs: **Products** (orders, `/or
 
 ## Authentication
 
-Users log in with their `configuration-service` username and password, e.g. `kopi_owner` / `123` from the sample data. The backend issues **JWTs** through SimpleJWT:
+Users log in with their `configuration-service` username and password (e.g. `kopi_owner` / `123` from the sample data), or with **Google or Facebook**, and new users can **sign up**. Either way, the backend issues **JWTs** through SimpleJWT:
 - **Access token:** valid for 15 minutes, sent as `Authorization: Bearer <token>`.
 - **Refresh token:** valid for 7 days. It's used to get new access tokens.
 
 How it works in the app:
-- **Log In** opens a username/password dialog (`POST /api/auth/token/`). After logging in, the app loads your profile from `GET /api/auth/me/`, including your business ID, and shows your username in the header.
+- **Log In** and **Sign Up** open the same dialog: *Continue with Google / Facebook*, or a username and password (`POST /api/auth/token/`), or the sign-up form (`POST /api/auth/signup/`: name, username, email, password). After logging in, the app loads your profile from `GET /api/auth/me/`, including your business ID, and shows your username in the header.
+- **Google / Facebook** go through Google Cloud Identity Platform (the Firebase JS SDK, `src/lib/firebase.ts`): the popup's ID token is exchanged for our JWTs (`POST /api/auth/firebase/`). The first time creates your account. It needs `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN` and `VITE_FIREBASE_PROJECT_ID` (`.env.example`); until they're set, the buttons do nothing.
+- **A new account sets up its business first:** until it has one, every login-only page (and Home) shows **Set up your business** (name, location, description; `PUT /api/configuration/business/`), then the page appears.
 - **You don't write any auth code per request.** Every Axios client made with `createApiClient` (in `src/lib/api-client.ts`):
   - attaches the access token automatically;
   - on a `401`, refreshes the tokens once and retries the request. Simultaneous requests share a single refresh.
@@ -245,7 +245,8 @@ Vite only exposes variables that start with `VITE_`. Put local values in `.env.l
 | Variable | Description | Default |
 | --- | --- | --- |
 | `VITE_CONFIGURATION_SERVICE_URL` | API root of `configuration-service`, used by `configurationApiClient`. Request paths are relative to it, e.g. `/auth/me/`, `/products/`, `/configuration/random-number/`. | `http://localhost:8000/api` |
-| `VITE_MESSAGING_SERVICE_URL` | API root of `messaging-service`, used by `messagingApiClient`: the chat flow (the Chat Sandbox's messages, `/chat/sandbox-sessions/{id}/messages/`). | `http://localhost:8004/api` |
+
+The Chat Sandbox posts to `configuration-service`, which authenticates the user and forwards the request to the private `messaging-service`.
 
 > [!NOTE]
 > This variable changed from `…/api/configuration` to `…/api` when authentication was added. If you have a `.env.local`, update it.
@@ -272,7 +273,8 @@ frontend-app/
 │   │   ├── navigation.ts       # Route paths, top-nav tabs, sections' sub-tabs
 │   │   └── env.ts              # Typed access to environment variables
 │   ├── features/               # Feature modules, one folder per domain
-│   │   ├── auth/               # Login dialog, RequireAuth guard, useAuth / useCurrentUser hooks, auth API calls
+│   │   ├── auth/               # Login / sign-up dialog (+ Google / Facebook), RequireAuth guard, useAuth / useCurrentUser hooks, auth API calls
+│   │   ├── business/           # Your business: "Set up your business" after sign up, RequireBusiness guard
 │   │   ├── products/           # Product list + add/edit/delete dialogs (Catalog → Products)
 │   │   ├── faqs/               # FAQ list + add/edit/delete dialogs (Catalog → FAQs)
 │   │   ├── services/           # Services, service providers and their schedules (Catalog → Services)

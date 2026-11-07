@@ -19,6 +19,11 @@ resource "google_cloud_run_v2_service" "vertex_ai_demo" {
   deletion_protection = false
   ingress             = "INGRESS_TRAFFIC_ALL"
 
+  scaling {
+    min_instance_count = var.us_min_instances
+    max_instance_count = 3
+  }
+
   template {
     service_account                  = google_service_account.vertex_ai_demo[0].email
     max_instance_request_concurrency = 10
@@ -64,7 +69,7 @@ resource "google_cloud_run_v2_service" "vertex_ai_demo" {
 }
 
 resource "google_cloud_run_v2_service_iam_member" "vertex_ai_demo_public" {
-  count    = var.enable_vertex_ai_demo && var.vertex_ai_demo_allow_unauthenticated ? 1 : 0
+  count    = var.enable_vertex_ai_demo && var.vertex_ai_demo_allow_unauthenticated && var.us_vertex_ai_demo_public ? 1 : 0
   project  = var.project_id
   location = var.region
   name     = google_cloud_run_v2_service.vertex_ai_demo[0].name

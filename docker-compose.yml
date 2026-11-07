@@ -6,9 +6,18 @@
 #   messages, http://localhost:8004).
 # + processing-service (Gunicorn; pull consumer of the payment events: updates the orders / bookings, http://localhost:8003)
 # + notification-job (payment and appointment reminders, logged for now; run every hour by cron).
+# + mock-whatsapp (a stand-in for WhatsApp / Meta, http://localhost:9000: sends Meta's webhooks to
+#   messaging-ingester and fakes the Graph API configuration-service sends the replies to).
 # The database is kept in the postgres-data volume between runs; the sample fixtures are loaded the
 # first time. To wipe it and reload them: RESET_DB=true docker compose up
 # (see configuration-service/docker-entrypoint.sh).
+
+# Pub/Sub delivery (the user asked): pubsub-init creates the consumers' subscriptions with these, and
+# the consumers' leases match the ack deadlines (PUBSUB_ACK_DEADLINE_SECONDS). A message nacked or
+# not acked in time is redelivered after a backoff of 30s growing to 600s; after 5 delivery attempts
+# it goes to its dead-letter topic (…-dlq).
+x-pubsub-messages-ack-deadline: &messages-ack-deadline "120" # WhatsApp messages: a chat turn can take a while
+x-pubsub-payments-ack-deadline: &payments-ack-deadline "60" # Xendit payment events
 
 x-postgres-env: &postgres-env
   POSTGRES_DB: configuration_service
@@ -46,9 +55,18 @@ services:
       CONFIGURATION_ENCRYPTION_KEY: dev-whatsapp-encryption-key # encrypts the stored WhatsApp secrets
       INTERNAL_API_KEY: dev-internal-api-key # messaging-ingester sends it to /api/internal/
       JWT_SIGNING_KEY: &jwt-signing-key dev-jwt-signing-key-local-only-change-me # signs logins; messaging-service checks them
+      MESSAGING_SERVICE_URL: http://messaging-service:8004 # Chat Sandbox proxy target; local Docker needs no Cloud Run ID token
       MESSAGING_INGESTER_PUBLIC_URL: http://localhost:8002 # shown to owners as their webhook Callback URL
-      # Meta's Graph API, used to check the WhatsApp details owners enter (override to point at a fake for testing).
-      META_GRAPH_API_URL: ${META_GRAPH_API_URL:-https://graph.facebook.com/v25.0}
+      # Meta's Graph API, used to connect WhatsApp and send replies: locally mock-whatsapp's fake one.
+      # For the real Meta: META_GRAPH_API_URL=https://graph.facebook.com/v26.0 in the root .env.
+      META_GRAPH_API_URL: ${META_GRAPH_API_URL:-http://mock-whatsapp:9000/v26.0}
+      # WhatsApp Embedded Signup (from .env; empty: connecting returns 503). Meta only runs the popup on
+      # HTTPS domains set on our app, so locally it's for trying the backend with a deployed frontend.
+      META_APP_ID: ${META_APP_ID:-}
+      META_APP_SECRET: ${META_APP_SECRET:-}
+      META_APP_WEBHOOK_VERIFY_TOKEN: ${META_APP_WEBHOOK_VERIFY_TOKEN:-}
+      # Logging in with Google / Facebook (Identity Platform; from .env, empty: off).
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
     extra_hosts:
       - "host.docker.internal:host-gateway" # for Linux; Docker Desktop has it already
     depends_on:
@@ -64,7 +82,13 @@ services:
     environment:
       # Called from the browser, not from inside Docker, so it's localhost rather than configuration-service.
       VITE_CONFIGURATION_SERVICE_URL: http://localhost:8000/api
-      VITE_MESSAGING_SERVICE_URL: http://localhost:8004/api # the Chat Sandbox's messages (the chat flow)
+      # WhatsApp Embedded Signup ("Connect with Facebook" button; from .env, empty: it does nothing).
+      VITE_META_APP_ID: ${META_APP_ID:-}
+      VITE_META_CONFIG_ID: ${META_CONFIG_ID:-}
+      # Logging in with Google / Facebook (from .env; empty: the buttons do nothing).
+      VITE_FIREBASE_API_KEY: ${FIREBASE_API_KEY:-}
+      VITE_FIREBASE_AUTH_DOMAIN: ${FIREBASE_AUTH_DOMAIN:-}
+      VITE_FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
       # File change events don't cross into the container on WSL/Windows: poll (see vite.config.ts).
       CHOKIDAR_USEPOLLING: "true"
     volumes:
@@ -85,23 +109,54 @@ services:
       timeout: 5s
       retries: 30
 
-  # Runs once the emulator is up, creates the queues' topics (as Terraform would on Google Cloud), and
-  # exits. The services wait for it. Consumers create their own subscriptions.
-  #   whatsapp-inbound-messages: messaging-ingester → messaging-service
-  #   payment-events: payment-ingester (for now: payment-ingester/scripts/publish_dummy_payments.py) → processing-service
+  # Runs once the emulator is up, creates the queues (as Terraform would on Google Cloud), and exits.
+  # The services wait for it.
+  #   whatsapp-inbound-messages: messaging-ingester → messaging-service (subscription messaging-service-inbound,
+  #     ordered, ack deadline 120s), dead letters → whatsapp-inbound-messages-dlq
+  #   payment-events: payment-ingester (Xendit; or payment-ingester/scripts/publish_dummy_payments.py) →
+  #     processing-service (subscription processing-service-payments, ack deadline 60s), dead letters → payment-events-dlq
+  # Each dead-letter topic has a subscription (…-dlq-sub) keeping what lands there, to look at, e.g.
+  #   curl -s -X POST localhost:8085/v1/projects/local-project/subscriptions/whatsapp-inbound-messages-dlq-sub:pull -d '{"maxMessages": 10}'
+  # The emulator keeps everything in memory: a subscription that already exists keeps its old settings
+  # until pubsub-emulator is restarted.
   pubsub-init:
     image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators # already pulled for the emulator; has curl
+    environment:
+      MESSAGES_ACK_DEADLINE_SECONDS: *messages-ack-deadline
+      PAYMENTS_ACK_DEADLINE_SECONDS: *payments-ack-deadline
+      MIN_BACKOFF: 30s
+      MAX_BACKOFF: 600s
+      MAX_DELIVERY_ATTEMPTS: "5"
     entrypoint: ["sh", "-ec"]
     command:
       - |
-        for topic in whatsapp-inbound-messages payment-events; do
-          code=$$(curl -s -o /dev/null -w '%{http_code}' -X PUT "http://pubsub-emulator:8085/v1/projects/local-project/topics/$$topic")
+        project=projects/local-project
+        create() { # create <topics|subscriptions> <name> <JSON body>
+          code=$$(curl -s -o /tmp/response -w '%{http_code}' -X PUT -H 'Content-Type: application/json' \
+            -d "$$3" "http://pubsub-emulator:8085/v1/$$project/$$1/$$2")
           case "$$code" in
-            200) echo "Created topic $$topic" ;;
-            409) echo "Topic $$topic already exists" ;;
-            *) echo "Creating topic $$topic failed: HTTP $$code"; exit 1 ;;
+            200) echo "Created $$1/$$2" ;;
+            409) echo "$$1/$$2 already exists" ;;
+            *) echo "Creating $$1/$$2 failed: HTTP $$code $$(cat /tmp/response)"; exit 1 ;;
           esac
+        }
+        # A consumer's subscription: create_subscription <name> <topic> <ack deadline> <ordered: true|false>
+        create_subscription() {
+          create subscriptions "$$1" "{
+            \"topic\": \"$$project/topics/$$2\",
+            \"ackDeadlineSeconds\": $$3,
+            \"enableMessageOrdering\": $$4,
+            \"retryPolicy\": {\"minimumBackoff\": \"$$MIN_BACKOFF\", \"maximumBackoff\": \"$$MAX_BACKOFF\"},
+            \"deadLetterPolicy\": {\"deadLetterTopic\": \"$$project/topics/$$2-dlq\", \"maxDeliveryAttempts\": $$MAX_DELIVERY_ATTEMPTS}
+          }"
+        }
+        for topic in whatsapp-inbound-messages payment-events; do
+          create topics "$$topic" '{}'
+          create topics "$$topic-dlq" '{}'
+          create subscriptions "$$topic-dlq-sub" "{\"topic\": \"$$project/topics/$$topic-dlq\"}"
         done
+        create_subscription messaging-service-inbound whatsapp-inbound-messages "$$MESSAGES_ACK_DEADLINE_SECONDS" true
+        create_subscription processing-service-payments payment-events "$$PAYMENTS_ACK_DEADLINE_SECONDS" false
     depends_on:
       pubsub-emulator:
         condition: service_healthy
@@ -136,6 +191,10 @@ services:
       GCP_PROJECT_ID: local-project # TODO: a real GCP project ID when deploying to Google Cloud Pub/Sub
       PUBSUB_TOPIC: whatsapp-inbound-messages
       PUBSUB_SUBSCRIPTION: messaging-service-inbound
+      PUBSUB_ACK_DEADLINE_SECONDS: *messages-ack-deadline # the subscription's (pubsub-init)
+      # POST /consumer/test/nack and /consumer/test/no-ack: test messages the consumer nacks after 5s
+      # or never acks, to try the retries and the dead-letter topic. TODO: never in production.
+      PUBSUB_TEST_ENDPOINTS_ENABLED: "true"
       # TODO: Don't set this in production, so the real Google Cloud Pub/Sub is used instead of the emulator
       PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
       # The chat flow (moved from configuration-service): its database, logins and the browser's origin.
@@ -148,6 +207,9 @@ services:
       # Replies to WhatsApp messages go out through configuration-service (it holds the access tokens).
       CONFIGURATION_SERVICE_URL: http://configuration-service:8000/api
       INTERNAL_API_KEY: dev-internal-api-key # must equal configuration-service's
+      # The chat flow asks payment-ingester for the Xendit payment link after an order / booking is saved.
+      PAYMENT_INGESTER_URL: http://payment-ingester:8001
+      PAYMENT_CREATE_TIMEOUT_SECONDS: "30"
     extra_hosts:
       - "host.docker.internal:host-gateway" # for Linux; Docker Desktop has it already
     depends_on:
@@ -157,6 +219,37 @@ services:
         condition: service_healthy
       configuration-service: # its migrations create the tables
         condition: service_started
+      payment-ingester:
+        condition: service_started
+
+  # Xendit webhook receiver and payment-link creator. When the payment is completed or fails,
+  # Xendit (sandbox/production) calls POST /webhook. This service verifies the static callback
+  # token (`x-callback-token`) and, if valid, forwards the payment event to Pub/Sub's
+  # payment-events, so that processing-service can mark the order/booking as paid or failed.
+  # It also creates Xendit Payment Sessions for messaging-service's chat flow.
+  payment-ingester:
+    build: ./payment-ingester
+    ports:
+      - "8001:8001"
+    environment:
+      XENDIT_WEBHOOK_SECRET: ${XENDIT_WEBHOOK_SECRET:-dev-xendit-webhook-secret}
+      XENDIT_SECRET_KEY: ${XENDIT_SECRET_KEY:-}
+      XENDIT_API_BASE_URL: ${XENDIT_API_BASE_URL:-https://api.xendit.co}
+      XENDIT_COUNTRY: ${XENDIT_COUNTRY:-SG}
+      XENDIT_CURRENCY: ${XENDIT_CURRENCY:-SGD}
+      XENDIT_ALLOWED_PAYMENT_CHANNELS: ${XENDIT_ALLOWED_PAYMENT_CHANNELS-CARDS}
+      XENDIT_SESSION_EXPIRY_SECONDS: ${XENDIT_SESSION_EXPIRY_SECONDS:-1800}
+      # Xendit requires HTTPS return URLs; leave these empty for local development.
+      XENDIT_SUCCESS_URL: ${XENDIT_SUCCESS_URL:-}
+      XENDIT_FAILURE_URL: ${XENDIT_FAILURE_URL:-}
+      INTERNAL_API_KEY: dev-internal-api-key # must equal configuration-service's
+      GCP_PROJECT_ID: local-project # TODO: Change to a real GCP project ID when deploying to Google Cloud
+      PUBSUB_TOPIC: payment-events
+      # TODO: Don't set this in production so the ingester use the real Google Cloud Pub/Sub service instead of the emulator
+      PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+    depends_on:
+      pubsub-init:
+        condition: service_completed_successfully
 
   processing-service:
     build: ./processing-service
@@ -169,6 +262,7 @@ services:
       GCP_PROJECT_ID: local-project # TODO: a real GCP project ID when deploying to Google Cloud Pub/Sub
       PUBSUB_TOPIC: payment-events
       PUBSUB_SUBSCRIPTION: processing-service-payments
+      PUBSUB_ACK_DEADLINE_SECONDS: *payments-ack-deadline # the subscription's (pubsub-init)
       # TODO: Don't set this in production, so the real Google Cloud Pub/Sub is used instead of the emulator
       PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
       # configuration-service's database: the payment flow updates the orders / bookings (app/payments.py).
@@ -179,6 +273,14 @@ services:
       # Tells the customer on WhatsApp through configuration-service's endpoint (app/whatsapp_sender.py).
       CONFIGURATION_SERVICE_URL: http://configuration-service:8000/api
       INTERNAL_API_KEY: dev-internal-api-key # must equal configuration-service's
+      # Email: off unless EMAIL_ENABLED=true in the root .env
+      EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Ansera}
+      SMTP_HOST: ${SMTP_HOST:-smtp-relay.brevo.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       # Invoices are made but not uploaded while GCS_BUCKET is unset.
     depends_on:
       pubsub-init:
@@ -204,5 +306,21 @@ services:
       configuration-service: # its migrations create the tables
         condition: service_started
 
+  # A stand-in for WhatsApp / Meta (see mock_whatsapp/README.md): chat as a customer on
+  # http://localhost:9000. Its conversations are kept in the mock-whatsapp-data volume (the page's
+  # "Delete all messages" clears them; RESET_DB doesn't).
+  mock-whatsapp:
+    build: ./mock_whatsapp
+    ports:
+      - "9000:9000"
+    environment:
+      INGESTER_URL: http://messaging-ingester:8002 # where the webhooks go
+      MOCK_WHATSAPP_DB: /data/mock_whatsapp.sqlite3
+    volumes:
+      - mock-whatsapp-data:/data
+    depends_on:
+      - messaging-ingester
+
 volumes:
   postgres-data:
+  mock-whatsapp-data:

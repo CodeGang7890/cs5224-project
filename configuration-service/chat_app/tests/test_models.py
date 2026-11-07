@@ -9,7 +9,14 @@ from django.utils import timezone
 from configuration_app.models import BusinessConfiguration
 
 from ..constants import CHAT_STEPS, DEFAULT_DETAIL_FIELDS, MESSAGE_SENDERS
-from ..models import ChatConfiguration, ChatSession, InboundMessage, InboundMessageStatus
+from ..models import (
+    ChatConfiguration,
+    ChatSession,
+    InboundMessage,
+    InboundMessageStatus,
+    OutboundMessage,
+    OutboundMessageStatus,
+)
 from ..validators import (
     CHAT_MESSAGE_MAX_LENGTH,
     is_required_detail,
@@ -216,8 +223,6 @@ class SampleChatConfigurationFixtureTests(TestCase):
                 self.assertNotEqual(field['type'], 'phone')
                 self.assertNotIn('phone', field['key'])
 
-    def test_fitlab_has_none_and_uses_the_defaults(self):
-        self.assertEqual(ChatConfiguration.for_business(BusinessConfiguration.objects.get(pk=3)).product_detail_fields, DEFAULT_DETAIL_FIELDS)
 
 
 # --- ChatSession ----------------------------------------------------------------------------
@@ -409,6 +414,27 @@ class ChatSessionModelTests(TestCase):
         self.business.delete()
         self.assertFalse(ChatSession.objects.exists())
 
+    def test_version_starts_at_zero_and_goes_up_on_every_save(self):
+        session = self.make_session()
+        session.save()
+        self.assertEqual(session.version, 0)
+        session.display_name = 'Alicia'
+        session.save()
+        self.assertEqual(session.version, 1)
+        session.save(update_fields=['display_name'])  # version is added to the fields saved
+        self.assertEqual(session.version, 2)
+        self.assertEqual(ChatSession.objects.get(pk=session.pk).version, 2)
+
+    def test_version_goes_up_from_the_database_value(self):
+        # A stale copy still adds 1 to what's saved (F()), so a change made meanwhile is never hidden.
+        session = self.make_session()
+        session.save()
+        stale = ChatSession.objects.get(pk=session.pk)
+        session.save()
+        stale.save()
+        self.assertEqual(stale.version, 2)
+        self.assertEqual(ChatSession.objects.get(pk=session.pk).version, 2)
+
 
 VALID_STATE_DATA = {
     'items': [{'product_id': 1, 'name': 'Kopi C', 'unit_price': '1.80', 'quantity': 2}],
@@ -432,6 +458,7 @@ class ValidateChatStateDataTests(SimpleTestCase):
         validate_chat_state_data({})  # nothing collected yet
         validate_chat_state_data({'details': {'name': 'Alice'}})  # partial details
         validate_chat_state_data({'details': {'postal_code': 123456, 'notes': 'No sugar', 'weight_kg': 1.5}})
+        validate_chat_state_data({'last_order_id': 3, 'history_start': 0})  # after a cancel (messaging-service)
 
     def test_invalid(self):
         item = VALID_STATE_DATA['items'][0]
@@ -454,6 +481,8 @@ class ValidateChatStateDataTests(SimpleTestCase):
             'last_order_id zero': ({'last_order_id': 0}, 'last_order_id must be a positive integer'),
             'last_order_id text': ({'last_order_id': '3'}, 'last_order_id must be a positive integer'),
             'items_confirmed not bool': ({'items_confirmed': 1}, 'items_confirmed must be true or false'),
+            'history_start negative': ({'history_start': -1}, 'history_start must be a non-negative integer'),
+            'history_start bool': ({'history_start': True}, 'history_start must be a non-negative integer'),
         }
         for label, (value, message_part) in cases.items():
             with self.subTest(label):
@@ -471,10 +500,9 @@ class SampleChatSessionFixtureTests(TestCase):
 
     def test_fixture_is_valid(self):
         sessions = ChatSession.objects.all()
-        self.assertEqual(sessions.count(), 20)
+        self.assertEqual(sessions.count(), 31)  # 1–32 but 6 (21–32: Rally Point Courts)
         self.assertEqual(sessions.filter(is_sandbox=True).count(), 2)
         self.assertEqual(sessions.get(pk=1).chat_state_id, 'confirmation')
-        self.assertEqual(sessions.get(pk=6).chat_state_id, 'start')  # FitLab has no saved configuration
         # 20: Lumen & Lens, a booking made in the chat (checkout_app sample_schedule_items pk 1).
         self.assertEqual((sessions.get(pk=20).chat_state_id, sessions.get(pk=20).chat_state_data), ('start', {'last_booking_id': 1}))
         for session in sessions:
@@ -587,3 +615,41 @@ class InboundMessageModelTests(TestCase):
                     business=self.business, chat_session=self.session, message_id=f'wamid.{status}',
                     status=status, replied_time=replied_time,
                 )
+
+
+class OutboundMessageModelTests(TestCase):
+    """A WhatsApp reply in messaging-service's outbox."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.business = BusinessConfiguration.objects.create(business_name='Café', location='Singapore')
+        cls.session = ChatSession.objects.create(business=cls.business, phone_number='+6591234567')
+
+    def test_defaults(self):
+        item = OutboundMessage.objects.create(business=self.business, chat_session=self.session, text='Hello!')
+        self.assertEqual(
+            (item.status, item.attempts, item.last_error, item.meta_message_id, item.sent_time, item.inbound_message),
+            (OutboundMessageStatus.PENDING, 0, '', '', None, None),
+        )
+        self.assertIsNotNone(item.next_attempt_time)
+
+    def test_sent_time_set_exactly_when_sent_and_status_and_text_checked(self):
+        for changes in (
+            {'status': 'sent', 'sent_time': None},
+            {'status': 'pending', 'sent_time': timezone.now()},
+            {'status': 'delivered'},
+            {'text': ''},
+        ):
+            with self.subTest(changes=changes), self.assertRaises(IntegrityError), transaction.atomic():
+                OutboundMessage.objects.create(
+                    business=self.business, chat_session=self.session, **{'text': 'Hello!', **changes}
+                )
+
+    def test_deleting_the_inbound_message_keeps_the_reply(self):
+        inbound = InboundMessage.objects.create(business=self.business, chat_session=self.session, message_id='wamid.1')
+        item = OutboundMessage.objects.create(
+            business=self.business, chat_session=self.session, inbound_message=inbound, text='Hello!'
+        )
+        inbound.delete()
+        item.refresh_from_db()
+        self.assertIsNone(item.inbound_message)

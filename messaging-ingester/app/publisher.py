@@ -3,8 +3,10 @@
 Each Pub/Sub message:
 - data: the JSON from InboundMessage.to_dict() (UTF-8)
 - attributes: business_id, phone_number_id, message_id (strings), for filtering without parsing
-- ordering_key: the customer's number, so one customer's messages arrive in order (the
-  subscription needs message ordering enabled)
+- ordering_key: `<business_id>:<customer's number>` (ordering_key()), so one customer's messages
+  to one business arrive in order, one at a time: with message ordering enabled on the
+  subscription, Pub/Sub only hands a subscriber the next message of a key once the previous one
+  is acked (messaging-service acks at the end of the turn)
 
 If publishing fails, the webhook answers 503 and Meta redelivers the whole webhook, so messages
 that did get published may arrive twice: consumers must drop duplicates by message_id.
@@ -23,6 +25,12 @@ from . import config
 from .parsing import InboundMessage
 
 logger = logging.getLogger(__name__)
+
+
+def ordering_key(message: InboundMessage) -> str:
+    """The Pub/Sub ordering key: the business and the customer (the same number may write to several
+    businesses: their chats are separate, so they needn't wait for each other)."""
+    return f'{message.business_id}:{message.from_number}'
 
 
 class PublishError(Exception):
@@ -63,7 +71,7 @@ class PubSubPublisher:
                 self.client.publish(
                     topic_path,
                     data=json.dumps(message.to_dict(), ensure_ascii=False).encode(),
-                    ordering_key=message.from_number,
+                    ordering_key=ordering_key(message),
                     business_id=str(message.business_id),
                     phone_number_id=message.phone_number_id,
                     message_id=message.message_id,
@@ -80,8 +88,8 @@ class PubSubPublisher:
                 failed.append(message)
         if failed:
             # After a failure, Pub/Sub pauses that ordering key until it's resumed.
-            for ordering_key in {message.from_number for message in failed}:
-                self.client.resume_publish(topic_path, ordering_key)
+            for key in {ordering_key(message) for message in failed}:
+                self.client.resume_publish(topic_path, key)
             raise PublishError(f'{len(failed)} of {len(messages)} message(s) could not be published.')
         logger.info('Published %d message(s) to %s', len(messages), topic_path)
 

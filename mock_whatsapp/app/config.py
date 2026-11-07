@@ -16,7 +16,7 @@ INGESTER_URL = os.getenv('INGESTER_URL', 'http://localhost:8002').rstrip('/')
 INGESTER_TIMEOUT_SECONDS = 15
 
 # The Graph API version in the fake API's paths (configuration-service's META_GRAPH_API_URL ends with it).
-GRAPH_API_VERSION = 'v25.0'
+GRAPH_API_VERSION = 'v26.0'
 
 DB_PATH = Path(os.getenv('MOCK_WHATSAPP_DB', BASE_DIR / 'mock_whatsapp.sqlite3'))
 

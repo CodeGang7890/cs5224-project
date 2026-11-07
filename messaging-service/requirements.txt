@@ -4,6 +4,8 @@ gunicorn>=26,<27
 uvicorn-worker>=0.4,<0.5
 uvicorn>=0.54,<1
 ollama>=0.6,<0.7
+# Gemini on Vertex AI, when LLM_PROVIDER=vertex_ai (app/llm_vertex.py).
+google-genai>=1.75,<2
 # Pull subscriber for the customer messages messaging-ingester publishes (app/consumer.py).
 google-cloud-pubsub>=2.42,<3
 # Pulled in by google-auth. Pinned like configuration-service's: cryptography 50's aarch64 wheel

@@ -11,6 +11,11 @@ PORT = 8004
 # share the subscription's messages.
 WORKERS = int(os.getenv('WEB_CONCURRENCY', '2'))
 
+LLM_PROVIDERS = ('ollama', 'vertex_ai')
+LLM_PROVIDER = os.getenv('LLM_PROVIDER', 'ollama').strip().lower()
+if LLM_PROVIDER not in LLM_PROVIDERS:
+    raise ValueError(f'LLM_PROVIDER must be one of {", ".join(LLM_PROVIDERS)}, not {LLM_PROVIDER!r}.')
+
 # --- Ollama (local LLM server) ------------------------------------------------------------
 OLLAMA_PORT = 11434
 # In Docker, Ollama runs on the host: OLLAMA_HOST=http://host.docker.internal:11434.
@@ -18,6 +23,13 @@ OLLAMA_HOST = os.getenv('OLLAMA_HOST', f'http://localhost:{OLLAMA_PORT}')
 OLLAMA_MODEL = 'qwen2.5:7b-instruct-q4_K_M'
 # Local models can be slow, especially on the first request while the model loads.
 OLLAMA_TIMEOUT_SECONDS = 120
+
+# Vertex AI
+GOOGLE_CLOUD_PROJECT = os.getenv('GOOGLE_CLOUD_PROJECT', '')
+GOOGLE_CLOUD_LOCATION = os.getenv('GOOGLE_CLOUD_LOCATION', 'global')
+VERTEX_AI_MODEL = 'gemini-3.5-flash-lite'
+VERTEX_AI_TIMEOUT_SECONDS = 120
+LLM_MODEL = os.getenv('LLM_MODEL') or (VERTEX_AI_MODEL if LLM_PROVIDER == 'vertex_ai' else OLLAMA_MODEL)
 
 SYSTEM_PROMPT = (
     'You are a helpful assistant for Ansera Business Admin. '
@@ -38,6 +50,15 @@ PUBSUB_TOPIC = os.getenv('PUBSUB_TOPIC', 'whatsapp-inbound-messages')
 PUBSUB_SUBSCRIPTION = os.getenv('PUBSUB_SUBSCRIPTION', 'messaging-service-inbound')
 # At most this many messages are handled at once, per worker (Pub/Sub flow control).
 PUBSUB_MAX_MESSAGES = int(os.getenv('PUBSUB_MAX_MESSAGES', '5'))
+# The ack deadline, in seconds: the subscription's (docker-compose's pubsub-init creates it with
+# this) and the client's leases, extended by this much while a message is handled. A message not
+# acked in time (e.g. the worker died) is redelivered once it runs out.
+PUBSUB_ACK_DEADLINE_SECONDS = int(os.getenv('PUBSUB_ACK_DEADLINE_SECONDS', '120'))
+PUBSUB_PUBLISH_TIMEOUT_SECONDS = 10
+# POST /consumer/test/nack and /consumer/test/no-ack (the user asked, to try the retry and
+# dead-letter settings locally): off unless set; docker-compose turns them on.
+PUBSUB_TEST_ENDPOINTS_ENABLED = os.getenv('PUBSUB_TEST_ENDPOINTS_ENABLED', '').lower() in ('1', 'true', 'yes')
+PUBSUB_TEST_NACK_DELAY_SECONDS = 5  # the nack test waits this long before nacking
 
 # --- The chat flow's LLM calls (app/chat_flow, the same as configuration-service's chat_app/llm.py) --
 # Sampling hyperparameters sent as Ollama `options` on every chat flow request. The seed is fixed
@@ -59,8 +80,17 @@ OLLAMA_OPTIONS = {
 }
 # The extraction step (generate_structured) wants the most likely answer, not a creative one.
 STRUCTURED_OPTIONS = {**OLLAMA_OPTIONS, 'temperature': 0.0}
+
+VERTEX_AI_OPTIONS = {
+    'max_output_tokens': 1024,
+}
+VERTEX_AI_STRUCTURED_OPTIONS = VERTEX_AI_OPTIONS
+VERTEX_AI_THINKING_LEVEL = 'MINIMAL'
 # How many rounds of tool calls the reply step may make before it must answer.
 MAX_TOOL_ROUNDS = 3
+# How many times a turn runs when the chat keeps changing while it's worked out (ChatSession.version:
+# another message, the business answering in the chat): then it gives up (409 / the message is nacked).
+TURN_ATTEMPTS_MAX = 3
 
 # --- PostgreSQL (configuration-service's database) -----------------------------------------
 # The chat flow reads the business's products, services, FAQs and chats, and writes chat messages,
@@ -91,6 +121,22 @@ JWT_ALGORITHM = 'HS256'
 CONFIGURATION_SERVICE_URL = os.getenv('CONFIGURATION_SERVICE_URL', 'http://localhost:8000/api').rstrip('/')
 INTERNAL_API_KEY = os.getenv('INTERNAL_API_KEY', 'dev-internal-api-key')  # must equal configuration-service's
 WHATSAPP_SEND_TIMEOUT_SECONDS = 20
+# The outbox (app/outbox.py): replies are saved with the chat, then sent. A failed send is retried
+# after these delays (one per attempt, the last repeated) and given up after OUTBOX_ATTEMPTS_MAX
+# attempts (the message is then `failed`). The consumer's sweeper sends what's due every
+# OUTBOX_SWEEP_SECONDS (env; 0 turns it off), e.g. a retry, or a reply left by a worker that died.
+OUTBOX_ATTEMPTS_MAX = 5
+OUTBOX_RETRY_DELAYS_SECONDS = (10, 30, 120, 600)
+OUTBOX_SWEEP_SECONDS = float(os.getenv('OUTBOX_SWEEP_SECONDS', '30'))
+OUTBOX_BATCH_MAX = 100  # at most this many messages per sending round
+
+# --- Payment links (payment-ingester's create endpoint) ---------------------------------------
+# When the chat flow saves an order / booking, it asks payment-ingester (POST /payments,
+# X-Internal-Api-Key) for the Xendit payment link the customer pays with; the link goes to the
+# customer in the confirmation message, and Xendit's webhook (payment-ingester → Pub/Sub →
+# processing-service) updates the order / booking's status.
+PAYMENT_INGESTER_URL = os.getenv('PAYMENT_INGESTER_URL', 'http://localhost:8001')
+PAYMENT_CREATE_TIMEOUT_SECONDS = int(os.getenv('PAYMENT_CREATE_TIMEOUT_SECONDS', '30'))
 
 # --- CORS (the frontend calls the Chat Sandbox endpoint from the browser) ------------------
 CORS_ALLOWED_ORIGINS = [

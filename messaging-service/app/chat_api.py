@@ -18,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 from starlette.concurrency import run_in_threadpool
 
-from . import llm
+from . import latency, llm
 from .auth import authenticate
 from .chat_flow import flow
 from .chat_flow.validators import CHAT_MESSAGE_MAX_LENGTH
@@ -66,8 +66,23 @@ def _message_body(description: str) -> dict:
     }}}}}
 
 
-def _run_turn(sessions: sessionmaker, session_id: int, message: str) -> flow.TurnResult:
-    """One turn of the chat flow; LLM failures → 502 / 503 / 504 (the customer message is kept)."""
+def _run_turn(sessions: sessionmaker, session_id: int, message: str, channel: str) -> flow.TurnResult:
+    """One turn of the chat flow; LLM failures → 502 / 503 / 504, a chat that kept changing during
+    the turn → 409 (the customer message is kept either way).
+    Logs `[LATENCY][E2E]` and `[LATENCY][SUMMARY]` for the request (`channel`: sandbox / api)."""
+    with latency.bind(channel=channel, chat=session_id):
+        timer = latency.Timer()
+        status = 'error'
+        try:
+            result = _turn(sessions, session_id, message)
+            status = 'ok'
+            return result
+        finally:
+            latency.log(['E2E'], timer.elapsed, status=status)
+            latency.summary(timer.elapsed, status=status)
+
+
+def _turn(sessions: sessionmaker, session_id: int, message: str) -> flow.TurnResult:
     try:
         return flow.handle_customer_message(sessions, session_id, message)
     except llm.LLMUnavailableError as exc:
@@ -76,6 +91,8 @@ def _run_turn(sessions: sessionmaker, session_id: int, message: str) -> flow.Tur
         raise error(504, str(exc)) from exc
     except llm.LLMError as exc:
         raise error(502, str(exc)) from exc
+    except flow.ChatConflictError as exc:
+        raise error(409, str(exc)) from exc
 
 
 def _own_sandbox_session(request: Request, sessions: sessionmaker, pk: str) -> ChatSession:
@@ -108,6 +125,7 @@ def _own_sandbox_session(request: Request, sessions: sessionmaker, pk: str) -> C
         401: {'description': 'Not logged in (configuration-service access token).'},
         403: {'description': "Another business's session, or your account has no business."},
         404: {'description': 'No chat session with this ID.'},
+        409: {'description': 'The chat kept changing while the reply was being written (the message is saved).'},
         502: {'description': 'Ollama returned an error (e.g. the model is not pulled).'},
         503: {'description': 'Ollama is not reachable.'},
         504: {'description': 'Ollama took too long to answer.'},
@@ -122,7 +140,7 @@ async def sandbox_message(pk: str, request: Request, sessions: sessionmaker = De
     session = await run_in_threadpool(_own_sandbox_session, request, sessions, pk)
     data = await json_object(request)
     body = validated({'message': char_field(data, 'message', CHAT_MESSAGE_MAX_LENGTH)})
-    result = await run_in_threadpool(_run_turn, sessions, session.id, body['message'])
+    result = await run_in_threadpool(_run_turn, sessions, session.id, body['message'], 'sandbox')
     return {**result.reply, 'messages': result.messages, 'debug': result.debug}
 
 
@@ -141,6 +159,7 @@ async def sandbox_message(pk: str, request: Request, sessions: sessionmaker = De
     responses={
         400: {'description': 'Invalid business ID, phone number or message.'},
         404: {'description': 'No chat session for this phone number at this business.'},
+        409: {'description': 'The chat kept changing while the reply was being written (the message is saved).'},
         502: {'description': 'Ollama returned an error (e.g. the model is not pulled).'},
         503: {'description': 'Ollama is not reachable.'},
         504: {'description': 'Ollama took too long to answer.'},
@@ -173,5 +192,5 @@ async def customer_message(request: Request, sessions: sessionmaker = Depends(ge
     session = await run_in_threadpool(find_session)
     if session is None:
         raise error(404, NO_CHAT_SESSION_MESSAGE)
-    result = await run_in_threadpool(_run_turn, sessions, session.id, body['message'])
+    result = await run_in_threadpool(_run_turn, sessions, session.id, body['message'], 'api')
     return {**result.reply, 'messages': result.messages}

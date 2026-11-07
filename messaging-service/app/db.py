@@ -12,13 +12,17 @@ from . import config
 def database_url() -> str | URL:
     if config.DATABASE_URL:
         return config.DATABASE_URL
+    # Cloud Run mounts Cloud SQL at /cloudsql/<instance>; psycopg expects this
+    # directory as a libpq host parameter, rather than as the URL hostname.
+    unix_socket = config.POSTGRES_HOST.startswith('/')
     return URL.create(
         'postgresql+psycopg',
         username=config.POSTGRES_USER,
         password=config.POSTGRES_PASSWORD,
-        host=config.POSTGRES_HOST,
-        port=config.POSTGRES_PORT,
+        host=None if unix_socket else config.POSTGRES_HOST,
+        port=None if unix_socket else config.POSTGRES_PORT,
         database=config.POSTGRES_DB,
+        query={'host': config.POSTGRES_HOST} if unix_socket else {},
     )
 
 

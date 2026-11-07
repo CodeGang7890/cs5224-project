@@ -38,7 +38,7 @@ class Base(DeclarativeBase):
 
 
 class BusinessConfiguration(Base):
-    """configuration_app.BusinessConfiguration: a business. Only its name and location are read for the invoice."""
+    """configuration_app.BusinessConfiguration: a business. Only its name and location are read, for the invoice and receipt."""
 
     __tablename__ = 'configuration_app_businessconfiguration'
 
@@ -48,7 +48,7 @@ class BusinessConfiguration(Base):
 
 
 class ChatSession(Base):
-    """chat_app.ChatSession: a customer's chat. Only who the customer is is read for the invoice."""
+    """chat_app.ChatSession: a customer's chat. Only who the customer is is read, for the invoice and receipt."""
 
     __tablename__ = 'chat_app_chatsession'
 
@@ -58,7 +58,7 @@ class ChatSession(Base):
 
 
 class ServiceProvider(Base):
-    """product_app.ServiceProvider: who a service is booked with. Only its name is read for the invoice."""
+    """product_app.ServiceProvider: who a service is booked with. Only its name is read, for the invoice and receipt."""
 
     __tablename__ = 'product_app_serviceprovider'
 
@@ -79,6 +79,7 @@ class OrderItem(Base):
     order_data: Mapped[dict] = mapped_column(JSON)  # {items: [{name, unit_price, quantity, ...}], details: {...}}
     order_status: Mapped[str] = mapped_column(String(32))
     payment_reference: Mapped[str] = mapped_column(String(32), index=True)
+    created_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # when it was placed: the invoice's date
     updated_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
@@ -98,6 +99,7 @@ class ScheduleItem(Base):
     schedule_data: Mapped[dict] = mapped_column(JSON)
     order_status: Mapped[str] = mapped_column(String(32))
     payment_reference: Mapped[str] = mapped_column(String(32), index=True)
+    created_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # when it was placed: the invoice's date
     updated_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 

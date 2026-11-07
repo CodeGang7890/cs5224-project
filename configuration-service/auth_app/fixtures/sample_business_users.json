@@ -13,6 +13,7 @@
       "is_staff": false,
       "is_active": true,
       "date_joined": "2026-09-01T00:00:00Z",
+      "subscription_tier": "business",
       "business": 1,
       "groups": [],
       "user_permissions": []
@@ -32,6 +33,7 @@
       "is_staff": false,
       "is_active": true,
       "date_joined": "2026-09-01T00:00:00Z",
+      "subscription_tier": "business",
       "business": 2,
       "groups": [],
       "user_permissions": []
@@ -51,26 +53,8 @@
       "is_staff": false,
       "is_active": true,
       "date_joined": "2026-09-01T00:00:00Z",
+      "subscription_tier": "business",
       "business": 2,
-      "groups": [],
-      "user_permissions": []
-    }
-  },
-  {
-    "model": "auth_app.businessuser",
-    "pk": 104,
-    "fields": {
-      "password": "pbkdf2_sha256$1500000$7Ubw2LiqTzYI4r7XQivx38$bTZzMjuGuLAyHssK8wT0EoDkPgxfbnEfSSZItUP9yrs=",
-      "last_login": null,
-      "is_superuser": false,
-      "username": "fitlab_owner",
-      "first_name": "Daniel",
-      "last_name": "Wong",
-      "email": "daniel@fitlab.example",
-      "is_staff": false,
-      "is_active": true,
-      "date_joined": "2026-09-01T00:00:00Z",
-      "business": 3,
       "groups": [],
       "user_permissions": []
     }
@@ -89,6 +73,7 @@
       "is_staff": false,
       "is_active": true,
       "date_joined": "2026-09-01T00:00:00Z",
+      "subscription_tier": "business",
       "business": 4,
       "groups": [],
       "user_permissions": []
@@ -108,6 +93,7 @@
       "is_staff": false,
       "is_active": true,
       "date_joined": "2026-09-01T00:00:00Z",
+      "subscription_tier": "business",
       "business": 5,
       "groups": [],
       "user_permissions": []

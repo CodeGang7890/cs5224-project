@@ -56,7 +56,7 @@ class PubSubPublisherTests(unittest.TestCase):
         self.assertEqual(
             kwargs,
             {
-                'ordering_key': '+6598765432',
+                'ordering_key': '7:+6598765432',
                 'business_id': '7',
                 'phone_number_id': '106540352242922',
                 'message_id': 'wamid.2',
@@ -78,7 +78,7 @@ class PubSubPublisherTests(unittest.TestCase):
         batch = [message('wamid.1'), message('wamid.2', sender='+6598765432'), message('wamid.3', sender='+6598765432')]
         with self.assertLogs('app.publisher', 'ERROR'), self.assertRaisesRegex(PublishError, '2 of 3'):
             self.publisher.publish(batch)
-        self.client.resume_publish.assert_called_once_with(TOPIC_PATH, '+6598765432')
+        self.client.resume_publish.assert_called_once_with(TOPIC_PATH, '7:+6598765432')
 
     def test_timeout_counts_as_a_failure(self):
         self.client.publish.side_effect = lambda *args, **kwargs: Future()  # never completes
@@ -151,7 +151,7 @@ class EmulatorIntegrationTests(unittest.TestCase):
         response = self.subscriber.pull(request={'subscription': self.subscription_path, 'max_messages': 10}, timeout=10)
         received = [r.message for r in response.received_messages]
         self.assertEqual([json.loads(m.data) for m in received], [m.to_dict() for m in sent])
-        self.assertEqual(received[0].ordering_key, '+6591234567')
+        self.assertEqual(received[0].ordering_key, '7:+6591234567')
         self.assertEqual(
             dict(received[1].attributes),
             {'business_id': '7', 'phone_number_id': '106540352242922', 'message_id': 'wamid.2'},

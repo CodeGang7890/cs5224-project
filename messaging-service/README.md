@@ -81,6 +81,10 @@ These also come from environment variables (docker-compose sets them):
 
 | Variable | Default | What it is |
 | --- | --- | --- |
+| `LLM_PROVIDER` | `ollama` | `ollama` (a local Ollama server) or `vertex_ai` (Gemini on Vertex AI). Anything else stops the service at startup. |
+| `LLM_MODEL` | `OLLAMA_MODEL` / `VERTEX_AI_MODEL` | Overrides the chosen provider's model |
+| `GOOGLE_CLOUD_PROJECT` | empty | Vertex AI's project (required with `vertex_ai`; empty → `503`). It authenticates with Application Default Credentials: on Cloud Run the service account, which needs `roles/aiplatform.user`; locally `gcloud auth application-default login`. No API key. |
+| `GOOGLE_CLOUD_LOCATION` | `global` | Gemini 3.5 Flash-Lite endpoint location |
 | `OLLAMA_HOST` | `http://localhost:11434` | Ollama base URL (docker-compose: `http://host.docker.internal:11434`, Ollama on the host; see the root README, "Local LLM") |
 | `WEB_CONCURRENCY` | `2` | Gunicorn worker processes (`gunicorn.conf.py`) |
 | `PUBSUB_CONSUMER_ENABLED` | off | `true` to run the Pub/Sub consumer (off by default, so `python run.py` and the tests need no Pub/Sub) |
@@ -88,6 +92,8 @@ These also come from environment variables (docker-compose sets them):
 | `PUBSUB_TOPIC` | `whatsapp-inbound-messages` | The topic messaging-ingester publishes to |
 | `PUBSUB_SUBSCRIPTION` | `messaging-service-inbound` | This service's (pull) subscription to it |
 | `PUBSUB_MAX_MESSAGES` | `5` | At most this many messages handled at once, per worker (flow control) |
+| `PUBSUB_ACK_DEADLINE_SECONDS` | `120` | The ack deadline: the consumer's leases (extended by this much while a message is handled; the subscription's, set by docker-compose's `pubsub-init`, is the same) |
+| `PUBSUB_TEST_ENDPOINTS_ENABLED` | off | `POST /consumer/test/nack` and `/consumer/test/no-ack` (docker-compose turns them on; never in production) |
 | `PUBSUB_EMULATOR_HOST` | unset | `host:port` of the local Pub/Sub emulator (the library then uses it instead of Google Cloud) |
 | `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | `configuration_service` / `postgres` / `postgres` | configuration-service's database (the chat flow) |
 | `POSTGRES_HOST` / `POSTGRES_PORT` | `localhost` / `5433` | docker-compose's PostgreSQL from the host (in Docker: `postgres` / `5432`) |
@@ -208,8 +214,8 @@ customer message → router ─┬─ order        → Product selection → Det
                            └─ off topic    → politely declined
 ```
 
-1. **Route** (`chat_app/router.py`). The LLM reads the conversation and returns the latest message's intents as JSON (Ollama structured output, `temperature` 0): `{"intents": [...]}`, any of `order`, `booking`, `question`, `order_status` (past orders or bookings) and `off_topic` (none for a greeting or thanks; several for e.g. "2 roses please, and do you deliver?"). Unknown values are dropped. The prompt tells it where the customer's order is, so a short reply like "Alice" or "yes" reads as part of the order.
-2. **Order steps** (`chat_app/order_flow.py`): a small state machine over Product selection → Details collection → Confirmation, saved in `chat_state_id`. With no order in progress (`start`), they only start when the router finds the intent `order` (and Product selection then runs on the same message). **Once an order is in progress, they run on every message, whatever the router says.** For each step:
+1. **Route** (`chat_app/router.py`). The LLM reads the conversation and returns the latest message's intents as JSON (Ollama structured output, `temperature` 0): `{"intents": [...]}`, any of `order`, `booking`, `question`, `order_status` (past orders or bookings), `off_topic` and `cancel` (stop the order or booking in progress) (none for a greeting or thanks; several for e.g. "2 roses please, and do you deliver?"). Unknown values are dropped. `cancel` drops the order or booking in progress (back to the start). Asking to book during an order, or to order during a booking, switches over if nothing has been chosen yet; otherwise the customer is asked to finish it or cancel it first. The prompt tells it where the customer's order is, so a short reply like "Alice" or "yes" reads as part of the order.
+2. **Order steps** (`chat_app/order_flow.py`): a small state machine over Product selection → Details collection → Confirmation, saved in `chat_state_id`. With no order in progress (`start`), they only start when the router finds the intent `order` (and Product selection then runs on the same message). **Once an order is in progress, they run on every message, whatever the router says**, unless the customer cancels it or asks to book instead (see Route). For each step:
    - **Extract.** The LLM returns JSON in the step's format (prompts and formats in `chat_app/prompts.py`):
 
      | Step | Goal | The LLM returns |
@@ -244,12 +250,23 @@ A **pull** subscriber (`app/consumer.py`) for the customer messages `messaging-i
 - It runs only when `PUBSUB_CONSUMER_ENABLED` is set, from the app's startup to its shutdown. With Gunicorn, each worker runs one, and they share the subscription's messages.
 - Its subscription is its own, `messaging-service-inbound`, so it gets every message (separate from the ingester's debug subscription). With the local emulator (`PUBSUB_EMULATOR_HOST`), it creates the topic and the subscription (with message ordering) at startup; on Google Cloud they'll come from Terraform. Pub/Sub only delivers messages published after a subscription exists.
 - **Each message is answered by the chat flow** (`app/inbound.py`), the same as the Chat Sandbox:
-  1. Only text messages, for a business that exists (others are acked and skipped).
+  1. Only for a business that exists. A message that isn't text (a photo, document, voice message, …) doesn't go through the chat flow: it's saved in the chat as a placeholder (e.g. `[Photo]`) and answered with a short fixed reply asking for text (`UNSUPPORTED_REPLY`), through the outbox like any reply. Every type that isn't text gets it, emoji reactions and system notices too.
   2. The customer's chat: the business's real chat session with that number, or a new one (named after their WhatsApp profile).
   3. In one transaction: an `InboundMessage` row for Meta's message id (configuration-service's `chat_app.InboundMessage`), saved with the customer message in the chat. **A duplicate** (Pub/Sub delivers at least once, Meta retries) is skipped; a message redelivered after a failure runs again without being saved twice.
-  4. The chat flow runs (router, order / booking steps, FAQ, order status, reply) and saves the reply; the row becomes `replied`.
-  5. **The reply is sent on WhatsApp** through configuration-service's internal send endpoint (`app/whatsapp_sender.py`; configuration-service holds the access token and calls Meta's Graph API, or locally `mock_whatsapp`'s fake one). A failed send is logged; the reply stays saved in the chat (retries: a TODO, via an outbound queue).
+  4. The chat flow runs (router, order / booking steps, FAQ, order status, reply). One transaction saves the reply in the chat, marks the row `replied` and puts the turn's messages in the **outbox** (configuration-service's `chat_app.OutboundMessage`, `pending`), so a reply can't be lost. A duplicate answered by another worker meanwhile is rolled back (nothing sent).
+  5. **The outbox sends the reply on WhatsApp** (`app/outbox.py`) through configuration-service's internal send endpoint (`app/whatsapp_sender.py`; configuration-service holds the access token and calls Meta's Graph API, or locally `mock_whatsapp`'s fake one), in order per chat. A failed send stays `pending` and is retried after 10 s, 30 s, 2 min, then every 10 min, by the consumer's **sweeper** (every `OUTBOX_SWEEP_SECONDS`, 30 s), and is marked `failed` after 5 attempts (logged as an error). Sending is at least once: a worker dying right after Meta accepted a message sends it again.
+- **Retries and dead letters** (docker-compose's `pubsub-init` sets up the subscription): ack deadline 120 s, redelivery backoff 30 s growing to 600 s, and after 5 delivery attempts the message goes to the dead-letter topic `whatsapp-inbound-messages-dlq` (kept by the subscription `whatsapp-inbound-messages-dlq-sub`).
 - If handling raises (e.g. the LLM is down), the message is **nacked**, so Pub/Sub redelivers it. A message that isn't JSON, or lacks `business_id`, `message_id`, `from` or `type`, is logged and **acked** (redelivering it would never help). The ingester orders by customer, so one customer's messages are answered one at a time.
+
+Trying the retries and the dead-letter topic (with `docker compose up`): each endpoint publishes a test message (attribute `test_behavior`) that the consumer handles badly on purpose, every time it's delivered, logging the delivery attempt:
+
+```bash
+curl -X POST localhost:8004/consumer/test/nack     # nacked after 5 s: redelivered after the backoff (30 s, growing)
+curl -X POST localhost:8004/consumer/test/no-ack   # never acked, as if the worker crashed: redelivered after the 120 s ack deadline
+docker compose logs -f messaging-service | grep 'Test message'   # "... (delivery attempt 1) ...", 2, ... 5
+# After the 5th attempt it's in the dead-letter topic:
+curl -s -X POST localhost:8085/v1/projects/local-project/subscriptions/whatsapp-inbound-messages-dlq-sub:pull -d '{"maxMessages": 10}'
+```
 
 Trying it end to end, from the repo root:
 

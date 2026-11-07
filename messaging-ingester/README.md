@@ -19,7 +19,7 @@ It holds **no secrets and no database**. Each business's WhatsApp settings (Phon
 | `POST` | `/webhook/{business_id}` | Incoming WhatsApp events                                                      |
 | `GET`  | `/docs`                  | Swagger UI                                                                    |
 
-Each business has its own Callback URL, `<public URL>/webhook/<business_id>`. The frontend shows it, together with the verify token, under Home → WhatsApp (`configuration-service`'s `GET /api/configuration/whatsapp/`).
+Each business has its own Callback URL, `<public URL>/webhook/<business_id>`. When a business connects with Facebook (Embedded Signup), configuration-service points its WhatsApp account's webhooks at that URL, with the business's verify token.
 
 ### `GET /webhook/{business_id}`: verification handshake
 
@@ -48,6 +48,10 @@ Meta calls it once with `hub.mode=subscribe`, `hub.verify_token` and `hub.challe
 | `503`  | configuration-service or Pub/Sub is unavailable    |
 
 Meta retries any non-200 answer, so a `503` loses nothing.
+
+### `GET /webhook` and `POST /webhook`: our Meta app's webhook
+
+With WhatsApp Embedded Signup, businesses connect through our Meta app, which needs its own Callback URL (App Dashboard → WhatsApp → Configuration): `<this service>/webhook`, with configuration-service's `META_APP_WEBHOOK_VERIFY_TOKEN`. The handshake and signature are checked like the business URLs, through `POST /api/internal/whatsapp/app/verify-token/` and `…/app/verify-signature/` (404 while not configured). It only receives account-level events. **`account_update`** events are handed to configuration-service (`POST /api/internal/whatsapp/app/account-updates/`, one `{waba_id, event, ban_state, partner_app_id}` per change; the account is `value.waba_info.waba_id`, else the entry `id`), which marks the business's connection **disconnected** (our app uninstalled, the account unshared, deleted or offboarded) or **banned** (`DISABLED_UPDATE` with `DISABLE`); reconnecting with Facebook sets it back. If configuration-service can't take them, the answer is 503, so Meta retries. Other events are only logged. The answer is `{"published": 0, "account_updates": <n>, "changed": <n>}`. Each business's messages still go to `/webhook/{business_id}`, because configuration-service overrides the business's WhatsApp account to that URL.
 
 ## Pub/Sub message contract (for messaging-service)
 
@@ -80,7 +84,7 @@ Topic: **`whatsapp-inbound-messages`**. One Pub/Sub message per customer message
 | `timestamp`       | When the customer sent it, ISO 8601 UTC                                                      |
 
 **Attributes:** `business_id`, `phone_number_id`, `message_id` (strings).
-**Ordering key:** the customer's number (`from`), so one customer's messages arrive in order when the subscription has message ordering enabled.
+**Ordering key:** `<business_id>:<from>` (e.g. `7:+6591234567`), so one customer's messages to one business arrive in order, and one at a time, when the subscription has message ordering enabled (the next message of a key is only delivered once the previous one is acked; messaging-service acks at the end of the turn).
 
 **What the consumer must handle:**
 
@@ -119,15 +123,15 @@ messaging-service consumes the same topic through its own `messaging-service-inb
 
 ### Trying it without Meta
 
-Connect WhatsApp for a business first (frontend Home → WhatsApp, or `PUT /api/configuration/whatsapp/`), then act as Meta. With App Secret `my-app-secret` and Phone Number ID `123456789`:
+Use a business from the sample data: they're all connected (`configuration-service`'s `sample_whatsapp_configurations` fixture). Business `<n>` has Phone Number ID `10000000000000<n>`, App Secret `dev-app-secret-<n>` and verify token `dev-verify-token-<n>`. Then act as Meta. For business 1:
 
 ```bash
 # Handshake: prints the challenge if the verify token is right
-curl "http://localhost:8002/webhook/1?hub.mode=subscribe&hub.verify_token=<verify token>&hub.challenge=12345"
+curl "http://localhost:8002/webhook/1?hub.mode=subscribe&hub.verify_token=dev-verify-token-1&hub.challenge=12345"
 
 # A signed message
-BODY='{"object":"whatsapp_business_account","entry":[{"id":"1","changes":[{"field":"messages","value":{"metadata":{"phone_number_id":"123456789"},"contacts":[{"wa_id":"6591234567","profile":{"name":"Alice"}}],"messages":[{"from":"6591234567","id":"wamid.TEST1","timestamp":"1760000000","type":"text","text":{"body":"Hi!"}}]}}]}]}'
-SIG="sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac my-app-secret | awk '{print $2}')"
+BODY='{"object":"whatsapp_business_account","entry":[{"id":"1","changes":[{"field":"messages","value":{"metadata":{"phone_number_id":"100000000000001"},"contacts":[{"wa_id":"6591234567","profile":{"name":"Alice"}}],"messages":[{"from":"6591234567","id":"wamid.TEST1","timestamp":"1760000000","type":"text","text":{"body":"Hi!"}}]}}]}]}'
+SIG="sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac dev-app-secret-1 | awk '{print $2}')"
 printf '%s' "$BODY" | curl -X POST -H 'Content-Type: application/json' -H "X-Hub-Signature-256: $SIG" --data-binary @- http://localhost:8002/webhook/1
 ```
 

@@ -412,6 +412,27 @@ class RouterFlowTests(FlowApiMixin, ApiTestCase):
             created_time=datetime(2026, 9, 5, 14, 30, tzinfo=ZoneInfo('Asia/Singapore')),
         )
 
+    def test_order_status_latency_lines(self):
+        # Each stage of the order status route can be searched for on its own ([LATENCY][LLM][ORDER_STATUS]…).
+        order = self.make_order(status=PAYMENT_RECEIVED)
+        reply = f'Your order #{order.pk} (2 × Kopi C, $3.60) has been paid.'
+        with self.assertLogs('app.latency', level='INFO') as logs:
+            self.send('Has my order been paid?', reply=reply, intents=['order_status'], order_status={'kind': 'order', 'numbers': []})
+        tags = [line.split('app.latency:', 1)[1].split(' ', 1)[0] for line in logs.output]
+        self.assertEqual(tags, [
+            '[LATENCY][DB][LOAD]', '[LATENCY][LLM][ROUTER]',
+            '[LATENCY][LLM][ORDER_STATUS][EXTRACTION]', '[LATENCY][DB][ORDER_STATUS][LOOKUP]',
+            '[LATENCY][LLM][ORDER_STATUS][REPLY]', '[LATENCY][DB][SAVE_TURN]', '[LATENCY][TURN]', '[LATENCY][E2E]',
+            '[LATENCY][SUMMARY]',
+        ])
+        self.assertTrue(all(f'channel=sandbox chat={self.session.pk}' in line for line in logs.output))
+        self.assertIn('intents=order_status', logs.output[1])
+        self.assertIn('kind=order', logs.output[3])
+        self.assertIn('found=1', logs.output[3])
+        self.assertIn('grounded=True', logs.output[4])
+        self.assertIn('reply_kind=order_status', logs.output[6])
+        self.assertRegex(logs.output[-1], r'router=\d+\.\d\d .*order_status\.extraction=\d+\.\d\d order_status\.lookup=\d+\.\d\d order_status\.reply=')
+
     def test_order_status_extracts_then_looks_up_then_rewrites_only_the_records(self):
         order = self.make_order(status=PAYMENT_RECEIVED)
         reply = f'Your order #{order.pk} (2 × Kopi C, $3.60) has been paid.'
@@ -695,13 +716,18 @@ class OrderPlacementFlowTests(FlowApiMixin, ApiTestCase):
             },
         )
         self.assertEqual(self.stock(self.kopi), (7, 3))
+        # The Xendit payment (link) was created for the order and stored on it.
+        self.assertEqual(order.xendit_payment_id, f'pay_test_{order.pk}')
+        self.assertEqual(order.payment_link, f'https://pay.xendit.co/test/{order.pk}')
 
-        # The chat goes back to the start; the reply is the fixed confirmation, with the order number.
+        # The chat goes back to the start; the reply is the fixed confirmation, with the order
+        # number and the payment link.
         self.assertEqual((self.session.chat_state_id, self.session.chat_state_data), ('start', {'last_order_id': order.pk}))
         self.assertEqual(
             response.json()['message'],
             f'Thank you! Your order #{order.pk} with Kopi Café is confirmed.\n'
-            '- 3 × Kopi C, $1.80 each\nTotal: $5.40\n\nYour details:\n- Name: Alice\n- Email: alice@example.com',
+            '- 3 × Kopi C, $1.80 each\nTotal: $5.40\n\nYour details:\n- Name: Alice\n- Email: alice@example.com'
+            f'\n\nTo pay, use this link: https://pay.xendit.co/test/{order.pk}',
         )
         self.assertEqual(response.json()['debug']['order_id'], order.pk)
         self.assertEqual(self.calls(structured=False), [])  # no LLM reply
@@ -1155,6 +1181,7 @@ class ProductDetailsToolFlowTests(ApiTestCase):
         self.assertIn('call get_product_details', prompt)
         self.assertIn("say honestly that you don't know", prompt)
         self.assertIn("Never say the business does or doesn't offer something", prompt)
+        self.assertIn('Something that only shares a word with one of them is a different thing (for example table tennis is not tennis).', prompt)
         self.assertNotIn('Robusta beans', prompt)
         # The tool returned the description and the whole information.
         tool_message = reply_calls[1].kwargs['messages'][-1]

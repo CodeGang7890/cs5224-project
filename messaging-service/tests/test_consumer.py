@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta, timezone
 import os
 import unittest
 from types import SimpleNamespace
@@ -25,16 +26,21 @@ PAYLOAD = {
 class FakeMessage:
     """The parts of a pulled pubsub_v1 Message the consumer uses."""
 
-    def __init__(self, data: bytes, message_id: str = 'pubsub-1'):
+    def __init__(self, data: bytes, message_id: str = 'pubsub-1', attributes=None, delivery_attempt=None):
         self.data = data
         self.message_id = message_id
-        self.acked = self.nacked = False
+        self.attributes = attributes or {}
+        self.delivery_attempt = delivery_attempt
+        self.acked = self.nacked = self.dropped = False
 
     def ack(self):
         self.acked = True
 
     def nack(self):
         self.nacked = True
+
+    def drop(self):
+        self.dropped = True
 
 
 def message(payload=PAYLOAD) -> FakeMessage:
@@ -69,6 +75,15 @@ class HandleTests(unittest.TestCase):
         handle_inbound.assert_called_once_with(sessions, PAYLOAD)
         self.assertIn("Customer message wamid.1 for business 1 from +6591234567 (text): 'Hi! Do you have pandan chiffon cake?'", logs.output[0])
         self.assertEqual((self.stats.handled, self.stats.skipped, self.stats.failed), (1, 0, 0))
+
+    def test_the_time_waiting_in_pubsub_is_logged(self, handle_inbound):
+        handle_inbound.return_value = SimpleNamespace(outcome='replied')
+        pulled = message()
+        pulled.publish_time = datetime.now(timezone.utc) - timedelta(seconds=2)
+        with self.assertLogs('app.latency', level='INFO') as logs:
+            handle(pulled, self.stats, MagicMock())
+        self.assertRegex(logs.output[0], r'\[LATENCY\]\[PUBSUB\] 2\.\d{3}s channel=whatsapp business=1 msg=wamid\.1$')
+        self.assertRegex(logs.output[1], r'\[LATENCY\]\[E2E\] \d+\.\d{3}s channel=whatsapp business=1 msg=wamid\.1 outcome=replied$')
 
     def test_a_skipped_message_is_acked_too(self, handle_inbound):
         handle_inbound.return_value = SimpleNamespace(outcome='skipped', reason='already replied (a duplicate)')
@@ -138,7 +153,11 @@ class ConsumerTests(unittest.TestCase):
         pull.start()
         path, = subscriber.subscribe.call_args.args
         self.assertEqual(path, f'projects/{config.GCP_PROJECT_ID}/subscriptions/{config.PUBSUB_SUBSCRIPTION}')
-        self.assertEqual(subscriber.subscribe.call_args.kwargs['flow_control'].max_messages, config.PUBSUB_MAX_MESSAGES)
+        flow_control = subscriber.subscribe.call_args.kwargs['flow_control']
+        self.assertEqual(flow_control.max_messages, config.PUBSUB_MAX_MESSAGES)
+        # Leases of the ack deadline (the library's default would be 60s whatever the subscription says).
+        self.assertEqual(flow_control.min_duration_per_lease_extension, config.PUBSUB_ACK_DEADLINE_SECONDS)
+        self.assertEqual(flow_control.max_duration_per_lease_extension, config.PUBSUB_ACK_DEADLINE_SECONDS)
         self.assertTrue(pull.running)
         # The callback handles each pulled message.
         callback = subscriber.subscribe.call_args.kwargs['callback']
@@ -188,3 +207,83 @@ class AppConsumerTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestMessageTests(unittest.TestCase):
+    """Test messages (POST /consumer/test/...): the consumer nacks them after a while, or leaves them
+    without an ack, never treating them as customer messages."""
+
+    def setUp(self):
+        self.stats = ConsumerStats()
+
+    def marked(self, behavior):
+        return FakeMessage(b'{"test": "%s"}' % behavior.encode(), attributes={'test_behavior': behavior}, delivery_attempt=2)
+
+    @patch('app.consumer.time.sleep')
+    @patch('app.inbound.handle_inbound')
+    def test_nack_waits_then_nacks(self, handle_inbound, sleep):
+        pulled = self.marked('nack')
+        with self.assertLogs('app.consumer', level='WARNING') as logs:
+            handle(pulled, self.stats)
+        sleep.assert_called_once_with(config.PUBSUB_TEST_NACK_DELAY_SECONDS)
+        self.assertEqual((pulled.acked, pulled.nacked, pulled.dropped), (False, True, False))
+        self.assertIn('delivery attempt 2', logs.output[0])
+        handle_inbound.assert_not_called()
+        self.assertEqual((self.stats.handled, self.stats.skipped, self.stats.failed), (0, 0, 0))
+
+    @patch('app.consumer.time.sleep')
+    def test_no_ack_leaves_it_without_acking(self, sleep):
+        pulled = self.marked('no_ack')
+        with self.assertLogs('app.consumer', level='WARNING') as logs:
+            handle(pulled, self.stats)
+        # Dropped from lease management: no ack, no nack, redelivered after the ack deadline.
+        self.assertEqual((pulled.acked, pulled.nacked, pulled.dropped), (False, False, True))
+        sleep.assert_not_called()
+        self.assertIn(f'{config.PUBSUB_ACK_DEADLINE_SECONDS}s ack deadline', logs.output[0])
+
+    def test_an_unknown_behavior_is_an_ordinary_malformed_message(self):
+        pulled = self.marked('explode')
+        with self.assertLogs('app.consumer', level='WARNING'):
+            handle(pulled, self.stats)
+        self.assertTrue(pulled.acked)
+        self.assertEqual(self.stats.skipped, 1)
+
+
+class TestEndpointsTests(unittest.TestCase):
+    """POST /consumer/test/nack and /consumer/test/no-ack: only with PUBSUB_TEST_ENDPOINTS_ENABLED."""
+
+    def client(self, enabled=True, publisher=None):
+        from app.consumer_routes import get_test_publisher
+
+        with patch.object(config, 'PUBSUB_TEST_ENDPOINTS_ENABLED', enabled):
+            app = create_app(consumer=None)
+        self.publisher = publisher or MagicMock()
+        self.publisher.topic_path.side_effect = lambda project, topic: f'projects/{project}/topics/{topic}'
+        self.publisher.publish.return_value.result.return_value = '42'
+        app.dependency_overrides[get_test_publisher] = lambda: self.publisher
+        return TestClient(app)
+
+    def test_off_by_default(self):
+        client = self.client(enabled=False)
+        self.assertEqual(client.post('/consumer/test/nack').status_code, 404)
+        self.assertEqual(client.post('/consumer/test/no-ack').status_code, 404)
+
+    def test_publishes_a_test_message_to_the_consumers_topic(self):
+        client = self.client()
+        for path, behavior in (('nack', 'nack'), ('no-ack', 'no_ack')):
+            with self.subTest(path=path):
+                response = client.post(f'/consumer/test/{path}')
+                self.assertEqual(response.status_code, 202, response.json())
+                topic = f'projects/{config.GCP_PROJECT_ID}/topics/{config.PUBSUB_TOPIC}'
+                self.assertEqual(response.json(), {'behavior': behavior, 'pubsub_message_id': '42', 'topic': topic})
+                args, kwargs = self.publisher.publish.call_args
+                self.assertEqual(args[0], topic)
+                self.assertEqual(json.loads(args[1])['test'], behavior)
+                self.assertEqual(kwargs, {'test_behavior': behavior})
+
+    def test_publishing_failure_is_503(self):
+        client = self.client()
+        self.publisher.publish.return_value.result.side_effect = google_exceptions.ServiceUnavailable('emulator down')
+        response = client.post('/consumer/test/nack')
+        self.assertEqual(response.status_code, 503)
+        self.assertIn('Could not publish the test message', response.json()['message'])

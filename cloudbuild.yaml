@@ -1,0 +1,142 @@
+# Cloud Build Configuration for CI/CD
+
+# This file defines how to build and deploy your services to Cloud Run
+# Place this in your repository root as cloudbuild.yaml
+
+steps:
+  # Step 1: Build configuration-service Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/configuration-service:$COMMIT_SHA', '-f', 'infrastructure/cloud-run/Dockerfile.configuration-service', '.']
+  
+  # Step 2: Build payment-ingester Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/payment-ingester:$COMMIT_SHA', '-f', 'infrastructure/cloud-run/Dockerfile.payment-ingester', '.']
+  
+  # Step 3: Build messaging-ingester Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/messaging-ingester:$COMMIT_SHA', '-f', 'infrastructure/cloud-run/Dockerfile.messaging-ingester', '.']
+  
+  # Step 4: Build processing-service Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/processing-service:$COMMIT_SHA', '-f', 'infrastructure/cloud-run/Dockerfile.processing-service', '.']
+  
+  # Step 5: Build messaging-service Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/messaging-service:$COMMIT_SHA', '-f', 'infrastructure/cloud-run/Dockerfile.messaging-service', '.']
+  
+  # Step 6: Build notification-job Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/notification-job:$COMMIT_SHA', '-f', 'infrastructure/cloud-run/Dockerfile.notification-job', '.']
+  
+  # Step 7: Deploy configuration-service to Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'configuration-service'
+      - '--image=gcr.io/$PROJECT_ID/configuration-service:$COMMIT_SHA'
+      - '--region=asia-southeast1'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--port=8080'
+      - '--set-env-vars=DJANGO_DEBUG=False'
+      - '--set-env-vars=DJANGO_SECRET_KEY=generate-a-secure-key'
+      - '--set-env-vars=POSTGRES_PASSWORD=$$POSTGRES_PASSWORD'
+      - '--set-env-vars=JWT_SIGNING_KEY=$$JWT_SIGNING_KEY'
+      - '--set-env-vars=CONFIGURATION_ENCRYPTION_KEY=$$CONFIGURATION_ENCRYPTION_KEY'
+      - '--set-env-vars=INTERNAL_API_KEY=$$INTERNAL_API_KEY'
+      - '--service-account=$$SERVICE_ACCOUNT'
+    env:
+      - 'POSTGRES_PASSWORD=secret:POSTGRES_PASSWORD:latest'
+      - 'JWT_SIGNING_KEY=secret:JWT_SIGNING_KEY:latest'
+      - 'CONFIGURATION_ENCRYPTION_KEY=secret:CONFIGURATION_ENCRYPTION_KEY:latest'
+      - 'INTERNAL_API_KEY=secret:INTERNAL_API_KEY:latest'
+
+  # Step 8: Deploy payment-ingester to Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'payment-ingester'
+      - '--image=gcr.io/$PROJECT_ID/payment-ingester:$COMMIT_SHA'
+      - '--region=asia-southeast1'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--port=8080'
+      - '--set-env-vars=XENDIT_WEBHOOK_SECRET=$$XENDIT_WEBHOOK_SECRET'
+      - '--service-account=$$SERVICE_ACCOUNT'
+    env:
+      - 'XENDIT_WEBHOOK_SECRET=secret:XENDIT_WEBHOOK_SECRET:latest'
+
+  # Step 9: Deploy messaging-ingester to Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'messaging-ingester'
+      - '--image=gcr.io/$PROJECT_ID/messaging-ingester:$COMMIT_SHA'
+      - '--region=asia-southeast1'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--port=8080'
+      - '--set-env-vars=INTERNAL_API_KEY=$$INTERNAL_API_KEY'
+      - '--service-account=$$SERVICE_ACCOUNT'
+    env:
+      - 'INTERNAL_API_KEY=secret:INTERNAL_API_KEY:latest'
+
+  # Step 10: Deploy processing-service to Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'processing-service'
+      - '--image=gcr.io/$PROJECT_ID/processing-service:$COMMIT_SHA'
+      - '--region=asia-southeast1'
+      - '--platform=managed'
+      - '--port=8080'
+      - '--set-env-vars=PUBSUB_CONSUMER_ENABLED=true'
+      - '--set-env-vars=POSTGRES_PASSWORD=$$POSTGRES_PASSWORD'
+      - '--service-account=$$SERVICE_ACCOUNT'
+    env:
+      - 'POSTGRES_PASSWORD=secret:POSTGRES_PASSWORD:latest'
+
+  # Step 11: Deploy messaging-service to Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'messaging-service'
+      - '--image=gcr.io/$PROJECT_ID/messaging-service:$COMMIT_SHA'
+      - '--region=asia-southeast1'
+      - '--platform=managed'
+      - '--port=8080'
+      - '--set-env-vars=PUBSUB_CONSUMER_ENABLED=true'
+      - '--set-env-vars=JWT_SIGNING_KEY=$$JWT_SIGNING_KEY'
+      - '--set-env-vars=INTERNAL_API_KEY=$$INTERNAL_API_KEY'
+      - '--service-account=$$SERVICE_ACCOUNT'
+    env:
+      - 'JWT_SIGNING_KEY=secret:JWT_SIGNING_KEY:latest'
+      - 'INTERNAL_API_KEY=secret:INTERNAL_API_KEY:latest'
+
+  # Step 12: Deploy notification-job to Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'notification-job'
+      - '--image=gcr.io/$PROJECT_ID/notification-job:$COMMIT_SHA'
+      - '--region=asia-southeast1'
+      - '--platform=managed'
+      - '--service-account=$$SERVICE_ACCOUNT'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+# Substitutions for secrets
+substitutions:
+  _POSTGRES_PASSWORD: "your-postgres-password"
+  _JWT_SIGNING_KEY: "your-jwt-signing-key"
+  _CONFIGURATION_ENCRYPTION_KEY: "your-encryption-key"
+  _INTERNAL_API_KEY: "your-internal-api-key"
+  _XENDIT_WEBHOOK_SECRET: "your-xendit-webhook-secret"
+  _SERVICE_ACCOUNT: "cs5224-service-account@$PROJECT_ID.iam.gserviceaccount.com"

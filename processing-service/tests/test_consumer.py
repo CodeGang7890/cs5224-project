@@ -1,5 +1,8 @@
 import json
 import os
+from pathlib import Path
+import subprocess
+import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -7,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from app import config, create_app
 from app.consumer import Consumer, InvalidMessageError, handle, parse
-from app.payments import PaymentNotFoundError
+from app.payments import PaymentNotFoundError, PaymentStatusConflictError
 
 REFERENCE = '3f9c1a2b4d5e6f708192a3b4c5d6e7f8'
 
@@ -27,31 +30,170 @@ class FakeMessage:
         self.nacked = True
 
 
-def event(payment_reference=REFERENCE, status='success') -> FakeMessage:
-    return FakeMessage(json.dumps({'payment_reference': payment_reference, 'status': status}).encode())
+PAYMENT_URL = 'https://checkout.xendit.example/pay/abc123'
+
+
+def event(payment_reference=REFERENCE, status='success', amount=None, payment_url=None) -> FakeMessage:
+    payload = {
+        'payment_reference': payment_reference,
+        'status': status,
+        'amount': amount,
+    }
+    if payment_url is not None:
+        payload['payment_url'] = payment_url
+    return FakeMessage(json.dumps(payload).encode())
 
 
 class ParseTests(unittest.TestCase):
+    def test_nested_xendit_payloads_are_still_accepted(self):
+        for status, expected in (
+            ('COMPLETED', 'success'), ('SUCCEEDED', 'success'),
+            ('EXPIRED', 'fail'), ('FAILED', 'fail'), ('CANCELED', 'fail'),
+        ):
+            with self.subTest(status=status):
+                data = json.dumps({'data': {'reference_id': REFERENCE, 'status': status, 'amount': 5.5}}).encode()
+                self.assertEqual(parse(data), {'payment_reference': REFERENCE, 'status': expected, 'amount': 5.5})
+
     def test_a_payment_event(self):
         for status in ('success', 'fail'):
-            self.assertEqual(parse(event(status=status).data), {'payment_reference': REFERENCE, 'status': status})
+            self.assertEqual(
+                parse(event(status=status).data), {'payment_reference': REFERENCE, 'status': status, 'amount': None},
+            )
         self.assertEqual(parse(event(REFERENCE.upper()).data)['payment_reference'], REFERENCE)
+        self.assertEqual(
+            parse(event(status='success', amount=12.5).data),
+            {'payment_reference': REFERENCE, 'status': 'success', 'amount': 12.5},
+        )
+        self.assertEqual(
+            parse(event(status='success', amount=0).data),
+            {'payment_reference': REFERENCE, 'status': 'success', 'amount': 0.0},
+        )
+
+    def test_a_created_event_has_the_payment_link(self):
+        self.assertEqual(
+            parse(event(status='created', amount=3.6, payment_url=PAYMENT_URL).data),
+            {'payment_reference': REFERENCE, 'status': 'created', 'amount': 3.6, 'payment_url': PAYMENT_URL},
+        )
+        self.assertNotIn('payment_url', parse(event(status='created').data))  # the link is optional
+
+    def test_the_payment_link_must_be_a_link(self):
+        for url in ('not a link', 42, ['https://x'], 'javascript:alert(1)', 'https://' + 'a' * 2000):
+            with self.subTest(url=url), self.assertRaises(InvalidMessageError):
+                parse(event(status='created', payment_url=url).data)
 
     def test_anything_else_is_invalid(self):
-        bad = (b'not json', b'[1]', b'{"status": "success"}', event(status='paid').data, event('pay_1').data, event(42).data)
+        bad = (
+            b'not json',
+            b'[1]',
+            b'{"status": "success"}',
+            b'{"data": {}}',
+            b'{"data": null}',
+            b'{"data": [1]}',
+            b'{"data": "invalid"}',
+            event('pay_1').data,
+            event(42).data,
+            event(status='PENDING').data,
+            event(status=None).data,
+            event(status=[]).data,
+            event(amount=-1).data,
+            event(amount=True).data,
+            event(amount='12.50').data,
+            event(amount=float('nan')).data,
+            event(amount=float('inf')).data,
+        )
         for data in bad:
             with self.subTest(data=data), self.assertRaises(InvalidMessageError):
                 parse(data)
 
+    def test_unknown_xendit_status_is_rejected_instead_of_becoming_a_failed_payment(self):
+        for status in (None, 'PENDING', 'ACTIVE', 'unknown', []):
+            with self.subTest(status=status), self.assertRaises(InvalidMessageError):
+                parse(json.dumps({'data': {'reference_id': REFERENCE, 'status': status}}).encode())
+
+    def test_nested_xendit_amount_is_validated(self):
+        for amount in (-1, True, '5.50', float('nan'), float('inf')):
+            with self.subTest(amount=amount), self.assertRaises(InvalidMessageError):
+                parse(json.dumps({'data': {
+                    'reference_id': REFERENCE, 'status': 'COMPLETED', 'amount': amount,
+                }}).encode())
+
 
 @patch('app.consumer.apply_payment')
 class HandleTests(unittest.TestCase):
+    def test_a_created_event_sends_the_invoice_not_a_payment(self, apply_payment):
+        pulled = event(status='created', amount=3.6, payment_url=PAYMENT_URL)
+        with patch('app.consumer.send_invoice') as send_invoice, self.assertLogs('app.consumer', level='INFO'):
+            handle(pulled, session_factory=MagicMock())
+        self.assertEqual(send_invoice.call_args.args[1:], (REFERENCE, PAYMENT_URL))
+        apply_payment.assert_not_called()  # nothing about the payment changes
+        self.assertTrue(pulled.acked)
+
+    def test_a_payment_result_does_not_send_an_invoice(self, apply_payment):
+        with patch('app.consumer.send_invoice') as send_invoice, self.assertLogs('app.consumer', level='INFO'):
+            handle(event(status='success', amount=3.6), session_factory=MagicMock())
+        send_invoice.assert_not_called()
+        apply_payment.assert_called_once()
+
+    def test_an_invoice_for_an_order_that_is_already_paid_is_logged_and_acked(self, apply_payment):
+        pulled = event(status='created', payment_url=PAYMENT_URL)
+        with patch('app.consumer.send_invoice', side_effect=PaymentStatusConflictError('already paid')), \
+                self.assertLogs('app.consumer', level='ERROR'):
+            handle(pulled, session_factory=MagicMock())
+        self.assertTrue(pulled.acked)
+
+    def test_an_invoice_that_could_not_be_sent_yet_is_nacked_so_it_is_redelivered(self, apply_payment):
+        pulled = event(status='created', payment_url=PAYMENT_URL)
+        with patch('app.consumer.send_invoice', side_effect=RuntimeError('relay down')), \
+                self.assertLogs('app.consumer', level='ERROR'):
+            handle(pulled, session_factory=MagicMock())
+        self.assertTrue(pulled.nacked)
+        self.assertFalse(pulled.acked)
+
+    def test_completed_xendit_webhook_through_the_actual_ingester_publisher(self, apply_payment):
+        # A separate interpreter avoids colliding with both services' "app" packages.
+        # Pub/Sub is mocked; parsing and serialization use the real producer code.
+        webhook = {
+            'event': 'payment_session.completed',
+            'created': '2026-10-27T12:28:30.091Z',
+            'api_version': 'v1',
+            'data': {
+                'reference_id': '127017c92ec1d69189ab08917543192f',
+                'status': 'COMPLETED',
+                'amount': 5.5,
+                'currency': 'SGD',
+                'payment_id': 'py-9eba653d-83cd-8504-bad4-8a536099a1b4',
+                'payment_session_id': 'ps-6ae0988c6e3e5e546730ab94',
+            },
+        }
+        script = '''
+import json
+import sys
+from unittest.mock import MagicMock
+from app.xendit_webhook import parse_webhook
+from app.publisher import PubSubPublisher
+client = MagicMock()
+PubSubPublisher(project_id='test-project', topic='payment-queue', client=client).publish(
+    [parse_webhook(json.load(sys.stdin))]
+)
+sys.stdout.buffer.write(client.publish.call_args.kwargs['data'])
+'''
+        published = subprocess.run(
+            [sys.executable, '-c', script],
+            cwd=Path(__file__).resolve().parents[2] / 'payment-ingester',
+            input=json.dumps(webhook).encode(), capture_output=True, check=True, timeout=30,
+        )
+        pulled = FakeMessage(published.stdout)
+        handle(pulled, session_factory=MagicMock())
+        self.assertEqual(apply_payment.call_args.args[1:], (webhook['data']['reference_id'], 'success', 5.5))
+        self.assertTrue(pulled.acked)
+        self.assertFalse(pulled.nacked)
+
     def test_runs_the_payment_flow_then_acks(self, apply_payment):
-        pulled = event(status='fail')
+        pulled = event(status='fail', amount=12.5)
         with self.assertLogs('app.consumer', level='INFO') as logs:
             handle(pulled, session_factory=MagicMock())
         self.assertIn(f'Payment {REFERENCE}: fail', logs.output[0])
-        self.assertEqual(apply_payment.call_args.args[1:], (REFERENCE, 'fail'))
+        self.assertEqual(apply_payment.call_args.args[1:], (REFERENCE, 'fail', 12.5))
         self.assertTrue(pulled.acked)
 
     def test_an_unknown_payment_reference_is_logged_and_acked(self, apply_payment):
@@ -85,7 +227,11 @@ class ConsumerTests(unittest.TestCase):
         path, = subscriber.subscribe.call_args.args
         self.assertEqual(path, f'projects/{config.GCP_PROJECT_ID}/subscriptions/processing-service-payments')
         self.assertIs(subscriber.subscribe.call_args.kwargs['callback'], handle)
-        self.assertEqual(subscriber.subscribe.call_args.kwargs['flow_control'].max_messages, config.PUBSUB_MAX_MESSAGES)
+        flow_control = subscriber.subscribe.call_args.kwargs['flow_control']
+        self.assertEqual(flow_control.max_messages, config.PUBSUB_MAX_MESSAGES)
+        # Leases of the ack deadline (the library's default would be 60s whatever the subscription says).
+        self.assertEqual(flow_control.min_duration_per_lease_extension, config.PUBSUB_ACK_DEADLINE_SECONDS)
+        self.assertEqual(flow_control.max_duration_per_lease_extension, config.PUBSUB_ACK_DEADLINE_SECONDS)
         pull.stop()
         subscriber.subscribe.return_value.cancel.assert_called_once()
         subscriber.close.assert_called_once()

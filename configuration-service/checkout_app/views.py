@@ -6,7 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from auth_app.business_scope import NO_BUSINESS_MESSAGE, OTHER_BUSINESS_MESSAGE
+from auth_app.business_scope import OTHER_BUSINESS_MESSAGE, get_user_business_id
 from config.pagination import DetailedPageNumberPagination
 
 from .filters import OrderItemFilter, ScheduleItemFilter
@@ -16,13 +16,6 @@ from .services import StatusChangeError, complete_booking, complete_order
 
 NO_ORDER_MESSAGE = 'No order with this ID.'
 NO_SCHEDULE_MESSAGE = 'No booking with this ID.'
-
-
-def get_user_business_id(request) -> int:
-    """The logged-in user's business ID; 403 if the account isn't linked to one."""
-    if request.user.business_id is None:
-        raise PermissionDenied(NO_BUSINESS_MESSAGE)
-    return request.user.business_id
 
 
 class OrderItemListView(generics.ListAPIView):

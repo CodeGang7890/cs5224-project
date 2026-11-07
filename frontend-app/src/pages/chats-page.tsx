@@ -1,12 +1,16 @@
-import { SectionLayout } from '@/components/layout/section-layout'
-import { chatsTabs, paths } from '@/config/navigation'
-import { useOpenQuestionCount } from '@/features/questions'
+import { MessagesSquare } from "lucide-react";
+
+import { SectionLayout } from "@/components/layout/section-layout";
+import { chatsTabs, paths } from "@/config/navigation";
+import { useOpenQuestionCount } from "@/features/questions";
 
 /** The Chats section: conversations, unanswered questions and the Chat Sandbox. */
 export function ChatsPage() {
-  const { data: openCount = 0 } = useOpenQuestionCount()
+  const { data: openCount = 0 } = useOpenQuestionCount();
   return (
     <SectionLayout
+      icon={MessagesSquare}
+      accent="sky"
       title="Chats"
       description="Your business's conversations with customers, the questions the assistant couldn't answer, and a sandbox to try the assistant."
       tabs={chatsTabs}
@@ -21,5 +25,5 @@ export function ChatsPage() {
         ),
       }}
     />
-  )
+  );
 }
