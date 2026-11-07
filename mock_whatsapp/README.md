@@ -30,7 +30,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # once
 
 Then, for replies to reach it, set configuration-service's `META_GRAPH_API_URL` = `http://<this machine, as seen from Docker>:9000/v26.0` in the root `.env`.
 
-On the page: pick who you are under **Chatting as** (or **＋** for a new customer: a name, and a number or a random Singapore one; each number is its own WhatsApp id), pick a business on the left, and chat. ✓✓ means the webhook took the message; a red `!` means it failed (hover for why). **Delete all messages** clears the mock's history (not the project's database).
+On the page: pick who you are under **Chatting as** (or **＋** for a new customer: a name, and a number or a random Singapore one; each number is its own WhatsApp id), pick a business on the left, and chat. The **＋** button (Photo or Document) sends a **photo or document**: only its name, type and size go anywhere (no file is uploaded or kept), as Meta's `image` / `document` webhook (the text you type is the caption), and the chat shows a placeholder. Their details are kept in memory only (`app/media.py`), so after a restart they show as "Attachment". The project doesn't answer them yet (messaging-service skips messages that aren't text). ✓✓ means the webhook took the message; a red `!` means it failed (hover for why). **Delete all messages** clears the mock's history (not the project's database).
 
 | Variable | Default | |
 | --- | --- | --- |
@@ -55,6 +55,7 @@ mock_whatsapp/
 │   ├── __init__.py     # create_app()
 │   ├── config.py       # settings, businesses.json
 │   ├── db.py           # SQLite: customers, messages
+│   ├── media.py        # photos / documents: their metadata, in memory only
 │   ├── meta.py         # Meta's webhook payload + signature, POST to the ingester
 │   ├── graph_api.py    # the fake Graph API (replies come in here)
 │   └── routes.py       # the page and its JSON API

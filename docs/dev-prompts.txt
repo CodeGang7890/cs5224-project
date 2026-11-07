@@ -1523,3 +1523,19 @@ So running the docker compose would also run that mock whatsapp in that port 900
 Please create a Dockerfile for the mock whatsapp too and add that service in docker compose (local setup)
 Eventually mock whatsapp is gonna be another cloud run service, but more on that later... we're gonna deal with that in a bit
 Now just focus on mock whatsapp local setup using docker
+
+Date & Time (GMT+8): 2026-11-07 14:25:18
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Modify the mock whatsapp so it can also send document file / photos as of now
+Just make it simplistic feature
+No need to store the photos or document anywhere, can just perhaps just show a placeholder thing there?
+Like no need in db, just store in memory the metadata
+
+Date & Time (GMT+8): 2026-11-07 14:34:40
+AI Model Used: claude-opus-5-5
+Original Prompt:
+[Image #20] when i click this button nothing happens?
+cant u just make that like a plus button and theres an option to put image or file to it
+check caching stuff / versioning of css so it should load the newest change
