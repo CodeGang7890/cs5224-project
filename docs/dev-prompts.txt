@@ -1566,3 +1566,9 @@ AI Model Used: claude-opus-5-5
 Original Prompt:
 Please revise the FAQs fixture in rally court business:
 - how do i pay -> remove that, because we use xendit for this
+
+Date & Time (GMT+8): 2026-11-07 16:18:19
+AI Model Used: claude-opus-5-5
+Original Prompt:
+Please remove the short polling from catalog and orders page, leave the refresh page there
+We want to remove it for the sake of demo so it's easy to tell whether the page has been refreshed or not

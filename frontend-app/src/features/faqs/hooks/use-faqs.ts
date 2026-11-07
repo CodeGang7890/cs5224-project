@@ -5,7 +5,6 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 
-import { LIVE_REFRESH_INTERVAL_MS } from "@/lib/live-refresh";
 import type { ApiError, Paginated } from "@/types/api";
 
 import { createFaq, deleteFaq, listFaqs, updateFaq } from "../api/faqs-api";
@@ -21,7 +20,6 @@ export const faqKeys = {
 export function useFaqs(page: number) {
   return useQuery<Paginated<Faq>, ApiError>({
     queryKey: faqKeys.list(page),
-    refetchInterval: LIVE_REFRESH_INTERVAL_MS,
     queryFn: () => listFaqs(page),
     placeholderData: keepPreviousData,
   });

@@ -9,8 +9,9 @@ import { cn } from "@/lib/utils";
 const MIN_SPIN_MS = 600;
 
 /**
- * A Refresh button for a section's data: re-fetches the active queries under `queryKeys` at once
- * (they also poll every LIVE_REFRESH_INTERVAL_MS on their own).
+ * A Refresh button for a section's data: re-fetches the active queries under `queryKeys` at once.
+ * The Catalog and Orders lists don't poll (the user asked, for demos: a change shows only after a
+ * Refresh, so it's clear when the page was refreshed); this is how they get other services' changes.
  */
 export function RefreshButton({ queryKeys }: { queryKeys: QueryKey[] }) {
   const queryClient = useQueryClient();
