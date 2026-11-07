@@ -33,6 +33,9 @@ SMTP_USERNAME = os.getenv('SMTP_USERNAME', '')
 SMTP_PASSWORD = os.getenv('SMTP_PASSWORD', '')
 SMTP_TIMEOUT_SECONDS = 20
 
+# The currency shown on a payment reminder's amount
+INVOICE_CURRENCY = os.getenv('INVOICE_CURRENCY', 'SGD')
+
 # The businesses' time zone, for the times in the reminders (configuration-service's
 # DJANGO_SCHEDULE_TIME_ZONE).
 SCHEDULE_TIME_ZONE = os.getenv('SCHEDULE_TIME_ZONE', 'Asia/Singapore')

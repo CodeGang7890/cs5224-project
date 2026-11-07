@@ -13,7 +13,7 @@ if __name__ == '__main__':
     try:
         result = job.run()
         if result.failed_reminders:
-            logging.getLogger('notification-job').error('%d appointment reminders failed', len(result.failed_reminders))
+            logging.getLogger('notification-job').error('%d reminders failed', len(result.failed_reminders))
             sys.exit(1)
     except Exception:
         logging.getLogger('notification-job').exception('Notification job failed')

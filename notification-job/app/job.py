@@ -14,12 +14,13 @@
 consecutive hourly runs follow each other without gaps or overlaps: each item gets each reminder
 once.
 
-The appointment reminders are SENT, on WhatsApp (to the chat's phone number, through
-configuration-service) and by email (to the booking's `email` detail), each when the customer has a
-way to be reached on it.
+The payment reminders and the appointment reminders are SENT, on WhatsApp (to the chat's phone number,
+through configuration-service) and by email (to the order's / booking's `email` detail), each when the
+customer has a way to be reached on it. A payment reminder carries the Xendit payment link
+(`payment_link`).
 
-The payment reminders and the alerts are still only logged (the phone number or email addresses and
-a draft message): sending them is a TODO.
+The reconnect alerts are still only logged (the users' email addresses and a draft message): sending
+them is a TODO.
 """
 
 import logging
@@ -38,6 +39,7 @@ from app.models import (
     CONNECTED,
     PAYMENT_FAILED,
     PENDING_PAYMENT,
+    BusinessConfiguration,
     BusinessUser,
     OrderItem,
     ScheduleItem,
@@ -80,7 +82,7 @@ class RunResult:
     payment_reminders: list[Reminder]
     appointment_reminders: list[Reminder]
     reconnect_alerts: list[Alert]
-    failed_reminders: list[Reminder] = field(default_factory=list)
+    failed_reminders: list[Reminder] = field(default_factory=list)  # reminders that couldn't be sent yet
 
 
 def floor_to_hour(moment: datetime) -> datetime:
@@ -120,6 +122,15 @@ def _email_address(details: dict) -> str | None:
     return email if EMAIL_ADDRESS.match(email) else None
 
 
+def _message_us(business: BusinessConfiguration) -> str:
+    """How a customer can reach the business, for an email: "just message Snap Studio on WhatsApp at +65 9123 4567",
+    or, for a business with no number on record, "just message Snap Studio in your WhatsApp chat"."""
+    number = business.whatsapp.display_phone_number if business.whatsapp is not None else ''
+    if number:
+        return f'just message {business.business_name} on WhatsApp at {number}'
+    return f'just message {business.business_name} in your WhatsApp chat'
+
+
 def _phone_number(item) -> str | None:
     return item.chat_session.phone_number or None if item.chat_session is not None else None
 
@@ -130,25 +141,68 @@ def _order_total(order: OrderItem) -> str:
     return f'{cents / 100:.2f}'
 
 
-def payment_reminder_for_order(order: OrderItem) -> Reminder:
-    customer = _customer(order.order_data.get('details', {}), order.chat_session)
-    message = (
-        f'Hi {customer}, this is {order.business.business_name}. Your order #{order.id} (total ${_order_total(order)}) '
-        f'is still waiting for payment. Please complete it with payment reference {order.payment_reference}, '
-        'or reply here if you need any help.'
+def _order_items(order: OrderItem) -> str:
+    """What was ordered, in one line: "2 × Kopi C, 1 × Kaya Toast Set"."""
+    items = order.order_data.get('items', []) if isinstance(order.order_data, dict) else []
+    shown = [f'{item["quantity"]} × {item["name"]}' for item in items[:5]]
+    if len(items) > 5:
+        shown.append(f'and {len(items) - 5} more')
+    return ', '.join(shown)
+
+
+def _payment_reminder(item, details: dict, what: str, summary: str, amount: str, to_keep: str = '') -> Reminder:
+    """A payment reminder for an order or booking still pending payment: the WhatsApp message and the email.
+    `what` is 'order' / 'booking', `summary` what was ordered / booked, `amount` e.g. 'SGD 3.60', `to_keep`
+    a booking's reason to hurry (" to keep your time")."""
+    customer = _customer(details, item.chat_session)
+    business = item.business.business_name
+    link = item.payment_link or None  # null until the Xendit link was created
+    head = f'Your {what} #{item.id} ({summary}, {amount})'
+
+    # The WhatsApp message. Without a link there is nothing to click: offer help instead.
+    message = f'Hi {customer}, this is {business}. {head} is still waiting for payment.'
+    if link:
+        message += f' Please complete it here{to_keep}: {link}\n\nReply here if you need any help.'
+    else:
+        message += ' Reply here if you need any help completing it.'
+
+    lines = [
+        f'Hi {customer},',
+        '',
+        f'Your {what} with {business} is still waiting for payment.',
+        '',
+        f'{what.capitalize()}: {summary}',
+        f'Amount to pay: {amount}',
+    ]
+    if link:
+        lines += ['', f'Pay online{to_keep}: {link}']
+    lines += [
+        '',
+        f"If you've already paid, please ignore this email. If you need any help, {_message_us(item.business)}.",
+        '',
+        'Thank you,',
+        business,
+    ]
+    return Reminder(
+        'payment', f'{what} #{item.id}', _phone_number(item), message,
+        business_id=item.business_id,
+        email=_email_address(details),
+        email_subject=f'Reminder: your {what} with {business} is waiting for payment',
+        email_text='\n'.join(lines),
     )
-    return Reminder('payment', f'order #{order.id}', _phone_number(order), message)
+
+
+def payment_reminder_for_order(order: OrderItem) -> Reminder:
+    details = order.order_data.get('details', {})
+    amount = f'{config.INVOICE_CURRENCY} {_order_total(order)}'
+    return _payment_reminder(order, details, 'order', _order_items(order), amount)
 
 
 def payment_reminder_for_booking(booking: ScheduleItem) -> Reminder:
-    customer = _customer(booking.schedule_data.get('details', {}), booking.chat_session)
+    details = booking.schedule_data.get('details', {})
     service = booking.schedule_data['service']
-    message = (
-        f'Hi {customer}, this is {booking.business.business_name}. Your booking #{booking.id} for {service["name"]} '
-        f'on {_when(booking.start_time)} (${service["price"]}) is still waiting for payment. Please complete it with '
-        f'payment reference {booking.payment_reference} to keep your time, or reply here if you need any help.'
-    )
-    return Reminder('payment', f'booking #{booking.id}', _phone_number(booking), message)
+    summary = f'{service["name"]} on {_when(booking.start_time)}'
+    return _payment_reminder(booking, details, 'booking', summary, f'{config.INVOICE_CURRENCY} {service["price"]}', ' to keep your time')
 
 
 def appointment_reminder(booking: ScheduleItem) -> Reminder:
@@ -180,7 +234,7 @@ def appointment_reminder(booking: ScheduleItem) -> Reminder:
         lines += ['', f'It is still waiting for payment, so please pay with reference {booking.payment_reference} to keep your time.']
     lines += [
         '',
-        f'If you need to change anything, just message {business.business_name} in your WhatsApp chat.',
+        f'If you need to change anything, {_message_us(business)}.',
         '',
         'See you soon,',
         business.business_name,
@@ -202,7 +256,7 @@ def payment_reminders(session: Session, hour: datetime) -> list[Reminder]:
         items = session.scalars(
             select(model)
             .where(model.order_status == PENDING_PAYMENT, model.created_time > oldest, model.created_time <= newest)
-            .options(selectinload(model.business), selectinload(model.chat_session))
+            .options(selectinload(model.business).selectinload(BusinessConfiguration.whatsapp), selectinload(model.chat_session))
             .order_by(model.created_time, model.id)
         )
         reminders += [remind(item) for item in items]
@@ -215,7 +269,7 @@ def appointment_reminders(session: Session, hour: datetime) -> list[Reminder]:
     bookings = session.scalars(
         select(ScheduleItem)
         .where(ScheduleItem.order_status != PAYMENT_FAILED, ScheduleItem.start_time >= first, ScheduleItem.start_time < last)
-        .options(selectinload(ScheduleItem.business), selectinload(ScheduleItem.chat_session))
+        .options(selectinload(ScheduleItem.business).selectinload(BusinessConfiguration.whatsapp), selectinload(ScheduleItem.chat_session))
         .order_by(ScheduleItem.start_time, ScheduleItem.id)
     )
     return [appointment_reminder(booking) for booking in bookings]
@@ -318,12 +372,6 @@ def send_reminder(reminder: Reminder) -> None:
         raise retry
 
 
-def _log(reminder: Reminder) -> None:
-    to = reminder.phone_number or 'no phone number (sandbox chat without one, or the chat was deleted)'
-    # TODO: send it to the customer (WhatsApp API), e.g. through the outbound messages queue.
-    logger.info('TODO: send %s reminder for %s to %s: %s', reminder.kind, reminder.item, to, reminder.message)
-
-
 def _log_alert(alert: Alert) -> None:
     to = ', '.join(alert.emails) or "no email address (none of the business's users has one)"
     # TODO: send it to the business's users (email), e.g. through an outbound notifications queue.
@@ -340,10 +388,8 @@ def run(session_factory: Callable[[], Session] = get_session, now: datetime | No
         'Run for %s: %d payment reminders, %d appointment reminders, %d WhatsApp reconnect alerts',
         hour.isoformat(), len(payments), len(appointments), len(alerts),
     )
-    for reminder in payments:
-        _log(reminder)  # TODO: send the payment reminders too
     failed = []
-    for reminder in appointments:
+    for reminder in payments + appointments:
         try:
             send_reminder(reminder)
         except (whatsapp_sender.SendError, email_sender.EmailError):
@@ -351,5 +397,5 @@ def run(session_factory: Callable[[], Session] = get_session, now: datetime | No
     for alert in alerts:
         _log_alert(alert)
     if failed:
-        logger.error('%d of %d appointment reminders could not be sent yet', len(failed), len(appointments))
+        logger.error('%d of %d reminders could not be sent yet', len(failed), len(payments) + len(appointments))
     return RunResult(hour, payments, appointments, alerts, failed)

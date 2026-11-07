@@ -51,6 +51,9 @@ class BusinessConfiguration(Base):
     description: Mapped[str] = mapped_column(Text)
     location: Mapped[str] = mapped_column(String(255))
 
+    # Its WhatsApp connection (one per business; None if it never connected): the number customers can message.
+    whatsapp: Mapped['WhatsAppConfiguration | None'] = relationship(viewonly=True)
+
     def __repr__(self) -> str:
         return f'BusinessConfiguration(id={self.id}, business_name={self.business_name!r})'
 
@@ -108,6 +111,7 @@ class OrderItem(Base):
     order_data: Mapped[dict] = mapped_column(Json)
     order_status: Mapped[str] = mapped_column(String(32))
     payment_reference: Mapped[str] = mapped_column(String(32))
+    payment_link: Mapped[str | None] = mapped_column(String(500))
     created_time: Mapped[datetime] = mapped_column(AwareDateTime)
 
     business: Mapped[BusinessConfiguration] = relationship()
@@ -129,6 +133,7 @@ class ScheduleItem(Base):
     schedule_data: Mapped[dict] = mapped_column(Json)
     order_status: Mapped[str] = mapped_column(String(32))
     payment_reference: Mapped[str] = mapped_column(String(32))
+    payment_link: Mapped[str | None] = mapped_column(String(500))
     created_time: Mapped[datetime] = mapped_column(AwareDateTime)
 
     business: Mapped[BusinessConfiguration] = relationship()
