@@ -1560,3 +1560,25 @@ Date & Time (GMT+8): 2026-11-07 15:02:54
 AI Model Used: claude-opus-5-5
 Original Prompt:
 Please do that B+C, double check please as this is critical / core logic
+
+Date & Time (GMT+8): 2026-11-07 16:09:45
+AI Model Used: claude-opus-5-5
+Original Prompt:
+Please revise the FAQs fixture in rally court business:
+- how do i pay -> remove that, because we use xendit for this
+
+Date & Time (GMT+8): 2026-11-07 16:18:19
+AI Model Used: claude-opus-5-5
+Original Prompt:
+Please remove the short polling from catalog and orders page, leave the refresh page there
+We want to remove it for the sake of demo so it's easy to tell whether the page has been refreshed or not
+
+Date & Time (GMT+8): 2026-11-07 16:27:13
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+Please add to the prompt to fix this issue:
+- when asked about a product or booking that business doesn't offer, it should reply that it doesn't have such thing rather than becoming an unanswered question
+- for example, rally_owner business cleraly oonly have badminton and tennis court, if user ask about table tennis court or otheer courts, then it should reject it
+- if it ask for a product (e.g., “do u sell xxx”) and the product doesn’t exist (not only ran out), then it should tell that we don’t sell that product (instead of becoming an “unanswered question”)
+Keep the change minimal please, add tests too

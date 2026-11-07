@@ -5,7 +5,6 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 
-import { LIVE_REFRESH_INTERVAL_MS } from "@/lib/live-refresh";
 import type { ApiError, Paginated } from "@/types/api";
 
 import {
@@ -27,7 +26,6 @@ export const productKeys = {
 export function useProducts(page: number) {
   return useQuery<Paginated<Product>, ApiError>({
     queryKey: productKeys.list(page),
-    refetchInterval: LIVE_REFRESH_INTERVAL_MS,
     queryFn: () => listProducts(page),
     placeholderData: keepPreviousData, // keep the table visible while changing page
   });

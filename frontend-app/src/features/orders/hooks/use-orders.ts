@@ -6,7 +6,6 @@ import {
 } from "@tanstack/react-query";
 
 import { productKeys } from "@/features/products";
-import { LIVE_REFRESH_INTERVAL_MS } from "@/lib/live-refresh";
 import type { ApiError, DetailedPaginated } from "@/types/api";
 
 import { completeOrder, getOrder, listOrders } from "../api/orders-api";
@@ -23,7 +22,6 @@ export const orderKeys = {
 export function useOrders(params: OrderListParams) {
   return useQuery<DetailedPaginated<Order>, ApiError>({
     queryKey: orderKeys.list(params),
-    refetchInterval: LIVE_REFRESH_INTERVAL_MS,
     queryFn: () => listOrders(params),
     placeholderData: keepPreviousData,
   });
@@ -33,7 +31,6 @@ export function useOrders(params: OrderListParams) {
 export function useOrder(id: number | null, enabled = true) {
   return useQuery<Order, ApiError>({
     queryKey: orderKeys.detail(id ?? 0),
-    refetchInterval: LIVE_REFRESH_INTERVAL_MS,
     queryFn: () => getOrder(id as number),
     enabled: enabled && id !== null,
   });
