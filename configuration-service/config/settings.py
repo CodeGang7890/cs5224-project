@@ -175,6 +175,12 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'  # collectstatic's output, served by WhiteNoise
 
+# Behind a proxy that ends HTTPS (Cloud Run: DJANGO_NUM_PROXIES=1), the request reaches Django as http:
+# trust the proxy's X-Forwarded-Proto, so Django knows it was https (else the admin's login fails the
+# CSRF Origin check: https://… isn't http://…). Cloud Run's front end sets the header itself.
+if int(os.getenv('DJANGO_NUM_PROXIES', '0')) > 0:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
