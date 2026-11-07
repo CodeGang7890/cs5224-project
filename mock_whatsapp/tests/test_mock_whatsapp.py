@@ -206,6 +206,9 @@ class PageTests(MockTestCase):
         for text in ('Alice Tan · +65 9123 4567', 'Kopi &amp; Co. Café', 'Hello there', '+65 8832 3212', '📄 Bob&#39;s order.pdf'):
             self.assertIn(text, page.text)
         self.assertRegex(page.text.replace("\n", " "), r'style\.css\?v=\d+".*app\.js\?v=\d+"')  # a new version is never a cached old copy
+        # Paths only: an http:// URL (what the app sees behind Cloud Run's HTTPS) would be blocked on an https page.
+        self.assertIn('href="/static/style.css?v=', page.text)
+        self.assertIn('src="/static/app.js?v=', page.text)
         # The attachment's metadata, for app.js (JSON in a single-quoted attribute: tojson escapes ').
         self.assertIn('data-media=\'{"filename": "Bob\\u0027s order.pdf"', page.text)
 
