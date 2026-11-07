@@ -2,11 +2,14 @@
 
 import unittest
 from datetime import UTC, datetime, timedelta
+from unittest import mock
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app import job
+from app.email_sender import EmailError
+from app.whatsapp_sender import SendError
 from app.models import (
     Base,
     BusinessConfiguration,
@@ -32,6 +35,11 @@ SCHEDULE_DATA = {
 
 class JobTestCase(unittest.TestCase):
     def setUp(self):
+        # Never a real WhatsApp message or email, whatever the environment running the tests has set.
+        for target, name, answer in (('app.whatsapp_sender.send_text', 'send_text', 'wamid.1'), ('app.email_sender.send_email', 'send_email', True)):
+            patcher = mock.patch(target, return_value=answer)
+            setattr(self, name, patcher.start())
+            self.addCleanup(patcher.stop)
         engine = create_engine('sqlite://')
         Base.metadata.create_all(engine)
         self.sessions = sessionmaker(engine, expire_on_commit=False)
@@ -51,11 +59,12 @@ class JobTestCase(unittest.TestCase):
         self.next_id += 1
         return order.id
 
-    def booking(self, start_time, created_time=None, status='pending_payment', chat=1):
+    def booking(self, start_time, created_time=None, status='pending_payment', chat=1, details=None):
+        schedule_data = {**SCHEDULE_DATA, 'details': details or SCHEDULE_DATA['details']}
         with self.sessions.begin() as session:
             booking = ScheduleItem(
                 id=self.next_id, business_id=1, chat_session_id=chat, is_sandbox=chat == 2, start_time=start_time,
-                end_time=start_time + timedelta(hours=1), schedule_data=SCHEDULE_DATA, order_status=status,
+                end_time=start_time + timedelta(hours=1), schedule_data=schedule_data, order_status=status,
                 payment_reference=f'{self.next_id:032x}', created_time=created_time or HOUR - timedelta(days=3),
             )
             session.add(booking)
@@ -103,7 +112,7 @@ class PaymentReminderTests(JobTestCase):
             f'Hi Alice, this is Snap Studio. Your order #{order} (total $3.60) is still waiting for payment. Please '
             f'complete it with payment reference {order:032x}, or reply here if you need any help.',
         )
-        self.assertIn(f'TODO: send payment reminder for order #{order} to +6591234567: Hi Alice', logs[-1])
+        self.assertIn(f'TODO: send payment reminder for order #{order} to +6591234567: Hi Alice', logs[-1])  # not sent yet
 
     def test_a_chat_without_a_phone_number(self):
         self.order(HOUR - timedelta(minutes=90), chat=2)
@@ -125,22 +134,117 @@ class AppointmentReminderTests(JobTestCase):
         result, _ = self.run_job()
         self.assertEqual([r.item for r in result.appointment_reminders], [f'booking #{n}' for n in reminded])
 
-    def test_the_draft_message(self):
-        booking = self.booking(datetime(2026, 10, 13, 12, 30, tzinfo=UTC), status='payment_received')  # 8:30pm SGT
-        result, logs = self.run_job()
+    def test_the_messages(self):
+        booking = self.booking(
+            datetime(2026, 10, 13, 12, 30, tzinfo=UTC), status='payment_received',  # 8:30pm SGT
+            details={'name': 'Priya', 'email': 'priya@example.com'},
+        )
+        result, _ = self.run_job()
         reminder, = result.appointment_reminders
         self.assertEqual(reminder.phone_number, '+6591234567')
         self.assertEqual(
             reminder.message,
-            f'Hi Priya, a reminder from Snap Studio: your Family Shoot (booking #{booking}) is tomorrow, '
-            'Tue 13 Oct, 8:30pm. See you then! Reply here if you need to change anything.',
+            f'Hi Priya, a reminder from Snap Studio: your Family Shoot (booking #{booking}) starts in about 24 hours, '
+            'on Tue 13 Oct, 8:30pm. See you then! Reply here if you need to change anything.',
         )
-        self.assertIn(f'TODO: send appointment reminder for booking #{booking} to +6591234567', logs[-1])
+        self.assertEqual(reminder.email, 'priya@example.com')
+        self.assertEqual(reminder.email_subject, 'Reminder: your Family Shoot with Snap Studio starts in about 24 hours')
+        self.assertEqual(
+            reminder.email_text,
+            '\n'.join([
+                'Hi Priya,',
+                '',
+                f'This is a reminder from Snap Studio: your Family Shoot (booking #{booking}) starts in about 24 hours.',
+                '',
+                'When: Tue 13 Oct, 8:30pm',
+                'Where: Singapore',
+                '',
+                'If you need to change anything, just message Snap Studio in your WhatsApp chat.',
+                '',
+                'See you soon,',
+                'Snap Studio',
+            ]),
+        )
 
     def test_a_pending_booking_is_also_asked_to_pay(self):
         booking = self.booking(HOUR + timedelta(hours=23))
         reminder, = self.run_job()[0].appointment_reminders
         self.assertIn(f'please pay with reference {booking:032x}', reminder.message)
+        self.assertIn(f'please pay with reference {booking:032x} to keep your time', reminder.email_text)
+
+
+class AppointmentSendingTests(JobTestCase):
+    """The appointment reminders are sent, on WhatsApp and by email (the senders are faked)."""
+
+    DETAILS = {'name': 'Priya', 'email': 'priya@example.com'}
+
+    def test_sent_on_whatsapp_and_by_email(self):
+        booking = self.booking(HOUR + timedelta(hours=23), details=self.DETAILS)
+        result, _ = self.run_job()
+        reminder, = result.appointment_reminders
+        self.send_text.assert_called_once_with(1, '+6591234567', reminder.message)  # from business #1's number
+        self.send_email.assert_called_once_with(reminder.email_subject, reminder.email_text, 'priya@example.com')
+        self.assertIn('Family Shoot', reminder.message)
+        self.assertEqual(result.failed_reminders, [])
+        self.assertIn(f'booking #{booking}', reminder.item)
+
+    def test_without_an_email_detail_it_is_only_on_whatsapp(self):
+        for details in ({'name': 'Priya'}, {'name': 'Priya', 'email': 'not an address'}, {'email': 'a@b.com\r\nBcc: x@y.z'}):
+            with self.subTest(details=details):
+                self.send_text.reset_mock()
+                self.send_email.reset_mock()
+                self.booking(HOUR + timedelta(hours=23), details=details)
+                self.run_job()
+                self.send_text.assert_called_once()
+                self.send_email.assert_not_called()
+                with self.sessions.begin() as session:
+                    session.query(ScheduleItem).delete()
+
+    def test_a_sandbox_booking_has_no_phone_number_but_is_emailed(self):
+        self.booking(HOUR + timedelta(hours=23), chat=2, details=self.DETAILS)
+        result, _ = self.run_job()
+        self.send_text.assert_not_called()
+        self.send_email.assert_called_once()
+        self.assertEqual(result.failed_reminders, [])
+
+    def test_a_booking_without_a_chat_is_still_emailed(self):
+        self.booking(HOUR + timedelta(hours=23), chat=None, details=self.DETAILS)
+        self.run_job()
+        self.send_text.assert_not_called()
+        self.send_email.assert_called_once()
+
+    def test_a_refusal_is_logged_and_the_run_still_succeeds(self):
+        self.send_text.side_effect = SendError('Meta: the 24-hour window has closed', retryable=False)
+        self.send_email.side_effect = EmailError('no such mailbox', retryable=False)
+        self.booking(HOUR + timedelta(hours=23), details=self.DETAILS)
+        with self.assertLogs('app.job', level='ERROR'):
+            result = job.run(self.sessions, now=NOW)
+        self.assertEqual(result.failed_reminders, [])  # retrying would never help: no non-zero exit
+
+    def test_a_temporary_failure_fails_the_run_but_not_the_other_reminders_or_channel(self):
+        self.send_text.side_effect = [SendError('configuration-service is down', retryable=True), 'wamid.2']
+        first = self.booking(HOUR + timedelta(hours=23), details=self.DETAILS)
+        second = self.booking(HOUR + timedelta(hours=23, minutes=30), details=self.DETAILS)
+        with self.assertLogs('app.job', level='WARNING'):
+            result = job.run(self.sessions, now=NOW)
+        self.assertEqual([r.item for r in result.failed_reminders], [f'booking #{first}'])
+        self.assertEqual(self.send_text.call_count, 2)  # the second reminder was still sent
+        self.assertEqual(self.send_email.call_count, 2)  # and the first one's email was not held up by WhatsApp
+        self.assertEqual(second, first + 1)
+
+    def test_an_email_that_could_not_be_sent_yet_fails_the_run_too(self):
+        self.send_email.side_effect = EmailError('the mail relay is down', retryable=True)
+        self.booking(HOUR + timedelta(hours=23), details=self.DETAILS)
+        with self.assertLogs('app.job', level='WARNING'):
+            result = job.run(self.sessions, now=NOW)
+        self.assertEqual(len(result.failed_reminders), 1)
+        self.send_text.assert_called_once()  # WhatsApp went out
+
+    def test_the_payment_reminders_are_still_only_logged(self):
+        self.order(HOUR - timedelta(minutes=90))
+        self.run_job()
+        self.send_text.assert_not_called()
+        self.send_email.assert_not_called()
 
 
 class ReconnectAlertTests(JobTestCase):

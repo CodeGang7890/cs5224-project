@@ -300,6 +300,15 @@ services:
       POSTGRES_PORT: "5432"
       SCHEDULE_TIME_ZONE: Asia/Singapore # the times in the reminders (configuration-service's DJANGO_SCHEDULE_TIME_ZONE)
       CRON_SCHEDULE: ${NOTIFICATION_JOB_SCHEDULE:-0 * * * *} # every hour (UTC); e.g. "* * * * *" to try it
+      CONFIGURATION_SERVICE_URL: http://configuration-service:8000/api
+      INTERNAL_API_KEY: dev-internal-api-key # must equal configuration-service's
+      EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Ansera}
+      SMTP_HOST: ${SMTP_HOST:-smtp-relay.brevo.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
     depends_on:
       postgres:
         condition: service_healthy
