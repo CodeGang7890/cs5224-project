@@ -14,7 +14,7 @@ RESET_DB=true docker compose up --build   # reset the database to the sample dat
 | Service | URL |
 | --- | --- |
 | frontend-app (Vite dev server, hot reload) | <http://localhost:5173> |
-| mock_whatsapp (WhatsApp stand-in, run on your machine: see [below](#trying-whatsapp-end-to-end-mock_whatsapp)) | <http://localhost:9000> |
+| mock-whatsapp (WhatsApp stand-in: see [below](#trying-whatsapp-end-to-end-mock_whatsapp)) | <http://localhost:9000> |
 | configuration-service (Django API, Swagger at `/api/docs/`) | <http://localhost:8000> |
 | payment-ingester (Gunicorn: creates Xendit Payment Sessions for the chat flow, receives Xendit webhooks → Pub/Sub payment-events, Swagger at `/docs`) | <http://localhost:8001> |
 | messaging-ingester (WhatsApp webhook → Pub/Sub, Swagger at `/docs`) | <http://localhost:8002> |
@@ -47,15 +47,7 @@ After changing `frontend-app/package.json`, rebuild it: `docker compose up --bui
 
 `mock_whatsapp/` stands in for WhatsApp: you chat as a customer with the sample businesses, and the assistant's replies come back through the whole system.
 
-Start the mock server (on your machine):
-
-```bash
-cd mock_whatsapp
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # once
-.venv/bin/python run.py
-```
-
-It opens on <http://localhost:9000>.
+docker compose runs it (`mock-whatsapp`) on <http://localhost:9000>, and points configuration-service's replies at its fake Graph API (`META_GRAPH_API_URL` = `http://mock-whatsapp:9000/v26.0`; set it in the root `.env` for the real Meta). Its conversations are kept in the `mock-whatsapp-data` volume. To run it on your machine instead, see `mock_whatsapp/README.md`.
 
 ## Xendit payments
 

@@ -6,6 +6,8 @@
 #   messages, http://localhost:8004).
 # + processing-service (Gunicorn; pull consumer of the payment events: updates the orders / bookings, http://localhost:8003)
 # + notification-job (payment and appointment reminders, logged for now; run every hour by cron).
+# + mock-whatsapp (a stand-in for WhatsApp / Meta, http://localhost:9000: sends Meta's webhooks to
+#   messaging-ingester and fakes the Graph API configuration-service sends the replies to).
 # The database is kept in the postgres-data volume between runs; the sample fixtures are loaded the
 # first time. To wipe it and reload them: RESET_DB=true docker compose up
 # (see configuration-service/docker-entrypoint.sh).
@@ -55,8 +57,9 @@ services:
       JWT_SIGNING_KEY: &jwt-signing-key dev-jwt-signing-key-local-only-change-me # signs logins; messaging-service checks them
       MESSAGING_SERVICE_URL: http://messaging-service:8004 # Chat Sandbox proxy target; local Docker needs no Cloud Run ID token
       MESSAGING_INGESTER_PUBLIC_URL: http://localhost:8002 # shown to owners as their webhook Callback URL
-      # Meta's Graph API, used to connect WhatsApp and send replies (override to point at a fake for testing).
-      META_GRAPH_API_URL: ${META_GRAPH_API_URL:-https://graph.facebook.com/v26.0}
+      # Meta's Graph API, used to connect WhatsApp and send replies: locally mock-whatsapp's fake one.
+      # For the real Meta: META_GRAPH_API_URL=https://graph.facebook.com/v26.0 in the root .env.
+      META_GRAPH_API_URL: ${META_GRAPH_API_URL:-http://mock-whatsapp:9000/v26.0}
       # WhatsApp Embedded Signup (from .env; empty: connecting returns 503). Meta only runs the popup on
       # HTTPS domains set on our app, so locally it's for trying the backend with a deployed frontend.
       META_APP_ID: ${META_APP_ID:-}
@@ -303,5 +306,21 @@ services:
       configuration-service: # its migrations create the tables
         condition: service_started
 
+  # A stand-in for WhatsApp / Meta (see mock_whatsapp/README.md): chat as a customer on
+  # http://localhost:9000. Its conversations are kept in the mock-whatsapp-data volume (the page's
+  # "Delete all messages" clears them; RESET_DB doesn't).
+  mock-whatsapp:
+    build: ./mock_whatsapp
+    ports:
+      - "9000:9000"
+    environment:
+      INGESTER_URL: http://messaging-ingester:8002 # where the webhooks go
+      MOCK_WHATSAPP_DB: /data/mock_whatsapp.sqlite3
+    volumes:
+      - mock-whatsapp-data:/data
+    depends_on:
+      - messaging-ingester
+
 volumes:
   postgres-data:
+  mock-whatsapp-data:
