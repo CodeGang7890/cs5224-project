@@ -74,6 +74,8 @@ MIDDLEWARE = [
     # later middleware (SecurityMiddleware, CommonMiddleware), gets CORS headers.
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    # Serves STATIC_ROOT (collectstatic, run in the Dockerfile): runserver doesn't with DEBUG off.
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -171,6 +173,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'  # collectstatic's output, served by WhiteNoise
 
 
 # Email

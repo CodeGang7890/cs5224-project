@@ -12,6 +12,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 RUN chmod +x docker-entrypoint.sh
+# The admin's CSS / JS, into STATIC_ROOT, for WhiteNoise (served even with DEBUG off).
+RUN python manage.py collectstatic --noinput
 
 EXPOSE 8000
 
