@@ -376,7 +376,8 @@ class SampleUnansweredQuestionFixtureTests(TestCase):
     ]
 
     def test_fixture_is_valid(self):
-        questions = UnansweredQuestion.objects.all()
+        self.assertEqual(UnansweredQuestion.objects.filter(business_id=7).count(), 2)  # 7: Business Test, kept from production (testansera)
+        questions = UnansweredQuestion.objects.exclude(business_id=7)
         self.assertEqual(questions.count(), 5)
         for item in questions:
             with self.subTest(question=item.question):

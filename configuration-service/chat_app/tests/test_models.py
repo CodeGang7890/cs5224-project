@@ -500,8 +500,8 @@ class SampleChatSessionFixtureTests(TestCase):
 
     def test_fixture_is_valid(self):
         sessions = ChatSession.objects.all()
-        self.assertEqual(sessions.count(), 31)  # 1–32 but 6 (21–32: Rally Point Courts)
-        self.assertEqual(sessions.filter(is_sandbox=True).count(), 2)
+        self.assertEqual(sessions.count(), 34)  # 1–35 but 6 (21–32: Rally Point Courts; 33–35: Business Test, kept from production)
+        self.assertEqual(sessions.filter(is_sandbox=True).count(), 4)  # 2 of them Business Test's
         self.assertEqual(sessions.get(pk=1).chat_state_id, 'confirmation')
         # 20: Lumen & Lens, a booking made in the chat (checkout_app sample_schedule_items pk 1).
         self.assertEqual((sessions.get(pk=20).chat_state_id, sessions.get(pk=20).chat_state_data), ('start', {'last_booking_id': 1}))
