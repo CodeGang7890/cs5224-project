@@ -50,6 +50,15 @@ PUBSUB_TOPIC = os.getenv('PUBSUB_TOPIC', 'whatsapp-inbound-messages')
 PUBSUB_SUBSCRIPTION = os.getenv('PUBSUB_SUBSCRIPTION', 'messaging-service-inbound')
 # At most this many messages are handled at once, per worker (Pub/Sub flow control).
 PUBSUB_MAX_MESSAGES = int(os.getenv('PUBSUB_MAX_MESSAGES', '5'))
+# The ack deadline, in seconds: the subscription's (docker-compose's pubsub-init creates it with
+# this) and the client's leases, extended by this much while a message is handled. A message not
+# acked in time (e.g. the worker died) is redelivered once it runs out.
+PUBSUB_ACK_DEADLINE_SECONDS = int(os.getenv('PUBSUB_ACK_DEADLINE_SECONDS', '120'))
+PUBSUB_PUBLISH_TIMEOUT_SECONDS = 10
+# POST /consumer/test/nack and /consumer/test/no-ack (the user asked, to try the retry and
+# dead-letter settings locally): off unless set; docker-compose turns them on.
+PUBSUB_TEST_ENDPOINTS_ENABLED = os.getenv('PUBSUB_TEST_ENDPOINTS_ENABLED', '').lower() in ('1', 'true', 'yes')
+PUBSUB_TEST_NACK_DELAY_SECONDS = 5  # the nack test waits this long before nacking
 
 # --- The chat flow's LLM calls (app/chat_flow, the same as configuration-service's chat_app/llm.py) --
 # Sampling hyperparameters sent as Ollama `options` on every chat flow request. The seed is fixed
@@ -79,6 +88,9 @@ VERTEX_AI_STRUCTURED_OPTIONS = VERTEX_AI_OPTIONS
 VERTEX_AI_THINKING_LEVEL = 'MINIMAL'
 # How many rounds of tool calls the reply step may make before it must answer.
 MAX_TOOL_ROUNDS = 3
+# How many times a turn runs when the chat keeps changing while it's worked out (ChatSession.version:
+# another message, the business answering in the chat): then it gives up (409 / the message is nacked).
+TURN_ATTEMPTS_MAX = 3
 
 # --- PostgreSQL (configuration-service's database) -----------------------------------------
 # The chat flow reads the business's products, services, FAQs and chats, and writes chat messages,
@@ -109,6 +121,14 @@ JWT_ALGORITHM = 'HS256'
 CONFIGURATION_SERVICE_URL = os.getenv('CONFIGURATION_SERVICE_URL', 'http://localhost:8000/api').rstrip('/')
 INTERNAL_API_KEY = os.getenv('INTERNAL_API_KEY', 'dev-internal-api-key')  # must equal configuration-service's
 WHATSAPP_SEND_TIMEOUT_SECONDS = 20
+# The outbox (app/outbox.py): replies are saved with the chat, then sent. A failed send is retried
+# after these delays (one per attempt, the last repeated) and given up after OUTBOX_ATTEMPTS_MAX
+# attempts (the message is then `failed`). The consumer's sweeper sends what's due every
+# OUTBOX_SWEEP_SECONDS (env; 0 turns it off), e.g. a retry, or a reply left by a worker that died.
+OUTBOX_ATTEMPTS_MAX = 5
+OUTBOX_RETRY_DELAYS_SECONDS = (10, 30, 120, 600)
+OUTBOX_SWEEP_SECONDS = float(os.getenv('OUTBOX_SWEEP_SECONDS', '30'))
+OUTBOX_BATCH_MAX = 100  # at most this many messages per sending round
 
 # --- Payment links (payment-ingester's create endpoint) ---------------------------------------
 # When the chat flow saves an order / booking, it asks payment-ingester (POST /payments,

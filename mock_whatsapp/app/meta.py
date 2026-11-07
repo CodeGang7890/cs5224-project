@@ -15,6 +15,8 @@ The body, as Meta sends it (WhatsApp Cloud API, "messages" webhook):
                                                      "text": {"body": "Hi!"}}]}}]}]}
 
 and the header X-Hub-Signature-256: sha256=<HMAC-SHA256 of the exact body bytes, keyed by the App Secret>.
+A photo or document (app/media.py) is `"type": "image"` / `"document"` with, in place of "text",
+`"image": {"caption"?, "mime_type", "sha256", "id"}` / `"document": {"caption"?, "filename", "mime_type", "sha256", "id"}`.
 """
 
 import base64
@@ -36,7 +38,21 @@ def new_wamid() -> str:
     return 'wamid.' + base64.b64encode(b'\x15\x02\x00\x11\x18\x12' + secrets.token_bytes(18)).decode().rstrip('=')
 
 
-def webhook_payload(business: dict, wa_id: str, name: str, wamid: str, text: str, timestamp: int | None = None) -> dict:
+def message_content(text: str, attachment: dict | None = None) -> dict:
+    """The message's type and content, as Meta sends them: text, or a photo / document (the text is its caption)."""
+    if attachment is None:
+        return {'type': 'text', 'text': {'body': text}}
+    kind = attachment['kind']
+    content = {'caption': text} if text else {}
+    if kind == 'document':
+        content['filename'] = attachment['filename']
+    content.update(mime_type=attachment['mime_type'], sha256=attachment['sha256'], id=attachment['id'])
+    return {'type': kind, kind: content}
+
+
+def webhook_payload(
+    business: dict, wa_id: str, name: str, wamid: str, text: str, timestamp: int | None = None, attachment: dict | None = None,
+) -> dict:
     return {
         'object': 'whatsapp_business_account',
         'entry': [{
@@ -54,8 +70,7 @@ def webhook_payload(business: dict, wa_id: str, name: str, wamid: str, text: str
                         'from': wa_id,
                         'id': wamid,
                         'timestamp': str(timestamp if timestamp is not None else int(time.time())),
-                        'type': 'text',
-                        'text': {'body': text},
+                        **message_content(text, attachment),
                     }],
                 },
             }],

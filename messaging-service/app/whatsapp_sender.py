@@ -7,8 +7,23 @@ import httpx
 from . import config
 
 
+RETRYABLE_4XX = (401, 403, 408, 429)
+
+
 class SendError(Exception):
-    """The message wasn't sent (configuration-service or Meta refused it, or couldn't be reached)."""
+    """The message wasn't sent (configuration-service or Meta refused it, or couldn't be reached).
+    `status_code`: configuration-service's answer (None: no answer). A 4xx is permanent (400 a bad
+    request, 404 the business isn't connected any more): retrying won't help. Except 401 / 403 (our
+    internal API key is wrong: a deployment mistake, fixed by redeploying, so keep retrying), 408
+    and 429 (a timeout, too many requests)."""
+
+    def __init__(self, message: str, status_code: int | None = None):
+        super().__init__(message)
+        self.status_code = status_code
+
+    @property
+    def permanent(self) -> bool:
+        return self.status_code is not None and 400 <= self.status_code < 500 and self.status_code not in RETRYABLE_4XX
 
 
 def send_text(business_id: int, to: str, text: str, transport: httpx.BaseTransport | None = None) -> str:
@@ -25,5 +40,5 @@ def send_text(business_id: int, to: str, text: str, transport: httpx.BaseTranspo
         body = {}
     if response.status_code != 200 or not isinstance(body, dict) or not body.get('message_id'):
         detail = body.get('detail') if isinstance(body, dict) else None
-        raise SendError(f'Not sent ({response.status_code}): {detail or response.text[:200]}')
+        raise SendError(f'Not sent ({response.status_code}): {detail or response.text[:200]}', response.status_code)
     return body['message_id']

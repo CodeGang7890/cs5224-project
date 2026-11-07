@@ -46,6 +46,10 @@ output "pubsub_topics" {
   value = { for name, topic in google_pubsub_topic.queue : name => topic.id }
 }
 
+output "pubsub_dead_letter_subscriptions" {
+  value = { for name, subscription in google_pubsub_subscription.dead_letter : name => subscription.id }
+}
+
 output "sql_connection_name" {
   value = var.enable_cloud_sql ? (var.singapore_sql_promoted ? google_sql_database_instance.singapore_replica[0].connection_name : google_sql_database_instance.main[0].connection_name) : null
 }

@@ -184,7 +184,53 @@ code { font: 12.5px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; backgrou
   display: flex; align-items: flex-end; gap: 8px; padding: 10px 16px; flex: none;
   background: var(--panel); border-top: 1px solid var(--border);
 }
-.composer-icon { width: 42px; height: 42px; display: grid; place-items: center; color: var(--icon); flex: none; opacity: 0.6; }
+.composer-icon {
+  width: 42px; height: 42px; border-radius: 50%; border: 0; background: none;
+  display: grid; place-items: center; color: var(--icon); flex: none; cursor: pointer;
+}
+.composer-icon:hover, .composer-icon.open { background: rgba(11, 20, 26, 0.06); }
+.composer-icon svg { transition: transform 0.15s; }
+.composer-icon.open svg { transform: rotate(45deg); } /* ＋ turns into × while the menu is open */
+
+.attach { position: relative; flex: none; }
+.attach-menu {
+  position: absolute; left: 0; bottom: 50px; z-index: 10; min-width: 190px; padding: 8px;
+  border-radius: 16px; background: #fff; box-shadow: 0 2px 5px rgba(11, 20, 26, 0.26), 0 2px 10px rgba(11, 20, 26, 0.16);
+}
+.attach-menu[hidden] { display: none; }
+.attach-menu button {
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 12px;
+  border: 0; border-radius: 10px; background: none; font-size: 15px; color: var(--text); cursor: pointer; text-align: left;
+}
+.attach-menu button:hover { background: var(--hover); }
+.attach-menu-icon { width: 22px; height: 22px; display: grid; place-items: center; }
+.attach-menu-icon svg { width: 22px; height: 22px; }
+.attach-menu-icon.photo { color: #007bfc; }
+.attach-menu-icon.document { color: #7f66ff; }
+
+/* Photos and documents: a placeholder in the bubble (no file is kept), and the one picked to send. */
+.attachment {
+  display: flex; align-items: center; gap: 10px; min-width: 220px; margin: -2px -4px 4px -6px;
+  padding: 10px 12px; border-radius: 6px; background: rgba(11, 20, 26, 0.05); color: var(--icon); white-space: normal;
+}
+.attachment.image { flex-direction: column; justify-content: center; min-height: 150px; text-align: center; }
+.attachment.image svg { width: 44px; height: 44px; opacity: 0.7; }
+.attachment svg { width: 30px; height: 30px; flex: none; }
+.attachment-text { display: flex; flex-direction: column; min-width: 0; }
+.attachment-name { color: var(--text); overflow: hidden; text-overflow: ellipsis; overflow-wrap: anywhere; }
+.attachment-info { font-size: 12px; color: var(--muted); }
+.bubble .text:empty { display: none; }
+.bubble .text:empty + .spacer { display: block; height: 10px; }
+
+.attachment-bar {
+  display: flex; align-items: center; gap: 12px; padding: 8px 16px; flex: none;
+  background: var(--panel); border-top: 1px solid var(--border); color: var(--icon);
+}
+.attachment-bar[hidden] { display: none; }
+.attachment-bar-icon svg { width: 28px; height: 28px; }
+.attachment-bar-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.attachment-bar-name { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attachment-bar-info { font-size: 12px; color: var(--muted); }
 .composer-box { flex: 1; display: flex; padding: 11px 14px; border-radius: 8px; background: #fff; min-height: 42px; }
 .composer-box textarea {
   flex: 1; border: 0; outline: none; resize: none; background: transparent;

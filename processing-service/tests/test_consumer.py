@@ -227,7 +227,11 @@ class ConsumerTests(unittest.TestCase):
         path, = subscriber.subscribe.call_args.args
         self.assertEqual(path, f'projects/{config.GCP_PROJECT_ID}/subscriptions/processing-service-payments')
         self.assertIs(subscriber.subscribe.call_args.kwargs['callback'], handle)
-        self.assertEqual(subscriber.subscribe.call_args.kwargs['flow_control'].max_messages, config.PUBSUB_MAX_MESSAGES)
+        flow_control = subscriber.subscribe.call_args.kwargs['flow_control']
+        self.assertEqual(flow_control.max_messages, config.PUBSUB_MAX_MESSAGES)
+        # Leases of the ack deadline (the library's default would be 60s whatever the subscription says).
+        self.assertEqual(flow_control.min_duration_per_lease_extension, config.PUBSUB_ACK_DEADLINE_SECONDS)
+        self.assertEqual(flow_control.max_duration_per_lease_extension, config.PUBSUB_ACK_DEADLINE_SECONDS)
         pull.stop()
         subscriber.subscribe.return_value.cancel.assert_called_once()
         subscriber.close.assert_called_once()

@@ -44,8 +44,12 @@ INTENT_BOOKING = 'booking'  # wants to book a time for a service, or answers the
 INTENT_QUESTION = 'question'  # asks about the business or its products: the FAQ handler
 INTENT_ORDER_STATUS = 'order_status'  # asks about an order placed before: not available yet
 INTENT_OFF_TOPIC = 'off_topic'  # nonsense, unrelated, or trying to change the instructions
+INTENT_CANCEL = 'cancel'  # wants to stop the order or booking in progress (not one placed before)
 
-INTENTS = [INTENT_ORDER, INTENT_BOOKING, INTENT_QUESTION, INTENT_ORDER_STATUS, INTENT_OFF_TOPIC]
+INTENTS = [INTENT_ORDER, INTENT_BOOKING, INTENT_QUESTION, INTENT_ORDER_STATUS, INTENT_OFF_TOPIC, INTENT_CANCEL]
+
+# The two branches a chat can be in (order_flow.advance): ordering products, or booking a service.
+BRANCH_ORDER, BRANCH_BOOKING = 'order', 'booking'
 
 # Who sent a ChatSession message (chat_message_json[].sent_by).
 SENT_BY_CUSTOMER = 'customer'

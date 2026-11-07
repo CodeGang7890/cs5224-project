@@ -97,6 +97,15 @@ class ChatSession(Base):
     chat_state_id: Mapped[str] = mapped_column(String(32))
     is_sandbox: Mapped[bool] = mapped_column(Boolean, default=False)
     chat_state_data: Mapped[dict] = mapped_column(Json)
+    # Goes up by 1 on every change (Django's save() does it too). As the version_id_col, SQLAlchemy
+    # adds 1 in every UPDATE of the row (WHERE version = the one loaded), and a new chat starts at 0
+    # like Django's. The chat flow compares it to detect changes made while its LLM was answering.
+    version: Mapped[int] = mapped_column(Integer)
+
+    __mapper_args__ = {
+        'version_id_col': version,
+        'version_id_generator': lambda version: 0 if version is None else version + 1,
+    }
 
 
 class UnansweredQuestion(Base):
@@ -127,6 +136,26 @@ class InboundMessage(Base):
     status: Mapped[str] = mapped_column(String(16))  # received | replied
     received_time: Mapped[datetime] = mapped_column(AwareDateTime)
     replied_time: Mapped[datetime | None] = mapped_column(AwareDateTime)
+
+
+class OutboundMessage(Base):
+    """chat_app.OutboundMessage: a WhatsApp reply in the outbox. Saved with the reply (app/inbound.py),
+    then sent, retried and marked by app/outbox.py. Written by this service only."""
+
+    __tablename__ = 'chat_app_outboundmessage'
+
+    id: Mapped[int] = mapped_column(BigId, primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey('configuration_app_businessconfiguration.id'))
+    chat_session_id: Mapped[int] = mapped_column(ForeignKey('chat_app_chatsession.id'))
+    inbound_message_id: Mapped[int | None] = mapped_column(ForeignKey('chat_app_inboundmessage.id'))
+    text: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(16))  # pending | sent | failed
+    attempts: Mapped[int] = mapped_column(Integer)
+    next_attempt_time: Mapped[datetime] = mapped_column(AwareDateTime)
+    last_error: Mapped[str] = mapped_column(Text)
+    meta_message_id: Mapped[str] = mapped_column(String(255))
+    created_time: Mapped[datetime] = mapped_column(AwareDateTime)
+    sent_time: Mapped[datetime | None] = mapped_column(AwareDateTime)
 
 
 class Product(Base):

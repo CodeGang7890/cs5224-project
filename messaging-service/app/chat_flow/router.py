@@ -5,12 +5,16 @@ message is about: its intents (constants.INTENTS, a message can have several). C
 model, then decides which handlers run (flow.handle_customer_message):
 - order / booking: the order or booking steps (order_flow.advance). An intent to order (or book a
   service) starts one; once one is in progress, its steps run on every message, whatever the
-  router says, because short replies like "Alice", "yes" or "2" carry no intent of their own.
+  router says (unless it's cancelled, or the customer asks for the other one: see cancel below),
+  because short replies like "Alice", "yes" or "2" carry no intent of their own.
 - question: the FAQ handler (flow.check_customer_question): answered from the business's
   information, or sent to the business as an unanswered question.
 - order_status: the customer's past orders and bookings (flow.check_order_status: an LLM extracts
   what they ask about, code looks it up among their own, an LLM rewrites only that).
 - off_topic: the reply declines it politely.
+- cancel: the order or booking in progress is dropped, back to the start (order_flow.advance).
+  Asking to order while a booking is in progress (or the other way round) switches over by
+  itself if nothing has been chosen yet; otherwise the customer is asked to finish or cancel first.
 
 Originally configuration-service's chat_app/router.py (removed there: this is the only copy).
 """
@@ -19,7 +23,15 @@ from dataclasses import dataclass
 
 from .. import llm
 from . import prompts
-from .constants import INTENT_BOOKING, INTENT_OFF_TOPIC, INTENT_ORDER, INTENT_ORDER_STATUS, INTENT_QUESTION, INTENTS
+from .constants import (
+    INTENT_BOOKING,
+    INTENT_CANCEL,
+    INTENT_OFF_TOPIC,
+    INTENT_ORDER,
+    INTENT_ORDER_STATUS,
+    INTENT_QUESTION,
+    INTENTS,
+)
 
 
 @dataclass
@@ -39,6 +51,11 @@ class Route:
     def start_booking(self) -> bool:
         """The customer wants to book a service: starts the booking steps, if nothing is in progress."""
         return INTENT_BOOKING in self.intents
+
+    @property
+    def cancel(self) -> bool:
+        """The customer wants to drop the order or booking in progress."""
+        return INTENT_CANCEL in self.intents
 
     @property
     def question(self) -> bool:

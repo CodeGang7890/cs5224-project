@@ -43,6 +43,8 @@ export interface ChatStateData {
   slot_options?: string[];
   /** The last booking (Orders tab → Services) made in this chat. */
   last_booking_id?: number;
+  /** Set when an order or booking is cancelled: the index of the cancelling message (the next one's steps read from there). */
+  history_start?: number;
 }
 
 /** A conversation between a business and one customer, or a sandbox (test) chat. */
@@ -117,6 +119,8 @@ export interface SandboxTurnDebug {
     | "booking_confirmed";
   /** The LLM reply's prompt; for a Confirmation template, the prompt of its short aside (empty if none). */
   reply_system_prompt: string;
+  /** How many times the turn ran (more than 1: the chat changed while it was worked out, so it ran again). */
+  attempts: number;
   tool_calls: { name: string; arguments: Record<string, unknown> }[];
   /** The question check (FAQs): does the business's information answer the question? Null unless the router found one. */
   question_check: QuestionCheckDebug | null;
@@ -142,9 +146,9 @@ export interface OrderStatusDebug {
   };
 }
 
-/** The router's intents, mirrored from configuration-service `chat_app/constants.py` `INTENTS`. */
+/** The router's intents, mirrored from messaging-service `app/chat_flow/constants.py` `INTENTS`. */
 export type Intent =
-  "order" | "booking" | "question" | "order_status" | "off_topic";
+  "order" | "booking" | "question" | "order_status" | "off_topic" | "cancel";
 
 export interface RouteDebug {
   intents: Intent[];

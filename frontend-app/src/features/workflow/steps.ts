@@ -87,7 +87,8 @@ export const FLOW_NODE_META: Record<FlowNodeId, FlowNodeMeta> = {
       "products, booking a service, a question about your business, a past order, or something off topic. " +
       'One message can be about several things (for example "2 roses please, and do you deliver?"), and each ' +
       "part goes to its own branch. Once an order or a booking has started, its steps keep going until the " +
-      "customer confirms it.",
+      "customer confirms it, or cancels it. Asking to book during an order (or to order during a booking) " +
+      "switches over if nothing has been chosen yet; otherwise the assistant asks them to finish or cancel first.",
     icon: Route,
     accentClassName: "border-t-emerald-500",
     iconClassName: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",

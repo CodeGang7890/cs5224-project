@@ -65,6 +65,7 @@ Things to know about the message:
 | `GCP_PROJECT_ID` | `local-project` | |
 | `PUBSUB_TOPIC` / `PUBSUB_SUBSCRIPTION` | `payment-events` / `processing-service-payments` | |
 | `PUBSUB_MAX_MESSAGES` | `5` | Messages handled at once, per worker |
+| `PUBSUB_ACK_DEADLINE_SECONDS` | `60` | The ack deadline: the consumer's leases (the subscription's, set by docker-compose's `pubsub-init` with a 30–600 s retry backoff and the dead-letter topic `payment-events-dlq` after 5 attempts, is the same) |
 | `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | `configuration_service` / `postgres` / `postgres` | configuration-service's database |
 | `POSTGRES_HOST` / `POSTGRES_PORT` | `localhost` / `5433` | docker-compose: `postgres` / `5432` |
 | `DATABASE_URL` | unset | A full SQLAlchemy URL; overrides the above |

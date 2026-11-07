@@ -84,7 +84,7 @@ Topic: **`whatsapp-inbound-messages`**. One Pub/Sub message per customer message
 | `timestamp`       | When the customer sent it, ISO 8601 UTC                                                      |
 
 **Attributes:** `business_id`, `phone_number_id`, `message_id` (strings).
-**Ordering key:** the customer's number (`from`), so one customer's messages arrive in order when the subscription has message ordering enabled.
+**Ordering key:** `<business_id>:<from>` (e.g. `7:+6591234567`), so one customer's messages to one business arrive in order, and one at a time, when the subscription has message ordering enabled (the next message of a key is only delivered once the previous one is acked; messaging-service acks at the end of the turn).
 
 **What the consumer must handle:**
 

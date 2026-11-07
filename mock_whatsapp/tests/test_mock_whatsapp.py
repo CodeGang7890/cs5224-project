@@ -10,7 +10,7 @@ from unittest.mock import patch
 import httpx
 from fastapi.testclient import TestClient
 
-from app import config, create_app, db, meta
+from app import config, create_app, db, media, meta
 
 KOPI = {
     'business_id': 1, 'name': 'Kopi & Co. Café', 'waba_id': '200000000000001', 'phone_number_id': '100000000000001',
@@ -29,6 +29,7 @@ class MockTestCase(unittest.TestCase):
             patcher = patch.object(config, name, value)
             patcher.start()
             self.addCleanup(patcher.stop)
+        self.addCleanup(media.clear)
         self.client = TestClient(create_app())
 
 
@@ -45,6 +46,22 @@ class WebhookTests(unittest.TestCase):
             }}]}],
         })
         self.assertTrue(meta.new_wamid().startswith('wamid.'))
+
+    def test_photos_and_documents_in_metas_format(self):
+        photo = {'kind': 'image', 'filename': 'cake.jpg', 'mime_type': 'image/jpeg', 'size': 1, 'id': '1234', 'sha256': 'ab'}
+        payload = meta.webhook_payload(KOPI, '6591234567', 'Alice', 'wamid.X', 'This one?', attachment=photo)
+        message = payload['entry'][0]['changes'][0]['value']['messages'][0]
+        self.assertEqual(
+            (message['type'], message['image']),
+            ('image', {'caption': 'This one?', 'mime_type': 'image/jpeg', 'sha256': 'ab', 'id': '1234'}),
+        )
+        self.assertNotIn('text', message)
+        document = {**photo, 'kind': 'document', 'filename': 'order.pdf', 'mime_type': 'application/pdf'}
+        message = meta.webhook_payload(KOPI, '6591234567', 'Alice', 'wamid.Y', '', attachment=document)['entry'][0]['changes'][0]['value']['messages'][0]
+        self.assertEqual(
+            (message['type'], message['document']),
+            ('document', {'filename': 'order.pdf', 'mime_type': 'application/pdf', 'sha256': 'ab', 'id': '1234'}),  # no caption
+        )
 
     def test_signed_over_the_exact_bytes_sent(self):
         requests = []
@@ -82,6 +99,46 @@ class SendTests(MockTestCase):
         with patch('app.meta.send_to_webhook', side_effect=meta.WebhookError('The webhook answered 503')):
             body = self.client.post('/api/messages', json={'wa_id': '6591234567', 'phone_number_id': '100000000000001', 'text': 'Hi'}).json()
         self.assertEqual((body['status'], body['error']), ('failed', 'The webhook answered 503'))
+
+    def test_a_photo_or_document_sends_only_its_metadata(self):
+        chat = {'wa_id': '6591234567', 'phone_number_id': '100000000000001'}
+        with patch('app.meta.send_to_webhook') as send:
+            body = self.client.post('/api/messages', json={**chat, 'text': ' Is this in stock? ', 'attachment': {
+                'kind': 'image', 'filename': 'cake.jpg', 'mime_type': 'image/jpeg', 'size': 20480,
+            }}).json()
+        self.assertEqual((body['status'], body['text'], body['preview']), ('sent', 'Is this in stock?', '📷 Is this in stock?'))
+        self.assertEqual((body['media']['kind'], body['media']['filename'], body['media']['size']), ('image', 'cake.jpg', 20480))
+        message = send.call_args.args[1]['entry'][0]['changes'][0]['value']['messages'][0]
+        self.assertEqual((message['type'], message['image']['caption'], message['image']['id']), ('image', 'Is this in stock?', body['media']['id']))
+        self.assertRegex(message['image']['id'], r'^\d{16}$')
+
+        with patch('app.meta.send_to_webhook'):
+            self.client.post('/api/messages', json={**chat, 'attachment': {'kind': 'document', 'filename': 'order.pdf', 'mime_type': 'application/pdf'}})
+        listed = self.client.get('/api/messages', params={'as': chat['wa_id'], 'chat': chat['phone_number_id']}).json()
+        self.assertEqual([(m['text'], m['media']['kind']) for m in listed], [('Is this in stock?', 'image'), ('', 'document')])
+        last, = (c['last'] for c in self.client.get('/api/chats', params={'as': chat['wa_id']}).json())
+        self.assertEqual(last['preview'], '📄 order.pdf')
+
+        # Kept in memory only: after a restart, the message stays, as a plain attachment.
+        media.clear()
+        self.assertEqual([m['media'] for m in self.client.get('/api/messages', params={'as': chat['wa_id'], 'chat': chat['phone_number_id']}).json()], [None, None])
+        last, = (c['last'] for c in self.client.get('/api/chats', params={'as': chat['wa_id']}).json())
+        self.assertEqual(last['preview'], '📎 Attachment')
+
+    def test_an_empty_message_or_a_bad_attachment_is_refused(self):
+        chat = {'wa_id': '6591234567', 'phone_number_id': '100000000000001'}
+        with patch('app.meta.send_to_webhook') as send:
+            self.assertEqual(self.client.post('/api/messages', json={**chat, 'text': '  '}).status_code, 400)
+            self.assertEqual(self.client.post('/api/messages', json={**chat, 'attachment': {'kind': 'video', 'filename': 'a.mp4'}}).status_code, 422)
+        send.assert_not_called()
+
+    def test_reset_forgets_the_attachments(self):
+        with patch('app.meta.send_to_webhook'):
+            body = self.client.post('/api/messages', json={
+                'wa_id': '6591234567', 'phone_number_id': '100000000000001', 'attachment': {'kind': 'document', 'filename': 'a.pdf'},
+            }).json()
+        self.client.post('/api/reset')
+        self.assertIsNone(media.get(body['wamid']))
 
     def test_new_customers(self):
         alice = self.client.post('/api/customers', json={'name': 'Cara', 'wa_id': '+65 9000 0001'}).json()
@@ -142,10 +199,15 @@ class GraphApiTests(MockTestCase):
 class PageTests(MockTestCase):
     def test_the_page_lists_the_customers_and_businesses(self):
         db.add_message('wamid.1', '6591234567', '100000000000001', True, 'Hello there', 'sent')
+        db.add_message('wamid.2', '6591234567', '100000000000001', True, '', 'sent')
+        media.add('wamid.2', 'document', "Bob's order.pdf", 'application/pdf', 10)
         page = self.client.get('/?as=6591234567&chat=100000000000001')
         self.assertEqual(page.status_code, 200)
-        for text in ('Alice Tan · +65 9123 4567', 'Kopi &amp; Co. Café', 'Hello there', '+65 8832 3212'):
+        for text in ('Alice Tan · +65 9123 4567', 'Kopi &amp; Co. Café', 'Hello there', '+65 8832 3212', '📄 Bob&#39;s order.pdf'):
             self.assertIn(text, page.text)
+        self.assertRegex(page.text.replace("\n", " "), r'style\.css\?v=\d+".*app\.js\?v=\d+"')  # a new version is never a cached old copy
+        # The attachment's metadata, for app.js (JSON in a single-quoted attribute: tojson escapes ').
+        self.assertIn('data-media=\'{"filename": "Bob\\u0027s order.pdf"', page.text)
 
 
 class SampleCustomerTests(MockTestCase):

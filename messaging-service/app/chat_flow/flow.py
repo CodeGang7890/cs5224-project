@@ -9,9 +9,9 @@ handle_customer_message() runs one turn:
    Confirmation) or the booking steps (Service selection → Time slot → Booking details → Booking
    confirmation), small deterministic state machines. They run when the router finds the customer
    wants to order (or book), and on every message while one is in progress.
-4. Save chat_state_id / chat_state_data (order_flow.commit_turn). If the customer confirmed, this
-   also places the order (checkout_app: an OrderItem, with its stock reserved) in the same
-   transaction, and the chat goes back to the start.
+4. If the customer confirmed: place the order (checkout_app: an OrderItem, with its stock
+   reserved) or booking and save the chat's state in one transaction (order_flow.commit_turn), and
+   the chat goes back to the start. Otherwise the state is saved with the reply, at the end.
 5. Answer questions (check_customer_question, the FAQ handler), if the router found one: one
    structured LLM call with the business's information decides whether it answers the question.
    An unanswered (real) question is saved for the business (questions.ask_business), and the
@@ -35,14 +35,24 @@ handle_customer_message() runs one turn:
 
 A port of configuration-service's chat_app/flow.py to SQLAlchemy: every database read is a short
 session (none is left open while the LLM answers), every write its own transaction.
+
+Concurrent changes (ChatSession.version, which every change adds 1 to): the turn reads the chat's
+version with the chat. Its writes check it, row locked (order_flow.lock_session): the reply and
+state are saved in one transaction at the end, only if the version is still the one read. If it
+changed while the LLM was answering (another message in the chat, the business answering a
+question in configuration-service…), nothing of that attempt is saved and the whole turn runs
+again on the chat as it is now, up to TURN_ATTEMPTS_MAX times (then ChatConflictError). A turn
+that places an order / booking checks the version when placing it instead: once it's placed the
+turn can't run again (it would place it twice), so its reply is saved even if the chat changed.
 """
 
+import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from sqlalchemy import select
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
-from .. import latency, llm
+from .. import config, latency, llm
 from ..models import BusinessConfiguration, ChatSession
 from . import dates as timezone  # timezone.now(), like django.utils.timezone
 from . import order_flow, past_orders, payments, prompts, router
@@ -64,6 +74,11 @@ from .tools import (
     service_dict,
 )
 
+logger = logging.getLogger(__name__)
+
+# save_turn's hook: on_saved(db, session, messages saved, placed an order / booking).
+OnSaved = Callable[[Session, ChatSession, list[dict], bool], None]
+
 # How many of the latest messages the LLM sees (keeps the prompt within the context window).
 HISTORY_MAX_MESSAGES = 20
 
@@ -80,6 +95,11 @@ REPLY_ORDER_STATUS_NOT_FOUND = 'order_status_not_found'  # nothing of theirs fou
 REPLY_WELCOME = 'welcome'  # a first message with nothing to do (e.g. "hi"): only the welcome message
 
 
+class ChatConflictError(Exception):
+    """The chat changed during every one of the turn's TURN_ATTEMPTS_MAX attempts: nothing was
+    replied (the customer message stays saved)."""
+
+
 @dataclass
 class TurnResult:
     reply: dict  # the chat message saved as the reply (the last one sent)
@@ -89,7 +109,9 @@ class TurnResult:
     messages: list[dict] = field(default_factory=list)
 
 
-def handle_customer_message(sessions: sessionmaker, session_id: int, message: str, save_message: bool = True) -> TurnResult:
+def handle_customer_message(
+    sessions: sessionmaker, session_id: int, message: str, save_message: bool = True, on_saved: OnSaved | None = None,
+) -> TurnResult:
     """Saves the customer message, runs the flow, then saves and returns the assistant's reply.
 
     The customer message is saved first, so it's kept if an LLM call fails (llm.LLMError). The
@@ -103,21 +125,43 @@ def handle_customer_message(sessions: sessionmaker, session_id: int, message: st
     `save_message=False` (messaging-service only: the WhatsApp consumer, app/inbound.py): the
     customer message is already the chat's last one (saved with its InboundMessage record, so a
     redelivered message is never saved twice).
+
+    If the chat changes while the turn is worked out (its version, see the module docstring), the
+    turn runs again from the start, without saving the customer message again; after
+    TURN_ATTEMPTS_MAX attempts, ChatConflictError.
+
+    `on_saved(db, session, messages, placed)` (messaging-service's WhatsApp consumer, app/inbound.py):
+    called inside the transaction that saves the turn's messages, after they're added, so its writes
+    (the InboundMessage marked replied, the replies in the outbox) are saved with them or not at all.
+    `placed`: this turn placed an order / booking (saved already; trying and failing, e.g. sold
+    out, isn't placing). If it raises, nothing of the
+    save is kept and the error reaches the caller.
     """
-    with latency.timed('TURN') as turn_timer:
-        result = _handle_customer_message(sessions, session_id, message, save_message)
-        turn_timer.fields.update(
-            reply_kind=result.debug['reply_kind'], intents=result.debug['route']['intents'],
-            step=result.debug['after']['chat_state_id'], messages=len(result.messages),
-        )
-    return result
-
-
-def _handle_customer_message(sessions: sessionmaker, session_id: int, message: str, save_message: bool) -> TurnResult:
     if save_message:
         append_chat_message(sessions, session_id, message, SENT_BY_CUSTOMER)
+    for attempt in range(1, config.TURN_ATTEMPTS_MAX + 1):
+        try:
+            with latency.timed('TURN', attempt=attempt) as turn_timer:
+                result = _run_turn(sessions, session_id, message, on_saved)
+                turn_timer.fields.update(
+                    reply_kind=result.debug['reply_kind'], intents=result.debug['route']['intents'],
+                    step=result.debug['after']['chat_state_id'], messages=len(result.messages),
+                )
+        except order_flow.ChatChanged as exc:
+            logger.info('%s Running the turn again (attempt %d of %d done).', exc, attempt, config.TURN_ATTEMPTS_MAX)
+            continue
+        result.debug['attempts'] = attempt
+        return result
+    raise ChatConflictError(
+        f'Chat {session_id} kept changing while the reply was written ({config.TURN_ATTEMPTS_MAX} attempts).'
+    )
+
+
+def _run_turn(sessions: sessionmaker, session_id: int, message: str, on_saved: OnSaved | None = None) -> TurnResult:
+    """One attempt at the turn: ChatChanged (nothing saved) if the chat changed meanwhile."""
     with latency.timed('DB', 'LOAD'), sessions() as db:
         session = db.get(ChatSession, session_id)
+        version = session.version  # the turn's writes check the chat is still at it
         business = db.get(BusinessConfiguration, session.business_id)
         products = active_products(db, business)
         services = active_services(db, business)
@@ -136,12 +180,16 @@ def _handle_customer_message(sessions: sessionmaker, session_id: int, message: s
         timer.fields['intents'] = route.intents
     turn = order_flow.advance(
         chat_config, session.chat_state_id, session.chat_state_data, history, products,
-        start_order=route.start_order, start_booking=route.start_booking, services=services, now=now,
-        sessions=sessions,
+        start_order=route.start_order, start_booking=route.start_booking, cancel=route.cancel, services=services,
+        now=now, sessions=sessions, message_count=len(session.chat_message_json),
     )
-    with latency.timed('DB', 'COMMIT_TURN') as timer:
-        order_flow.commit_turn(sessions, session_id, turn, now)
-        timer.fields.update(step=turn.step, order=turn.placed_order_id, booking=turn.placed_booking_id)
+    # Placing an order / booking: now, as the reply needs its number (and payment link). Otherwise
+    # the state is saved with the reply, at the end. Either way, only if the chat hasn't changed.
+    placing = turn.confirmation is not None
+    if placing:
+        with latency.timed('DB', 'COMMIT_TURN') as timer:
+            version = order_flow.commit_turn(sessions, session_id, turn, now, version=version)
+            timer.fields.update(step=turn.step, order=turn.placed_order_id, booking=turn.placed_booking_id)
     if turn.placed_order_id is not None or turn.placed_booking_id is not None:
         # The customer confirmed: the confirmation message ends with the Xendit payment link
         # (or a note if it could not be created).
@@ -163,12 +211,15 @@ def _handle_customer_message(sessions: sessionmaker, session_id: int, message: s
     # The welcome message goes first (the reply model then sees it in the conversation). A first
     # message the router found nothing to do with gets only the welcome: no reply LLM call.
     welcome_only = bool(welcome) and not route.intents and not turn.steps
-    sent = []
+    to_send = []  # saved together at the end
     if welcome:
-        sent.append(append_chat_message(sessions, session_id, welcome, SENT_BY_BUSINESS_AUTOMATED))
+        to_send.append(welcome)
         history = [*history, {'role': 'assistant', 'content': welcome}]
 
     toolbox = Toolbox(business, sessions)
+    placed = turn.placed_order_id is not None or turn.placed_booking_id is not None
+    # What this message did to an order or booking in progress (cancelled, switched, not started).
+    branch_change = {'cancelled': turn.cancelled, 'switched_from': turn.switched_from, 'held_back': turn.held_back}
     labels = {
         'order': prompts.detail_labels(chat_config.product_detail_fields),
         'booking': prompts.detail_labels(chat_config.schedule_detail_fields),
@@ -182,9 +233,10 @@ def _handle_customer_message(sessions: sessionmaker, session_id: int, message: s
         reply_kind, text, context, aside_first = template
         system_prompt, parts = '', [text]
         answered = check is not None and check['kind'] != prompts.QUESTION_NONE
-        if answered or route.order_status or route.off_topic:
+        if answered or route.order_status or route.off_topic or route.cancel or any(branch_change.values()):
             system_prompt = prompts.build_aside_prompt(
-                business, context=context, intents=route.intents, question_check=check, order_records=records, style=style
+                business, context=context, intents=route.intents, question_check=check, order_records=records, style=style,
+                placed=placed, **branch_change,
             )
             with latency.timed('LLM', 'ASIDE', kind=reply_kind) as timer:
                 aside = llm.generate_chat_reply(system_prompt, history, toolbox).strip()
@@ -229,12 +281,18 @@ def _handle_customer_message(sessions: sessionmaker, session_id: int, message: s
             order_records=records,
             style=style,
             welcomed=bool(welcome),
+            **branch_change,
         )
         with latency.timed('LLM', 'REPLY', step=turn.step) as timer:
             reply = llm.generate_chat_reply(system_prompt, history, toolbox)
             timer.fields['tools'] = len(toolbox.calls)
     if reply is not None:
-        sent.append(append_chat_message(sessions, session_id, reply.strip() or '…', SENT_BY_BUSINESS_AUTOMATED))
+        to_send.append(reply.strip() or '…')
+    with latency.timed('DB', 'SAVE_TURN', messages=len(to_send)):
+        sent = save_turn(
+            sessions, session_id, None if placing else turn, to_send, version, check=not placing, on_saved=on_saved,
+            placed=placed,
+        )
     debug = {
         'before': before,
         'after': {'chat_state_id': turn.step, 'chat_state_data': turn.data},
@@ -385,6 +443,33 @@ def to_llm_history(chat_messages: list[dict]) -> list[dict]:
     ]
 
 
+def save_turn(
+    sessions: sessionmaker, session_id: int, turn: order_flow.Turn | None, messages: list[str], version: int,
+    check: bool = True, on_saved: OnSaved | None = None, placed: bool = False,
+) -> list[dict]:
+    """The end of a turn, in one transaction with the row locked: saves the turn's state (unless
+    `turn` is None: commit_turn() saved it) and appends the assistant's messages. With `check`, only
+    if the chat is still at `version` (else order_flow.ChatChanged, and nothing is saved); without
+    (the order / booking is placed already), a change is only logged. `on_saved` (see
+    handle_customer_message) runs last, in the same transaction, told whether this turn `placed` an
+    order / booking (not only tried: placing can fail, e.g. sold out). Returns the messages saved."""
+    with sessions.begin() as db:
+        session = order_flow.lock_session(db, session_id)
+        if session.version != version:
+            if check:
+                raise order_flow.ChatChanged(session_id, version, session.version)
+            logger.warning(
+                'Chat %s changed while the reply was written (version %s → %s); saving it anyway: the order '
+                'or booking is placed already.', session_id, version, session.version,
+            )
+        if turn is not None:
+            order_flow.apply_turn(db, session, turn, timezone.now())
+        saved = [add_message(session, text, SENT_BY_BUSINESS_AUTOMATED) for text in messages]
+        if on_saved is not None:
+            on_saved(db, session, saved, placed)
+        return saved
+
+
 def append_chat_message(sessions: sessionmaker, session_id: int, message: str, sent_by: str) -> dict:
     """Appends a message (timestamped now) to a session and updates its last_chat_time.
 
@@ -397,7 +482,12 @@ def append_chat_message(sessions: sessionmaker, session_id: int, message: str, s
 
 def append_in_transaction(db, session_id: int, message: str, sent_by: str) -> dict:
     """append_chat_message() inside the caller's transaction (`db`), with the row locked."""
-    session = db.scalars(select(ChatSession).where(ChatSession.id == session_id).with_for_update()).one()
+    return add_message(order_flow.lock_session(db, session_id), message, sent_by)
+
+
+def add_message(session: ChatSession, message: str, sent_by: str) -> dict:
+    """Appends a message (timestamped now) to a loaded (and locked) session; saved when its
+    transaction commits, adding 1 to the chat's version."""
     now = timezone.now()
     chat_message = {'message': message, 'sent_by': sent_by, 'message_time': now.isoformat()}
     # A new list (not append): SQLAlchemy only saves a JSON column that's assigned.
