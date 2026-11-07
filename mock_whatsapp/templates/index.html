@@ -4,7 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Mock WhatsApp · {{ business.name }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v={{ static_version }}">
+  <!-- Paths only (no scheme or host): behind an HTTPS proxy (Cloud Run) the app sees http, and an
+       http:// URL would be blocked on the https page. -->
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css').path }}?v={{ static_version }}">
 </head>
 <body>
 {% macro avatar(name, extra='') -%}
@@ -167,6 +169,6 @@
   </form>
 </dialog>
 
-<script src="{{ url_for('static', path='app.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', path='app.js').path }}?v={{ static_version }}"></script>
 </body>
 </html>
