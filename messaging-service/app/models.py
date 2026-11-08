@@ -119,7 +119,6 @@ class UnansweredQuestion(Base):
     chat_session_id: Mapped[int] = mapped_column(ForeignKey('chat_app_chatsession.id'))
     question: Mapped[str] = mapped_column(String(300))
     status: Mapped[str] = mapped_column(String(16))
-    faq_id: Mapped[int | None] = mapped_column(ForeignKey('product_app_faq.id'))
     created_time: Mapped[datetime] = mapped_column(AwareDateTime)
     answered_time: Mapped[datetime | None] = mapped_column(AwareDateTime)
 

@@ -52,7 +52,6 @@ def ask_business(db: Session, chat_session: ChatSession, question) -> dict:
         chat_session_id=chat_session.id,
         question=text,
         status=QUESTION_OPEN,
-        faq_id=None,
         created_time=dates.now(),
         answered_time=None,
     ))

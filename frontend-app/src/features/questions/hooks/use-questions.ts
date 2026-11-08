@@ -7,10 +7,11 @@ import {
 } from "@tanstack/react-query";
 
 import { chatSessionKeys } from "@/features/chat-sessions";
-import { faqKeys } from "@/features/faqs";
+import { type Faq, faqKeys } from "@/features/faqs";
 import type { ApiError, DetailedPaginated } from "@/types/api";
 
 import {
+  addQuestionToFaqs,
   answerQuestion,
   dismissQuestion,
   listQuestions,
@@ -53,8 +54,7 @@ export function useOpenQuestionCount() {
 function refreshAfterChange(queryClient: QueryClient) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: questionKeys.all }),
-    // Answering adds an FAQ and a chat message.
-    queryClient.invalidateQueries({ queryKey: faqKeys.all }),
+    // Answering adds a chat message.
     queryClient.invalidateQueries({ queryKey: chatSessionKeys.all }),
   ]);
 }
@@ -68,6 +68,15 @@ export function useAnswerQuestion() {
   >({
     mutationFn: ({ id, input }) => answerQuestion(id, input),
     onSuccess: () => refreshAfterChange(queryClient),
+  });
+}
+
+/** Adds an answered question to the FAQs (the question itself doesn't change). */
+export function useAddQuestionToFaqs() {
+  const queryClient = useQueryClient();
+  return useMutation<Faq, ApiError, number>({
+    mutationFn: addQuestionToFaqs,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: faqKeys.all }),
   });
 }
 

@@ -611,7 +611,8 @@ class ServiceProvidersMigrationTests(TransactionTestCase):
         OldAvailability = apps.get_model('product_app', 'WeeklyAvailability')
         OldService = apps.get_model('product_app', 'Service')
         OldBooking = apps.get_model('checkout_app', 'ScheduleItem')
-        studio = Business.objects.create(business_name='Snap', location='SG')
+        # Through the current model: configuration_app isn't rolled back, and its newer columns are required.
+        studio = Business.objects.get(pk=BusinessConfiguration.objects.create(business_name='Snap', location='SG').pk)
         # Monday 09:00–12:00 open, the rest X (the old "not available") and one H.
         template = open_hours((0, '09:00', '12:00'), base='X' * 672)[:-1] + 'H'
         mei = OldAvailability.objects.create(business=studio, name='Mei', availability=template)

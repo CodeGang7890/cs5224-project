@@ -2,8 +2,9 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError, transaction
-from django.test import TestCase
+from django.db import IntegrityError, connection, transaction
+from django.db.migrations.executor import MigrationExecutor
+from django.test import TestCase, TransactionTestCase
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -16,6 +17,7 @@ from product_app.models import FAQ, FAQ_QUESTION_MAX_LENGTH
 from ..models import ChatSession, QuestionStatus, UnansweredQuestion
 from ..questions import (
     ANSWER_MAX_LENGTH,
+    add_to_faqs,
     answer_message,
     answer_question,
 )
@@ -48,7 +50,7 @@ class UnansweredQuestionModelTests(QuestionTestData, TestCase):
         item.full_clean()
         self.assertEqual(item.status, QuestionStatus.OPEN)
         self.assertIsNone(item.answered_time)
-        self.assertIsNone(item.faq)
+        self.assertEqual(item.answer, '')
         self.assertLess(timezone.now() - item.created_time, timedelta(seconds=5))
         self.assertEqual(str(item), 'Do you have oat milk?')
 
@@ -82,16 +84,11 @@ class UnansweredQuestionModelTests(QuestionTestData, TestCase):
                 with self.assertRaises(IntegrityError), transaction.atomic():
                     self.make_question(self.alice, **fields)
 
-    def test_chat_and_faq_must_belong_to_the_business(self):
+    def test_chat_must_belong_to_the_business(self):
         item = UnansweredQuestion(business=self.cafe, chat_session=self.rose_chat, question='Q?')
         with self.assertRaises(ValidationError) as ctx:
             item.full_clean()
         self.assertIn('chat_session', ctx.exception.message_dict)
-        florist_faq = FAQ.objects.create(business=self.florist, question='Delivery?', answer='No.')
-        item = UnansweredQuestion(business=self.cafe, chat_session=self.alice, question='Q?', faq=florist_faq)
-        with self.assertRaises(ValidationError) as ctx:
-            item.full_clean()
-        self.assertIn('faq', ctx.exception.message_dict)
 
     def test_deleted_with_its_chat_or_business(self):
         self.make_question(self.sandbox)
@@ -100,13 +97,6 @@ class UnansweredQuestionModelTests(QuestionTestData, TestCase):
         self.make_question(self.alice)
         self.cafe.delete()
         self.assertFalse(UnansweredQuestion.objects.exists())
-
-    def test_faq_deleted_keeps_the_question(self):
-        faq = FAQ.objects.create(business=self.cafe, question='Oat milk?', answer='Yes.')
-        item = self.make_question(self.alice, status=QuestionStatus.ANSWERED, answered_time=timezone.now(), faq=faq)
-        faq.delete()
-        item.refresh_from_db()
-        self.assertEqual((item.status, item.faq), (QuestionStatus.ANSWERED, None))
 
     def test_newest_first(self):
         old = self.make_question(self.alice, question='Old?', created_time=timezone.now() - timedelta(days=1))
@@ -128,14 +118,17 @@ class QuestionAPITestCase(QuestionTestData, APITestCase):
     def dismiss_url(item):
         return reverse('chat_app:question-dismiss', args=[item.pk])
 
+    @staticmethod
+    def add_to_faqs_url(item):
+        return reverse('chat_app:question-add-to-faqs', args=[item.pk])
+
 
 class UnansweredQuestionListAPITests(QuestionAPITestCase):
     def setUp(self):
         now = timezone.now()
         self.open_q = self.make_question(self.alice, 'Do you have oat milk?', created_time=now - timedelta(hours=3))
-        self.faq = FAQ.objects.create(business=self.cafe, question='Are you halal?', answer='No pork or lard.')
         self.answered_q = self.make_question(
-            self.alice, 'Are you halal?', status='answered', answered_time=now, faq=self.faq,
+            self.alice, 'Are you halal?', status='answered', answered_time=now, answer='No pork or lard.',
             created_time=now - timedelta(hours=2),
         )
         self.dismissed_q = self.make_question(self.alice, 'Hiring?', status='dismissed', created_time=now - timedelta(hours=1))
@@ -165,23 +158,23 @@ class UnansweredQuestionListAPITests(QuestionAPITestCase):
         results = {item['id']: item for item in self.client.get(self.list_url).json()['results']}
         answered = results[self.answered_q.pk]
         self.assertEqual(
-            {k: answered[k] for k in ('business', 'chat_session', 'display_name', 'phone_number', 'is_sandbox', 'question', 'status', 'faq', 'answer')},
+            {k: answered[k] for k in ('business', 'chat_session', 'display_name', 'phone_number', 'is_sandbox', 'question', 'status', 'answer')},
             {
                 'business': self.cafe.pk, 'chat_session': self.alice.pk, 'display_name': 'Alice',
                 'phone_number': '+6591234567', 'is_sandbox': False, 'question': 'Are you halal?',
-                'status': 'answered', 'faq': self.faq.pk, 'answer': 'No pork or lard.',
+                'status': 'answered', 'answer': 'No pork or lard.',
             },
         )
+        self.assertNotIn('faq', answered)
         self.assertIsNotNone(answered['answered_time'])
-        self.assertEqual((results[self.open_q.pk]['answer'], results[self.open_q.pk]['answered_time']), (None, None))
+        self.assertEqual((results[self.open_q.pk]['answer'], results[self.open_q.pk]['answered_time']), ('', None))
         self.assertTrue(results[self.sandbox_q.pk]['is_sandbox'])
 
-    def test_answer_follows_the_faq_when_it_is_edited(self):
-        self.faq.answer = 'Yes, we are halal-certified.'
-        self.faq.save()
+    def test_the_answer_is_what_was_sent_whatever_the_faqs_say(self):
+        FAQ.objects.create(business=self.cafe, question='Are you halal?', answer='Yes, we are halal-certified.')
         self.client.force_authenticate(self.cafe_user)
         results = {item['id']: item for item in self.client.get(self.list_url).json()['results']}
-        self.assertEqual(results[self.answered_q.pk]['answer'], 'Yes, we are halal-certified.')
+        self.assertEqual(results[self.answered_q.pk]['answer'], 'No pork or lard.')
 
     def test_status_filter(self):
         self.client.force_authenticate(self.cafe_user)
@@ -225,18 +218,17 @@ class AnswerQuestionAPITests(QuestionAPITestCase):
     def answer(self, item=None, **data):
         return self.client.post(self.answer_url(item or self.item), {'answer': 'Yes, for 50 cents more.', **data}, format='json')
 
-    def test_answering_saves_an_faq_replies_in_the_chat_and_closes_the_question(self):
+    def test_answering_replies_in_the_chat_and_closes_the_question(self):
         before, version = self.alice.last_chat_time, self.alice.version
         response = self.answer()
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.item.refresh_from_db()
-        self.assertEqual(self.item.status, QuestionStatus.ANSWERED)
+        self.assertEqual((self.item.status, self.item.answer), (QuestionStatus.ANSWERED, 'Yes, for 50 cents more.'))
         self.assertLess(timezone.now() - self.item.answered_time, timedelta(seconds=5))
-        faq = FAQ.objects.get(business=self.cafe)
-        self.assertEqual((faq.question, faq.answer, self.item.faq), ('Do you have oat milk?', 'Yes, for 50 cents more.', faq))
+        self.assertFalse(FAQ.objects.exists())  # only if the owner adds it (add-to-faqs)
         self.assertEqual(
-            {k: response.data[k] for k in ('id', 'status', 'faq', 'answer')},
-            {'id': self.item.pk, 'status': 'answered', 'faq': faq.pk, 'answer': 'Yes, for 50 cents more.'},
+            {k: response.data[k] for k in ('id', 'status', 'answer')},
+            {'id': self.item.pk, 'status': 'answered', 'answer': 'Yes, for 50 cents more.'},
         )
         self.alice.refresh_from_db()
         [message] = self.alice.chat_message_json
@@ -249,25 +241,16 @@ class AnswerQuestionAPITests(QuestionAPITestCase):
     def test_reworded_question(self):
         response = self.answer(question='  Do you have  oat milk for coffee? ')
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(FAQ.objects.get().question, 'Do you have oat milk for coffee?')
         self.item.refresh_from_db()
         self.assertEqual(self.item.question, 'Do you have oat milk for coffee?')
         self.alice.refresh_from_db()
         self.assertIn('about "Do you have oat milk for coffee?"', self.alice.chat_message_json[-1]['message'])
 
-    def test_existing_faq_with_the_same_question_gets_the_new_answer(self):
+    def test_answering_leaves_the_faqs_alone(self):
         faq = FAQ.objects.create(business=self.cafe, question='Do you have oat milk?', answer='Not yet.')
         self.assertEqual(self.answer().status_code, status.HTTP_200_OK)
         faq.refresh_from_db()
-        self.assertEqual((FAQ.objects.count(), faq.answer), (1, 'Yes, for 50 cents more.'))
-
-    def test_the_faq_is_editable_afterwards(self):
-        self.answer()
-        faq = FAQ.objects.get()
-        response = self.client.patch(reverse('product_app:faq-detail', args=[faq.pk]), {'answer': 'Yes, free!'}, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        listed = self.client.get(self.list_url).json()['results'][0]
-        self.assertEqual(listed['answer'], 'Yes, free!')
+        self.assertEqual((FAQ.objects.count(), faq.answer), (1, 'Not yet.'))
 
     def test_answers_real_and_sandbox_chats(self):
         sandbox_item = self.make_question(self.sandbox, 'Parking?')
@@ -314,8 +297,7 @@ class AnswerQuestionAPITests(QuestionAPITestCase):
             with self.assertRaises(RuntimeError):
                 answer_question(self.item, 'Yes.')
         self.item.refresh_from_db()
-        self.assertEqual(self.item.status, QuestionStatus.OPEN)
-        self.assertFalse(FAQ.objects.exists())
+        self.assertEqual((self.item.status, self.item.answer), (QuestionStatus.OPEN, ''))
 
     def test_permissions(self):
         florist_item = self.make_question(self.rose_chat, 'Sunflowers?')
@@ -332,6 +314,99 @@ class AnswerQuestionAPITests(QuestionAPITestCase):
 
     def test_other_methods_not_allowed(self):
         self.assertEqual(self.client.get(self.answer_url(self.item)).status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+
+class AddQuestionToFaqsAPITests(QuestionAPITestCase):
+    def setUp(self):
+        self.item = self.make_question(self.alice, 'Do you have oat milk?')
+        self.client.force_authenticate(self.cafe_user)
+        self.client.post(self.answer_url(self.item), {'answer': 'Yes, for 50 cents more.'}, format='json')
+        self.item.refresh_from_db()
+
+    def add(self, item=None):
+        return self.client.post(self.add_to_faqs_url(item or self.item))
+
+    def test_creates_an_faq_of_the_business_with_the_question_and_answer(self):
+        response = self.add()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        faq = FAQ.objects.get()
+        self.assertEqual(
+            (faq.business, faq.question, faq.answer), (self.cafe, 'Do you have oat milk?', 'Yes, for 50 cents more.')
+        )
+        self.assertEqual(
+            response.data,
+            {'id': faq.pk, 'business': self.cafe.pk, 'question': 'Do you have oat milk?', 'answer': 'Yes, for 50 cents more.'},
+        )
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.status, QuestionStatus.ANSWERED)  # the question doesn't change
+        self.alice.refresh_from_db()
+        self.assertEqual(len(self.alice.chat_message_json), 1)  # nothing more is sent
+
+    def test_uses_the_reworded_question(self):
+        item = self.make_question(self.alice, 'parking??')
+        self.client.post(self.answer_url(item), {'answer': 'Street parking.', 'question': 'Is there parking?'}, format='json')
+        self.assertEqual(self.add(item).status_code, status.HTTP_201_CREATED)
+        self.assertEqual(FAQ.objects.get().question, 'Is there parking?')
+
+    def test_the_faq_is_independent_of_the_question(self):
+        self.add()
+        faq = FAQ.objects.get()
+        response = self.client.patch(reverse('product_app:faq-detail', args=[faq.pk]), {'answer': 'Yes, free!'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.answer, 'Yes, for 50 cents more.')  # what was sent
+        faq.delete()
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.status, QuestionStatus.ANSWERED)
+
+    def test_only_answered_questions(self):
+        open_item = self.make_question(self.alice, 'Hiring?')
+        dismissed = self.make_question(self.alice, 'Wifi?', status=QuestionStatus.DISMISSED)
+        for item in (open_item, dismissed):
+            with self.subTest(status=item.status):
+                response = self.add(item)
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn('status', response.data)
+        self.assertFalse(FAQ.objects.exists())
+
+    def test_an_faq_with_the_same_question_already(self):
+        self.assertEqual(self.add().status_code, status.HTTP_201_CREATED)
+        response = self.add()  # e.g. added twice
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data, {'non_field_errors': ['This business already has an FAQ with this question.']})
+        self.assertEqual(FAQ.objects.count(), 1)
+
+    def test_same_question_added_at_the_same_moment(self):
+        FAQ.objects.create(business=self.cafe, question='Do you have oat milk?', answer='Not yet.')
+        with patch.object(FAQ, 'full_clean'):  # both requests passed the check; the database catches it
+            response = self.add()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data, {'non_field_errors': ['This business already has an FAQ with this question.']})
+        self.assertEqual(FAQ.objects.get().answer, 'Not yet.')
+
+    def test_another_business_may_have_the_same_faq(self):
+        FAQ.objects.create(business=self.florist, question='Do you have oat milk?', answer='We sell flowers.')
+        self.assertEqual(self.add().status_code, status.HTTP_201_CREATED)
+        self.assertEqual(FAQ.objects.filter(business=self.cafe).count(), 1)
+
+    def test_permissions(self):
+        florist_item = self.make_question(self.rose_chat, 'Sunflowers?', status=QuestionStatus.ANSWERED,
+                                          answered_time=timezone.now(), answer='Yes.')
+        self.assertEqual(self.add(florist_item).status_code, status.HTTP_403_FORBIDDEN)
+        missing = self.client.post(reverse('chat_app:question-add-to-faqs', args=[999999]))
+        self.assertEqual(missing.status_code, status.HTTP_404_NOT_FOUND)
+        self.client.force_authenticate(self.no_business_user)
+        self.assertEqual(self.add().status_code, status.HTTP_403_FORBIDDEN)
+        self.client.force_authenticate(None)
+        self.assertEqual(self.add().status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertFalse(FAQ.objects.exists())
+
+    def test_other_methods_not_allowed(self):
+        self.assertEqual(self.client.get(self.add_to_faqs_url(self.item)).status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_add_to_faqs_directly(self):
+        faq = add_to_faqs(self.item)
+        self.assertEqual((faq.business_id, faq.question), (self.cafe.pk, 'Do you have oat milk?'))
 
 
 class DismissQuestionAPITests(QuestionAPITestCase):
@@ -388,9 +463,53 @@ class SampleUnansweredQuestionFixtureTests(TestCase):
             sorted(questions.values_list('status', flat=True)), ['answered', 'answered', 'dismissed', 'open', 'open']
         )
 
-    def test_answered_questions_are_faqs_and_were_replied_to_in_the_chat(self):
+    def test_answered_questions_were_replied_to_in_the_chat(self):
         for item in UnansweredQuestion.objects.filter(status=QuestionStatus.ANSWERED):
             with self.subTest(question=item.question):
-                self.assertEqual(item.faq.question, item.question)
+                self.assertTrue(item.answer)
+                self.assertTrue(FAQ.objects.filter(business=item.business, question=item.question).exists())  # added
                 replies = [m for m in item.chat_session.chat_message_json if m['sent_by'] == 'business-manual']
-                self.assertIn(answer_message(item.question, item.faq.answer), [m['message'] for m in replies])
+                self.assertIn(answer_message(item.question, item.answer), [m['message'] for m in replies])
+        for item in UnansweredQuestion.objects.exclude(status=QuestionStatus.ANSWERED):
+            with self.subTest(question=item.question):
+                self.assertEqual(item.answer, '')
+
+
+class QuestionAnswerMigrationTests(TransactionTestCase):
+    """chat_app 0016–0017: answered questions keep their answer (their FAQ's) when the link to it goes."""
+
+    before = [('chat_app', '0015_outbound_message')]
+    after = [('chat_app', '0017_remove_unansweredquestion_faq')]
+
+    def migrate(self, targets):
+        executor = MigrationExecutor(connection)
+        executor.loader.build_graph()
+        executor.migrate(targets)
+        return executor.loader.project_state(targets).apps
+
+    def tearDown(self):
+        self.migrate(MigrationExecutor(connection).loader.graph.leaf_nodes())
+
+    def test_answers_are_copied_from_the_faqs(self):
+        apps = self.migrate(self.before)
+        Session = apps.get_model('chat_app', 'ChatSession')
+        Faq = apps.get_model('product_app', 'FAQ')
+        Question = apps.get_model('chat_app', 'UnansweredQuestion')
+        # The current model: configuration_app isn't rolled back, so its table has every column.
+        cafe = BusinessConfiguration.objects.create(business_name='Cafe', location='SG').pk
+        chat = Session.objects.create(business_id=cafe, phone_number='+6591234567')
+        faq = Faq.objects.create(business_id=cafe, question='Halal?', answer='No pork or lard.')
+        now = timezone.now()
+        answered = Question.objects.create(business_id=cafe, chat_session=chat, question='Halal?', status='answered',
+                                           answered_time=now, faq=faq)
+        faq_deleted = Question.objects.create(business_id=cafe, chat_session=chat, question='Wifi?', status='answered',
+                                              answered_time=now, faq=None)
+        still_open = Question.objects.create(business_id=cafe, chat_session=chat, question='Parking?')
+
+        apps = self.migrate(self.after)
+        Question = apps.get_model('chat_app', 'UnansweredQuestion')
+        self.assertEqual(Question.objects.get(pk=answered.pk).answer, 'No pork or lard.')
+        self.assertEqual(Question.objects.get(pk=faq_deleted.pk).answer, '')
+        self.assertEqual(Question.objects.get(pk=still_open.pk).answer, '')
+        self.assertTrue(apps.get_model('product_app', 'FAQ').objects.filter(pk=faq.pk).exists())  # FAQs are kept
+        self.assertNotIn('faq', [f.name for f in Question._meta.get_fields()])

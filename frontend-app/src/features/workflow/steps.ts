@@ -174,7 +174,7 @@ export const FLOW_NODE_META: Record<FlowNodeId, FlowNodeMeta> = {
     about:
       "Questions are answered only from your FAQs and product information. If they do not answer a question, " +
       "the assistant tells the customer it will check, and the question appears in Chats → Unanswered " +
-      "questions. Answering it there replies in the chat and saves it as an FAQ.",
+      "questions. Answering it there replies in the chat; you can then add it to your FAQs.",
     link: { to: paths.catalogFaqs, label: "Manage FAQs" },
     icon: MessageCircleQuestion,
     accentClassName: "border-t-rose-500",

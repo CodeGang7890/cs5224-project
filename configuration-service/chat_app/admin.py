@@ -29,7 +29,7 @@ class UnansweredQuestionAdmin(admin.ModelAdmin):
     list_filter = ('status', 'business')
     search_fields = ('question', 'business__business_name', 'chat_session__display_name', 'chat_session__phone_number')
     list_select_related = ('business', 'chat_session')
-    autocomplete_fields = ('business', 'chat_session', 'faq')
+    autocomplete_fields = ('business', 'chat_session')
     readonly_fields = ('created_time',)
 
 

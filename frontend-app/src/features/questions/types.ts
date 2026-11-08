@@ -15,10 +15,8 @@ export interface UnansweredQuestion {
   is_sandbox: boolean;
   question: string;
   status: QuestionStatus;
-  /** The FAQ the answer was saved as (editable in Catalog → FAQs). */
-  faq: number | null;
-  /** The linked FAQ's current answer. */
-  answer: string | null;
+  /** The answer sent in the chat (empty until answered). */
+  answer: string;
   created_time: string;
   answered_time: string | null;
 }
@@ -29,7 +27,7 @@ export interface QuestionListParams {
   page_size?: number;
 }
 
-/** POST /api/chat/questions/{id}/answer/. `question` rewords it for the FAQ (optional). */
+/** POST /api/chat/questions/{id}/answer/. `question` rewords it (optional): the chat message quotes it, and so does the FAQ if it's added to the FAQs. */
 export interface AnswerQuestionInput {
   answer: string;
   question?: string;

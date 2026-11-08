@@ -1,3 +1,4 @@
+import type { Faq } from "@/features/faqs";
 import { configurationApiClient } from "@/lib/api-client";
 import type { DetailedPaginated } from "@/types/api";
 
@@ -18,7 +19,7 @@ export async function listQuestions(
   return data;
 }
 
-/** Saves the Q&A as an FAQ, sends the answer in the customer's chat and marks the question answered. */
+/** Sends the answer in the customer's chat and marks the question answered (with its answer). */
 export async function answerQuestion(
   id: number,
   input: AnswerQuestionInput,
@@ -26,6 +27,14 @@ export async function answerQuestion(
   const { data } = await configurationApiClient.post<UnansweredQuestion>(
     `/chat/questions/${id}/answer/`,
     input,
+  );
+  return data;
+}
+
+/** Adds an answered question to the business's FAQs: a new FAQ with its question and answer. */
+export async function addQuestionToFaqs(id: number): Promise<Faq> {
+  const { data } = await configurationApiClient.post<Faq>(
+    `/chat/questions/${id}/add-to-faqs/`,
   );
   return data;
 }

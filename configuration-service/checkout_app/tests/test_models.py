@@ -418,7 +418,10 @@ class PaymentReferenceMigrationTests(TransactionTestCase):
 
     def test_existing_rows_get_distinct_references(self):
         apps = self.migrate(self.before)
-        business = apps.get_model('configuration_app', 'BusinessConfiguration').objects.create(business_name='Kopi', location='SG')
+        # Through the current model: configuration_app isn't rolled back, and its newer columns are required.
+        business = apps.get_model('configuration_app', 'BusinessConfiguration').objects.get(
+            pk=BusinessConfiguration.objects.create(business_name='Kopi', location='SG').pk
+        )
         OldOrder = apps.get_model('checkout_app', 'OrderItem')
         for _ in range(3):
             OldOrder.objects.create(business=business, order_data=VALID_ORDER_DATA)

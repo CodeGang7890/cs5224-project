@@ -15,4 +15,5 @@ urlpatterns = [
     path('questions/', views.UnansweredQuestionListView.as_view(), name='question-list'),
     path('questions/<int:pk>/answer/', views.UnansweredQuestionAnswerView.as_view(), name='question-answer'),
     path('questions/<int:pk>/dismiss/', views.UnansweredQuestionDismissView.as_view(), name='question-dismiss'),
+    path('questions/<int:pk>/add-to-faqs/', views.UnansweredQuestionAddToFaqsView.as_view(), name='question-add-to-faqs'),
 ]

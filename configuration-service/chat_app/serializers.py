@@ -250,31 +250,26 @@ class UnansweredQuestionSerializer(serializers.ModelSerializer):
     is_sandbox = serializers.BooleanField(
         source='chat_session.is_sandbox', read_only=True, help_text='Asked in a sandbox (test) chat.'
     )
-    answer = serializers.SerializerMethodField(help_text="The answer: the linked FAQ's (current) answer, if any.")
-
     class Meta:
         model = UnansweredQuestion
         fields = [
             'id', 'business', 'chat_session', 'display_name', 'phone_number', 'is_sandbox',
-            'question', 'status', 'faq', 'answer', 'created_time', 'answered_time',
+            'question', 'status', 'answer', 'created_time', 'answered_time',
         ]
         read_only_fields = fields
-
-    def get_answer(self, obj) -> str | None:
-        return obj.faq.answer if obj.faq else None
 
 
 class AnswerQuestionSerializer(serializers.Serializer):
     answer = serializers.CharField(
         max_length=ANSWER_MAX_LENGTH,
         help_text=(
-            f'Your answer (max {ANSWER_MAX_LENGTH} characters). It is saved as an FAQ and sent to the customer '
-            'in the chat as: Regarding your previous question about "<question>": <answer>'
+            f'Your answer (max {ANSWER_MAX_LENGTH} characters). It is sent to the customer in the chat as: '
+            'Regarding your previous question about "<question>": <answer>'
         ),
     )
     question = serializers.CharField(
         max_length=FAQ_QUESTION_MAX_LENGTH,
         required=False,
-        help_text="Optional: reworded question for the FAQ (and the chat message). Default: the customer's question.",
+        help_text="Optional: reworded question for the chat message (and the FAQ, if added). Default: the customer's question.",
     )
 

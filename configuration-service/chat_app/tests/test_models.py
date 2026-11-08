@@ -570,8 +570,9 @@ class DetailFieldsSplitMigrationTests(TransactionTestCase):
         apps = self.migrate(self.before)
         Business = apps.get_model('configuration_app', 'BusinessConfiguration')
         OldConfig = apps.get_model('chat_app', 'ChatConfiguration')
-        studio = Business.objects.create(business_name='Snap', location='SG')
-        cafe = Business.objects.create(business_name='Cafe', location='SG')
+        # Through the current model: configuration_app isn't rolled back, and its newer columns are required.
+        studio = Business.objects.get(pk=BusinessConfiguration.objects.create(business_name='Snap', location='SG').pk)
+        cafe = Business.objects.get(pk=BusinessConfiguration.objects.create(business_name='Cafe', location='SG').pk)
         fields = [
             {'key': 'name', 'label': 'Name', 'type': 'text'},
             {'key': 'phone', 'label': 'Phone', 'type': 'phone'},

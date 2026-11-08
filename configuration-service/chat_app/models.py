@@ -219,7 +219,7 @@ class ChatSession(models.Model):
 
 class QuestionStatus(models.TextChoices):
     OPEN = 'open', 'Open'  # waiting for the business
-    ANSWERED = 'answered', 'Answered'  # the answer became an FAQ and was sent in the chat
+    ANSWERED = 'answered', 'Answered'  # the answer was sent in the chat
     DISMISSED = 'dismissed', 'Dismissed'  # closed without an answer (e.g. not worth one)
 
 
@@ -231,8 +231,9 @@ class UnansweredQuestion(models.Model):
 
     Saved by messaging-service's chat flow (its question check calls ask_business)
     when the router finds a question that the business's information doesn't answer. The business
-    owner answers it in the Chats tab, which saves the Q&A as an FAQ and sends the answer in the
-    chat, or dismisses it.
+    owner answers it in the Chats tab, which sends the answer in the chat (and keeps it here), or
+    dismisses it. An answered question can then be added to the business's FAQs (a new FAQ, not
+    linked to the question).
     """
 
     business = models.ForeignKey(
@@ -253,14 +254,8 @@ class UnansweredQuestion(models.Model):
         choices=QuestionStatus.choices,
         default=QuestionStatus.OPEN,
     )
-    faq = models.ForeignKey(
-        'product_app.FAQ',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='unanswered_questions',
-        help_text='The FAQ the answer was saved as (editable in the FAQ tab).',
-    )
+    # db_default: messaging-service inserts questions without it.
+    answer = models.TextField(blank=True, default='', db_default='', help_text='The answer sent in the chat (answered only).')
     # Not auto_now_add, so fixtures and tests can set it (like ChatSession.created_time).
     created_time = models.DateTimeField(default=timezone.now, editable=False)
     answered_time = models.DateTimeField(null=True, blank=True, help_text='When it was answered (answered only).')
@@ -294,8 +289,6 @@ class UnansweredQuestion(models.Model):
         errors = {}
         if self.chat_session_id and self.business_id and self.chat_session.business_id != self.business_id:
             errors['chat_session'] = "The chat session must belong to the question's business."
-        if self.faq_id and self.business_id and self.faq.business_id != self.business_id:
-            errors['faq'] = "The FAQ must belong to the question's business."
         if errors:
             raise ValidationError(errors)
 

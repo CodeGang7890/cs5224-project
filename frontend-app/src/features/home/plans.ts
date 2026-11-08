@@ -55,7 +55,7 @@ export const PLANS: Plan[] = [
     usage: "Up to ~1,500 interactions/month",
     features: [
       "Everything in Starter, plus:",
-      "Unanswered questions inbox: answer once, it becomes an FAQ",
+      "Unanswered questions inbox: answer once, then add it to your FAQs",
       "Several service providers with weekly schedules",
       "Your own custom reply style",
       "Conversation search and filters",

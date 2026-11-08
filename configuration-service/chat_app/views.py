@@ -5,7 +5,7 @@ from google.auth.exceptions import GoogleAuthError
 from google.auth.transport.requests import Request as GoogleAuthRequest
 from google.oauth2.id_token import fetch_id_token
 from django.conf import settings
-from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.exceptions import NON_FIELD_ERRORS, ValidationError as DjangoValidationError
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, extend_schema
@@ -19,6 +19,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from auth_app.business_scope import OTHER_BUSINESS_MESSAGE, get_user_business
 from config.pagination import DetailedPageNumberPagination
+from product_app.serializers import FAQSerializer
 
 from . import questions
 from .filters import ChatSessionFilter, UnansweredQuestionFilter
@@ -375,13 +376,14 @@ class SandboxMessageProxyView(APIView):
 
 NO_QUESTION_MESSAGE = 'No question with this ID.'
 QUESTION_CLOSED_MESSAGE = 'This question has already been answered or dismissed.'
+QUESTION_NOT_ANSWERED_MESSAGE = 'Only an answered question can be added to your FAQs.'
 
 
 def get_own_question(request: Request, pk: int) -> UnansweredQuestion:
     """The logged-in user's business's question `pk`: 403 without a business, 404 if it doesn't
     exist, 403 if it's another business's (like the rest of the API)."""
     business = get_user_business(request)
-    item = UnansweredQuestion.objects.select_related('chat_session', 'faq').filter(pk=pk).first()
+    item = UnansweredQuestion.objects.select_related('chat_session').filter(pk=pk).first()
     if item is None:
         raise NotFound(NO_QUESTION_MESSAGE)
     if item.business_id != business.pk:
@@ -404,7 +406,7 @@ class UnansweredQuestionListView(generics.ListAPIView):
         business = get_user_business(self.request)
         return (
             UnansweredQuestion.objects.filter(business=business)
-            .select_related('chat_session', 'faq')
+            .select_related('chat_session')
             .order_by('-created_time', '-id')
         )
 
@@ -434,14 +436,13 @@ class UnansweredQuestionAnswerView(APIView):
 
     @extend_schema(
         tags=['Unanswered questions'],
-        summary='Answer a question (saves it as an FAQ and replies in the chat)',
+        summary='Answer a question (replies in the chat)',
         description=(
-            'Answers one of your open questions, all at once: the question (or your rewording of it) and '
-            'the answer are saved as an FAQ of your business, which you can edit later in the FAQ tab and '
-            'which the assistant uses from now on (an existing FAQ with the same question gets the new '
-            'answer); the answer is sent to the customer in the chat (`sent_by: business-manual`) as: '
-            'Regarding your previous question about "<question>": <answer>; and the question is marked '
-            '`answered`. A question that isn\'t open returns 400.'
+            'Answers one of your open questions, all at once: the answer is sent to the customer in the chat '
+            '(`sent_by: business-manual`) as: Regarding your previous question about "<question>": <answer> '
+            '(the question as asked, or your rewording of it); and the question is marked `answered`, with '
+            'its answer. Add it to your FAQs afterwards with `POST …/add-to-faqs/`. A question that isn\'t '
+            'open returns 400.'
         ),
         request=AnswerQuestionSerializer,
         responses={
@@ -482,7 +483,7 @@ class UnansweredQuestionDismissView(APIView):
         summary='Dismiss a question',
         description=(
             'Closes one of your open questions without answering it (e.g. it doesn\'t need an answer): '
-            'nothing is sent to the customer and no FAQ is added. A question that isn\'t open returns 400.'
+            'nothing is sent to the customer. A question that isn\'t open returns 400.'
         ),
         request=None,
         responses={
@@ -499,3 +500,38 @@ class UnansweredQuestionDismissView(APIView):
         except questions.QuestionClosed as exc:
             raise ValidationError({'status': [QUESTION_CLOSED_MESSAGE]}) from exc
         return Response(UnansweredQuestionSerializer(item).data)
+
+
+class UnansweredQuestionAddToFaqsView(APIView):
+    """Add one of your answered questions to your FAQs."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=['Unanswered questions'],
+        summary='Add an answered question to your FAQs',
+        description=(
+            'Creates a new FAQ of your business with the question and its answer, which the assistant uses '
+            'from now on and you can edit in the FAQ tab (it isn\'t linked to the question). A question '
+            'that isn\'t answered returns 400 under `status`; an FAQ with the same question already returns '
+            '400 under `non_field_errors`.'
+        ),
+        request=None,
+        responses={
+            201: FAQSerializer,
+            400: OpenApiResponse(description='The question is not answered, or the FAQ is invalid (e.g. a duplicate).'),
+            403: OpenApiResponse(description="Another business's question, or your account has no business."),
+            404: OpenApiResponse(description='No question with this ID.'),
+        },
+    )
+    def post(self, request: Request, pk: int) -> Response:
+        item = get_own_question(request, pk)
+        try:
+            faq = questions.add_to_faqs(item)
+        except questions.QuestionNotAnswered as exc:
+            raise ValidationError({'status': [QUESTION_NOT_ANSWERED_MESSAGE]}) from exc
+        except DjangoValidationError as exc:
+            raise ValidationError(
+                {('non_field_errors' if key == NON_FIELD_ERRORS else key): value for key, value in exc.message_dict.items()}
+            ) from exc
+        return Response(FAQSerializer(faq).data, status=status.HTTP_201_CREATED)

@@ -10,10 +10,12 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePageParam } from "@/hooks/use-page-param";
+import { apiErrorMessage } from "@/lib/form-errors";
 import { cn } from "@/lib/utils";
 
 import {
   QUESTIONS_PAGE_SIZE,
+  useAddQuestionToFaqs,
   useDismissQuestion,
   useQuestions,
 } from "../hooks/use-questions";
@@ -131,8 +133,8 @@ export function QuestionsBrowser() {
         <p className="text-muted-foreground max-w-xl text-xs">
           When a customer asks something your FAQs and product details don't
           cover, the assistant tells them the team will reply, and the question
-          appears here. Your answer is sent in their chat and saved to your
-          FAQs.
+          appears here. Your answer is sent in their chat, and you can then add
+          it to your FAQs.
         </p>
       </div>
 
@@ -221,7 +223,7 @@ export function QuestionsBrowser() {
         description={
           <>
             “{dismissing?.question}” will be closed without a reply. The
-            customer won't get an answer, and nothing is added to your FAQs.
+            customer won't get an answer.
           </>
         }
         confirmLabel="Dismiss"
@@ -244,6 +246,8 @@ function QuestionCard({
   onDismiss: () => void;
 }) {
   const meta = STATUS_META[item.status];
+  const addToFaqs = useAddQuestionToFaqs();
+  const [confirmAdd, setConfirmAdd] = useState(false);
   return (
     <li className="grid gap-3 rounded-xl border p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -270,16 +274,53 @@ function QuestionCard({
 
       {item.status === "answered" && (
         <div className="grid gap-1 rounded-md bg-muted/40 p-3 text-sm">
-          <p className="whitespace-pre-wrap break-words">
-            {item.answer ?? "The FAQ for this answer was deleted."}
-          </p>
-          <p className="text-muted-foreground text-xs">
-            Answered{" "}
-            {item.answered_time &&
-              new Date(item.answered_time).toLocaleString()}
-            {item.faq !== null &&
-              " · saved to your FAQs (edit it in Catalog → FAQs)"}
-          </p>
+          <p className="whitespace-pre-wrap break-words">{item.answer}</p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-muted-foreground text-xs">
+              Answered{" "}
+              {item.answered_time &&
+                new Date(item.answered_time).toLocaleString()}
+              {addToFaqs.isSuccess &&
+                " · added to your FAQs (edit it in Catalog → FAQs)"}
+            </p>
+            {!addToFaqs.isSuccess && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  addToFaqs.reset();
+                  setConfirmAdd(true);
+                }}
+              >
+                Add to FAQs
+              </Button>
+            )}
+          </div>
+          {addToFaqs.isError && (
+            <p role="alert" className="text-destructive text-xs">
+              {apiErrorMessage(addToFaqs.error)}
+            </p>
+          )}
+          <ConfirmDialog
+            open={confirmAdd}
+            onOpenChange={setConfirmAdd}
+            title="Add to your FAQs?"
+            description={
+              <>
+                A new FAQ “{item.question}” with this answer is added to your
+                FAQs, so the assistant can answer it next time. You can edit it
+                in Catalog → FAQs.
+              </>
+            }
+            confirmLabel="Add to FAQs"
+            pendingLabel="Adding…"
+            isPending={addToFaqs.isPending}
+            onConfirm={() =>
+              addToFaqs.mutate(item.id, {
+                onSettled: () => setConfirmAdd(false),
+              })
+            }
+          />
         </div>
       )}
 

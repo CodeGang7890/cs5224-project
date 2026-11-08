@@ -1611,3 +1611,12 @@ Date & Time (GMT+8): 2026-11-07 22:05:15
 AI Model Used: claude-opus-5-5
 Original Prompt:
 Please fix the remaining ones, I put in temp.txt current directory
+
+Date & Time (GMT+8): 2026-11-08 17:45:09
+AI Model Used: claude-opus-5-5
+Original Prompt:
+/goal
+The 1-many relation between FAQ and unanswered question model is unecessary
+Update it so that there's an API that once owner settles the unanswered questions, the owner can choose to add that as a FAQ, and it will simply create a new FAQ linked to this business
+Update the appropriate frontend code too in frontend-app
+Try to keep change minimalistic

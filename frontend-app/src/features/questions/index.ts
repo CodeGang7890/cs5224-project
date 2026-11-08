@@ -3,6 +3,7 @@ export { OpenQuestionsAlert } from "./components/open-questions-alert";
 export { QuestionsBrowser } from "./components/questions-browser";
 export {
   questionKeys,
+  useAddQuestionToFaqs,
   useAnswerQuestion,
   useDismissQuestion,
   useOpenQuestionCount,

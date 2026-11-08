@@ -25,7 +25,7 @@ interface AnswerQuestionDialogProps {
   onClose: () => void;
 }
 
-/** Answer a question: it's saved as an FAQ and sent to the customer. Asks for confirmation first. */
+/** Answer a question: it's sent to the customer (adding it to the FAQs is a separate step). Asks for confirmation first. */
 export function AnswerQuestionDialog({
   question,
   onClose,
@@ -108,8 +108,8 @@ function AnswerForm({
           <DialogDescription>
             Asked by {customer} on{" "}
             {new Date(item.created_time).toLocaleString()}. Your answer is sent
-            to them in the chat and saved to your FAQs, so the assistant can
-            answer it next time.
+            to them in the chat. Afterwards, you can add it to your FAQs, so the
+            assistant can answer it next time.
           </DialogDescription>
         </DialogHeader>
 
@@ -118,7 +118,7 @@ function AnswerForm({
           label="Question"
           required
           error={errors.fields.question || undefined}
-          hint="You can tidy up the wording: this is how it appears in your FAQs."
+          hint="You can tidy up the wording: the reply quotes it (and so does the FAQ, if you add it)."
           length={{
             current: cleanQuestion.length,
             max: QUESTION_LIMITS.questionMaxLength,
@@ -181,8 +181,8 @@ function AnswerForm({
         title="Send this answer?"
         description={
           <>
-            The answer will be sent to {customer} in the chat and added to your
-            FAQs (you can edit it later in Catalog → FAQs).
+            The answer will be sent to {customer} in the chat. You can add it to
+            your FAQs afterwards.
           </>
         }
         confirmLabel="Send answer"
