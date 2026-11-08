@@ -76,6 +76,25 @@ class StructuredTests(VertexTestCase):
                 with self.assertRaisesRegex(llm.LLMError, message):
                     llm.generate_structured('Route it.', [{'role': 'user', 'content': 'hi'}], SCHEMA)
 
+    def test_never_ends_on_a_model_turn(self):
+        # Production's 400 "Requests ending with a model turn are not supported": "thanks" was sent
+        # while the order was placed, so its confirmation was saved after it and the router's
+        # conversation ended with the business's message.
+        self.respond(text_response('{"intents": []}'))
+        history = [
+            {'role': 'user', 'content': 'CONFIRM'},
+            {'role': 'user', 'content': 'thanks'},
+            {'role': 'assistant', 'content': 'Order #12 is confirmed.'},
+        ]
+
+        self.assertEqual(llm.generate_structured('Route it.', history, SCHEMA), {'intents': []})
+
+        call = self.call()
+        self.assertEqual([(c.role, [p.text for p in c.parts]) for c in call['contents']],
+                         [('user', ['CONFIRM', 'thanks'])])
+        self.assertTrue(call['config'].system_instruction.startswith('Route it.'))
+        self.assertIn('Order #12 is confirmed.', call['config'].system_instruction)
+
 
 class ContentsTests(unittest.TestCase):
     def test_consecutive_messages_of_one_side_are_one_turn_and_empty_ones_are_skipped(self):
