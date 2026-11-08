@@ -11,7 +11,7 @@ from chat_app.models import ChatSession
 from configuration_app.models import BusinessConfiguration
 from product_app.models import Service, ServiceProvider
 
-from ..models import OrderItem, OrderStatus
+from ..models import OrderItem, OrderStatus, ScheduleItem
 from .test_models import VALID_ORDER_DATA
 from .test_schedule import at, book, future_monday
 
@@ -256,8 +256,8 @@ class ScheduleAPITests(APITestCase):
                 response = getattr(self.client, method)(schedule_url(self.early.pk), {}, format='json')
                 self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
-    def test_a_deleted_provider_shows_as_null(self):
-        ServiceProvider.objects.filter(pk=self.raj.pk).delete()
+    def test_a_booking_without_a_provider_shows_as_null(self):
+        ScheduleItem.objects.filter(service_provider=self.raj).update(service_provider=None)  # e.g. an older row
         self.client.force_authenticate(self.user)
         first = self.client.get(SCHEDULE_LIST_URL).json()['results'][0]
         self.assertEqual((first['service_provider'], first['service_provider_name']), (None, None))

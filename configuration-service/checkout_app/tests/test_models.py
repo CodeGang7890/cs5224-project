@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
+from django.db.models import ProtectedError
 from django.db import connection
 from django.db.migrations.executor import MigrationExecutor
 from django.test import SimpleTestCase, TestCase, TransactionTestCase, override_settings
@@ -130,10 +131,11 @@ class OrderItemModelTests(TestCase):
             OrderItem(business=self.business, order_data={'items': []}).full_clean()
         self.assertIn('order_data', ctx.exception.message_dict)
 
-    def test_deleted_with_business(self):
+    def test_a_business_with_orders_cant_be_deleted(self):
         OrderItem.objects.create(business=self.business, order_data=VALID_ORDER_DATA)
-        self.business.delete()
-        self.assertFalse(OrderItem.objects.exists())
+        with self.assertRaises(ProtectedError):
+            self.business.delete()
+        self.assertTrue(OrderItem.objects.exists())
 
 
 class SampleOrderItemFixtureTests(TestCase):
@@ -270,21 +272,26 @@ class ScheduleItemModelTests(TestCase):
                 validate_schedule_data(value)
             self.assertTrue(any(message_part in m for m in ctx.exception.messages), ctx.exception.messages)
 
-    def test_kept_when_the_service_provider_or_chat_is_deleted(self):
+    def test_kept_when_the_chat_is_deleted(self):
         chat = ChatSession.objects.create(business=self.studio, is_sandbox=True)
         booking = self.make(chat_session=chat)
         booking.save()
-        self.family.delete()
-        self.mei.delete()
         chat.delete()
         booking.refresh_from_db()
-        self.assertEqual((booking.service, booking.service_provider, booking.chat_session), (None, None, None))
+        self.assertIsNone(booking.chat_session)
         self.assertEqual(booking.schedule_data['service']['name'], 'Family')
 
-    def test_deleted_with_business(self):
+    def test_its_service_and_provider_cant_be_deleted(self):
         self.make().save()
-        self.studio.delete()
-        self.assertFalse(ScheduleItem.objects.exists())
+        for record in (self.family, self.mei):
+            with self.subTest(record=record), self.assertRaises(ProtectedError):
+                record.delete()
+
+    def test_a_business_with_bookings_cant_be_deleted(self):
+        self.make().save()
+        with self.assertRaises(ProtectedError):
+            self.studio.delete()
+        self.assertTrue(ScheduleItem.objects.exists())
 
 
 class SampleScheduleItemFixtureTests(TestCase):

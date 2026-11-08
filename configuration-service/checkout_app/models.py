@@ -61,9 +61,10 @@ class OrderItem(models.Model):
     while it's pending payment or paid, and sold once it's completed.
     """
 
+    # A financial record: a business with orders can't be deleted by accident (deactivate it instead).
     business = models.ForeignKey(
         'configuration_app.BusinessConfiguration',
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name='order_items',
     )
     # Kept (as null) if the chat is deleted, e.g. a sandbox chat.
@@ -141,9 +142,10 @@ class ScheduleItem(models.Model):
     by the signals in checkout_app/signals.py whenever a booking is saved or deleted).
     """
 
+    # A financial record, like OrderItem.business.
     business = models.ForeignKey(
         'configuration_app.BusinessConfiguration',
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name='schedule_items',
     )
     chat_session = models.ForeignKey(
@@ -158,17 +160,18 @@ class ScheduleItem(models.Model):
         default=False,
         help_text='Booked in a Chat Sandbox test chat rather than by a real customer.',
     )
-    # Kept (as null) if the service or provider is deleted: schedule_data has the snapshot.
+    # A service or provider with bookings can't be deleted (deactivate it with is_active instead), so a
+    # booking keeps who and what it was for. Still nullable: older rows may have lost the link.
     service = models.ForeignKey(
         'product_app.Service',
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         null=True,
         blank=True,
         related_name='schedule_items',
     )
     service_provider = models.ForeignKey(
         'product_app.ServiceProvider',
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         null=True,
         blank=True,
         related_name='schedule_items',
