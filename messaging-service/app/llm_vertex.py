@@ -50,9 +50,10 @@ def generate_reply(prompt: str) -> str:
 
 def generate_structured(system_prompt: str, history: list[dict], schema: dict) -> dict:
     """A JSON object matching `schema`, about the conversation."""
+    system_prompt, contents = _ending_on_user(system_prompt, _contents(history))
     response = _generate(
         system_prompt,
-        _contents(history),
+        contents,
         options=config.VERTEX_AI_STRUCTURED_OPTIONS,
         response_mime_type='application/json',
         response_json_schema=schema,
@@ -68,14 +69,8 @@ def generate_structured(system_prompt: str, history: list[dict], schema: dict) -
 
 def generate_chat_reply(system_prompt: str, history: list[dict], toolbox=None) -> str:
     """The assistant's next chat message. It may first call the toolbox's (read-only) tools."""
-    contents = _contents(history)
-    if contents and contents[-1].role == 'model':
-        # Gemini 3.5 Flash-Lite requires the final input turn to be from the user. This happens
-        # when the business's welcome message was sent immediately before the generated reply.
-        sent_message = '\n'.join(part.text for part in contents[-1].parts if part.text)
-        system_prompt += f'\n\nThe assistant already sent this message to the customer: {sent_message}'
-        contents.pop()
-    tools = _tools(toolbox.specs) if toolbox else None
+    system_prompt, contents = _ending_on_user(system_prompt, _contents(history))
+    tools =_tools(toolbox.specs) if toolbox else None
     for _ in range(config.MAX_TOOL_ROUNDS):
         response = _generate(system_prompt, contents, options=config.VERTEX_AI_OPTIONS, tools=tools)
         calls = response.function_calls
@@ -111,6 +106,19 @@ def _contents(history: list[dict]) -> list[types.Content]:
         else:
             contents.append(types.Content(role=role, parts=[types.Part(text=text)]))
     return contents
+
+
+def _ending_on_user(system_prompt: str, contents: list[types.Content]) -> tuple[str, list[types.Content]]:
+    """Gemini 3.x rejects a request whose last turn is the model's (400 "Requests ending with a model
+    turn are not supported"). The conversation can end with the business's messages: the welcome
+    message just before the reply, or a reply / an owner's answer saved after a customer message still
+    being answered (e.g. "thanks" sent while the order was placed). Every call then fails the same way,
+    and the message is redelivered forever. So that last turn moves into the system prompt, as context."""
+    if contents and contents[-1].role == 'model':
+        sent_message = '\n'.join(part.text for part in contents[-1].parts if part.text)
+        system_prompt += f'\n\nThe assistant already sent this message to the customer: {sent_message}'
+        contents = contents[:-1]
+    return system_prompt, contents
 
 
 def _tools(specs: list[dict]) -> list[types.Tool]:
