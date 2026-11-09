@@ -27,6 +27,40 @@ variable "singapore_region" {
   default     = "asia-southeast1"
 }
 
+variable "singapore_vpc_network" {
+  description = "Existing VPC used by the Singapore Cloud Run services."
+  type        = string
+  default     = "default"
+}
+
+variable "singapore_vpc_subnetwork" {
+  description = "Existing Singapore subnet adopted into Terraform with the application NAT."
+  type        = string
+  default     = "default"
+}
+
+variable "singapore_vpc_subnet_cidr" {
+  description = "Existing Singapore subnet primary IPv4 range; preserve it during adoption."
+  type        = string
+  default     = "10.148.0.0/20"
+}
+
+variable "manage_singapore_load_balancer" {
+  description = "Adopt the existing Singapore HTTPS load balancer and Cloud Armor policy when Singapore resources are enabled."
+  type        = bool
+  default     = true
+}
+
+variable "mock_whatsapp_public_path_prefix" {
+  description = "Public path stripped by the load balancer before forwarding to mock-whatsapp."
+  type        = string
+  default     = "/whatsapp"
+  validation {
+    condition     = var.mock_whatsapp_public_path_prefix == "" || can(regex("^/[^/]+(/[^/]+)*$", var.mock_whatsapp_public_path_prefix))
+    error_message = "Use an empty prefix or a path starting with / and without a trailing slash."
+  }
+}
+
 variable "singapore_github_app_installation_id" {
   description = "GitHub App installation ID for the Singapore Cloud Build connection. Zero skips the connection."
   type        = number

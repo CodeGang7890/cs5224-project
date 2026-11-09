@@ -137,8 +137,23 @@ resource "google_sql_database_instance" "singapore_replica" {
     disk_type         = "PD_HDD"
     disk_size         = 10
     disk_autoresize   = false
-    backup_configuration { enabled = var.singapore_sql_promoted }
-    ip_configuration { ipv4_enabled = true }
+    backup_configuration {
+      enabled                        = var.singapore_sql_promoted
+      start_time                     = "21:10"
+      transaction_log_retention_days = 7
+      backup_retention_settings {
+        retained_backups = 7
+        retention_unit   = "COUNT"
+      }
+    }
+    # Current deployment uses the public endpoint through the Cloud SQL connector.
+    # No private_network or authorized_networks are configured on the live instance.
+    ip_configuration {
+      ipv4_enabled                                  = true
+      enable_private_path_for_google_cloud_services = false
+      ssl_mode                                      = "ALLOW_UNENCRYPTED_AND_ENCRYPTED"
+      server_ca_mode                                = "GOOGLE_MANAGED_INTERNAL_CA"
+    }
   }
 
   lifecycle {

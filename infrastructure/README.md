@@ -20,7 +20,7 @@ Terraform targets an **existing, billing-enabled GCP project**. All files in thi
 | Vertex AI                  | Gemini API enabled by default; grants `roles/aiplatform.user` to the messaging-service runtime identity. Model and location are configurable.                                                                                                                                                                                 |
 | Firebase                   | Optional Firebase enrollment, Ansera web app, and a Hosting site. Enrollment cannot be undone.                                                                                                                                                                                                                                    |
 
-The existing load balancer and VPC are managed separately from this Terraform directory. Cloud Run provides a service URL; the Cloud DNS zone does not automatically map a custom domain to Cloud Run.
+The existing Singapore HTTPS load balancer, Cloud Armor policy, Singapore default subnet, Cloud Router and Cloud NAT are now defined here with import blocks. The default VPC itself, its other regional subnets and its existing firewall rules remain externally managed. Cloud DNS does not automatically map a custom domain to Cloud Run.
 
 ## Prerequisites and authentication (PowerShell)
 
@@ -58,6 +58,42 @@ The Xendit webhook points at the Singapore payment ingester; two `POST /webhook`
 Any test account still using a business-specific US callback will now fail delivery. Embedded Signup connections set a WABA-specific override through the app; reconnect those test accounts through the Singapore app to set the Singapore `/webhook/{business_id}` URL. Manual connections require their owning Meta app's webhook setting to be updated. The configuration service now uses the new Meta App ID and `meta-app-secret` version 3, so old-app callback signatures may also fail verification.
 
 Pub/Sub topic message storage is restricted to `asia-southeast1` through `pubsub_allowed_persistence_regions = ["asia-southeast1"]`. The policy applies to **new** messages; already-published messages are not moved. The active Gemini 3.5 Flash-Lite Standard PayGo endpoint remains `global`; that endpoint does not guarantee Singapore model serving. Pub/Sub topic names, Firebase Hosting/Auth, DNS, monitoring, IAM, and most app secrets are global services. The Singapore buckets are outside the US Cloud Storage Always Free locations. Google-created default VPC subnetworks exist in US regions because this project still has an auto mode default VPC; the app does not use them, and they are outside the retired application stack.
+
+## Live network reconciliation (verified 2026-11-09)
+
+Read-only `gcloud` queries of `cs5224-ansera` verified the following settings:
+
+| Component | Current configuration captured in Terraform |
+| --- | --- |
+| VPC egress | `configuration-service`, `messaging-service` and `mock-whatsapp`: Direct VPC egress, `default` network / Singapore `default` subnet, `ALL_TRAFFIC` |
+| Subnet | `10.148.0.0/20`, IPv4 only, Private Google Access enabled |
+| Internet egress | `messaging-nat-router` / `messaging-nat-gateway`, primary range of that subnet only, `AUTO_ONLY` NAT IP allocation; no reserved NAT IP resource |
+| Other runtimes | Both ingesters, `processing-service` and `notification-job` have no VPC egress attachment |
+| Cloud Run ingress | Messaging-service and processing-service: internal only. Configuration-service, both ingesters and mock-whatsapp: internal and Cloud Load Balancing |
+| HTTPS frontend | Global external managed load balancer, existing reserved IP `34.149.82.198`, TCP 443; no HTTP frontend or HTTP redirect is currently configured |
+| TLS | Existing managed certificates for `ansera.hopto.org` and `34-149-82-198.sslip.io`; no custom SSL policy attached |
+| Cloud Armor | `armor-policy` attached to all four backends; SQLi/XSS/LFI/RCE sensitivity 1 rules in **preview**, default allow, JSON parsing `STANDARD`; no edge policy or rate limiting |
+| Backend access logs | Enabled, sample rate 1.0; CDN disabled |
+| Cloud SQL | `main-postgres-sg`, public IPv4 enabled, no private network or authorized networks. Database connections use the Cloud Run Cloud SQL connector/socket. Instance SSL mode remains `ALLOW_UNENCRYPTED_AND_ENCRYPTED`; connector connections use TLS |
+
+`singapore-load-balancer.tf` preserves the four serverless NEGs and backends. Its URL map strips `/payment/`, `/messaging/`, `/whatsapp/` and `/config/` to `/` on their respective services. All other paths, including `/api/*`, go unchanged to configuration-service. `/configuration/*` is absent from the live URL map and has not been added. Mock WhatsApp receives `MOCK_WHATSAPP_PUBLIC_PATH_PREFIX=/whatsapp`. Firebase Hosting continues to serve the business frontend separately from this load balancer.
+
+`singapore-networking.tf` adopts only the existing Singapore subnet, router and NAT. The default VPC's four existing default ingress firewall rules (internal, ICMP, SSH and RDP) are left externally managed; adopting the subnet does not tighten these rules. Cloud SQL remains on its existing public endpoint; this reconciliation does not migrate it to private IP.
+
+### Review and adopt with the existing state
+
+Use the existing private state and `terraform.tfvars`, not an empty state or a replacement copied from the generic example. `cs5224-ansera.network.tfvars.example` is a non-secret overlay of verified deployment values; keep CI/CD and secret settings in the existing private file. Back up the existing state privately before importing. If another state already owns any of these network/LB resources, reconcile ownership before adopting them here.
+
+```powershell
+# From infrastructure/, with the existing state and private terraform.tfvars present:
+terraform init
+terraform validate
+terraform plan -var-file=terraform.tfvars -var-file=cs5224-ansera.network.tfvars.example -out=network-reconciliation.tfplan
+```
+
+The import blocks adopt the 18 existing network/LB resources at their current IDs. Their resources have `prevent_destroy` protection. Inspect the full plan for unrelated drift and any service revisions before approving an apply. Keep `manage_singapore_load_balancer = true` for this deployment. Disabling it after adoption is not a supported way to detach ownership because the resources are protected against destruction.
+
+Validation performed for this reconciliation: the full configuration passed `terraform validate` with locked provider versions. An isolated read-only import plan against the live network/LB resources reported **18 to import, 0 to add, 0 to change, 0 to destroy**. No production state was modified and no apply was run. A full-stack plan still requires the existing private state and variable values; the isolated plan does not establish that the entire stack is drift-free.
 
 ## Deployment order
 
@@ -128,7 +164,7 @@ Terraform configures CORS on `configuration-service` for local Vite development 
 
 - `enable_firebase = true` adds Firebase to the existing project and creates the `Ansera` web app plus a Hosting site. The site URL is available as the `firebase_hosting_url` Terraform output. It also turns on Identity Platform, for logging in with Google / Facebook (below).
 - The Firebase Hosting trigger uses `infrastructure/firebase.json` and `infrastructure/cloudbuild-frontend.yaml`. It builds the Vite SPA and deploys it with Firebase CLI using the Cloud Build service account's Application Default Credentials. The build service account receives Firebase Hosting Admin when both Firebase and CI/CD are enabled.
-- The Singapore frontend trigger uses `frontend_configuration_service_url` as Vite's build-time `VITE_CONFIGURATION_SERVICE_URL`. The browser API root is `https://ansera.hopto.org/api`, which has a trusted certificate on load balancer IP `34.149.82.198`; `django_allowed_hosts` includes that hostname. `backend_configuration_service_url` separately controls calls from messaging-service, messaging-ingester, processing-service, and notification-job. Keep their working load balancer URL until their Cloud Run-to-Cloud Run VPC route is verified; then change this variable to `https://configuration-service-gq6jjn4afq-as.a.run.app/api` and update those runtimes. Direct `run.app` calls to configuration-service currently fail its restricted ingress check without VPC routing. The certificates and load balancer proxy attachment were configured outside this Terraform directory and must be kept in sync with the load balancer's own infrastructure code.
+- The Singapore frontend trigger uses `frontend_configuration_service_url` as Vite's build-time `VITE_CONFIGURATION_SERVICE_URL`. The browser API root is `https://ansera.hopto.org/api`, which has a trusted certificate on load balancer IP `34.149.82.198`; `django_allowed_hosts` includes that hostname. `backend_configuration_service_url` separately controls calls from messaging-service, messaging-ingester, processing-service, and notification-job. Keep their working load balancer URL until their Cloud Run-to-Cloud Run VPC route is verified; then change this variable to `https://configuration-service-gq6jjn4afq-as.a.run.app/api` and update those runtimes. Direct `run.app` calls to configuration-service currently fail its restricted ingress check without VPC routing. The certificates, HTTPS proxy and URL map are now adopted by `singapore-load-balancer.tf`.
 - Set `dns_domain` to a domain you control to create a public zone. Point your registrar at `dns_nameservers`; add desired `dns_records` after the target IP/hostname is known. This zone alone does not create a load balancer or Cloud Run custom domain.
 - The payment and messaging Pub/Sub subscriptions are **pull** subscriptions. Messaging-service and processing-service keep CPU allocated outside requests so they can poll while idle. All Cloud Run services have a service-level minimum of one instance; this incurs ongoing instance charges. The notification Cloud Run Job is invoked directly by Cloud Scheduler, not from the notification Pub/Sub subscription.
 - Retries and dead letters (`core.tf`, `local.pubsub_queues`, the same as docker-compose's `pubsub-init`): `messaging-queue-worker` has a 120-second ack deadline (no message ordering: a customer's messages sent close together get one reply), `payment-queue-worker` 60 seconds; the consumers get the same value as `PUBSUB_ACK_DEADLINE_SECONDS`. A nacked or expired message is redelivered after a 30–600 second backoff, and after 5 delivery attempts goes to `messaging-queue-dlq` / `payment-queue-dlq`, kept for 7 days by `<queue>-dlq-sub` (`gcloud pubsub subscriptions pull messaging-queue-dlq-sub --limit=10`). Pub/Sub's service agent gets publisher on the dead-letter topics and subscriber on the worker subscriptions to forward them. Changing message ordering replaces a subscription (it can't be changed in place): apply when no messages are waiting.

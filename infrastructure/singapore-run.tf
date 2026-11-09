@@ -31,6 +31,17 @@ resource "google_cloud_run_v2_service" "singapore_backend" {
     service_account                  = google_service_account.runtime[each.key].email
     max_instance_request_concurrency = 10
 
+    dynamic "vpc_access" {
+      for_each = contains(["configuration-service", "messaging-service"], each.key) ? [1] : []
+      content {
+        egress = "ALL_TRAFFIC"
+        network_interfaces {
+          network    = data.google_compute_network.singapore_egress[0].name
+          subnetwork = google_compute_subnetwork.singapore_egress[0].name
+        }
+      }
+    }
+
     dynamic "volumes" {
       for_each = var.enable_cloud_sql && contains(["configuration-service", "messaging-service", "processing-service"], each.key) ? [1] : []
       content {
@@ -277,7 +288,7 @@ resource "google_cloud_run_v2_service" "singapore_backend" {
     prevent_destroy = true
     ignore_changes  = [template[0].containers[0].image, client, client_version]
   }
-  depends_on = [google_project_service.api, google_secret_manager_secret_iam_member.configuration_secret, google_secret_manager_secret_iam_member.configuration_encryption, google_secret_manager_secret_iam_member.configuration_sql_password, google_secret_manager_secret_iam_member.messaging_sql_password, google_secret_manager_secret_iam_member.processing_sql_password, google_secret_manager_secret_iam_member.processing_smtp_password, google_secret_manager_secret_iam_member.jwt, google_secret_manager_secret_version.django, google_secret_manager_secret_version.jwt, google_secret_manager_secret_version.internal_api, google_secret_manager_secret_iam_member.internal_api, google_secret_manager_secret_iam_member.configuration_meta, google_secret_manager_secret_version.meta_webhook_verify_token, google_secret_manager_secret_iam_member.payment_xendit_api, google_secret_manager_secret_iam_member.payment_xendit_webhook, google_storage_bucket_iam_member.singapore_processing_object_user, google_storage_bucket_iam_member.singapore_messaging_object_user, google_service_account_iam_member.processing_invoice_signer]
+  depends_on = [google_compute_router_nat.singapore_egress, google_project_service.api, google_secret_manager_secret_iam_member.configuration_secret, google_secret_manager_secret_iam_member.configuration_encryption, google_secret_manager_secret_iam_member.configuration_sql_password, google_secret_manager_secret_iam_member.messaging_sql_password, google_secret_manager_secret_iam_member.processing_sql_password, google_secret_manager_secret_iam_member.processing_smtp_password, google_secret_manager_secret_iam_member.jwt, google_secret_manager_secret_version.django, google_secret_manager_secret_version.jwt, google_secret_manager_secret_version.internal_api, google_secret_manager_secret_iam_member.internal_api, google_secret_manager_secret_iam_member.configuration_meta, google_secret_manager_secret_version.meta_webhook_verify_token, google_secret_manager_secret_iam_member.payment_xendit_api, google_secret_manager_secret_iam_member.payment_xendit_webhook, google_storage_bucket_iam_member.singapore_processing_object_user, google_storage_bucket_iam_member.singapore_messaging_object_user, google_service_account_iam_member.processing_invoice_signer]
 }
 
 resource "google_cloud_run_v2_service_iam_member" "singapore_configuration_calls_messaging" {
