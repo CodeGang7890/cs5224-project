@@ -61,9 +61,10 @@ class OrderItem(models.Model):
     while it's pending payment or paid, and sold once it's completed.
     """
 
+    # A financial record: a business with orders can't be deleted by accident (deactivate it instead).
     business = models.ForeignKey(
         'configuration_app.BusinessConfiguration',
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name='order_items',
     )
     # Kept (as null) if the chat is deleted, e.g. a sandbox chat.
@@ -109,6 +110,10 @@ class OrderItem(models.Model):
         verbose_name = 'Order Item'
         verbose_name_plural = 'Order Items'
         ordering = ['-created_time', '-id']
+        indexes = [
+            # notification-job's payment reminders: unpaid orders created 1-2 hours ago, every hour.
+            models.Index(fields=['order_status', 'created_time'], name='order_item_status_created'),
+        ]
         constraints = [
             models.CheckConstraint(
                 condition=Q(order_status__in=OrderStatus.values),
@@ -141,9 +146,10 @@ class ScheduleItem(models.Model):
     by the signals in checkout_app/signals.py whenever a booking is saved or deleted).
     """
 
+    # A financial record, like OrderItem.business.
     business = models.ForeignKey(
         'configuration_app.BusinessConfiguration',
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name='schedule_items',
     )
     chat_session = models.ForeignKey(
@@ -158,17 +164,18 @@ class ScheduleItem(models.Model):
         default=False,
         help_text='Booked in a Chat Sandbox test chat rather than by a real customer.',
     )
-    # Kept (as null) if the service or provider is deleted: schedule_data has the snapshot.
+    # A service or provider with bookings can't be deleted (deactivate it with is_active instead), so a
+    # booking keeps who and what it was for. Still nullable: older rows may have lost the link.
     service = models.ForeignKey(
         'product_app.Service',
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         null=True,
         blank=True,
         related_name='schedule_items',
     )
     service_provider = models.ForeignKey(
         'product_app.ServiceProvider',
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         null=True,
         blank=True,
         related_name='schedule_items',
@@ -208,7 +215,13 @@ class ScheduleItem(models.Model):
         verbose_name = 'Schedule Item'
         verbose_name_plural = 'Schedule Items'
         ordering = ['-start_time', '-id']
-        indexes = [models.Index(fields=['service_provider', 'start_time'], name='schedule_item_provider_time')]
+        indexes = [
+            models.Index(fields=['service_provider', 'start_time'], name='schedule_item_provider_time'),
+            # notification-job: the payment reminders (unpaid bookings created 1-2 hours ago) and the
+            # appointment reminders (bookings starting in about 24 hours), across all businesses.
+            models.Index(fields=['order_status', 'created_time'], name='schedule_item_status_created'),
+            models.Index(fields=['start_time'], name='schedule_item_start_time'),
+        ]
         constraints = [
             models.CheckConstraint(
                 condition=Q(order_status__in=OrderStatus.values),

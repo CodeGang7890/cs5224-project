@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from django.conf import settings
+from django.db.models import ProtectedError
 from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import generics, viewsets
 from rest_framework.decorators import action
@@ -9,7 +10,7 @@ from rest_framework.response import Response
 
 import django_filters
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import APIException, ValidationError
 
 from auth_app.business_scope import BusinessFromUrlMixin, BusinessScopedViewSetMixin, IsBusinessMember
 from checkout_app import schedule
@@ -31,6 +32,25 @@ from .serializers import (
 )
 
 FORBIDDEN = OpenApiResponse(description="Not your business's record, or your account has no business.")
+
+
+class HasBookings(APIException):
+    """Deleting a service or provider that bookings point at (checkout_app's ScheduleItem: PROTECT)."""
+
+    status_code = 400
+    default_code = 'has_bookings'
+
+
+class ProtectedByBookingsMixin:
+    """DELETE of a service or provider with bookings: 400 asking to deactivate it, not a 500."""
+
+    def perform_destroy(self, instance):
+        try:
+            instance.delete()
+        except ProtectedError:
+            raise HasBookings(
+                f'“{instance.name}” has bookings, so it can\'t be deleted. Make it inactive instead.'
+            ) from None
 
 
 def business_scoped_schema(resource: str, tag: str, serializer):
@@ -69,7 +89,7 @@ def _week_letters(row: WeeklyAvailability | None) -> str:
 
 
 @business_scoped_schema('service provider', 'Services', ServiceProviderSerializer)
-class ServiceProviderViewSet(BusinessScopedViewSetMixin, viewsets.ModelViewSet):
+class ServiceProviderViewSet(ProtectedByBookingsMixin, BusinessScopedViewSetMixin, viewsets.ModelViewSet):
     """Who services are booked with (a photographer, a teacher, a venue...), each with a calendar
     of weeks."""
 
@@ -225,7 +245,7 @@ class WeeklyAvailabilityViewSet(viewsets.ModelViewSet):
 
 
 @business_scoped_schema('service', 'Services', ServiceSerializer)
-class ServiceViewSet(BusinessScopedViewSetMixin, viewsets.ModelViewSet):
+class ServiceViewSet(ProtectedByBookingsMixin, BusinessScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = Service.objects.prefetch_related('service_providers')
     serializer_class = ServiceSerializer
 

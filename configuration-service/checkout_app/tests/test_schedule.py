@@ -3,6 +3,7 @@ from zoneinfo import ZoneInfo
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
+from django.db.models import ProtectedError
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 
@@ -289,17 +290,18 @@ class BookingLettersTests(StudioCase):
         book(self.portrait, self.mei, at(tuesday, '09:00'))
         self.assertEqual(day_letters(self.mei, tuesday, '08:45', '10:15'), 'UHHHHU')
 
-    def test_deleting_the_business_with_bookings(self):
+    def test_the_business_or_provider_of_a_booking_cant_be_deleted(self):
         book(self.family, self.mei, at(self.monday, '09:00'))
-        self.studio.delete()
-        self.assertFalse(WeeklyAvailability.objects.exists())
-        self.assertFalse(ScheduleItem.objects.exists())
+        for record in (self.studio, self.mei):
+            with self.subTest(record=record), self.assertRaises(ProtectedError):
+                record.delete()
+        self.assertTrue(WeeklyAvailability.objects.exists())
+        self.assertTrue(ScheduleItem.objects.exists())
 
-    def test_deleting_a_provider_keeps_its_bookings(self):
+    def test_a_booking_without_a_provider_writes_nothing(self):
         booking = book(self.family, self.mei, at(self.monday, '09:00'))
-        self.mei.delete()
+        ScheduleItem.objects.filter(pk=booking.pk).update(service_provider=None)  # e.g. an older row
         booking.refresh_from_db()
-        self.assertIsNone(booking.service_provider)
         booking.save()  # with no provider, nothing to write
         booking.delete()
 

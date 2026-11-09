@@ -932,6 +932,17 @@ class WeeklyAvailabilityAPITests(ScheduleAPITestCase):
         ScheduleItem.objects.all().delete()  # the letters are freed (O), so now it can go
         self.assertEqual(self.client.delete(self.detail_url(self.week)).status_code, status.HTTP_204_NO_CONTENT)
 
+    def test_a_service_or_provider_with_bookings_cant_be_deleted(self):
+        self.login(self.cafe_user)
+        book(self.portrait, self.mei, at(self.monday, '09:00'))
+        for record, url in ((self.portrait, reverse('product_app:service-detail', args=[self.portrait.pk])),
+                            (self.mei, reverse('product_app:service-provider-detail', args=[self.mei.pk]))):
+            with self.subTest(record=record.name):
+                response = self.client.delete(url)
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn('has bookings', response.json()['detail'])
+                self.assertTrue(type(record).objects.filter(pk=record.pk).exists())
+
     def test_other_business(self):
         theirs = open_week(self.florist_provider, self.monday)
         self.login(self.cafe_user)
