@@ -82,6 +82,26 @@ resource "google_storage_bucket" "singapore_objects" {
   force_destroy               = false
   depends_on                  = [google_project_service.api]
 
+  lifecycle_rule {
+    condition {
+      age            = 90
+      matches_prefix = ["invoices/"]
+    }
+    action {
+      type = "Delete"
+    }
+  }
+
+  lifecycle_rule {
+    condition {
+      age            = 730
+      matches_prefix = ["receipts/"]
+    }
+    action {
+      type = "Delete"
+    }
+  }
+
   lifecycle {
     prevent_destroy = true
   }
