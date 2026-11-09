@@ -3,7 +3,7 @@
 # and min instances are zero so staging cannot steal queue messages.
 locals {
   singapore_sql_connection_name           = var.singapore_sql_promoted ? google_sql_database_instance.singapore_replica[0].connection_name : google_sql_database_instance.main[0].connection_name
-  singapore_configuration_api_url         = "${trimsuffix(lookup(var.singapore_service_urls, "configuration-service", "https://configuration-service-gq6jjn4afq-as.a.run.app"), "/")}/api"
+  singapore_configuration_api_url         = var.backend_configuration_service_url != "" ? trimsuffix(var.backend_configuration_service_url, "/") : var.frontend_configuration_service_url != "" ? trimsuffix(var.frontend_configuration_service_url, "/") : "${trimsuffix(lookup(var.singapore_service_urls, "configuration-service", "https://configuration-service-gq6jjn4afq-as.a.run.app"), "/")}/api"
   singapore_messaging_service_url         = lookup(var.singapore_service_urls, "messaging-service", "https://messaging-service-gq6jjn4afq-as.a.run.app")
   singapore_payment_ingester_url          = lookup(var.singapore_service_urls, "payment-ingester", "https://payment-ingester-gq6jjn4afq-as.a.run.app")
   singapore_messaging_ingester_public_url = lookup(var.singapore_service_urls, "messaging-ingester", "https://messaging-ingester-gq6jjn4afq-as.a.run.app")
@@ -20,7 +20,7 @@ resource "google_cloud_run_v2_service" "singapore_backend" {
   name                = each.key
   location            = var.singapore_region
   deletion_protection = false
-  ingress             = "INGRESS_TRAFFIC_ALL"
+  ingress             = contains(["messaging-service", "processing-service"], each.key) ? "INGRESS_TRAFFIC_INTERNAL_ONLY" : "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
 
   scaling {
     min_instance_count = var.singapore_min_instances
@@ -30,11 +30,6 @@ resource "google_cloud_run_v2_service" "singapore_backend" {
   template {
     service_account                  = google_service_account.runtime[each.key].email
     max_instance_request_concurrency = 10
-    scaling {
-      # Service-level minimum keeps one warm instance without stacking revision minimums.
-      min_instance_count = 0
-      max_instance_count = 1
-    }
 
     dynamic "volumes" {
       for_each = var.enable_cloud_sql && contains(["configuration-service", "messaging-service", "processing-service"], each.key) ? [1] : []
@@ -285,58 +280,6 @@ resource "google_cloud_run_v2_service" "singapore_backend" {
   depends_on = [google_project_service.api, google_secret_manager_secret_iam_member.configuration_secret, google_secret_manager_secret_iam_member.configuration_encryption, google_secret_manager_secret_iam_member.configuration_sql_password, google_secret_manager_secret_iam_member.messaging_sql_password, google_secret_manager_secret_iam_member.processing_sql_password, google_secret_manager_secret_iam_member.processing_smtp_password, google_secret_manager_secret_iam_member.jwt, google_secret_manager_secret_version.django, google_secret_manager_secret_version.jwt, google_secret_manager_secret_version.internal_api, google_secret_manager_secret_iam_member.internal_api, google_secret_manager_secret_iam_member.configuration_meta, google_secret_manager_secret_version.meta_webhook_verify_token, google_secret_manager_secret_iam_member.payment_xendit_api, google_secret_manager_secret_iam_member.payment_xendit_webhook, google_storage_bucket_iam_member.singapore_processing_object_user, google_storage_bucket_iam_member.singapore_messaging_object_user, google_service_account_iam_member.processing_invoice_signer]
 }
 
-resource "google_cloud_run_v2_service" "singapore_vertex_ai_demo" {
-  count               = var.enable_singapore_staging && var.enable_vertex_ai_demo ? 1 : 0
-  name                = "vertex-ai-demo"
-  location            = var.singapore_region
-  deletion_protection = false
-  ingress             = "INGRESS_TRAFFIC_ALL"
-
-  scaling {
-    min_instance_count = var.singapore_min_instances
-    max_instance_count = 3
-  }
-
-  template {
-    service_account                  = google_service_account.vertex_ai_demo[0].email
-    max_instance_request_concurrency = 10
-    scaling {
-      min_instance_count = 0
-      max_instance_count = 1
-    }
-    containers {
-      image = "asia-southeast1-docker.pkg.dev/${var.project_id}/apps/vertex-ai-demo:0e37b60"
-      ports { container_port = 8080 }
-      resources {
-        limits   = { cpu = "1", memory = "512Mi" }
-        cpu_idle = true
-      }
-      env {
-        name  = "GOOGLE_CLOUD_PROJECT"
-        value = var.project_id
-      }
-      env {
-        name  = "GOOGLE_CLOUD_LOCATION"
-        value = var.vertex_ai_location
-      }
-      env {
-        name  = "GOOGLE_GENAI_USE_VERTEXAI"
-        value = "True"
-      }
-      env {
-        name  = "LLM_MODEL"
-        value = var.vertex_ai_model
-      }
-    }
-  }
-
-  lifecycle {
-    prevent_destroy = true
-    ignore_changes  = [template[0].containers[0].image]
-  }
-  depends_on = [google_project_iam_member.vertex_ai_demo_user]
-}
-
 resource "google_cloud_run_v2_service_iam_member" "singapore_configuration_calls_messaging" {
   count    = var.enable_singapore_staging && contains(var.singapore_stage_backend_services, "messaging-service") ? 1 : 0
   project  = var.project_id
@@ -344,15 +287,6 @@ resource "google_cloud_run_v2_service_iam_member" "singapore_configuration_calls
   name     = google_cloud_run_v2_service.singapore_backend["messaging-service"].name
   role     = "roles/run.invoker"
   member   = "serviceAccount:${google_service_account.runtime["configuration-service"].email}"
-}
-
-resource "google_cloud_run_v2_service_iam_member" "singapore_vertex_ai_demo_public" {
-  count    = var.enable_singapore_staging && var.enable_vertex_ai_demo && var.vertex_ai_demo_allow_unauthenticated ? 1 : 0
-  project  = var.project_id
-  location = var.singapore_region
-  name     = google_cloud_run_v2_service.singapore_vertex_ai_demo[0].name
-  role     = "roles/run.invoker"
-  member   = "allUsers"
 }
 
 resource "google_cloud_run_v2_service_iam_member" "singapore_public" {

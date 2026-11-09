@@ -13,12 +13,14 @@ singapore_queue_consumers_enabled        = false
 singapore_min_instances                  = 0
 singapore_public_endpoints_enabled       = false
 singapore_service_urls                   = {} # Fill with Cloud Run URLs after creating Singapore services.
+frontend_configuration_service_url       = "https://ansera.hopto.org/api" # HTTPS load balancer hostname for Firebase browser requests.
+backend_configuration_service_url        = "https://34-149-82-198.sslip.io/api" # Temporary backend path; use direct run.app URL only after VPC routing works.
+django_allowed_hosts                     = ".run.app,34-149-82-198.sslip.io,ansera.hopto.org" # Keep the temporary host until the new certificate is ready.
 us_queue_consumers_enabled              = true
 us_build_triggers_enabled                = true
 us_public_endpoints_enabled              = true
 us_legacy_messaging_ingester_public      = false # Temporary Meta bridge only; disable after all Meta callbacks use Singapore.
 us_legacy_payment_ingester_public        = false # Temporary Xendit bridge only; disable after Xendit callbacks use Singapore.
-us_vertex_ai_demo_public                 = true # Set false once the Singapore demo is deployed.
 us_legacy_messaging_ingester_configuration_service_url = "https://configuration-service-gq6jjn4afq-uc.a.run.app/api"
 us_min_instances                         = 1
 pubsub_allowed_persistence_regions       = [] # Set to ["asia-southeast1"] after cutover.
@@ -60,10 +62,6 @@ enable_vertex_ai       = true
 vertex_ai_services      = ["messaging-service"]
 vertex_ai_location     = "global"
 vertex_ai_model        = "gemini-3.5-flash-lite"
-
-# Standalone browser demo. Public access can allow untrusted model requests and charges.
-enable_vertex_ai_demo                 = false
-vertex_ai_demo_allow_unauthenticated = false
 
 # mock_whatsapp on Cloud Run (mock-whatsapp.tf): a WhatsApp stand-in for demos, one instance in Singapore.
 # whatsapp_replies_to = "mock" sends every WhatsApp reply to it instead of Meta ("meta": real WhatsApp),

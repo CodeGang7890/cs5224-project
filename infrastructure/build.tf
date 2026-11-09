@@ -46,13 +46,6 @@ resource "google_service_account_iam_member" "builder_notification_act_as" {
   member             = "serviceAccount:${google_service_account.builder.email}"
 }
 
-resource "google_service_account_iam_member" "builder_vertex_ai_demo_act_as" {
-  count              = var.enable_ci_cd && var.enable_vertex_ai_demo ? 1 : 0
-  service_account_id = google_service_account.vertex_ai_demo[0].name
-  role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${google_service_account.builder.email}"
-}
-
 resource "google_project_iam_member" "builder_firebase_hosting_admin" {
   count   = var.enable_ci_cd && var.enable_firebase ? 1 : 0
   project = var.project_id
@@ -128,36 +121,6 @@ resource "google_cloudbuild_trigger" "notification_job" {
     google_project_iam_member.builder_run_admin,
     google_project_iam_member.builder_log_writer,
     google_service_account_iam_member.builder_notification_act_as,
-  ]
-}
-
-resource "google_cloudbuild_trigger" "vertex_ai_demo" {
-  count           = var.enable_ci_cd && var.enable_vertex_ai_demo && var.github_connection_name != "" && !var.retire_us_resources ? 1 : 0
-  disabled        = !var.us_build_triggers_enabled
-  name            = "vertex-ai-demo-main"
-  location        = var.region
-  service_account = google_service_account.builder.id
-  filename        = "infrastructure/cloudbuild-vertex-ai-demo.yaml"
-  included_files  = ["vertex-ai-demo/**", "infrastructure/cloudbuild-vertex-ai-demo.yaml"]
-
-  repository_event_config {
-    repository = google_cloudbuildv2_repository.github[0].id
-    push { branch = var.github_branch_regex }
-  }
-
-  substitutions = {
-    _REGION                  = var.region
-    _PROJECT_ID              = var.project_id
-    _REPOSITORY              = google_artifact_registry_repository.apps[0].repository_id
-    _RUNTIME_SERVICE_ACCOUNT = google_service_account.vertex_ai_demo[0].email
-  }
-
-  depends_on = [
-    google_project_service.api,
-    google_artifact_registry_repository_iam_member.builder_writer,
-    google_project_iam_member.builder_run_admin,
-    google_project_iam_member.builder_log_writer,
-    google_service_account_iam_member.builder_vertex_ai_demo_act_as,
   ]
 }
 

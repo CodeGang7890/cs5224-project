@@ -554,8 +554,10 @@ class DetailFieldsSplitMigrationTests(TransactionTestCase):
     """chat_app 0011: the one detail fields list becomes the product and the schedule lists, both
     without phone fields (customers chat on WhatsApp)."""
 
-    before = [('chat_app', '0010_chat_configuration_welcome_and_style')]
-    after = [('chat_app', '0011_product_and_schedule_detail_fields')]
+    # Keep the unrelated business schema current while replaying only this app's migration.
+    # Otherwise historical BusinessConfiguration omits a later non-null column still in the table.
+    before = [('chat_app', '0010_chat_configuration_welcome_and_style'), ('configuration_app', '0012_business_payment_expiry')]
+    after = [('chat_app', '0011_product_and_schedule_detail_fields'), ('configuration_app', '0012_business_payment_expiry')]
 
     def migrate(self, targets):
         executor = MigrationExecutor(connection)

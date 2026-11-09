@@ -1,0 +1,12 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - asia-southeast1-docker.pkg.dev/cs5224-ansera/apps/cloud-run-scaling-eval:eval-20261108
+      - .
+images:
+  - asia-southeast1-docker.pkg.dev/cs5224-ansera/apps/cloud-run-scaling-eval:eval-20261108
+serviceAccount: projects/cs5224-ansera/serviceAccounts/cloud-build-deployer@cs5224-ansera.iam.gserviceaccount.com
+options:
+  logging: CLOUD_LOGGING_ONLY

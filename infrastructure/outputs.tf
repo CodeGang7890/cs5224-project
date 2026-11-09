@@ -13,7 +13,6 @@ output "singapore_staging" {
     object_bucket          = google_storage_bucket.singapore_objects[0].name
     sql_connection_name    = var.enable_cloud_sql ? google_sql_database_instance.singapore_replica[0].connection_name : null
     cloud_run_urls         = { for name, service in google_cloud_run_v2_service.singapore_backend : name => service.uri }
-    vertex_ai_demo_url     = var.enable_vertex_ai_demo ? google_cloud_run_v2_service.singapore_vertex_ai_demo[0].uri : null
     notification_job_name  = var.enable_cloud_sql ? google_cloud_run_v2_job.singapore_notification[0].name : null
   } : null
 }
@@ -26,16 +25,8 @@ output "cloud_run_urls" {
   value = var.retire_us_resources || var.singapore_public_endpoints_enabled ? { for name, service in google_cloud_run_v2_service.singapore_backend : name => service.uri } : { for name, service in google_cloud_run_v2_service.backend : name => service.uri }
 }
 
-output "vertex_ai_demo_url" {
-  value = var.enable_vertex_ai_demo ? (var.enable_singapore_staging && (var.retire_us_resources || var.singapore_public_endpoints_enabled) ? google_cloud_run_v2_service.singapore_vertex_ai_demo[0].uri : (var.retire_us_resources ? null : google_cloud_run_v2_service.vertex_ai_demo[0].uri)) : null
-}
-
 output "mock_whatsapp_url" {
   value = var.enable_mock_whatsapp ? google_cloud_run_v2_service.mock_whatsapp[0].uri : null
-}
-
-output "vertex_ai_demo_service_account" {
-  value = var.enable_vertex_ai_demo ? google_service_account.vertex_ai_demo[0].email : null
 }
 
 output "notification_job_name" {

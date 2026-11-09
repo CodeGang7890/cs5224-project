@@ -217,12 +217,24 @@ jobs:
           pip install -r requirements.txt
           python -m unittest -v tests.test_schema
 
+  evaluation:
+    name: Evaluation tooling (tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Test measurement tools
+        run: python -m unittest discover -s evaluation/tests -v
+
   # The one check branch protection requires: fails unless every job above succeeded (also when
   # one was cancelled or skipped), so new jobs only need adding to `needs`.
   ci-passed:
     name: CI passed
     if: always()
-    needs: [backend, frontend, python-services, schema]
+    needs: [backend, frontend, python-services, schema, evaluation]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
