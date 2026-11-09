@@ -1,6 +1,8 @@
 # CS5224 Project
 
-![Architecture Diagram](docs/arch-diagram.png)
+Monorepo for **Ansera Business Admin** (CS5224, Group 20): a no-code AI admin for Indonesian MSMEs that sell or take bookings through WhatsApp. Owners set up their catalogue, services, FAQs and chat settings in a web dashboard, connect their WhatsApp number, and an AI assistant then answers customers from the business's own information, takes orders and bookings, sends Xendit payment links, invoices and receipts, and follows up with reminders. It runs as a set of services on Google Cloud (Cloud Run, Pub/Sub, Cloud SQL), shown below; each service has its own folder and README.
+
+![Architecture Diagram](docs/diagram/architecture-diagram.png)
 
 ## Running locally with Docker
 
@@ -14,7 +16,7 @@ RESET_DB=true docker compose up --build   # reset the database to the sample dat
 | Service | URL |
 | --- | --- |
 | frontend-app (Vite dev server, hot reload) | <http://localhost:5173> |
-| mock-whatsapp (WhatsApp stand-in: see [below](#trying-whatsapp-end-to-end-mock_whatsapp)) | <http://localhost:9000> |
+| mock-whatsapp (WhatsApp stand-in: chat as a customer with the sample businesses) | <http://localhost:9000> |
 | configuration-service (Django API, Swagger at `/api/docs/`) | <http://localhost:8000> |
 | payment-ingester (Gunicorn: creates Xendit Payment Sessions for the chat flow, receives Xendit webhooks → Pub/Sub payment-events, Swagger at `/docs`) | <http://localhost:8001> |
 | messaging-ingester (WhatsApp webhook → Pub/Sub, Swagger at `/docs`) | <http://localhost:8002> |
@@ -25,8 +27,10 @@ RESET_DB=true docker compose up --build   # reset the database to the sample dat
 | PostgreSQL | `localhost:5433` (user/password `postgres`) |
 
 To see the WhatsApp messages the ingester published: `docker compose exec messaging-ingester python scripts/pull_debug.py`
-(see `messaging-ingester/README.md`). messaging-service pulls them too, on its own subscription, and answers each one with the chat flow and sends the reply (try it with mock_whatsapp, below):
+(see `messaging-ingester/README.md`). messaging-service pulls them too, on its own subscription, and answers each one with the chat flow and sends the reply:
 `docker compose logs -f messaging-service` (see `messaging-service/README.md`).
+
+To try WhatsApp end to end, open mock-whatsapp (<http://localhost:9000>) and chat as a customer: the assistant's replies come back through the whole system, because docker compose points configuration-service's replies at mock-whatsapp's fake Graph API (`META_GRAPH_API_URL`; set it in the root `.env` for the real Meta). Its conversations are kept in the `mock-whatsapp-data` volume; to run it outside Docker, see `mock_whatsapp/README.md`.
 
 To publish dummy payment events (`payment_reference`, `status` success / fail, and the order / booking's `amount`) to the `payment-events` topic, with the stack running (by default for random orders / bookings still pending payment):
 
@@ -42,12 +46,6 @@ notification-job runs every hour (cron, no port) and logs the payment and appoin
 
 After changing `frontend-app/package.json`, rebuild it: `docker compose up --build -V frontend-app`
 (`-V` recreates the `node_modules` volume so the new packages are used).
-
-## Trying WhatsApp end to end (mock_whatsapp)
-
-`mock_whatsapp/` stands in for WhatsApp: you chat as a customer with the sample businesses, and the assistant's replies come back through the whole system.
-
-docker compose runs it (`mock-whatsapp`) on <http://localhost:9000>, and points configuration-service's replies at its fake Graph API (`META_GRAPH_API_URL` = `http://mock-whatsapp:9000/v26.0`; set it in the root `.env` for the real Meta). Its conversations are kept in the `mock-whatsapp-data` volume. To run it on your machine instead, see `mock_whatsapp/README.md`.
 
 ## Xendit payments
 
