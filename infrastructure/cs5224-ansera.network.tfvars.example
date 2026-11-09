@@ -1,0 +1,27 @@
+# Verified using read-only gcloud queries on 2026-11-09.
+# Overlay on this deployment's EXISTING private terraform.tfvars and state.
+# This file is deliberately incomplete: it contains no secret or CI credentials.
+project_id                       = "cs5224-ansera"
+enable_singapore_staging         = true
+singapore_region                 = "asia-southeast1"
+singapore_vpc_network            = "default"
+singapore_vpc_subnetwork         = "default"
+singapore_vpc_subnet_cidr        = "10.148.0.0/20"
+manage_singapore_load_balancer   = true
+mock_whatsapp_public_path_prefix = "/whatsapp"
+
+singapore_stage_backend_services = [
+  "configuration-service", "messaging-ingester", "messaging-service",
+  "payment-ingester", "processing-service"
+]
+singapore_min_instances            = 1
+singapore_public_endpoints_enabled = true
+singapore_queue_consumers_enabled  = true
+singapore_sql_promoted             = true
+retire_us_resources                = true
+enable_cloud_sql                   = true
+enable_mock_whatsapp               = true
+whatsapp_replies_to                = "mock"
+frontend_configuration_service_url = "https://ansera.hopto.org/api"
+backend_configuration_service_url  = "https://34-149-82-198.sslip.io/api"
+django_allowed_hosts               = ".run.app,34-149-82-198.sslip.io,ansera.hopto.org"

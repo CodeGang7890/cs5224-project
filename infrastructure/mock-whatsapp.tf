@@ -32,7 +32,7 @@ resource "google_cloud_run_v2_service" "mock_whatsapp" {
   name                = "mock-whatsapp"
   location            = var.singapore_region
   deletion_protection = false
-  ingress             = "INGRESS_TRAFFIC_ALL"
+  ingress             = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
 
   scaling {
     min_instance_count = 1
@@ -40,9 +40,19 @@ resource "google_cloud_run_v2_service" "mock_whatsapp" {
   }
 
   template {
-    # No roles: it only calls messaging-ingester's public webhook.
+    # Direct VPC egress makes the ingress-restricted ingester reachable.
     service_account                  = google_service_account.mock_whatsapp[0].email
     max_instance_request_concurrency = 20 # the page polls every 1.5 s per open tab
+    dynamic "vpc_access" {
+      for_each = var.enable_singapore_staging ? [1] : []
+      content {
+        egress = "ALL_TRAFFIC"
+        network_interfaces {
+          network    = data.google_compute_network.singapore_egress[0].name
+          subnetwork = google_compute_subnetwork.singapore_egress[0].name
+        }
+      }
+    }
     scaling {
       min_instance_count = 1
       max_instance_count = 1
@@ -59,6 +69,10 @@ resource "google_cloud_run_v2_service" "mock_whatsapp" {
         name  = "INGESTER_URL"
         value = trimsuffix(local.singapore_messaging_ingester_public_url, "/")
       }
+      env {
+        name  = "MOCK_WHATSAPP_PUBLIC_PATH_PREFIX"
+        value = var.mock_whatsapp_public_path_prefix
+      }
     }
   }
 
@@ -66,7 +80,7 @@ resource "google_cloud_run_v2_service" "mock_whatsapp" {
     ignore_changes = [template[0].containers[0].image]
   }
 
-  depends_on = [google_project_service.api]
+  depends_on = [google_project_service.api, google_compute_router_nat.singapore_egress]
 }
 
 resource "google_cloud_run_v2_service_iam_member" "mock_whatsapp_public" {
