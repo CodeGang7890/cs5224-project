@@ -1,7 +1,8 @@
+from django.http import HttpResponse
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import generics
-from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
+from rest_framework.exceptions import APIException, NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -9,6 +10,7 @@ from rest_framework.views import APIView
 from auth_app.business_scope import OTHER_BUSINESS_MESSAGE, get_user_business_id
 from config.pagination import DetailedPageNumberPagination
 
+from . import documents
 from .filters import OrderItemFilter, ScheduleItemFilter
 from .models import OrderItem, ScheduleItem
 from .serializers import OrderItemSerializer, ScheduleItemSerializer
@@ -213,3 +215,61 @@ class ScheduleItemCompleteView(APIView):
             raise ValidationError({'order_status': [str(exc)]}) from exc
         booking = ScheduleItem.objects.select_related('service_provider').get(pk=booking.pk)
         return Response(ScheduleItemSerializer(booking).data)
+
+
+class DocumentsUnavailable(APIException):
+    status_code = 503
+    default_detail = 'Invoices and receipts are unavailable right now.'
+    default_code = 'documents_unavailable'
+
+
+def _document_response(kind: str, item, what: str) -> HttpResponse:
+    """The order's / booking's invoice or receipt PDF, shown in the browser (inline)."""
+    try:
+        pdf = documents.fetch_pdf(kind, item.business_id, item.payment_reference)
+    except documents.DocumentsUnavailable as exc:
+        raise DocumentsUnavailable(str(exc)) from exc
+    if pdf is None:
+        raise NotFound(f'This {what} has no {kind} yet.')
+    response = HttpResponse(pdf, content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="{kind}-{what}-{item.pk}.pdf"'
+    return response
+
+
+def _document_schema(tag: str, what: str):
+    return extend_schema(
+        tags=[tag],
+        summary=f'The {what}\'s invoice or receipt (PDF)',
+        description=(
+            f'The PDF processing-service stored for this {what}: the invoice (made when its payment link '
+            'was created) or the receipt (made when it was paid).'
+        ),
+        responses={
+            (200, 'application/pdf'): OpenApiResponse(description='The PDF.'),
+            403: OpenApiResponse(description=f"Another business's {what}, or your account has no business."),
+            404: OpenApiResponse(description=f'No {what} with this ID, or it has no such PDF yet.'),
+            503: OpenApiResponse(description='PDFs are not stored in this environment, or Cloud Storage is unreachable.'),
+        },
+    )
+
+
+class OrderItemDocumentView(APIView):
+    """One of the business's orders' invoice or receipt (`kind`, from the URL)."""
+
+    permission_classes = [IsAuthenticated]
+
+    @_document_schema('Orders', 'order')
+    def get(self, request, pk: int, kind: str):
+        order = _own(OrderItem, pk, get_user_business_id(request), NO_ORDER_MESSAGE)
+        return _document_response(kind, order, 'order')
+
+
+class ScheduleItemDocumentView(APIView):
+    """One of the business's bookings' invoice or receipt (`kind`, from the URL)."""
+
+    permission_classes = [IsAuthenticated]
+
+    @_document_schema('Orders', 'booking')
+    def get(self, request, pk: int, kind: str):
+        booking = _own(ScheduleItem, pk, get_user_business_id(request), NO_SCHEDULE_MESSAGE)
+        return _document_response(kind, booking, 'booking')

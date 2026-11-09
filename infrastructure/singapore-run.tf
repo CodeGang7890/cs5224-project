@@ -184,6 +184,8 @@ resource "google_cloud_run_v2_service" "singapore_backend" {
           # WhatsApp replies: to mock-whatsapp's fake Graph API or to Meta (mock-whatsapp.tf).
           WHATSAPP_REPLIES_TO         = local.replies_to_mock_whatsapp ? "mock" : "meta"
           MOCK_WHATSAPP_GRAPH_API_URL = local.mock_whatsapp_graph_api_url
+          # The invoice / receipt PDFs processing-service stores, for the dashboard (read only).
+          GCS_BUCKET = google_storage_bucket.singapore_objects[0].name
         } : {}
         content {
           name  = env.key

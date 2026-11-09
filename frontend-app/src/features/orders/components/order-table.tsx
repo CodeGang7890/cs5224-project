@@ -12,6 +12,7 @@ import {
 
 import { shortPaymentReference } from "../payment-reference";
 import type { Order } from "../types";
+import { DocumentLinks } from "./document-links";
 import { OrderStatusBadge, SandboxBadge } from "./order-status-badge";
 
 const formatDateTime = (iso: string) =>
@@ -51,6 +52,7 @@ export function OrderTable({ orders, onOpen }: OrderTableProps) {
             <TableHead className="text-right">Total</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Placed</TableHead>
+            <TableHead>Invoice / receipt</TableHead>
             <TableHead className="w-12">
               <span className="sr-only">Actions</span>
             </TableHead>
@@ -98,6 +100,9 @@ export function OrderTable({ orders, onOpen }: OrderTableProps) {
                 </TableCell>
                 <TableCell className="whitespace-nowrap tabular-nums">
                   {formatDateTime(order.created_time)}
+                </TableCell>
+                <TableCell>
+                  <DocumentLinks owner="order" item={order} compact />
                 </TableCell>
                 <TableCell>
                   <Button

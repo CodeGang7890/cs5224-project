@@ -240,6 +240,10 @@ SIMPLE_JWT = {
     'SIGNING_KEY': os.getenv('JWT_SIGNING_KEY') or SECRET_KEY,
 }
 
+# The private bucket processing-service stores the invoice / receipt PDFs in (checkout_app/documents.py);
+# empty (local development): the dashboard's PDF links say they aren't stored here.
+GCS_BUCKET = os.getenv('GCS_BUCKET', '')
+
 # Chat Sandbox requests go through this API to the private messaging service.
 MESSAGING_SERVICE_URL = os.getenv('MESSAGING_SERVICE_URL', 'http://localhost:8004').rstrip('/')
 MESSAGING_SERVICE_REQUIRE_ID_TOKEN = os.getenv(

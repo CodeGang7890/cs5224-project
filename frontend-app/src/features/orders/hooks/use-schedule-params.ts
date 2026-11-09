@@ -8,6 +8,7 @@ import {
   type ScheduleOrdering,
 } from "../types";
 import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from "./use-order-params";
+import { useRememberedFilters } from "./use-remembered-filters";
 
 // The Orders section's Services sub-tab (/orders/services) keeps its filters, sorting, paging and
 // the open booking in the URL (`?status=…&booking=12`), like the orders list.
@@ -26,6 +27,9 @@ export const SCHEDULE_ORDERING_OPTIONS: {
 ];
 
 const SANDBOX_VALUES: OrderSandboxFilter[] = ["include", "exclude", "only"];
+
+/** What's kept between visits (useRememberedFilters): filters, sorting and page size. */
+const REMEMBERED = ["status", "sandbox", "ordering", "page_size"] as const;
 
 export interface ScheduleFilterValues {
   status: OrderStatus | "";
@@ -75,6 +79,7 @@ const DEFAULTS: Record<string, string | number> = {
 
 /** Filter, sort, paging and open-booking state of the bookings list, stored in the URL. */
 export function useScheduleParams() {
+  useRememberedFilters("orders-services", REMEMBERED);
   const [searchParams, setSearchParams] = useSearchParams();
   const values = readValues(searchParams);
 

@@ -2,20 +2,38 @@ import { useSearchParams } from "react-router";
 
 import {
   ORDER_STATUSES,
+  type OrderOrdering,
   type OrderSandboxFilter,
   type OrderStatus,
 } from "../types";
-import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from "./use-order-params";
+import {
+  DEFAULT_ORDERING,
+  DEFAULT_PAGE_SIZE,
+  ORDERING_OPTIONS,
+  PAGE_SIZES,
+} from "./use-order-params";
+import { useRememberedFilters } from "./use-remembered-filters";
 
-// The Orders section's Payment sub-tab keeps its filters, paging and the open order / booking in the
-// URL (`?status=…&order=…&booking=…`), like the orders and bookings lists.
+// The Orders section's Payment sub-tab keeps its filters, sorting, paging and the open order / booking in
+// the URL (`?status=…&ordering=…&order=…&booking=…`), like the orders and bookings lists. One sort applies
+// to both tables: newest / oldest first or by status, which both lists support.
 
 const SANDBOX_VALUES: OrderSandboxFilter[] = ["include", "exclude", "only"];
 const DEFAULT_SANDBOX: OrderSandboxFilter = "include";
 
+/** What's kept between visits (useRememberedFilters): filters, sorting and page sizes. */
+const REMEMBERED = [
+  "status",
+  "sandbox",
+  "ordering",
+  "order_page_size",
+  "booking_page_size",
+] as const;
+
 export interface PaymentFilterValues {
   status: OrderStatus | "";
   sandbox: OrderSandboxFilter;
+  ordering: OrderOrdering;
   orderPage: number;
   orderPageSize: number;
   bookingPage: number;
@@ -37,9 +55,13 @@ function readPageSize(params: URLSearchParams, name: string): number {
 function readValues(params: URLSearchParams): PaymentFilterValues {
   const status = params.get("status") as OrderStatus;
   const sandbox = params.get("sandbox") as OrderSandboxFilter;
+  const ordering = params.get("ordering") as OrderOrdering;
   return {
     status: ORDER_STATUSES.includes(status) ? status : "",
     sandbox: SANDBOX_VALUES.includes(sandbox) ? sandbox : DEFAULT_SANDBOX,
+    ordering: ORDERING_OPTIONS.some((option) => option.value === ordering)
+      ? ordering
+      : DEFAULT_ORDERING,
     orderPage: readPage(params, "order_page"),
     orderPageSize: readPageSize(params, "order_page_size"),
     bookingPage: readPage(params, "booking_page"),
@@ -49,11 +71,14 @@ function readValues(params: URLSearchParams): PaymentFilterValues {
 
 /** Filter, paging and open-item state of the Payment sub-tab, stored in the URL. */
 export function usePaymentParams() {
+  useRememberedFilters("orders-payment", REMEMBERED);
   const [searchParams, setSearchParams] = useSearchParams();
   const values = readValues(searchParams);
 
   const setFilters = (
-    changes: Partial<Pick<PaymentFilterValues, "status" | "sandbox">>,
+    changes: Partial<
+      Pick<PaymentFilterValues, "status" | "sandbox" | "ordering">
+    >,
   ) =>
     setSearchParams(
       (params) => {
@@ -64,6 +89,10 @@ export function usePaymentParams() {
         if (changes.sandbox !== undefined) {
           if (changes.sandbox === DEFAULT_SANDBOX) params.delete("sandbox");
           else params.set("sandbox", changes.sandbox);
+        }
+        if (changes.ordering !== undefined) {
+          if (changes.ordering === DEFAULT_ORDERING) params.delete("ordering");
+          else params.set("ordering", changes.ordering);
         }
         params.delete("order_page");
         params.delete("booking_page");
