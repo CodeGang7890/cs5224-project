@@ -94,11 +94,12 @@ resource "google_storage_bucket" "singapore_objects" {
 
   lifecycle_rule {
     condition {
-      age            = 730
+      age            = 400
       matches_prefix = ["receipts/"]
     }
     action {
-      type = "Delete"
+      type          = "SetStorageClass"
+      storage_class = "ARCHIVE"
     }
   }
 
