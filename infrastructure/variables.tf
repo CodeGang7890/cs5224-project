@@ -133,12 +133,6 @@ variable "us_legacy_messaging_ingester_configuration_service_url" {
   default     = "https://configuration-service-gq6jjn4afq-uc.a.run.app/api"
 }
 
-variable "us_vertex_ai_demo_public" {
-  description = "Keep the old US Vertex AI demo publicly invokable. Set false after the Singapore demo is live."
-  type        = bool
-  default     = true
-}
-
 variable "us_min_instances" {
   description = "Service-level minimum instances for the existing US Cloud Run services."
   type        = number
@@ -178,6 +172,28 @@ variable "django_allowed_hosts" {
   description = "Comma-separated Django hostnames; the default accepts Cloud Run's run.app hostname. Add a custom domain when used."
   type        = string
   default     = ".run.app"
+}
+
+variable "frontend_configuration_service_url" {
+  description = "Optional HTTPS /api root for the Firebase frontend. Set to the load balancer's trusted DNS hostname; empty uses the backend configuration API URL."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.frontend_configuration_service_url == "" || can(regex("^https://[^/]+/api/?$", var.frontend_configuration_service_url))
+    error_message = "Use an HTTPS API root such as https://api.example.com/api, or leave it empty."
+  }
+}
+
+variable "backend_configuration_service_url" {
+  description = "Optional HTTPS /api root used by Singapore backend services and notification-job to reach configuration-service. Keep the load balancer URL until Cloud Run-to-Cloud Run VPC routing is ready, then use its run.app URL."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.backend_configuration_service_url == "" || can(regex("^https://[^/]+/api/?$", var.backend_configuration_service_url))
+    error_message = "Use an HTTPS API root such as https://configuration-service.example.run.app/api, or leave it empty."
+  }
 }
 
 variable "messaging_service_url" {
@@ -328,18 +344,6 @@ variable "vertex_ai_model" {
   default     = "gemini-3.5-flash-lite"
 }
 
-variable "enable_vertex_ai_demo" {
-  description = "Create the separate Vertex AI demo Cloud Run service and runtime service account."
-  type        = bool
-  default     = false
-}
-
-variable "vertex_ai_demo_allow_unauthenticated" {
-  description = "Allow public access to the Vertex AI demo. Public users can submit requests that incur model usage charges."
-  type        = bool
-  default     = false
-}
-
 variable "enable_mock_whatsapp" {
   description = "Create the mock-whatsapp Cloud Run service (mock-whatsapp.tf): a stand-in for WhatsApp / Meta for demos, one instance in the Singapore region."
   type        = bool
@@ -364,12 +368,6 @@ variable "mock_whatsapp_allow_unauthenticated" {
 
 variable "mock_whatsapp_image" {
   description = "Initial image for the mock-whatsapp Cloud Run service before Cloud Build deploys its Docker image."
-  type        = string
-  default     = "us-docker.pkg.dev/cloudrun/container/hello"
-}
-
-variable "vertex_ai_demo_image" {
-  description = "Initial image for the separate Vertex AI demo Cloud Run service before Cloud Build deploys its Docker image."
   type        = string
   default     = "us-docker.pkg.dev/cloudrun/container/hello"
 }

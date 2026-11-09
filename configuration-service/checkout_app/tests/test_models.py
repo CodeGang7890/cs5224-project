@@ -404,8 +404,9 @@ class SampleScheduleItemFixtureTests(TestCase):
 class PaymentReferenceMigrationTests(TransactionTestCase):
     """checkout_app 0005–0006: every existing order and booking gets its own payment reference."""
 
-    before = [('checkout_app', '0004_payment_failed_status')]
-    after = [('checkout_app', '0006_payment_reference_required')]
+    # Replay checkout migrations while keeping the unrelated business schema current.
+    before = [('checkout_app', '0004_payment_failed_status'), ('configuration_app', '0012_business_payment_expiry')]
+    after = [('checkout_app', '0006_payment_reference_required'), ('configuration_app', '0012_business_payment_expiry')]
 
     def migrate(self, targets):
         executor = MigrationExecutor(connection)

@@ -73,7 +73,7 @@ resource "google_pubsub_subscription" "queue" {
   topic                      = google_pubsub_topic.queue[each.key].id
   ack_deadline_seconds       = each.value.ack_deadline_seconds
   enable_message_ordering    = each.value.ordered
-  message_retention_duration = "86400s"
+  message_retention_duration = each.key == "messaging-queue" ? "604800s" : "86400s"
 
   dynamic "retry_policy" {
     for_each = each.value.dead_letter ? [1] : []

@@ -590,8 +590,9 @@ class ServiceProvidersMigrationTests(TransactionTestCase):
     """product_app 0006–0007 + checkout_app 0003: each old weekly template becomes a service
     provider with real weeks (current + 3), and bookings are written into them."""
 
-    before = [('product_app', '0005_weeklyavailability_service'), ('checkout_app', '0002_scheduleitem')]
-    after = [('product_app', '0007_weekly_availability_per_week'), ('checkout_app', '0003_scheduleitem_service_provider')]
+    # Replay product/checkout migrations while keeping the unrelated business schema current.
+    before = [('product_app', '0005_weeklyavailability_service'), ('checkout_app', '0002_scheduleitem'), ('configuration_app', '0012_business_payment_expiry')]
+    after = [('product_app', '0007_weekly_availability_per_week'), ('checkout_app', '0003_scheduleitem_service_provider'), ('configuration_app', '0012_business_payment_expiry')]
 
     def migrate(self, targets):
         executor = MigrationExecutor(connection)

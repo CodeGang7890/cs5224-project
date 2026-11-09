@@ -1,0 +1,1 @@
+{"object":"whatsapp_business_account","entry":[{"id":"evaluation","changes":[{"field":"messages","value":{"messaging_product":"whatsapp","metadata":{"phone_number_id":"TEST_PHONE_NUMBER_ID"},"statuses":[{"id":"wamid.evaluation.{{request_id}}","status":"delivered","timestamp":"{{timestamp}}","recipient_id":"65900000000"}]}}]}]}
