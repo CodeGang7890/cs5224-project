@@ -1,6 +1,6 @@
-// Subscription plans: prices and usage from the Preliminary Report's business model, features limited to
-// what the app does today. The account's own plan is `CurrentUser.subscription_tier` (GET /api/auth/me/).
-// Hardcoded here: there's no billing yet.
+// Subscription plans: prices (excluding VAT), included AI interactions and features from the Final Report's
+// business model (Table 2), plus a few more of the app's features. The account's own plan is
+// `CurrentUser.subscription_tier` (GET /api/auth/me/). Hardcoded here: there's no billing yet.
 
 import type { SubscriptionTier } from "@/features/auth";
 
@@ -35,31 +35,35 @@ export const PLANS: Plan[] = [
     id: "starter",
     name: "Starter",
     tagline: "For a small shop going live.",
-    price: 7.99,
-    usage: "Up to ~300 customer interactions/month",
+    price: 10.99,
+    usage: "300 AI interactions/month",
     features: [
       "1 WhatsApp number, connected with Facebook",
+      "No-code workflow builder",
       "24/7 AI replies from your catalog and FAQs",
-      "Product orders with live stock",
-      "Appointment bookings in free time slots",
-      "Xendit payment links and payment tracking",
+      "Orders with live stock and bookings in free time slots",
+      "Invoices and receipts",
+      "Xendit payment links, payment and reminder follow-ups",
       "Customers check their order status in the chat",
-      "Full conversation history",
+      "CRM up to 1,000 contacts",
+      "6 months of chat history",
     ],
   },
   {
     id: "growth",
     name: "Growth",
     tagline: "For a growing team.",
-    price: 21.99,
-    usage: "Up to ~1,500 interactions/month",
+    price: 35.99,
+    usage: "1,500 AI interactions/month",
     features: [
       "Everything in Starter, plus:",
+      "3 staff logins",
+      "CRM up to 10,000 contacts",
+      "12 months of chat history",
+      "Analytics dashboard",
       "Unanswered questions inbox: answer once, then add it to your FAQs",
       "Several service providers with weekly schedules",
       "Your own custom reply style",
-      "Conversation search and filters",
-      "Up to 3 team logins",
     ],
     recommended: true,
   },
@@ -67,14 +71,16 @@ export const PLANS: Plan[] = [
     id: "business",
     name: "Business",
     tagline: "For busy businesses and bigger teams.",
-    price: 49.99,
-    usage: "Higher / custom usage",
+    price: 106.99,
+    usage: "4,000 AI interactions/month",
     features: [
       "Everything in Growth, plus:",
-      "Up to 10 team logins",
+      "10 staff logins",
+      "3 WhatsApp numbers",
+      "CRM up to 50,000 contacts",
       "Bulk schedule tools: add slots, copy weeks ahead",
       "Sandbox debug view: see how each reply was decided",
-      "Dedicated support: a personal contact and priority help",
+      "Priority support",
     ],
   },
 ];
