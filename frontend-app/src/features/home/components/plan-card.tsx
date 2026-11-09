@@ -83,8 +83,9 @@ export function PlanCard({
 export function PricingNote() {
   return (
     <p className="text-muted-foreground text-xs">
-      WhatsApp messaging fees and AI usage are billed separately, at cost with
-      no markup, and you can set a monthly spending cap.
+      Prices exclude VAT. An interaction is one customer's conversation: all
+      their messages within 24 hours. WhatsApp messaging fees are billed
+      separately, at cost with no markup.
     </p>
   );
 }
