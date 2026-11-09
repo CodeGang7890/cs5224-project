@@ -110,6 +110,10 @@ class OrderItem(models.Model):
         verbose_name = 'Order Item'
         verbose_name_plural = 'Order Items'
         ordering = ['-created_time', '-id']
+        indexes = [
+            # notification-job's payment reminders: unpaid orders created 1-2 hours ago, every hour.
+            models.Index(fields=['order_status', 'created_time'], name='order_item_status_created'),
+        ]
         constraints = [
             models.CheckConstraint(
                 condition=Q(order_status__in=OrderStatus.values),
@@ -211,7 +215,13 @@ class ScheduleItem(models.Model):
         verbose_name = 'Schedule Item'
         verbose_name_plural = 'Schedule Items'
         ordering = ['-start_time', '-id']
-        indexes = [models.Index(fields=['service_provider', 'start_time'], name='schedule_item_provider_time')]
+        indexes = [
+            models.Index(fields=['service_provider', 'start_time'], name='schedule_item_provider_time'),
+            # notification-job: the payment reminders (unpaid bookings created 1-2 hours ago) and the
+            # appointment reminders (bookings starting in about 24 hours), across all businesses.
+            models.Index(fields=['order_status', 'created_time'], name='schedule_item_status_created'),
+            models.Index(fields=['start_time'], name='schedule_item_start_time'),
+        ]
         constraints = [
             models.CheckConstraint(
                 condition=Q(order_status__in=OrderStatus.values),
