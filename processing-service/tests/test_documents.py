@@ -91,8 +91,8 @@ class DocumentTests(unittest.TestCase):
         self.assertEqual(self.build(self.order, RECEIPT, payment_url=PAY_URL).payment_url, '')
 
     def test_the_object_name_is_per_document_and_payment(self):
-        self.assertEqual(documents.object_name(INVOICE, 'a' * 32), f'invoices/{"a" * 32}.pdf')
-        self.assertEqual(documents.object_name(RECEIPT, 'a' * 32), f'receipts/{"a" * 32}.pdf')
+        self.assertEqual(documents.object_name(INVOICE, 7, 'a' * 32), f'invoices/7/{"a" * 32}.pdf')
+        self.assertEqual(documents.object_name(RECEIPT, 7, 'a' * 32), f'receipts/7/{"a" * 32}.pdf')
 
     # --- the data ---------------------------------------------------------------------------------
 

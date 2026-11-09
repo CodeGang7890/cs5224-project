@@ -276,7 +276,8 @@ def render_pdf(document: Document) -> bytes:
     return bytes(pdf.output())
 
 
-def object_name(doc_type: str, payment_reference: str) -> str:
-    """Where the PDF goes in object storage: invoices/<reference>.pdf or receipts/<reference>.pdf, one
-    of each per payment, so a repeated event overwrites it."""
-    return f'{doc_type}s/{payment_reference}.pdf'
+def object_name(doc_type: str, business_id: int, payment_reference: str) -> str:
+    """Where the PDF goes in object storage: invoices/<business id>/<reference>.pdf or
+    receipts/<business id>/<reference>.pdf, one of each per payment, so a repeated event overwrites it.
+    The business folder keeps each tenant's files apart."""
+    return f'{doc_type}s/{business_id}/{payment_reference}.pdf'

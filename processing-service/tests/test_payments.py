@@ -75,14 +75,14 @@ class PaymentFlowTests(unittest.TestCase):
             result = apply_payment(session, ORDER_REFERENCE, 'success', ORDER_TOTAL)
         pdf, object_name = upload.call_args.args
         self.assertTrue(pdf.startswith(b'%PDF'))
-        self.assertEqual(object_name, f'receipts/{ORDER_REFERENCE}.pdf')
-        link.assert_called_once_with(f'receipts/{ORDER_REFERENCE}.pdf')
+        self.assertEqual(object_name, f'receipts/1/{ORDER_REFERENCE}.pdf')
+        link.assert_called_once_with(f'receipts/1/{ORDER_REFERENCE}.pdf')
         self.assertEqual((result.document_uri, result.document_link), ('gs://bucket/x.pdf', 'https://signed'))
 
     def test_a_paid_booking_gets_its_receipt_uploaded(self):
         with mock.patch('app.storage.upload_pdf', return_value=None) as upload, self.sessions() as session:
             result = apply_payment(session, BOOKING_REFERENCE, 'success', BOOKING_TOTAL)
-        self.assertEqual(upload.call_args.args[1], f'receipts/{BOOKING_REFERENCE}.pdf')
+        self.assertEqual(upload.call_args.args[1], f'receipts/4/{BOOKING_REFERENCE}.pdf')
         self.assertIsNone(result.document_link)  # nothing uploaded (no bucket): nothing to link
 
     def test_a_failed_payment_makes_no_receipt(self):
@@ -202,7 +202,7 @@ class PaymentFlowTests(unittest.TestCase):
             result = send_invoice(session, CHAT_ORDER_REFERENCE, self.PAY_URL)
         pdf, object_name = upload.call_args.args
         self.assertTrue(pdf.startswith(b'%PDF'))
-        self.assertEqual(object_name, f'invoices/{CHAT_ORDER_REFERENCE}.pdf')  # not receipts/
+        self.assertEqual(object_name, f'invoices/1/{CHAT_ORDER_REFERENCE}.pdf')  # not receipts/
         self.assertEqual((result.document_uri, result.document_link), ('gs://b/inv.pdf', 'https://signed/inv.pdf'))
         business_id, to, text = send_text.call_args.args
         self.assertEqual((business_id, to), (1, '+6591234567'))
@@ -227,7 +227,7 @@ class PaymentFlowTests(unittest.TestCase):
     def test_a_booking_gets_an_invoice_too(self):
         with mock.patch('app.storage.upload_pdf', return_value=None) as upload, self.sessions() as session:
             result = send_invoice(session, BOOKING_REFERENCE, self.PAY_URL)  # no chat, no email: nobody to tell, no error
-        self.assertEqual(upload.call_args.args[1], f'invoices/{BOOKING_REFERENCE}.pdf')
+        self.assertEqual(upload.call_args.args[1], f'invoices/4/{BOOKING_REFERENCE}.pdf')
         self.assertEqual(result.kind, 'booking')
 
     def test_an_order_that_is_paid_or_failed_gets_no_invoice(self):
