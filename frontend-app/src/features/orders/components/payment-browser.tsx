@@ -13,6 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { shortPaymentReference } from "../payment-reference";
+import { ORDERING_OPTIONS } from "../hooks/use-order-params";
 import { usePaymentParams } from "../hooks/use-payment-params";
 import { useOrders } from "../hooks/use-orders";
 import { useSchedules } from "../hooks/use-schedules";
@@ -20,6 +21,7 @@ import { ORDER_STATUS_META } from "../status";
 import {
   ORDER_STATUSES,
   type Order,
+  type OrderOrdering,
   type OrderSandboxFilter,
   type OrderStatus,
 } from "../types";
@@ -63,6 +65,7 @@ function PaymentLinkCell({ link }: { link: string | null }) {
 function OrdersSection({
   status,
   sandbox,
+  ordering,
   page,
   pageSize,
   onPageChange,
@@ -72,6 +75,7 @@ function OrdersSection({
 }: {
   status: OrderStatus | "";
   sandbox: OrderSandboxFilter;
+  ordering: OrderOrdering;
   page: number;
   pageSize: number;
   onPageChange: (page: number) => void;
@@ -82,7 +86,7 @@ function OrdersSection({
   const params = {
     page,
     page_size: pageSize,
-    ordering: "-created_time" as const,
+    ordering,
     sandbox,
     order_status: status || undefined,
   };
@@ -220,6 +224,7 @@ function OrdersSection({
 function BookingsSection({
   status,
   sandbox,
+  ordering,
   page,
   pageSize,
   onPageChange,
@@ -229,6 +234,7 @@ function BookingsSection({
 }: {
   status: OrderStatus | "";
   sandbox: OrderSandboxFilter;
+  ordering: OrderOrdering;
   page: number;
   pageSize: number;
   onPageChange: (page: number) => void;
@@ -239,7 +245,7 @@ function BookingsSection({
   const params = {
     page,
     page_size: pageSize,
-    ordering: "-start_time" as const,
+    ordering, // the same values work for bookings (created time, status)
     sandbox,
     order_status: status || undefined,
   };
@@ -327,14 +333,11 @@ function BookingsSection({
                         <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
-                    <TableCell className="max-w-0">
-                      <p
-                        className="truncate"
-                        title={booking.schedule_data.service.name}
-                      >
+                    <TableCell className="min-w-56">
+                      <p className="font-medium">
                         {booking.schedule_data.service.name}
                       </p>
-                      <p className="text-muted-foreground text-xs">
+                      <p className="text-muted-foreground text-xs whitespace-nowrap">
                         {formatBookingTime(booking)}
                       </p>
                     </TableCell>
@@ -436,6 +439,15 @@ export function PaymentBrowser() {
             { value: "only", label: "Sandbox only" },
           ]}
         />
+        <FilterSelect
+          id="payment-sort"
+          label="Sort by"
+          value={values.ordering}
+          onChange={(ordering) =>
+            setFilters({ ordering: ordering as OrderOrdering })
+          }
+          options={ORDERING_OPTIONS}
+        />
         {hasFilters && (
           <Button variant="ghost" size="sm" onClick={clearFilters}>
             Clear filters
@@ -446,6 +458,7 @@ export function PaymentBrowser() {
       <OrdersSection
         status={values.status}
         sandbox={values.sandbox}
+        ordering={values.ordering}
         page={values.orderPage}
         pageSize={values.orderPageSize}
         onPageChange={setOrderPage}
@@ -456,6 +469,7 @@ export function PaymentBrowser() {
       <BookingsSection
         status={values.status}
         sandbox={values.sandbox}
+        ordering={values.ordering}
         page={values.bookingPage}
         pageSize={values.bookingPageSize}
         onPageChange={setBookingPage}

@@ -99,6 +99,9 @@ function OrderDetails({ order }: { order: Order }) {
         reference={order.payment_reference}
         xenditPaymentId={order.xendit_payment_id}
         paymentLink={order.payment_link}
+        owner="order"
+        id={order.id}
+        status={order.order_status}
       />
       <div className="rounded-lg border">
         <Table>

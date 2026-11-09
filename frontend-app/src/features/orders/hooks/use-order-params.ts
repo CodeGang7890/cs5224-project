@@ -7,6 +7,7 @@ import {
   type OrderSandboxFilter,
   type OrderStatus,
 } from "../types";
+import { useRememberedFilters } from "./use-remembered-filters";
 
 // The Orders tab keeps its filters, sorting, paging and the open order in the URL (like Chats).
 
@@ -60,6 +61,9 @@ export function toListParams(values: OrderFilterValues): OrderListParams {
   };
 }
 
+/** What's kept between visits (useRememberedFilters): filters, sorting and page size. */
+const REMEMBERED = ["status", "sandbox", "ordering", "page_size"] as const;
+
 const DEFAULTS: Record<string, string | number> = {
   status: "",
   sandbox: DEFAULT_SANDBOX,
@@ -69,6 +73,7 @@ const DEFAULTS: Record<string, string | number> = {
 
 /** Filter, sort, paging and open-order state of the Orders tab, stored in the URL. */
 export function useOrderParams() {
+  useRememberedFilters("orders-products", REMEMBERED);
   const [searchParams, setSearchParams] = useSearchParams();
   const values = readValues(searchParams);
 

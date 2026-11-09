@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
-from django.test import override_settings
+from django.test import SimpleTestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -11,6 +13,7 @@ from chat_app.models import ChatSession
 from configuration_app.models import BusinessConfiguration
 from product_app.models import Service, ServiceProvider
 
+from .. import documents
 from ..models import OrderItem, OrderStatus, ScheduleItem
 from .test_models import VALID_ORDER_DATA
 from .test_schedule import at, book, future_monday
@@ -195,6 +198,16 @@ class ScheduleAPITests(APITestCase):
         cls.sandbox = book(cls.portrait, cls.mei, at(monday + timedelta(days=1), '10:00'), is_sandbox=True)
         cls.theirs = book(cls.workshop, theirs, at(monday, '09:00'))
 
+    def test_invoice_pdf_and_another_business(self):
+        self.client.force_authenticate(self.user)
+        with patch('checkout_app.documents.fetch_pdf', return_value=b'%PDF') as fetch:
+            response = self.client.get(reverse('checkout_app:schedule-invoice', args=[self.early.pk]))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        fetch.assert_called_once_with('invoice', self.studio.pk, self.early.payment_reference)
+        with patch('checkout_app.documents.fetch_pdf'):
+            other = self.client.get(reverse('checkout_app:schedule-receipt', args=[self.theirs.pk]))
+        self.assertEqual(other.status_code, status.HTTP_403_FORBIDDEN)
+
     def ids(self, params=None):
         response = self.client.get(SCHEDULE_LIST_URL, params or {})
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
@@ -365,3 +378,71 @@ class ScheduleCompleteAPITests(ScheduleAPITests):
         self.client.force_authenticate(self.user)
         failed = book(self.portrait, self.raj, at(self.monday, '15:00'), status=OrderStatus.PAYMENT_FAILED)
         self.assertEqual(self.ids({'order_status': 'payment_failed'}), [failed.pk])
+
+
+class OrderDocumentAPITests(OrderAPITestCase):
+    """GET /api/orders/{id}/invoice|receipt/: the PDF from Cloud Storage (fetch_pdf patched: no Google)."""
+
+    def url(self, order, kind='receipt'):
+        return reverse(f'checkout_app:order-{kind}', args=[order.pk])
+
+    def test_streams_the_pdf_from_the_business_folder(self):
+        self.client.force_authenticate(self.cafe_user)
+        with patch('checkout_app.documents.fetch_pdf', return_value=b'%PDF-1.4') as fetch:
+            response = self.client.get(self.url(self.paid))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertIn('inline; filename="receipt-order-', response['Content-Disposition'])
+        self.assertEqual(response.content, b'%PDF-1.4')
+        fetch.assert_called_once_with('receipt', self.cafe.pk, self.paid.payment_reference)
+
+    def test_no_file_yet_is_404(self):
+        self.client.force_authenticate(self.cafe_user)
+        with patch('checkout_app.documents.fetch_pdf', return_value=None):
+            response = self.client.get(self.url(self.pending, 'invoice'))
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.json()['detail'], 'This order has no invoice yet.')
+
+    def test_storage_unavailable_is_503(self):
+        self.client.force_authenticate(self.cafe_user)
+        with override_settings(GCS_BUCKET=''):   # no bucket: the real fetch_pdf refuses before calling Google
+            response = self.client.get(self.url(self.paid))
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    def test_other_business_and_unknown(self):
+        self.client.force_authenticate(self.cafe_user)
+        with patch('checkout_app.documents.fetch_pdf') as fetch:
+            self.assertEqual(self.client.get(self.url(self.florist_order)).status_code, status.HTTP_403_FORBIDDEN)
+            missing = reverse('checkout_app:order-receipt', args=[999999])
+            self.assertEqual(self.client.get(missing).status_code, status.HTTP_404_NOT_FOUND)
+        fetch.assert_not_called()
+
+    def test_requires_authentication(self):
+        self.assertEqual(self.client.get(self.url(self.paid)).status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class FetchPdfTests(SimpleTestCase):
+    """checkout_app.documents.fetch_pdf against a fake Cloud Storage session."""
+
+    def session(self, *statuses):
+        responses = [SimpleNamespace(status_code=code, content=b'PDF' if code == 200 else b'') for code in statuses]
+        return SimpleNamespace(get=MagicMock(side_effect=responses))
+
+    @override_settings(GCS_BUCKET='bucket')
+    def test_tries_the_business_folder_then_the_old_name(self):
+        session = self.session(404, 200)
+        with patch('checkout_app.documents._get_session', return_value=session):
+            self.assertEqual(documents.fetch_pdf('receipt', 7, 'abc'), b'PDF')
+        urls = [call.args[0] for call in session.get.call_args_list]
+        self.assertEqual(urls, [
+            'https://storage.googleapis.com/storage/v1/b/bucket/o/receipts%2F7%2Fabc.pdf?alt=media',
+            'https://storage.googleapis.com/storage/v1/b/bucket/o/receipts%2Fabc.pdf?alt=media',
+        ])
+
+    @override_settings(GCS_BUCKET='bucket')
+    def test_missing_is_none_and_errors_are_unavailable(self):
+        with patch('checkout_app.documents._get_session', return_value=self.session(404, 404)):
+            self.assertIsNone(documents.fetch_pdf('invoice', 7, 'abc'))
+        with patch('checkout_app.documents._get_session', return_value=self.session(403)):
+            with self.assertRaises(documents.DocumentsUnavailable):
+                documents.fetch_pdf('invoice', 7, 'abc')

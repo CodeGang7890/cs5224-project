@@ -104,7 +104,11 @@ export interface ScheduleItem {
 }
 
 export type ScheduleOrdering =
-  "-start_time" | "start_time" | "-created_time" | "order_status";
+  | "-start_time"
+  | "start_time"
+  | "-created_time"
+  | "created_time"
+  | "order_status";
 
 /** Query parameters of GET /api/schedules/. */
 export interface ScheduleListParams {

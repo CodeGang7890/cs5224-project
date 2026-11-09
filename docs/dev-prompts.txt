@@ -1620,3 +1620,16 @@ The 1-many relation between FAQ and unanswered question model is unecessary
 Update it so that there's an API that once owner settles the unanswered questions, the owner can choose to add that as a FAQ, and it will simply create a new FAQ linked to this business
 Update the appropriate frontend code too in frontend-app
 Try to keep change minimalistic
+
+Date & Time (GMT+8): 2026-11-09 22:36:32
+AI Model Used: anthropic.claude-opus-5-5
+Original Prompt:
+/goal
+Update the frontend_app
+[Image #38]
+For this page, please include the "Sort by" there in that table
+Here also fix the UI it looks bad [Image #39]
+Also, in "Products" and "Services" tab (not "Payment" tab), please also have the invoice and receipt link there (if any)
+That means need to add read only endpoints in configuration service and corresponding permission / role for this
+Lastly, make sure if I change the sort by or anything, the preference make it stored in cache or somewhere, so if I return back to that tabm the sort by / bookings / etc (filters & sort options) are still the same
+When you open this modal, also ensure it shows the pdf link (invoice and receipts) if any [Image #40]

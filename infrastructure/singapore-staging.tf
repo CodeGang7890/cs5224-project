@@ -135,6 +135,14 @@ resource "google_storage_bucket_iam_member" "singapore_processing_object_user" {
   member = "serviceAccount:${google_service_account.runtime["processing-service"].email}"
 }
 
+# configuration-service only reads the invoice / receipt PDFs, to show them in the dashboard.
+resource "google_storage_bucket_iam_member" "singapore_configuration_object_viewer" {
+  count  = var.enable_singapore_staging ? 1 : 0
+  bucket = google_storage_bucket.singapore_objects[0].name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.runtime["configuration-service"].email}"
+}
+
 resource "google_storage_bucket_iam_member" "singapore_messaging_object_user" {
   count  = var.enable_singapore_staging ? 1 : 0
   bucket = google_storage_bucket.singapore_objects[0].name

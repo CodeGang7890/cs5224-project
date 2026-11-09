@@ -2,19 +2,29 @@ import { ExternalLink } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
+import type { DocumentOwner } from "../api/documents-api";
+import type { OrderStatus } from "../types";
+import { DocumentLinks } from "./document-links";
 import { PaymentReference } from "./payment-reference";
 
 export interface PaymentDetailsProps {
   reference: string;
   xenditPaymentId: string | null;
   paymentLink: string | null;
+  /** For the invoice / receipt PDFs: whose they are. */
+  owner: DocumentOwner;
+  id: number;
+  status: OrderStatus;
 }
 
-/** The payment an order / booking is made under, and the Xendit link (when one was created). */
+/** The payment an order / booking is made under, the Xendit link and its invoice / receipt PDFs. */
 export function PaymentDetails({
   reference,
   xenditPaymentId,
   paymentLink,
+  owner,
+  id,
+  status,
 }: PaymentDetailsProps) {
   return (
     <div className="grid gap-3">
@@ -48,6 +58,15 @@ export function PaymentDetails({
         ) : (
           <span className="text-muted-foreground text-sm">Not created yet</span>
         )}
+      </div>
+
+      <div className="grid min-w-0 gap-0.5">
+        <span className="text-muted-foreground text-xs">Invoice & receipt</span>
+        <DocumentLinks
+          owner={owner}
+          item={{ id, payment_link: paymentLink, order_status: status }}
+          emptyText="None yet"
+        />
       </div>
     </div>
   );

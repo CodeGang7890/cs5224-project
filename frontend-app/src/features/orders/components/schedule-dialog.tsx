@@ -114,6 +114,9 @@ function BookingDetails({ booking }: { booking: ScheduleItem }) {
         reference={booking.payment_reference}
         xenditPaymentId={booking.xendit_payment_id}
         paymentLink={booking.payment_link}
+        owner="booking"
+        id={booking.id}
+        status={booking.order_status}
       />
       <dl className="grid gap-x-4 gap-y-2 rounded-lg border p-3 text-sm sm:grid-cols-2">
         {rows.map((row) => (

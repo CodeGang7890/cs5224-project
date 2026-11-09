@@ -12,6 +12,7 @@ import {
 
 import { shortPaymentReference } from "../payment-reference";
 import type { ScheduleItem } from "../types";
+import { DocumentLinks } from "./document-links";
 import { OrderStatusBadge, SandboxBadge } from "./order-status-badge";
 import { bookingCustomer, formatBookingTime } from "./schedule-format";
 
@@ -34,6 +35,7 @@ export function ScheduleTable({ bookings, onOpen }: ScheduleTableProps) {
             <TableHead>With</TableHead>
             <TableHead className="text-right">Total</TableHead>
             <TableHead>Status</TableHead>
+            <TableHead>Invoice / receipt</TableHead>
             <TableHead className="w-12">
               <span className="sr-only">Actions</span>
             </TableHead>
@@ -81,6 +83,9 @@ export function ScheduleTable({ bookings, onOpen }: ScheduleTableProps) {
               </TableCell>
               <TableCell>
                 <OrderStatusBadge status={booking.order_status} />
+              </TableCell>
+              <TableCell>
+                <DocumentLinks owner="booking" item={booking} compact />
               </TableCell>
               <TableCell>
                 <Button
