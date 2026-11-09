@@ -96,7 +96,7 @@ def finish(session: Session, result: PaymentResult) -> PaymentResult:
     pdf = None
     if result.new_status == PAYMENT_RECEIVED:
         pdf = documents.render_pdf(document)
-        name = documents.object_name(documents.RECEIPT, document.payment_reference)
+        name = documents.object_name(documents.RECEIPT, business_id, document.payment_reference)
         uri = storage.upload_pdf(pdf, name)
         result = replace(result, document_uri=uri, document_link=storage.signed_link(name) if uri else None)
     notifications.notify_customer(business_id, document, result.new_status, result.document_link, pdf)
@@ -120,7 +120,7 @@ def send_invoice(session: Session, payment_reference: str, payment_url: str | No
     business_id = item.business_id
     session.rollback()  # no connection held during the upload and the message
     pdf = documents.render_pdf(document)
-    name = documents.object_name(documents.INVOICE, payment_reference)
+    name = documents.object_name(documents.INVOICE, business_id, payment_reference)
     uri = storage.upload_pdf(pdf, name)
     result = replace(result, document_uri=uri, document_link=storage.signed_link(name) if uri else None)
     notifications.notify_customer(business_id, document, PENDING_PAYMENT, result.document_link, pdf)

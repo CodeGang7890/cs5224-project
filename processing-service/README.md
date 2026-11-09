@@ -47,7 +47,7 @@ In one transaction, with the row locked:
 
 Then, **after the commit** (so a failure here never undoes the payment, and no connection is held during the upload):
 
-6. **Receipt (payment received only).** `app/documents.py` builds the receipt (`build_document(…, RECEIPT)`, numbered `RCT-O-000012` / `RCT-B-000028`) from the order / booking, its business, chat and provider, then draws the PDF (`render_pdf`, fpdf2). `app/storage.py` uploads it to `receipts/<payment_reference>.pdf` in the `GCS_BUCKET` bucket, so a repeated event just overwrites it, and makes a signed link valid for 7 days. Without `GCS_BUCKET` (local development, the tests) the PDF is made but not uploaded, and there is no link.
+6. **Receipt (payment received only).** `app/documents.py` builds the receipt (`build_document(…, RECEIPT)`, numbered `RCT-O-000012` / `RCT-B-000028`) from the order / booking, its business, chat and provider, then draws the PDF (`render_pdf`, fpdf2). `app/storage.py` uploads it to `receipts/<business_id>/<payment_reference>.pdf` in the `GCS_BUCKET` bucket, so a repeated event just overwrites it, and makes a signed link valid for 7 days. Without `GCS_BUCKET` (local development, the tests) the PDF is made but not uploaded, and there is no link.
 7. **Tell the customer.** `app/notifications.py` tries two channels, and one failing doesn't stop the other. **WhatsApp** (received and failed): it sends a message to the chat's phone number, with the receipt link when there is one. It goes through `app/whatsapp_sender.py`: configuration-service's `POST /api/internal/whatsapp/<business_id>/send/`, which holds the business's access token (the same call messaging-service makes). A chat without a phone number (a Chat Sandbox, or a deleted chat) isn't messaged. **Email** (received only): the receipt PDF is attached to an email sent to the `email` detail the customer gave in the chat (see below).
 
 Things to know about the message:
@@ -117,7 +117,7 @@ The customer gets two different PDFs, by WhatsApp and by email:
 | --- | --- | --- |
 | When | The order / booking is placed (a `created` event) | The payment is received (`success`) |
 | PDF | Title **INVOICE**, `INV-O-000012` (booking: `INV-B-000028`), "Issued <date>", **Amount due**, **HOW TO PAY** with the payment link, "This is an invoice, not a receipt" | Title **RECEIPT**, `RCT-O-000012`, "Paid <date>", **Total paid**, "Thank you for your order" |
-| Stored at | `invoices/<payment_reference>.pdf` | `receipts/<payment_reference>.pdf` |
+| Stored at | `invoices/<business_id>/<payment_reference>.pdf` | `receipts/<business_id>/<payment_reference>.pdf` |
 
 ## Email
 
