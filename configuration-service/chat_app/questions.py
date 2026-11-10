@@ -4,15 +4,19 @@
    when the business's information doesn't answer a customer's question): an open UnansweredQuestion.
 2. The business owner sees open questions in the Chats tab (GET /api/chat/questions/).
 3. answer_question() sends the answer in the chat ("Regarding your previous question about …"),
-   keeps it on the question and marks it answered; dismiss_question() closes it without an answer.
+   and on WhatsApp for a customer's chat (not a sandbox one), keeps it on the question and marks it answered; dismiss_question() closes it without an answer.
 4. add_to_faqs() then adds an answered question to the business's FAQs, if the owner wants (a new
    FAQ, so the assistant can answer it next time; not linked to the question).
 """
+
+import logging
 
 from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
+from configuration_app import meta_api
+from configuration_app.models import WhatsAppConfiguration
 from product_app.models import FAQ, FAQ_QUESTION_MAX_LENGTH
 
 DUPLICATE_FAQ_MESSAGE = 'This business already has an FAQ with this question.'
@@ -20,6 +24,8 @@ DUPLICATE_FAQ_MESSAGE = 'This business already has an FAQ with this question.'
 from .constants import SENT_BY_BUSINESS_MANUAL
 from .models import ChatSession, QuestionStatus, UnansweredQuestion
 from .validators import CHAT_MESSAGE_MAX_LENGTH
+
+logger = logging.getLogger(__name__)
 
 ANSWER_MESSAGE_PREFIX = 'Regarding your previous question about "{question}": '
 # Short enough that the chat message (prefix + question + answer) always fits in one message.
@@ -62,7 +68,25 @@ def answer_question(item: UnansweredQuestion, answer: str, question: str | None 
         if len(message) > CHAT_MESSAGE_MAX_LENGTH:  # only if the limits change; ANSWER_MAX_LENGTH prevents it
             raise ValidationError({'answer': 'The answer is too long to send in a chat message.'})
         append_chat_message(item.chat_session_id, message, SENT_BY_BUSINESS_MANUAL)
+    send_on_whatsapp(item.chat_session, message)
     return item
+
+
+def send_on_whatsapp(session: ChatSession, message: str) -> None:
+    """Sends the answer to the customer on WhatsApp too, once it's saved (a sandbox chat, or a business
+    without a WhatsApp connection: nothing to send). If Meta refuses it or can't be reached, it's only
+    logged (no retry): the answer stays in the chat."""
+    if session.is_sandbox or not session.phone_number:
+        return
+    config = WhatsAppConfiguration.objects.filter(business_id=session.business_id).first()
+    if config is None:
+        return
+    try:
+        meta_api.send_text_message(
+            config.phone_number_id, config.access_token, config.effective_app_secret, session.phone_number, message
+        )
+    except (meta_api.MetaSendError, meta_api.MetaUnavailableError) as exc:
+        logger.warning('The answer in chat %s was not sent on WhatsApp: %s', session.pk, exc)
 
 
 def dismiss_question(item: UnansweredQuestion) -> UnansweredQuestion:
