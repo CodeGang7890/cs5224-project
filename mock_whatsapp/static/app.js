@@ -86,6 +86,32 @@
     return el;
   }
 
+  // The text with its links clickable, as WhatsApp does. A long link (e.g. a signed invoice URL)
+  // shows only its host and last part; the full URL stays behind it.
+  const URL_PATTERN = /https?:\/\/[^\s<>"]+[^\s<>".,;:!?)'\]]/g;
+  function shortUrl(url) {
+    if (url.length <= 80) return url;
+    let host, pathname;
+    try { ({ host, pathname } = new URL(url)); } catch { return url; }
+    const last = pathname.split('/').filter(Boolean).pop();
+    return last ? `${host}/…/${last.length > 40 ? `${last.slice(0, 40)}…` : last}` : `${host}/…`;
+  }
+  function linkify(el, text) {
+    let at = 0;
+    for (const match of text.matchAll(URL_PATTERN)) {
+      if (match.index > at) el.append(text.slice(at, match.index));
+      const link = document.createElement('a');
+      link.href = match[0];
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.title = match[0];
+      link.textContent = shortUrl(match[0]);
+      el.append(link);
+      at = match.index + match[0].length;
+    }
+    if (at < text.length) el.append(text.slice(at));
+  }
+
   function bubble(message, first, read) {
     const row = document.createElement('div');
     row.className = `msg ${message.from_customer ? 'out' : 'in'}${first ? ' first' : ''}`;
@@ -96,7 +122,7 @@
     box.className = 'bubble';
     const text = document.createElement('span');
     text.className = 'text';
-    text.textContent = message.text;
+    linkify(text, message.text);
     const spacer = document.createElement('span');
     spacer.className = 'spacer';
     const meta = document.createElement('span');
