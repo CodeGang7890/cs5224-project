@@ -96,10 +96,24 @@
     const last = pathname.split('/').filter(Boolean).pop();
     return last ? `${host}/…/${last.length > 40 ? `${last.slice(0, 40)}…` : last}` : `${host}/…`;
   }
+  // **bold** text (the LLM's replies use it), as <strong>; the asterisks aren't shown.
+  const BOLD_PATTERN = /\*\*(?=\S)(.+?)\*\*/g;
+  function appendText(el, text) {
+    let at = 0;
+    for (const match of text.matchAll(BOLD_PATTERN)) {
+      if (match.index > at) el.append(text.slice(at, match.index));
+      const bold = document.createElement('strong');
+      bold.textContent = match[1];
+      el.append(bold);
+      at = match.index + match[0].length;
+    }
+    if (at < text.length) el.append(text.slice(at));
+  }
+
   function linkify(el, text) {
     let at = 0;
     for (const match of text.matchAll(URL_PATTERN)) {
-      if (match.index > at) el.append(text.slice(at, match.index));
+      if (match.index > at) appendText(el, text.slice(at, match.index));
       const link = document.createElement('a');
       link.href = match[0];
       link.target = '_blank';
@@ -109,7 +123,7 @@
       el.append(link);
       at = match.index + match[0].length;
     }
-    if (at < text.length) el.append(text.slice(at));
+    if (at < text.length) appendText(el, text.slice(at));
   }
 
   function bubble(message, first, read) {
