@@ -4,6 +4,7 @@
 // for the replies the fake Graph API receives.
 (() => {
   const app = document.querySelector('.app');
+  const prefix = app.dataset.prefix; // where the page is served (e.g. /whatsapp behind the load balancer)
   const waId = app.dataset.waId;
   const phoneNumberId = app.dataset.phoneNumberId;
   const pane = document.getElementById('messages');
@@ -193,7 +194,7 @@
   async function poll() {
     const after = Math.max(0, ...messages.map((m) => m.id));
     try {
-      const response = await fetch(`/api/messages?${new URLSearchParams({ as: waId, chat: phoneNumberId, after })}`);
+      const response = await fetch(`${prefix}/api/messages?${new URLSearchParams({ as: waId, chat: phoneNumberId, after })}`);
       if (!response.ok) return;
       const fresh = await response.json();
       if (!fresh.length) return;
@@ -215,7 +216,7 @@
 
   async function refreshChats() {
     try {
-      const response = await fetch(`/api/chats?${new URLSearchParams({ as: waId })}`);
+      const response = await fetch(`${prefix}/api/chats?${new URLSearchParams({ as: waId })}`);
       if (!response.ok) return;
       for (const chat of await response.json()) {
         const item = document.querySelector(`.chat-item[data-phone-number-id="${chat.phone_number_id}"]`);
@@ -306,7 +307,7 @@
     showStatus();
     pane.scrollTop = pane.scrollHeight;
     try {
-      const response = await fetch('/api/messages', {
+      const response = await fetch(`${prefix}/api/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ wa_id: waId, phone_number_id: phoneNumberId, text, attachment: media }),
@@ -343,7 +344,7 @@
   customerForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     const data = new FormData(customerForm);
-    const response = await fetch('/api/customers', {
+    const response = await fetch(`${prefix}/api/customers`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: data.get('name').trim(), wa_id: data.get('wa_id').trim() || null }),
@@ -361,7 +362,7 @@
   document.getElementById('info-button').addEventListener('click', () => infoDialog.showModal());
   document.getElementById('reset').addEventListener('click', async () => {
     if (!confirm('Delete every message in mock_whatsapp? (Chats in the project database stay.)')) return;
-    await fetch('/api/reset', { method: 'POST' });
+    await fetch(`${prefix}/api/reset`, { method: 'POST' });
     window.location.reload();
   });
 

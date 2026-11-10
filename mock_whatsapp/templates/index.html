@@ -6,13 +6,13 @@
   <title>Mock WhatsApp · {{ business.name }}</title>
   <!-- Paths only (no scheme or host): behind an HTTPS proxy (Cloud Run) the app sees http, and an
        http:// URL would be blocked on the https page. -->
-  <link rel="stylesheet" href="{{ url_for('static', path='style.css').path }}?v={{ static_version }}">
+  <link rel="stylesheet" href="{{ prefix }}{{ url_for('static', path='style.css').path }}?v={{ static_version }}">
 </head>
 <body>
 {% macro avatar(name, extra='') -%}
 <div class="avatar {{ extra }}" style="--hue: {{ (name | hue) }}">{{ (name or '?')[:1] | upper }}</div>
 {%- endmacro %}
-<div class="app" data-wa-id="{{ customer.wa_id }}" data-phone-number-id="{{ business.phone_number_id }}">
+<div class="app" data-prefix="{{ prefix }}" data-wa-id="{{ customer.wa_id }}" data-phone-number-id="{{ business.phone_number_id }}">
 
   <!-- The narrow icon rail on the far left -->
   <nav class="rail" aria-label="Sections">
@@ -57,7 +57,7 @@
       {% for c in chats %}
       <li>
         <a class="chat-item {% if c.phone_number_id == business.phone_number_id %}active{% endif %}"
-           href="/?as={{ customer.wa_id }}&chat={{ c.phone_number_id }}"
+           href="{{ prefix }}/?as={{ customer.wa_id }}&chat={{ c.phone_number_id }}"
            data-phone-number-id="{{ c.phone_number_id }}" data-search="{{ (c.name ~ ' ' ~ c.display_phone_number) | lower }}">
           {{ avatar(c.name) }}
           <span class="chat-item-body">
@@ -169,6 +169,6 @@
   </form>
 </dialog>
 
-<script src="{{ url_for('static', path='app.js').path }}?v={{ static_version }}"></script>
+<script src="{{ prefix }}{{ url_for('static', path='app.js').path }}?v={{ static_version }}"></script>
 </body>
 </html>
