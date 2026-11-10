@@ -18,6 +18,10 @@ INGESTER_TIMEOUT_SECONDS = 15
 # The Graph API version in the fake API's paths (configuration-service's META_GRAPH_API_URL ends with it).
 GRAPH_API_VERSION = 'v26.0'
 
+# Where the load balancer serves this page (e.g. /whatsapp: it strips it before the request gets here), so
+# the page's own links, files and API calls include it. Empty: served at /.
+PUBLIC_PATH_PREFIX = os.getenv('MOCK_WHATSAPP_PUBLIC_PATH_PREFIX', '').rstrip('/')
+
 DB_PATH = Path(os.getenv('MOCK_WHATSAPP_DB', BASE_DIR / 'mock_whatsapp.sqlite3'))
 
 # The sample businesses' WhatsApp connections: the same as configuration-service's fixture

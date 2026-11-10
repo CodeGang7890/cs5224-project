@@ -66,6 +66,7 @@ def index(request: Request, chat: str | None = None):
         'ingester_url': config.INGESTER_URL,
         'graph_url': f'http://<this machine>:{config.PORT}/{config.GRAPH_API_VERSION}',
         'static_version': STATIC_VERSION,
+        'prefix': config.PUBLIC_PATH_PREFIX,
     })
 
 
