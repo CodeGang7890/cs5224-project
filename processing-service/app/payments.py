@@ -40,7 +40,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import documents, notifications, schedule, storage
+from . import document_links, documents, notifications, schedule, storage
 from .models import PAYMENT_FAILED, PAYMENT_RECEIVED, PENDING_PAYMENT, OrderItem, ScheduleItem
 
 logger = logging.getLogger(__name__)
@@ -86,6 +86,11 @@ def find_item(session: Session, payment_reference: str, lock: bool = True) -> Or
     raise PaymentNotFoundError(f'No order or booking has payment reference {payment_reference}')
 
 
+def _link(kind: str, payment_reference: str, object_name: str) -> str | None:
+    """The link for the customer: the short one (app/document_links.py), else a signed Cloud Storage one."""
+    return document_links.short_link(kind, payment_reference) or storage.signed_link(object_name)
+
+
 def finish(session: Session, result: PaymentResult) -> PaymentResult:
     """Makes and uploads the receipt (a received payment), then tells the customer (WhatsApp, and email
     with the PDF attached)."""
@@ -98,7 +103,7 @@ def finish(session: Session, result: PaymentResult) -> PaymentResult:
         pdf = documents.render_pdf(document)
         name = documents.object_name(documents.RECEIPT, business_id, document.payment_reference)
         uri = storage.upload_pdf(pdf, name)
-        result = replace(result, document_uri=uri, document_link=storage.signed_link(name) if uri else None)
+        result = replace(result, document_uri=uri, document_link=_link(documents.RECEIPT, document.payment_reference, name) if uri else None)
     notifications.notify_customer(business_id, document, result.new_status, result.document_link, pdf)
     return result
 
@@ -122,7 +127,7 @@ def send_invoice(session: Session, payment_reference: str, payment_url: str | No
     pdf = documents.render_pdf(document)
     name = documents.object_name(documents.INVOICE, business_id, payment_reference)
     uri = storage.upload_pdf(pdf, name)
-    result = replace(result, document_uri=uri, document_link=storage.signed_link(name) if uri else None)
+    result = replace(result, document_uri=uri, document_link=_link(documents.INVOICE, payment_reference, name) if uri else None)
     notifications.notify_customer(business_id, document, PENDING_PAYMENT, result.document_link, pdf)
     logger.info('Invoice %s: %s #%s', document.number, kind, item.id)
     return result

@@ -79,6 +79,14 @@ class PaymentFlowTests(unittest.TestCase):
         link.assert_called_once_with(f'receipts/1/{ORDER_REFERENCE}.pdf')
         self.assertEqual((result.document_uri, result.document_link), ('gs://bucket/x.pdf', 'https://signed'))
 
+    def test_the_receipt_link_is_the_short_one_when_there_is_a_public_url(self):
+        with mock.patch.multiple('app.document_links.config', DOCUMENTS_PUBLIC_URL='https://ansera.example', INTERNAL_API_KEY='k'), \
+                mock.patch('app.storage.upload_pdf', return_value='gs://bucket/x.pdf'), \
+                mock.patch('app.storage.signed_link') as signed, self.sessions() as session:
+            result = apply_payment(session, ORDER_REFERENCE, 'success', ORDER_TOTAL)
+        self.assertTrue(result.document_link.startswith(f'https://ansera.example/d/r{ORDER_REFERENCE}'))
+        signed.assert_not_called()
+
     def test_a_paid_booking_gets_its_receipt_uploaded(self):
         with mock.patch('app.storage.upload_pdf', return_value=None) as upload, self.sessions() as session:
             result = apply_payment(session, BOOKING_REFERENCE, 'success', BOOKING_TOTAL)

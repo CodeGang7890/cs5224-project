@@ -446,3 +446,56 @@ class FetchPdfTests(SimpleTestCase):
         with patch('checkout_app.documents._get_session', return_value=self.session(403)):
             with self.assertRaises(documents.DocumentsUnavailable):
                 documents.fetch_pdf('invoice', 7, 'abc')
+
+
+# The same token as processing-service's tests/test_document_links.py: both services must agree.
+LINK_REFERENCE = '0123456789abcdef0123456789abcdef'
+LINK_TOKEN = f'i{LINK_REFERENCE}pRAYtf9KdFjdwQSA'
+
+
+@override_settings(INTERNAL_API_KEY='test-key')
+class SharedDocumentTests(OrderAPITestCase):
+    """GET /d/<token>: the PDF behind a short link in a customer's message (no login)."""
+
+    def token(self, order, code='r'):
+        return f'{code}{order.payment_reference}{documents.link_signature(code, order.payment_reference, "test-key")}'
+
+    def get(self, token):
+        return self.client.get(reverse('shared-document', args=[token]))
+
+    def test_reads_the_token_processing_service_makes(self):
+        self.assertEqual(documents.read_link_token(LINK_TOKEN), ('invoice', LINK_REFERENCE))
+
+    def test_serves_the_pdf_without_a_login(self):
+        with patch('checkout_app.documents.fetch_pdf', return_value=b'%PDF-1.4') as fetch:
+            response = self.get(self.token(self.paid))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertEqual(response['Content-Disposition'], f'inline; filename="receipt-order-{self.paid.pk}.pdf"')
+        self.assertEqual(response.content, b'%PDF-1.4')
+        fetch.assert_called_once_with('receipt', self.cafe.pk, self.paid.payment_reference)
+
+    def test_a_bad_or_changed_token_is_404(self):
+        good = self.token(self.paid)
+        changed_kind = 'i' + good[1:]  # a receipt's signature doesn't open the invoice
+        other_order = f'r{self.pending.payment_reference}{good[33:]}'  # nor another order's
+        with patch('checkout_app.documents.fetch_pdf') as fetch:
+            for token in (changed_kind, other_order, good[:-1], 'x' + good[1:], 'nonsense'):
+                self.assertEqual(self.get(token).status_code, 404, token)
+            with override_settings(INTERNAL_API_KEY=''):
+                self.assertEqual(self.get(good).status_code, 404)
+        fetch.assert_not_called()
+
+    def test_no_order_with_that_reference_is_404(self):
+        with patch('checkout_app.documents.fetch_pdf') as fetch:
+            self.assertEqual(self.get(LINK_TOKEN).status_code, 404)  # signed, but no order has it
+        fetch.assert_not_called()
+
+    def test_missing_file_is_404_and_unavailable_storage_503(self):
+        with patch('checkout_app.documents.fetch_pdf', return_value=None):
+            self.assertEqual(self.get(self.token(self.pending, 'i')).status_code, 404)
+        with override_settings(GCS_BUCKET=''):
+            self.assertEqual(self.get(self.token(self.pending, 'i')).status_code, 503)
+
+    def test_only_get(self):
+        self.assertEqual(self.client.post(reverse('shared-document', args=[self.token(self.paid)])).status_code, 405)

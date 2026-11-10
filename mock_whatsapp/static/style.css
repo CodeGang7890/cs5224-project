@@ -158,6 +158,8 @@ code { font: 12.5px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; backgrou
   position: relative; padding: 6px 7px 8px 9px; border-radius: 7.5px; box-shadow: var(--shadow);
   font-size: 14.2px; line-height: 19px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text);
 }
+.bubble .text a { color: #027eb5; text-decoration: none; }
+.bubble .text a:hover { text-decoration: underline; }
 .msg.in .bubble { background: var(--bubble-in); }
 .msg.out .bubble { background: var(--bubble-out); }
 /* The tail on the first bubble of a group. */

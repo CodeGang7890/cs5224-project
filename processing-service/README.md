@@ -47,7 +47,7 @@ In one transaction, with the row locked:
 
 Then, **after the commit** (so a failure here never undoes the payment, and no connection is held during the upload):
 
-6. **Receipt (payment received only).** `app/documents.py` builds the receipt (`build_document(…, RECEIPT)`, numbered `RCT-O-000012` / `RCT-B-000028`) from the order / booking, its business, chat and provider, then draws the PDF (`render_pdf`, fpdf2). `app/storage.py` uploads it to `receipts/<business_id>/<payment_reference>.pdf` in the `GCS_BUCKET` bucket, so a repeated event just overwrites it, and makes a signed link valid for 7 days. Without `GCS_BUCKET` (local development, the tests) the PDF is made but not uploaded, and there is no link.
+6. **Receipt (payment received only).** `app/documents.py` builds the receipt (`build_document(…, RECEIPT)`, numbered `RCT-O-000012` / `RCT-B-000028`) from the order / booking, its business, chat and provider, then draws the PDF (`render_pdf`, fpdf2). `app/storage.py` uploads it to `receipts/<business_id>/<payment_reference>.pdf` in the `GCS_BUCKET` bucket, so a repeated event just overwrites it. The customer's link is a short one to configuration-service (`app/document_links.py`: `<DOCUMENTS_PUBLIC_URL>/d/<signed token>`, no expiry), or without `DOCUMENTS_PUBLIC_URL` a signed link valid for 7 days. Without `GCS_BUCKET` (local development, the tests) the PDF is made but not uploaded, and there is no link.
 7. **Tell the customer.** `app/notifications.py` tries two channels, and one failing doesn't stop the other. **WhatsApp** (received and failed): it sends a message to the chat's phone number, with the receipt link when there is one. It goes through `app/whatsapp_sender.py`: configuration-service's `POST /api/internal/whatsapp/<business_id>/send/`, which holds the business's access token (the same call messaging-service makes). A chat without a phone number (a Chat Sandbox, or a deleted chat) isn't messaged. **Email** (received only): the receipt PDF is attached to an email sent to the `email` detail the customer gave in the chat (see below).
 
 Things to know about the message:
@@ -71,6 +71,7 @@ Things to know about the message:
 | `DATABASE_URL` | unset | A full SQLAlchemy URL; overrides the above |
 | `SCHEDULE_TIME_ZONE` | `Asia/Singapore` | Must equal configuration-service's `DJANGO_SCHEDULE_TIME_ZONE` |
 | `GCS_BUCKET` | unset | The bucket for the invoice and receipt PDFs (`cs5224-ansera-app-objects`). Unset: they aren't uploaded |
+| `DOCUMENTS_PUBLIC_URL` | unset | configuration-service's public address (e.g. `https://ansera.hopto.org`) for short invoice / receipt links. Unset: 7-day signed links |
 | `EMAIL_ENABLED` | off | `true` turns email on. Off, `send_email()` only logs what it would send |
 | `EMAIL_FROM` / `EMAIL_FROM_NAME` | unset / `Ansera` | The sender, which the provider must have verified |
 | `SMTP_HOST` / `SMTP_PORT` | `smtp-relay.brevo.com` / `587` | Connects, then upgrades to TLS (STARTTLS), which is what port 587 expects. Cloud Run blocks port 25 |
@@ -148,6 +149,7 @@ processing-service/
 │   ├── payments.py   # the payment flow
 │   ├── documents.py  # the invoice and the receipt: their data from the rows, and the PDFs (fpdf2)
 │   ├── storage.py    # the PDFs in Cloud Storage, and their signed links
+│   ├── document_links.py # short links to them (configuration-service's /d/<token>)
 │   ├── notifications.py   # what the customer is told: the invoice, the receipt, a failed payment
 │   ├── email_sender.py    # send_email() through an SMTP relay (Brevo)
 │   ├── whatsapp_sender.py # configuration-service's internal send endpoint

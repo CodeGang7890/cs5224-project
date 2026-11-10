@@ -10,6 +10,7 @@ URL configuration for the configuration service.
 - /api/chat/              chat_app: one-off chat with the local LLM (Ollama), public
 - /api/orders/, /api/schedules/
                           checkout_app: the business's orders and bookings (read only, login required)
+- /d/<token>              checkout_app: an invoice / receipt PDF from a short link in a customer's message (signed, public)
 - /api/schema/            OpenAPI 3 schema (YAML/JSON)
 - /api/docs/              Swagger UI
 - /api/redoc/             ReDoc UI
@@ -22,6 +23,8 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 
+from checkout_app.views import shared_document
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/auth/', include('auth_app.urls')),
@@ -30,6 +33,7 @@ urlpatterns = [
     path('api/', include('product_app.urls')),
     path('api/chat/', include('chat_app.urls')),
     path('api/', include('checkout_app.urls')),
+    path('d/<str:token>', shared_document, name='shared-document'),
     # API docs
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
