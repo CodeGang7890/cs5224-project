@@ -49,6 +49,11 @@ output "sql_connection_name" {
   value = var.enable_cloud_sql ? (var.enable_singapore_staging && (var.retire_us_resources || var.singapore_sql_promoted) ? google_sql_database_instance.singapore_replica[0].connection_name : (var.retire_us_resources ? null : google_sql_database_instance.main[0].connection_name)) : null
 }
 
+output "active_sql_connection_name" {
+  description = "Connection name currently supplied to the Singapore Cloud Run services and notification job."
+  value       = var.enable_cloud_sql && var.enable_singapore_staging ? local.singapore_sql_connection_name : null
+}
+
 output "dns_nameservers" {
   value = var.dns_domain != "" ? google_dns_managed_zone.app[0].name_servers : []
 }

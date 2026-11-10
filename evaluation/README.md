@@ -1,5 +1,9 @@
 # Reproducible evaluation
 
+See [REQUIREMENTS.md](REQUIREMENTS.md) for the remaining cases and proposed
+report wording. [run_recovery.py](run_recovery.py) and the
+[recovery runbook](../infrastructure/RECOVERY.md) cover backup and restore.
+
 These scripts produce evidence for the report. Unit tests mock paid providers; the live runner
 uses dedicated test accounts and deletes the sandbox chats it creates. Keep generated results
 under `evaluation/results/` (Git-ignored); include only aggregate numbers in the report.
@@ -49,7 +53,7 @@ service boundaries; they do not measure deployed Pub/Sub delivery guarantees.
 | --- | --- | --- |
 | Webhook ACK p95 < 1 s | `load_test.py` posts uniquely signed payloads and records response p95/statuses | `meta-status.json` tests the app-level ACK/signature path without publishing. `meta-message.json` tests business webhook → Pub/Sub on a **local** stack. |
 | Reply p95 < 10 s | `live_scenarios.py --mode reply --samples 20` creates separate sandbox chats and times the actual proxy → Gemini reply | Reports p95 only with at least 20 samples; deletes each chat afterward. |
-| Availability ≥ 99.9%/month | Deferred | Three days cannot establish a monthly availability SLO. A two-week pilot also cannot establish a monthly rate. |
+| Availability ≥ 99.9%/month | Deferred; `load_test.py --method GET --rates 1 --seconds-per-step 60` gives a short live sample | A minute of successful probes cannot establish a monthly availability SLO. |
 | Correctness: no observed lost/duplicate events | Consumer, idempotency, repeated-event, schema and migration suites; local Pub/Sub emulator integration | Report the event count and failures tested. Finite tests cannot prove absolute “zero lost.” |
 | Isolation: no cross-tenant access | Tenant-scoping API suites plus `live_scenarios.py --mode isolation` | Other test tenant must receive 403 on both sandbox write and delete. `load_test.py --probe-url` measures other-tenant latency during a burst. |
 | Elasticity: burst error rate < 0.1% | `load_test.py --rates 1,5,10,25,50 --error-rate-target 0.001` and `cloud_metrics.py` | Correlate request p95/error rate with peak Cloud Run instances and Pub/Sub backlog. A pull consumer alone does not scale Cloud Run on queue depth. |
@@ -57,6 +61,50 @@ service boundaries; they do not measure deployed Pub/Sub delivery guarantees.
 The read-only GET burst checks HTTP capacity and cross-tenant latency; it is **not** a 50
 WhatsApp-messages/s result. The signed `meta-status.json` request checks the app-level ACK only;
 the full business-webhook → Pub/Sub path requires the local seeded stack/emulator.
+
+### Load balancer, Cloud Armor, and VPC
+
+`run_platform.py` reads the live forwarding rule, managed certificate, URL map, serverless NEGs,
+backend logging and Cloud Armor attachments. It checks DNS, verified HTTPS, all four backend
+routes, prefix rewrites, Private Google Access, Cloud NAT, three VPC-attached Cloud Run services,
+the four callers' routes to configuration-service, and that six direct `run.app` URLs reject
+external requests. The optional Armor probe sends **one GET** with a synthetic SQLi query to a
+read-only API, then looks for the preview rule in the load-balancer log. It changes no policy.
+
+```powershell
+python evaluation/run_platform.py --armor-probe --output evaluation/results/platform.json
+python evaluation/load_test.py --url https://ansera.hopto.org/api/auth/subscription-tiers/ --method GET --rates 1,5,10,25,50 --seconds-per-step 5 --max-requests 455 --expected-status 200 --error-rate-target 0.001 --allow-remote --output evaluation/results/lb-burst.json
+python evaluation/load_test.py --url https://ansera.hopto.org/api/auth/subscription-tiers/ --method GET --rates 1 --seconds-per-step 60 --max-requests 60 --expected-status 200 --error-rate-target 0 --allow-remote --output evaluation/results/lb-uptime-sample.json
+```
+
+The platform runner needs `gcloud` access to this project. An Armor preview `DENY` log proves
+the rule matched; its enforced outcome remains `ACCEPT`. The current SQLi/XSS/LFI/RCE rules
+are all in preview, with a default allow rule and no rate limit. The 50/s step exercises a
+read-only API through the load balancer. Use Cloud Monitoring instance samples to determine
+whether the application service actually scaled out. The live VPC settings confirm routing
+configuration; successful sandbox replies exercise the configuration-service → messaging-service
+path. They do not prove that every external dependency can be reached through Cloud NAT.
+
+### Pub/Sub dead-letter policy
+
+`run_dead_letter.py` creates disposable Pub/Sub topics and subscriptions, publishes one poison
+message, nacks it repeatedly, and verifies that it reaches the dead-letter subscription. CI
+runs this against the emulator. The live mode additionally checks both application worker
+subscriptions' five-attempt policy, DLQ subscriptions, and Pub/Sub service-agent IAM. Its
+delivery exercise also uses disposable resources; it does not publish to the application queues.
+
+```powershell
+$env:PUBSUB_EMULATOR_HOST = 'localhost:8085'
+python evaluation/run_dead_letter.py --project local-project
+Remove-Item Env:PUBSUB_EMULATOR_HOST
+python evaluation/run_dead_letter.py --live --project cs5224-ansera --project-number 30883659663 --output evaluation/results/dead-letter-live.json
+```
+
+The emulator must already be running, and the live command needs Pub/Sub create/delete and
+resource IAM permissions. Pub/Sub forwards after an *approximate* number of attempts, so the
+test checks that five is configured and that the message eventually arrives, while recording
+the actual delivery-attempt values. It does not prove that the production workers themselves
+will nack a specific failing business event.
 
 Run the local business webhook ACK test with the seeded Kopi account and Pub/Sub emulator:
 
@@ -77,7 +125,7 @@ $env:ANSERA_TEST_USERNAME = 'kopi_owner'
 $env:ANSERA_TEST_PASSWORD = '<test password>'
 $env:ANSERA_OTHER_TEST_USERNAME = 'bloom_owner'
 $env:ANSERA_OTHER_TEST_PASSWORD = '<test password>'
-python evaluation/live_scenarios.py --base-url https://configuration-service-gq6jjn4afq-as.a.run.app --mode both --samples 20 --allow-live
+python evaluation/live_scenarios.py --base-url https://ansera.hopto.org --mode both --samples 20 --allow-live
 ```
 
 For a read-only HTTP burst, use `load_test.py --method GET` with an authenticated test endpoint;

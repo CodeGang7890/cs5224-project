@@ -447,10 +447,10 @@ resource "google_cloud_run_v2_service_iam_member" "configuration_calls_messaging
 
 # Only the public API endpoints accept unauthenticated webhook/browser calls.
 resource "google_cloud_run_v2_service_iam_member" "public" {
-  for_each = { for k, v in google_cloud_run_v2_service.backend : k => v if(var.us_public_endpoints_enabled && contains(["configuration-service", "payment-ingester", "messaging-ingester"], k)) || (var.us_legacy_messaging_ingester_public && k == "messaging-ingester") || (var.us_legacy_payment_ingester_public && k == "payment-ingester") }
+  for_each = var.retire_us_resources ? toset([]) : toset([for k in local.service_names : k if(var.us_public_endpoints_enabled && contains(["configuration-service", "payment-ingester", "messaging-ingester"], k)) || (var.us_legacy_messaging_ingester_public && k == "messaging-ingester") || (var.us_legacy_payment_ingester_public && k == "payment-ingester")])
   project  = var.project_id
   location = var.region
-  name     = each.value.name
+  name     = google_cloud_run_v2_service.backend[each.key].name
   role     = "roles/run.invoker"
   member   = "allUsers"
 }

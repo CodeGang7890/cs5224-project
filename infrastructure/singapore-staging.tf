@@ -82,6 +82,12 @@ resource "google_storage_bucket" "singapore_objects" {
   force_destroy               = false
   depends_on                  = [google_project_service.api]
 
+  # Recover accidental deletion or overwrite of invoice/receipt objects for 7 days.
+  # Lifecycle deletions also enter this recovery window.
+  soft_delete_policy {
+    retention_duration_seconds = 604800
+  }
+
   lifecycle_rule {
     condition {
       age            = 90
@@ -169,9 +175,11 @@ resource "google_sql_database_instance" "singapore_replica" {
     backup_configuration {
       enabled                        = var.singapore_sql_promoted
       start_time                     = "21:10"
+      location                       = var.singapore_region
+      point_in_time_recovery_enabled = var.singapore_sql_promoted
       transaction_log_retention_days = 7
       backup_retention_settings {
-        retained_backups = 7
+        retained_backups = 14
         retention_unit   = "COUNT"
       }
     }

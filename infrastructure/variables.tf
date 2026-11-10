@@ -103,6 +103,16 @@ variable "singapore_sql_promoted" {
   default     = false
 }
 
+variable "recovery_sql_connection_name" {
+  description = "Optional Cloud SQL connection name of a verified PITR clone. Set only during an incident to repoint Singapore runtimes without replacing the primary."
+  type        = string
+  default     = ""
+  validation {
+    condition     = var.recovery_sql_connection_name == "" || can(regex("^[^:]+:asia-southeast1:[a-z][a-z0-9-]+$", var.recovery_sql_connection_name))
+    error_message = "Use an empty value or a Singapore Cloud SQL connection name (project:asia-southeast1:instance)."
+  }
+}
+
 variable "singapore_service_urls" {
   description = "Cloud Run URLs discovered after creating Singapore services; used to route service-to-service calls without resource cycles."
   type        = map(string)

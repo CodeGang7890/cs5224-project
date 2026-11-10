@@ -2,7 +2,7 @@
 # They initially use the US database and service URLs; pull consumers are off
 # and min instances are zero so staging cannot steal queue messages.
 locals {
-  singapore_sql_connection_name           = var.singapore_sql_promoted ? google_sql_database_instance.singapore_replica[0].connection_name : google_sql_database_instance.main[0].connection_name
+  singapore_sql_connection_name           = var.recovery_sql_connection_name != "" ? var.recovery_sql_connection_name : (var.singapore_sql_promoted ? google_sql_database_instance.singapore_replica[0].connection_name : google_sql_database_instance.main[0].connection_name)
   singapore_configuration_api_url         = var.backend_configuration_service_url != "" ? trimsuffix(var.backend_configuration_service_url, "/") : var.frontend_configuration_service_url != "" ? trimsuffix(var.frontend_configuration_service_url, "/") : "${trimsuffix(lookup(var.singapore_service_urls, "configuration-service", "https://configuration-service-gq6jjn4afq-as.a.run.app"), "/")}/api"
   singapore_messaging_service_url         = lookup(var.singapore_service_urls, "messaging-service", "https://messaging-service-gq6jjn4afq-as.a.run.app")
   singapore_payment_ingester_url          = lookup(var.singapore_service_urls, "payment-ingester", "https://payment-ingester-gq6jjn4afq-as.a.run.app")
@@ -16,11 +16,12 @@ locals {
   }
 }
 resource "google_cloud_run_v2_service" "singapore_backend" {
-  for_each            = var.enable_singapore_staging ? setintersection(local.service_names, var.singapore_stage_backend_services) : toset([])
-  name                = each.key
-  location            = var.singapore_region
-  deletion_protection = false
-  ingress             = contains(["messaging-service", "processing-service"], each.key) ? "INGRESS_TRAFFIC_INTERNAL_ONLY" : "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+  for_each             = var.enable_singapore_staging ? setintersection(local.service_names, var.singapore_stage_backend_services) : toset([])
+  name                 = each.key
+  location             = var.singapore_region
+  deletion_protection  = false
+  ingress              = contains(["messaging-service", "processing-service"], each.key) ? "INGRESS_TRAFFIC_INTERNAL_ONLY" : "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+  invoker_iam_disabled = contains(["messaging-service", "processing-service"], each.key) ? true : null
 
   scaling {
     min_instance_count = var.singapore_min_instances

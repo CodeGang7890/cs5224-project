@@ -1,5 +1,7 @@
 # GCP prototype infrastructure
 
+See [RECOVERY.md](RECOVERY.md) for SQL PITR, object soft delete, and restore drills.
+
 Terraform targets an **existing, billing-enabled GCP project**. All files in this folder are infrastructure code; no app source files are changed. This project's active application resources are in `asia-southeast1` (Singapore). The legacy `region = "us-central1"` setting remains only for the retired US resources, which are disabled by `retire_us_resources = true`. Resources can still incur charges.
 
 ## What is provisioned
@@ -180,9 +182,9 @@ See Google's [Gen AI SDK for Vertex AI](https://cloud.google.com/vertex-ai/gener
 
 ## mock_whatsapp on Cloud Run
 
-`mock-whatsapp.tf` (off unless `enable_mock_whatsapp = true`) deploys `../mock_whatsapp` as the Singapore Cloud Run service `mock-whatsapp`: exactly one instance (min = max = 1), as its conversations live in a SQLite file inside the container and are lost on a restart or a new revision. It has its own runtime account with no roles. Its webhooks go to the Singapore messaging-ingester (`INGESTER_URL`). The `mock-whatsapp-sg-main` trigger (`cloudbuild-mock-whatsapp.yaml`) builds and deploys `mock_whatsapp/` on pushes, once the Singapore triggers are enabled; until then the service runs the hello placeholder. URL: `terraform output mock_whatsapp_url`.
+`mock-whatsapp.tf` (when `enable_mock_whatsapp = true`) deploys `../mock_whatsapp` as the Singapore Cloud Run service `mock-whatsapp`: exactly one instance (min = max = 1), as its conversations live in a SQLite file inside the container and are lost on a restart or a new revision. It has its own runtime account with no roles. Its webhooks go to the Singapore messaging-ingester (`INGESTER_URL`). The `mock-whatsapp-sg-main` trigger (`cloudbuild-mock-whatsapp.yaml`) builds and deploys `mock_whatsapp/` on pushes. The live service runs the application image; browser access is through `https://ansera.hopto.org/whatsapp/`.
 
-**Replies:** `whatsapp_replies_to` (default `"mock"`) sets the Singapore configuration-service's `WHATSAPP_REPLIES_TO` / `MOCK_WHATSAPP_GRAPH_API_URL` (`<mock_whatsapp_url>/v26.0`), so **every** WhatsApp reply goes to the mock instead of Meta, including replies to businesses connected with Embedded Signup (the mock refuses those: they stay failed in the outbox). Set `"meta"` and apply to go back to real WhatsApp. Connecting WhatsApp always uses Meta. While replies go to the mock it is **public** (configuration-service calls it without a Google ID token), so anyone with its URL can chat as a sample customer; with `"meta"` it's private unless `mock_whatsapp_allow_unauthenticated = true` (open it with `gcloud run services proxy mock-whatsapp --region asia-southeast1`).
+**Replies:** `whatsapp_replies_to` (default `"mock"`) sets the Singapore configuration-service's `WHATSAPP_REPLIES_TO` / `MOCK_WHATSAPP_GRAPH_API_URL` (`<mock_whatsapp_url>/v26.0`), so **every** WhatsApp reply goes to the mock instead of Meta, including replies to businesses connected with Embedded Signup (the mock refuses those: they stay failed in the outbox). Set `"meta"` and apply to go back to real WhatsApp. Connecting WhatsApp always uses Meta. The live mock service has internal-and-load-balancer ingress: external direct `run.app` requests return 404, while the load balancer exposes its demo UI under `/whatsapp/`. Configuration-service reaches its Graph API through Direct VPC egress. Its Invoker IAM binding includes `allUsers`, so ingress and application checks are the effective restrictions on that path.
 
 For a whole chat to work, the businesses in `mock_whatsapp/businesses.json` must exist in the database with those dummy WhatsApp credentials (the sample fixtures: `sample_whatsapp_configurations`).
 

@@ -1,6 +1,9 @@
 # Repo-wide ignores. Each app also has its own .gitignore
 # (configuration-service/, messaging-service/, frontend-app/).
 
+# --- Agent Skills -----------
+.agents/*
+
 # --- Claude Code: personal, machine-specific files --------------------------------------
 # .claude/settings.json and .claude/hooks/ are shared project config and stay tracked.
 .claude/settings.local.json

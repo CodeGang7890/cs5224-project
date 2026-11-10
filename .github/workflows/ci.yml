@@ -154,6 +154,11 @@ jobs:
         env:
           PUBSUB_EMULATOR_HOST: ${{ matrix.pubsub-emulator && 'localhost:8085' || '' }}
         run: python -m unittest -v
+      - name: Dead-letter forwarding (isolated emulator topics)
+        if: matrix.pubsub-emulator
+        env:
+          PUBSUB_EMULATOR_HOST: localhost:8085
+        run: python ../evaluation/run_dead_letter.py --project local-project --timeout-seconds 90
 
   # configuration-service (Django) owns the PostgreSQL schema and every migration; messaging-service,
   # processing-service and notification-job map the tables they use with SQLAlchemy. Migrate a database with Django, then

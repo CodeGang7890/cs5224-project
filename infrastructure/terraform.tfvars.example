@@ -14,6 +14,7 @@ singapore_stage_backend_services      = ["messaging-ingester", "payment-ingester
 singapore_build_triggers_enabled       = false
 singapore_notification_scheduler_enabled = false
 singapore_sql_promoted                   = false
+recovery_sql_connection_name             = "" # During a verified PITR cutover only: project:asia-southeast1:clone-name.
 singapore_queue_consumers_enabled        = false
 singapore_min_instances                  = 0
 singapore_public_endpoints_enabled       = false

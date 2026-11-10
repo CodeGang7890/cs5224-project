@@ -11,13 +11,13 @@
 #   sends every WhatsApp reply to its fake Graph API (WHATSAPP_REPLIES_TO=mock,
 #   MOCK_WHATSAPP_GRAPH_API_URL=<url>/v26.0; singapore-run.tf), not to Meta; "meta" sends them to Meta.
 #   Connecting WhatsApp (Embedded Signup) always uses Meta.
-# - Public when replies go to it (configuration-service calls it without a Google ID token) or with
-#   mock_whatsapp_allow_unauthenticated; then anyone with the URL can chat as a customer of the
-#   sample businesses, which runs the LLM.
+# - The Invoker IAM binding permits unauthenticated calls when replies use the mock or when
+#   mock_whatsapp_allow_unauthenticated is set. Ingress remains internal-and-load-balancer,
+#   matching the existing Cloud Run service; a direct run.app call still needs a valid route.
 
 locals {
   replies_to_mock_whatsapp    = var.enable_mock_whatsapp && var.whatsapp_replies_to == "mock"
-  mock_whatsapp_graph_api_url = local.replies_to_mock_whatsapp ? "${one(google_cloud_run_v2_service.mock_whatsapp[*].uri)}/v26.0" : ""
+  mock_whatsapp_graph_api_url = local.replies_to_mock_whatsapp ? "https://mock-whatsapp-${data.google_project.current.number}.${var.singapore_region}.run.app/v26.0" : ""
 }
 
 resource "google_service_account" "mock_whatsapp" {
@@ -31,7 +31,7 @@ resource "google_cloud_run_v2_service" "mock_whatsapp" {
   count               = var.enable_mock_whatsapp ? 1 : 0
   name                = "mock-whatsapp"
   location            = var.singapore_region
-  deletion_protection = false
+  deletion_protection = true
   ingress             = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
 
   scaling {
