@@ -44,6 +44,9 @@ SMTP_TIMEOUT_SECONDS = 20
 # but not uploaded (local development, the tests).
 GCS_BUCKET = os.getenv('GCS_BUCKET', '')
 INVOICE_CURRENCY = os.getenv('INVOICE_CURRENCY', 'SGD')
+# Where customers open them: configuration-service's public address (e.g. https://ansera.hopto.org), for
+# short links (app/document_links.py). Unset: the messages carry 7-day signed Cloud Storage links.
+DOCUMENTS_PUBLIC_URL = os.getenv('DOCUMENTS_PUBLIC_URL', '').rstrip('/')
 
 # --- PostgreSQL (configuration-service's database) -----------------------------------------
 # The payment flow updates orders / bookings there (app/payments.py). Same variable names as

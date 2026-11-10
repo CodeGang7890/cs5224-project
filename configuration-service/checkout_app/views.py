@@ -1,4 +1,5 @@
 from django.http import HttpResponse
+from django.views.decorators.http import require_GET
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import generics
@@ -273,3 +274,27 @@ class ScheduleItemDocumentView(APIView):
     def get(self, request, pk: int, kind: str):
         booking = _own(ScheduleItem, pk, get_user_business_id(request), NO_SCHEDULE_MESSAGE)
         return _document_response(kind, booking, 'booking')
+
+
+@require_GET
+def shared_document(request, token: str) -> HttpResponse:
+    """GET /d/<token>: the invoice / receipt PDF behind a short link in a customer's message (no login;
+    the token is signed, documents.read_link_token). A plain Django view: the customer isn't an API user."""
+    found = documents.read_link_token(token)
+    item = None
+    if found:
+        kind, payment_reference = found
+        item = (OrderItem.objects.filter(payment_reference=payment_reference).first()
+                or ScheduleItem.objects.filter(payment_reference=payment_reference).first())
+    if item is None:
+        return HttpResponse('This link is not valid.', status=404, content_type='text/plain')
+    try:
+        pdf = documents.fetch_pdf(kind, item.business_id, payment_reference)
+    except documents.DocumentsUnavailable:
+        return HttpResponse('This document is unavailable right now. Please try again later.', status=503, content_type='text/plain')
+    if pdf is None:
+        return HttpResponse(f'This {kind} is no longer available.', status=404, content_type='text/plain')
+    what = 'order' if isinstance(item, OrderItem) else 'booking'
+    response = HttpResponse(pdf, content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="{kind}-{what}-{item.pk}.pdf"'
+    return response

@@ -73,6 +73,7 @@ resource "google_cloud_run_v2_service" "singapore_backend" {
           PUBSUB_MAX_MESSAGES       = "5"
           WEB_CONCURRENCY           = "2"
           GCS_BUCKET                = google_storage_bucket.singapore_objects[0].name
+          DOCUMENTS_PUBLIC_URL      = trimsuffix(trimsuffix(var.frontend_configuration_service_url, "/"), "/api")
           INVOICE_CURRENCY          = "SGD"
           EMAIL_ENABLED             = "true"
           EMAIL_FROM                = "ansera.admin@gmail.com"
