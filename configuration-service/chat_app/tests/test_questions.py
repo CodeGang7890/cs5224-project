@@ -11,7 +11,8 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from auth_app.models import BusinessUser
-from configuration_app.models import BusinessConfiguration
+from configuration_app import meta_api
+from configuration_app.models import BusinessConfiguration, WhatsAppConfiguration
 from product_app.models import FAQ, FAQ_QUESTION_MAX_LENGTH
 
 from ..models import ChatSession, QuestionStatus, UnansweredQuestion
@@ -257,6 +258,31 @@ class AnswerQuestionAPITests(QuestionAPITestCase):
         self.assertEqual(self.answer(sandbox_item, answer='Street parking only.').status_code, status.HTTP_200_OK)
         self.sandbox.refresh_from_db()
         self.assertEqual(self.sandbox.chat_message_json[-1]['message'], answer_message('Parking?', 'Street parking only.'))
+
+    def test_sends_the_answer_on_whatsapp(self):
+        WhatsAppConfiguration.objects.create(business=self.cafe, phone_number_id='1065', access_token='EAAGtoken', app_secret='s')
+        sandbox_item = self.make_question(self.sandbox, 'Parking?')
+        with patch('chat_app.questions.meta_api.send_text_message', return_value='wamid.1') as send:
+            self.assertEqual(self.answer().status_code, status.HTTP_200_OK)
+            self.assertEqual(self.answer(sandbox_item).status_code, status.HTTP_200_OK)  # sandbox: not sent
+        send.assert_called_once_with(
+            '1065', 'EAAGtoken', 's', '+6591234567', answer_message('Do you have oat milk?', 'Yes, for 50 cents more.')
+        )
+
+    def test_not_sent_on_whatsapp_is_still_answered(self):
+        WhatsAppConfiguration.objects.create(business=self.cafe, phone_number_id='1065', access_token='EAAGtoken', app_secret='s')
+        error = meta_api.MetaUnavailableError('down')
+        with patch('chat_app.questions.meta_api.send_text_message', side_effect=error), self.assertLogs('chat_app.questions'):
+            self.assertEqual(self.answer().status_code, status.HTTP_200_OK)
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.status, QuestionStatus.ANSWERED)
+        self.alice.refresh_from_db()
+        self.assertEqual(len(self.alice.chat_message_json), 1)
+
+    def test_no_whatsapp_connection_sends_nothing(self):
+        with patch('chat_app.questions.meta_api.send_text_message') as send:
+            self.assertEqual(self.answer().status_code, status.HTTP_200_OK)
+        send.assert_not_called()
 
     def test_validation(self):
         cases = {
