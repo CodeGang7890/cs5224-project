@@ -1,0 +1,1048 @@
+{
+ "description": "Hand-labelled English customer messages for the three sample businesses. Each case is run in a fresh sandbox chat; messages are sent in order and only the LAST one is scored.",
+ "businesses": {
+  "kopi": "Kopi & Co. Cafe",
+  "bloom": "Bloom & Twine Florist Studio",
+  "rally": "Rally Point Courts"
+ },
+ "cases": [
+  {
+   "id": "k01",
+   "business": "kopi",
+   "messages": [
+    "Hi, can I get 2 Kaya Toast Sets and a Kopi C please?"
+   ],
+   "intents": [
+    "order"
+   ],
+   "items": {
+    "Kaya Toast Set": 2,
+    "Kopi C": 1
+   }
+  },
+  {
+   "id": "k02",
+   "business": "kopi",
+   "messages": [
+    "I'd like to order 3 iced teh tarik"
+   ],
+   "intents": [
+    "order"
+   ],
+   "items": {
+    "Iced Teh Tarik": 3
+   }
+  },
+  {
+   "id": "k03",
+   "business": "kopi",
+   "messages": [
+    "One whole pandan chiffon cake for pickup please"
+   ],
+   "intents": [
+    "order"
+   ],
+   "items": {
+    "Pandan Chiffon Cake (Whole)": 1
+   }
+  },
+  {
+   "id": "k04",
+   "business": "kopi",
+   "messages": [
+    "2x kopi c and 1x kaya toast set"
+   ],
+   "intents": [
+    "order"
+   ],
+   "items": {
+    "Kopi C": 2,
+    "Kaya Toast Set": 1
+   }
+  },
+  {
+   "id": "k05",
+   "business": "kopi",
+   "messages": [
+    "What time do you open?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "answered",
+   "facts": [
+    "7am"
+   ]
+  },
+  {
+   "id": "k06",
+   "business": "kopi",
+   "messages": [
+    "Is your food halal?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "answered",
+   "facts": [
+    "pork",
+    "lard",
+    "certified"
+   ]
+  },
+  {
+   "id": "k07",
+   "business": "kopi",
+   "messages": [
+    "Do you deliver?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "answered",
+   "facts": [
+    "pickup"
+   ]
+  },
+  {
+   "id": "k08",
+   "business": "kopi",
+   "messages": [
+    "Are dogs allowed?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "answered",
+   "facts": [
+    "leash",
+    "outdoor"
+   ]
+  },
+  {
+   "id": "k09",
+   "business": "kopi",
+   "messages": [
+    "Do you have wifi?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "answered",
+   "facts": [
+    "free",
+    "wi-fi"
+   ]
+  },
+  {
+   "id": "k10",
+   "business": "kopi",
+   "messages": [
+    "Is there parking nearby?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "answered",
+   "facts": [
+    "carpark",
+    "car park",
+    "hdb"
+   ]
+  },
+  {
+   "id": "k11",
+   "business": "kopi",
+   "messages": [
+    "Do you sell gluten-free bread?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "unanswered"
+  },
+  {
+   "id": "k12",
+   "business": "kopi",
+   "messages": [
+    "Do you sell merchandise like tote bags or mugs?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "unanswered"
+  },
+  {
+   "id": "k13",
+   "business": "kopi",
+   "messages": [
+    "What's the name of your head chef?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "unanswered"
+  },
+  {
+   "id": "k14",
+   "business": "kopi",
+   "messages": [
+    "Do you have a loyalty card or points programme?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "unanswered"
+  },
+  {
+   "id": "k15",
+   "business": "kopi",
+   "messages": [
+    "Can you help me write a Python script to sort a list?"
+   ],
+   "intents": [
+    "off_topic"
+   ]
+  },
+  {
+   "id": "k17",
+   "business": "kopi",
+   "messages": [
+    "Hi there!"
+   ],
+   "intents": []
+  },
+  {
+   "id": "k19",
+   "business": "kopi",
+   "messages": [
+    "2 kopi c please, and do you deliver?"
+   ],
+   "intents": [
+    "order",
+    "question"
+   ],
+   "items": {
+    "Kopi C": 2
+   },
+   "question": "answered"
+  },
+  {
+   "id": "k20",
+   "business": "kopi",
+   "messages": [
+    "I want 2 Kaya Toast Sets",
+    "Never mind, forget the order"
+   ],
+   "intents": [
+    "cancel"
+   ]
+  },
+  {
+   "id": "k22",
+   "business": "kopi",
+   "messages": [
+    "Has my order been paid yet?"
+   ],
+   "intents": [
+    "order_status"
+   ]
+  },
+  {
+   "id": "b01",
+   "business": "bloom",
+   "messages": [
+    "I want 1 sunflower hand-tied bouquet"
+   ],
+   "intents": [
+    "order"
+   ],
+   "items": {
+    "Sunflower Hand-Tied Bouquet": 1
+   }
+  },
+  {
+   "id": "b02",
+   "business": "bloom",
+   "messages": [
+    "Can I get 2 single soap rose stems and a mini dried flower posy?"
+   ],
+   "intents": [
+    "order"
+   ],
+   "items": {
+    "Single Soap Rose Stem": 2,
+    "Mini Dried Flower Posy": 1
+   }
+  },
+  {
+   "id": "b03",
+   "business": "bloom",
+   "messages": [
+    "Please send me 3 hand-crocheted tulips"
+   ],
+   "intents": [
+    "order"
+   ],
+   "items": {
+    "Hand-Crocheted Single Tulip": 3
+   }
+  },
+  {
+   "id": "b04",
+   "business": "bloom",
+   "messages": [
+    "I'd like to buy the classic red rose bouquet"
+   ],
+   "intents": [
+    "order"
+   ],
+   "items": {
+    "Classic Red Rose Bouquet (12 Stems)": 1
+   }
+  },
+  {
+   "id": "b05",
+   "business": "bloom",
+   "messages": [
+    "Do you deliver?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "answered",
+   "facts": [
+    "collect"
+   ]
+  },
+  {
+   "id": "b06",
+   "business": "bloom",
+   "messages": [
+    "Can I customise a bouquet?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "answered",
+   "facts": [
+    "catalogue"
+   ]
+  },
+  {
+   "id": "b07",
+   "business": "bloom",
+   "messages": [
+    "How long do your flowers last?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "answered",
+   "facts": [
+    "days"
+   ]
+  },
+  {
+   "id": "b08",
+   "business": "bloom",
+   "messages": [
+    "Can the card message be written in Chinese?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "answered",
+   "facts": [
+    "chinese"
+   ]
+  },
+  {
+   "id": "b09",
+   "business": "bloom",
+   "messages": [
+    "What are your opening hours?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "answered",
+   "facts": [
+    "9am"
+   ]
+  },
+  {
+   "id": "b10",
+   "business": "bloom",
+   "messages": [
+    "Which supplier do you buy your roses from?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "unanswered"
+  },
+  {
+   "id": "b11",
+   "business": "bloom",
+   "messages": [
+    "Is your studio wheelchair accessible?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "unanswered"
+  },
+  {
+   "id": "b12",
+   "business": "bloom",
+   "messages": [
+    "Do you have a loyalty discount for returning customers?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "unanswered"
+  },
+  {
+   "id": "b13",
+   "business": "bloom",
+   "messages": [
+    "Tell me a joke about cats"
+   ],
+   "intents": [
+    "off_topic"
+   ]
+  },
+  {
+   "id": "b15",
+   "business": "bloom",
+   "messages": [
+    "Can you check if my bouquet is ready for collection?"
+   ],
+   "intents": [
+    "order_status"
+   ]
+  },
+  {
+   "id": "b16",
+   "business": "bloom",
+   "messages": [
+    "I want 2 sunflower bouquets, and how long will they last?"
+   ],
+   "intents": [
+    "order",
+    "question"
+   ],
+   "items": {
+    "Sunflower Hand-Tied Bouquet": 2
+   },
+   "question": "answered",
+   "facts": [
+    "days"
+   ]
+  },
+  {
+   "id": "b17",
+   "business": "bloom",
+   "messages": [
+    "I would like a soap carnation bouquet",
+    "Actually I don't want it anymore, cancel this order"
+   ],
+   "intents": [
+    "cancel"
+   ]
+  },
+  {
+   "id": "r01",
+   "business": "rally",
+   "messages": [
+    "Can I book a badminton court tomorrow at 7pm?"
+   ],
+   "intents": [
+    "booking"
+   ],
+   "service": "Badminton Court (1 hour)"
+  },
+  {
+   "id": "r02",
+   "business": "rally",
+   "messages": [
+    "I want to book a tennis court this Saturday at 5pm"
+   ],
+   "intents": [
+    "booking"
+   ],
+   "service": "Tennis Court (1 hour)"
+  },
+  {
+   "id": "r03",
+   "business": "rally",
+   "messages": [
+    "Book me a badminton court for next Friday evening"
+   ],
+   "intents": [
+    "booking"
+   ],
+   "service": "Badminton Court (1 hour)"
+  },
+  {
+   "id": "r04",
+   "business": "rally",
+   "messages": [
+    "Is a tennis court free on Sunday morning?"
+   ],
+   "intents": [
+    "booking"
+   ],
+   "service": "Tennis Court (1 hour)"
+  },
+  {
+   "id": "r05",
+   "business": "rally",
+   "messages": [
+    "I want to buy 2 cans of Wilson US Open tennis balls"
+   ],
+   "intents": [
+    "order"
+   ],
+   "items": {
+    "Wilson US Open Tennis Balls (Can of 3)": 2
+   }
+  },
+  {
+   "id": "r06",
+   "business": "rally",
+   "messages": [
+    "One tube of Aerosensa 30 shuttlecocks please"
+   ],
+   "intents": [
+    "order"
+   ],
+   "items": {
+    "Yonex Aerosensa 30 Shuttlecocks (Tube of 12)": 1
+   }
+  },
+  {
+   "id": "r07",
+   "business": "rally",
+   "messages": [
+    "I'd like a Yonex Nanoflare 700 racket"
+   ],
+   "intents": [
+    "order"
+   ],
+   "items": {
+    "Yonex Nanoflare 700 Badminton Racket": 1
+   }
+  },
+  {
+   "id": "r08",
+   "business": "rally",
+   "messages": [
+    "Is there parking and showers?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "answered",
+   "facts": [
+    "car park",
+    "changing"
+   ]
+  },
+  {
+   "id": "r09",
+   "business": "rally",
+   "messages": [
+    "What happens if it rains?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "answered",
+   "facts": [
+    "another time",
+    "reschedul",
+    "move"
+   ]
+  },
+  {
+   "id": "r10",
+   "business": "rally",
+   "messages": [
+    "Can I rent a racket?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "answered",
+   "facts": [
+    "don't rent",
+    "do not rent",
+    "not rent",
+    "no equipment",
+    "sell"
+   ]
+  },
+  {
+   "id": "r11",
+   "business": "rally",
+   "messages": [
+    "What are your opening hours?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "answered",
+   "facts": [
+    "9am"
+   ]
+  },
+  {
+   "id": "r12",
+   "business": "rally",
+   "messages": [
+    "Do you offer coaching lessons?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "unanswered"
+  },
+  {
+   "id": "r13",
+   "business": "rally",
+   "messages": [
+    "Can you restring my racket?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "unanswered"
+  },
+  {
+   "id": "r14",
+   "business": "rally",
+   "messages": [
+    "Is there a monthly membership plan?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "unanswered"
+  },
+  {
+   "id": "r15",
+   "business": "rally",
+   "messages": [
+    "What's the capital of France?"
+   ],
+   "intents": [
+    "off_topic"
+   ]
+  },
+  {
+   "id": "r16",
+   "business": "rally",
+   "messages": [
+    "Hi!"
+   ],
+   "intents": []
+  },
+  {
+   "id": "r17",
+   "business": "rally",
+   "messages": [
+    "Book a badminton court tomorrow at 7pm, and are there showers?"
+   ],
+   "intents": [
+    "booking",
+    "question"
+   ],
+   "service": "Badminton Court (1 hour)",
+   "question": "answered",
+   "facts": [
+    "shower",
+    "changing"
+   ]
+  },
+  {
+   "id": "r20",
+   "business": "rally",
+   "messages": [
+    "Can I book a badminton court tomorrow at 7pm?",
+    "Nvm I want to buy a Wilson Clash 100 v2 tennis racket instead"
+   ],
+   "intents": [
+    "order",
+    "cancel"
+   ]
+  },
+  {
+   "id": "r21",
+   "business": "rally",
+   "messages": [
+    "Can I cancel my booking for free?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "answered",
+   "facts": [
+    "24 hours"
+   ]
+  },
+  {
+   "id": "k23",
+   "business": "kopi",
+   "messages": [
+    "Can I have 2 pandan chiffon cakes and 1 iced teh tarik?"
+   ],
+   "intents": [
+    "order"
+   ],
+   "items": {
+    "Pandan Chiffon Cake (Whole)": 2,
+    "Iced Teh Tarik": 1
+   }
+  },
+  {
+   "id": "k24",
+   "business": "kopi",
+   "messages": [
+    "Three kopi c, please"
+   ],
+   "intents": [
+    "order"
+   ],
+   "items": {
+    "Kopi C": 3
+   }
+  },
+  {
+   "id": "k25",
+   "business": "kopi",
+   "messages": [
+    "I want to order 4 kaya toast sets"
+   ],
+   "intents": [
+    "order"
+   ],
+   "items": {
+    "Kaya Toast Set": 4
+   }
+  },
+  {
+   "id": "b18",
+   "business": "bloom",
+   "messages": [
+    "I'd like 1 mini dried flower posy and 1 soap carnation bouquet"
+   ],
+   "intents": [
+    "order"
+   ],
+   "items": {
+    "Mini Dried Flower Posy": 1,
+    "Soap Carnation Bouquet": 1
+   }
+  },
+  {
+   "id": "b19",
+   "business": "bloom",
+   "messages": [
+    "Can I order 5 single soap rose stems?"
+   ],
+   "intents": [
+    "order"
+   ],
+   "items": {
+    "Single Soap Rose Stem": 5
+   }
+  },
+  {
+   "id": "b20",
+   "business": "bloom",
+   "messages": [
+    "I want the preserved rose bell jar"
+   ],
+   "intents": [
+    "order"
+   ],
+   "items": {
+    "Preserved Rose Bell Jar": 1
+   }
+  },
+  {
+   "id": "b21",
+   "business": "bloom",
+   "messages": [
+    "One crochet sunflower bouquet please"
+   ],
+   "intents": [
+    "order"
+   ],
+   "items": {
+    "Crochet Sunflower Bouquet (3 Stems)": 1
+   }
+  },
+  {
+   "id": "b22",
+   "business": "bloom",
+   "messages": [
+    "2 soap rose gift boxes please"
+   ],
+   "intents": [
+    "order"
+   ],
+   "items": {
+    "Soap Rose Gift Box (9 Roses)": 2
+   }
+  },
+  {
+   "id": "b23",
+   "business": "bloom",
+   "messages": [
+    "I'll take the everlasting dried flower bouquet"
+   ],
+   "intents": [
+    "order"
+   ],
+   "items": {
+    "Everlasting Dried Flower Bouquet (Neutral Tones)": 1
+   }
+  },
+  {
+   "id": "r22",
+   "business": "rally",
+   "messages": [
+    "I'd like to book a tennis court on Monday at 6pm"
+   ],
+   "intents": [
+    "booking"
+   ],
+   "service": "Tennis Court (1 hour)"
+  },
+  {
+   "id": "r23",
+   "business": "rally",
+   "messages": [
+    "Can I reserve a badminton court this Sunday at 10am?"
+   ],
+   "intents": [
+    "booking"
+   ],
+   "service": "Badminton Court (1 hour)"
+  },
+  {
+   "id": "r24",
+   "business": "rally",
+   "messages": [
+    "I want to buy a Wilson Clash 100 v2 tennis racket"
+   ],
+   "intents": [
+    "order"
+   ],
+   "items": {
+    "Wilson Clash 100 v2 Tennis Racket": 1
+   }
+  },
+  {
+   "id": "r25",
+   "business": "rally",
+   "messages": [
+    "Two Aerosensa 30 shuttlecock tubes please"
+   ],
+   "intents": [
+    "order"
+   ],
+   "items": {
+    "Yonex Aerosensa 30 Shuttlecocks (Tube of 12)": 2
+   }
+  },
+  {
+   "id": "r26",
+   "business": "rally",
+   "messages": [
+    "Book a tennis court tomorrow at 8am"
+   ],
+   "intents": [
+    "booking"
+   ],
+   "service": "Tennis Court (1 hour)"
+  },
+  {
+   "id": "r27",
+   "business": "rally",
+   "messages": [
+    "Please get me one can of tennis balls"
+   ],
+   "intents": [
+    "order"
+   ],
+   "items": {
+    "Wilson US Open Tennis Balls (Can of 3)": 1
+   }
+  },
+  {
+   "id": "k26",
+   "business": "kopi",
+   "messages": [
+    "Can I change my order after I place it?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "answered",
+   "facts": [
+    "30 minutes",
+    "30 min"
+   ]
+  },
+  {
+   "id": "k27",
+   "business": "kopi",
+   "messages": [
+    "Do you have vegetarian options?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "answered",
+   "facts": [
+    "kaya toast"
+   ]
+  },
+  {
+   "id": "b24",
+   "business": "bloom",
+   "messages": [
+    "Can someone else collect my order for me?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "answered",
+   "facts": [
+    "order number"
+   ]
+  },
+  {
+   "id": "b25",
+   "business": "bloom",
+   "messages": [
+    "Do you run crochet flower workshops?"
+   ],
+   "intents": [
+    "question"
+   ],
+   "question": "answered",
+   "facts": [
+    "workshop"
+   ]
+  },
+  {
+   "id": "k28",
+   "business": "kopi",
+   "messages": [
+    "I would like 2 kaya toast sets, and what time do you close?"
+   ],
+   "intents": [
+    "order",
+    "question"
+   ],
+   "items": {
+    "Kaya Toast Set": 2
+   },
+   "question": "answered"
+  },
+  {
+   "id": "k29",
+   "business": "kopi",
+   "messages": [
+    "1 iced teh tarik please, do you have wifi?"
+   ],
+   "intents": [
+    "order",
+    "question"
+   ],
+   "items": {
+    "Iced Teh Tarik": 1
+   },
+   "question": "answered"
+  },
+  {
+   "id": "k30",
+   "business": "kopi",
+   "messages": [
+    "2 kopi c please, and do you sell gluten-free bread?"
+   ],
+   "intents": [
+    "order",
+    "question"
+   ],
+   "items": {
+    "Kopi C": 2
+   },
+   "question": "unanswered"
+  },
+  {
+   "id": "b26",
+   "business": "bloom",
+   "messages": [
+    "I want 1 sunflower hand-tied bouquet, can I collect it today?"
+   ],
+   "intents": [
+    "order",
+    "question"
+   ],
+   "items": {
+    "Sunflower Hand-Tied Bouquet": 1
+   },
+   "question": "answered"
+  },
+  {
+   "id": "b27",
+   "business": "bloom",
+   "messages": [
+    "2 soap carnation bouquets please, do you deliver?"
+   ],
+   "intents": [
+    "order",
+    "question"
+   ],
+   "items": {
+    "Soap Carnation Bouquet": 2
+   },
+   "question": "answered"
+  },
+  {
+   "id": "b28",
+   "business": "bloom",
+   "messages": [
+    "I will take 1 mini dried flower posy, do you sell vases?"
+   ],
+   "intents": [
+    "order",
+    "question"
+   ],
+   "items": {
+    "Mini Dried Flower Posy": 1
+   },
+   "question": "unanswered"
+  },
+  {
+   "id": "r28",
+   "business": "rally",
+   "messages": [
+    "Book a tennis court on Saturday at 5pm, and is there parking?"
+   ],
+   "intents": [
+    "booking",
+    "question"
+   ],
+   "service": "Tennis Court (1 hour)",
+   "question": "answered"
+  }
+ ]
+}

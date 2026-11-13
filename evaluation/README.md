@@ -92,6 +92,29 @@ Cloud Run currently keeps at least one service instance warm. **Scale-to-zero is
 applicable pass criterion** under that configuration. The maximum of three instances should be
 verified with the recorded instance-count series, not inferred from Terraform settings alone.
 
+## LLM accuracy (router, extraction, questions)
+
+`llm_accuracy.py` runs 80 labelled English customer messages (`datasets/llm_accuracy.json`, three sample businesses)
+through the sandbox, one fresh chat per case, and scores the last message from the reply's `debug` block:
+
+| Metric | Scored on | Correct when |
+| --- | --- | --- |
+| Router | all 80 | the intents equal the labels |
+| Extraction | 40 order / booking cases | the products and quantities, or the booking's service, equal the labels |
+| FAQ check | 40 question cases | an answerable question is answered (with the labelled fact), and an unanswerable one is sent to the owner, not guessed |
+
+Run it with the stack up on the sample data (`RESET_DB=true docker compose up --build`) and the LLM reachable (Ollama,
+see the root README; or Gemini with `LLM_PROVIDER=vertex_ai`, see `messaging-service/README.md`):
+
+```bash
+ANSERA_EVAL_PASSWORD=123 python3 evaluation/llm_accuracy.py --limit 5
+ANSERA_EVAL_PASSWORD=123 python3 evaluation/llm_accuracy.py
+```
+
+It prints the model it found and saves it with the results in `results/llm_accuracy.json`; `--expect-model gemini`
+stops if it's another model. It stops after three LLM errors in a row (502 / 503 / 504: the model isn't reachable).
+Hosted runs need an HTTPS `--base-url` and `--allow-live`. Report the result as one run on a small set, with the model.
+
 ## Cloud Run scale-out and instance replacement
 
 `cloud_run_canary/` is a disposable, private service for testing Cloud Run's instance lifecycle
