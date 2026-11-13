@@ -1,0 +1,781 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ansera · CS5224 Group 20 · Presentation</title>
+<meta name="description" content="Ansera: an AI admin on WhatsApp for Indonesian micro, small and medium businesses. CS5224 Cloud Computing, Group 20.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%2325d366'/%3E%3Cstop offset='1' stop-color='%233b8bff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='18' fill='url(%23g)'/%3E%3Ctext x='32' y='45' font-family='Arial' font-weight='900' font-size='38' text-anchor='middle' fill='white'%3EA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/deck.css">
+<link rel="stylesheet" href="assets/slides.css">
+</head>
+<body>
+<div class="app">
+
+<!-- ===================================================================================================== top bar -->
+<header class="topbar">
+  <button class="tb-brand" id="btn-home" title="Back to the first slide (Home)"><i>A</i><div><b>Ansera · CS5224 Group 20</b></div></button>
+  <div class="tb-tools">
+    <button id="btn-grid" title="All slides in a grid (O)">▦ Grid</button>
+    <button id="btn-run" title="Run sheet: every slide's time, script and clicks (S)">☰ Run sheet</button>
+    <button id="btn-notes" title="Show or hide the speaker notes (N)">✎ Notes</button>
+    <button id="btn-aud" title="Open the audience window for the projector; this window keeps the notes (V)">⧉ Presenter view</button>
+    <div class="play-group">
+      <button id="btn-play" class="play" title="Present from this slide (P or ⌘/Ctrl+Enter)">▶ Slideshow</button>
+      <button id="btn-play-start" class="play-alt" title="Present from the beginning (Shift+P)">from start</button>
+    </div>
+  </div>
+</header>
+
+<main class="main">
+<div class="viewport">
+<div class="screen" id="screen">
+<div class="stage" id="stage">
+<canvas id="bg" aria-hidden="true"></canvas>
+<div class="vignette"></div>
+<div class="hud" id="hud"></div>
+
+<!-- =====================================================================================================
+     MERRY · introduction, problem, competitors, solution, architecture
+     ===================================================================================================== -->
+
+<!-- 1 · Introduction -->
+<section class="slide title-slide" id="title" data-speaker="merry" data-title="Introduction" data-nochrome data-tint="#25d366" data-tint2="#ff4f9a" data-energy="0.9">
+  <div class="orbit" aria-hidden="true">
+    <div class="ring r1"><span class="sat" style="--a:0deg">💬</span><span class="sat" style="--a:120deg">🛒</span><span class="sat" style="--a:240deg">💳</span></div>
+    <div class="ring r2"><span class="sat" style="--a:60deg">⏰</span><span class="sat" style="--a:180deg">🗓️</span><span class="sat" style="--a:300deg">🧾</span></div>
+    <div class="core-logo">A</div>
+  </div>
+  <div class="floaters" aria-hidden="true">
+    <span class="fb" style="--x:62%;--d:0s">Hi, any brownies left? 🍫</span>
+    <span class="fb g" style="--x:78%;--d:-2.5s">Yes! Rp25,000 a box</span>
+    <span class="fb" style="--x:70%;--d:-5s">Court tomorrow 7pm? 🏸</span>
+    <span class="fb g" style="--x:86%;--d:-7.5s">Booked ✅</span>
+    <span class="fb" style="--x:66%;--d:-10s">What time do you open? ⏰</span>
+  </div>
+  <div class="title-copy">
+    <div class="kick">CS5224 Cloud Computing · Group 20</div>
+    <h1 class="mega"><span class="shine">Ansera</span></h1>
+    <p class="tagline" data-step="1">An AI admin on <b class="wa">WhatsApp</b> for Indonesian micro, small &amp; medium businesses</p>
+    <div class="pills" data-step="1" style="margin-top:22px"><span class="pill">SaaS on Google Cloud</span><span class="pill">Singapore region</span><span class="pill">No-code setup</span></div>
+    <div class="team stagger" data-step="1">
+      <span class="chip" style="--k:var(--merry)">Merry Rosalie</span><span class="chip" style="--k:var(--filbert)">Filbert Reinaldha</span>
+      <span class="chip" style="--k:var(--hazim)">Mohamed Nur Hazim</span><span class="chip" style="--k:var(--michael)">Michael Andrew Chan</span>
+      <span class="chip" style="--k:var(--adelia)">Adelia Putri</span>
+    </div>
+  </div>
+  <aside class="notes">
+    <p data-step="0">Hello, we're <b>Group 20</b>,</p>
+    <p data-step="1" data-cue="the tagline and the team">and today we're introducing our project, <b>Ansera</b>.</p>
+  </aside>
+</section>
+
+<!-- 2 · Problem statement -->
+<section class="slide" id="problem" data-speaker="merry" data-title="Problem statement">
+  <div class="kick">Problem statement</div>
+  <h2>Indonesian businesses run on WhatsApp, <em>and answer it all by hand</em></h2>
+  <div class="prob">
+    <div class="grid g3">
+      <div class="stat fx-pop" data-step="0" style="--k:var(--wa)"><b data-count="90" data-suffix="%+">0</b><span>of Indonesian internet users use WhatsApp</span><span class="src">[1]</span>
+        <svg class="ring" viewBox="0 0 36 36"><circle class="tr" cx="18" cy="18" r="15.5" pathLength="100"/><circle class="fg" cx="18" cy="18" r="15.5" pathLength="100" style="--p:90"/></svg></div>
+      <div class="stat fx-pop" data-step="1" style="--k:var(--blue)"><b>8 / 8</b><span>businesses we surveyed rely on it to talk to customers</span><span class="src">our survey</span>
+        <svg class="ring" viewBox="0 0 36 36"><circle class="tr" cx="18" cy="18" r="15.5" pathLength="100"/><circle class="fg" cx="18" cy="18" r="15.5" pathLength="100" style="--p:100"/></svg></div>
+      <div class="stat fx-pop" data-step="2" style="--k:var(--amber)"><b data-count="60" data-suffix="%">0</b><span>of customers expect a reply within <b class="inl">10 minutes</b></span><span class="src">[2]</span>
+        <svg class="ring" viewBox="0 0 36 36"><circle class="tr" cx="18" cy="18" r="15.5" pathLength="100"/><circle class="fg" cx="18" cy="18" r="15.5" pathLength="100" style="--p:60"/></svg></div>
+    </div>
+    <div class="prob-row">
+      <div class="grid g3" style="flex:1">
+        <div class="card fx-left hl" data-step="1" style="--k:var(--violet)"><span class="ico">🌙</span><h3>7 of 8</h3><p>miss messages after hours, and lose customers</p></div>
+        <div class="card fx-left hl" data-step="1" style="--k:var(--blue)"><span class="ico">⏳</span><h3>3–5+ hours a day</h3><p>spent just replying to chats</p></div>
+        <div class="card fx-left hl" data-step="2" style="--k:var(--red)"><span class="ico">💸</span><h3>Up to Rp3M a month</h3><p>to hire an admin, with high turnover</p></div>
+      </div>
+      <div class="night-phone fx-right" data-step="1" aria-hidden="true">
+        <div class="np-top"><span>🌙 02:14</span><span class="np-badge" id="unread">0</span></div>
+        <div class="np-list" id="np-list"></div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>[1] We Are Social &amp; DataReportal, Digital 2026: Indonesia · [2] crm.id, "Kesalahan UMKM" (industry blog) · survey of 8 Indonesian MSME owners (our preliminary report)</span></div>
+  <aside class="notes">
+    <p data-step="0">In Indonesia, over <b>90%</b> of internet users use WhatsApp, and businesses rely on it heavily.</p>
+    <p data-step="1" data-cue="our survey, and the unread badge climbing">In fact, all <b>8</b> businesses we surveyed use it, with <b>7</b> missing messages after hours and losing customers, and some spend <b>3 to 5+ hours</b> replying every day.</p>
+    <p data-step="2" data-cue="the 10-minute expectation and the cost of an admin">That's too inefficient when <b>60%</b> of customers expect a reply within <b>10 minutes</b>, and hiring an admin costs up to <b>3 million rupiah</b> a month, with high turnover.</p>
+  </aside>
+</section>
+
+<!-- 3 · Competitive analysis -->
+<section class="slide" id="competitors" data-speaker="merry" data-title="Competitive analysis">
+  <div class="kick">Competitive analysis</div>
+  <h2>Too big, too narrow, or <em>build it yourself</em></h2>
+  <div class="comp">
+    <div class="map" id="comp-map">
+      <div class="axis x">Setup: build it yourself → ready to use</div><div class="axis y">Price: enterprise → affordable for MSMEs</div>
+      <div class="quad"></div>
+      <div class="gap-zone" data-step="3"><span>the gap</span></div>
+      <div class="dot" data-k="qontak" data-at="0" style="--x:34%;--y:76%;--k:#f6c34a"><b>Qontak</b><small>enterprise CS</small></div>
+      <div class="dot" data-k="wati" data-at="1" style="--x:63%;--y:70%;--k:#8fb6ff"><b>WATI</b><small>broadcasts</small></div>
+      <div class="dot" data-k="n8n" data-at="2" style="--x:16%;--y:30%;--k:#ff8a8a"><b>n8n</b><small>DIY workflows</small></div>
+      <div class="dot ansera" data-k="ansera" data-at="3" style="--x:83%;--y:18%;--k:var(--wa)"><b>Ansera</b><small>front desk</small></div>
+    </div>
+    <div class="comp-side">
+      <div class="card" data-step="0" style="--k:#f6c34a"><h3>Mekari Qontak</h3><p>All-in-one customer service for large companies: comprehensive features, but expensive, with heavy onboarding</p></div>
+      <div class="card" data-step="1" style="--k:#8fb6ff"><h3>WATI</h3><p>Mainly a WhatsApp broadcast tool for online stores</p></div>
+      <div class="card" data-step="2" style="--k:#ff8a8a"><h3>n8n</h3><p>General automation for developers: you build every workflow yourself</p></div>
+      <div class="card glowing fx-pop" data-step="3" style="--k:var(--wa)"><h3>The gap: affordable <i>and</i> easy</h3><p>A lightweight front desk for SMEs, with no building: it understands the owner's own product info and replies <b>24/7</b></p></div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p data-step="0">Comparing existing solutions, we have <b>Mekari Qontak</b>, which is an all-in-one customer service platform for large companies. It's comprehensive in terms of features, but expensive, and needs heavy onboarding.</p>
+    <p data-step="1" data-cue="WATI"><b>WATI</b> is mainly a WhatsApp broadcast tool for online stores,</p>
+    <p data-step="2" data-cue="n8n">and <b>n8n</b> is a general automation tool for developers, where you build every workflow yourself.</p>
+    <p data-step="3" data-cue="the gap">So there's a clear <b>gap</b>: there's no option that is both <b>affordable</b> and <b>easy enough to set up</b> without building it yourself, for small and medium businesses that just need a lightweight front desk, one that understands the owner's own product info and replies 24/7.</p>
+  </aside>
+</section>
+
+<!-- 4 · Solution -->
+<section class="slide" id="solution" data-speaker="merry" data-title="Solution">
+  <div class="kick">Solution</div>
+  <h2>Ansera: an AI admin on WhatsApp, <em>your own front desk</em></h2>
+  <div class="sol">
+    <div>
+      <div class="builder" data-step="0">
+        <div class="bd-top"><b>🧩 A customisable front-desk flow</b><span class="bd-presets"><span class="muted">click a block to configure it</span></span></div>
+        <div class="bd-flow">
+          <span class="blk pick" style="--k:var(--wa);--i:0">👋 Welcome<i class="cursor">🖱️</i></span><span class="arr">→</span>
+          <span class="blk" style="--k:var(--blue);--i:1">❓ Answer from FAQs</span><span class="arr">→</span>
+          <span class="blk" style="--k:var(--violet);--i:2">🛒 Order / booking</span><span class="arr">→</span>
+          <span class="blk" style="--k:var(--amber);--i:3">🧾 Invoice + pay</span><span class="arr">→</span>
+          <span class="blk" style="--k:var(--merry);--i:4">⏰ Reminders</span>
+        </div>
+        <div class="bd-cfg"><span class="muted">⚙️ Welcome block:</span><span class="opt">welcome message</span><span class="opt">reply style</span><span class="opt">details to collect: name, email, players</span></div>
+      </div>
+      <div class="grid g2 sol-cards">
+        <div class="card hl" data-step="1" style="--k:var(--wa)"><span class="ico">💬</span><h3>Answers questions 24/7</h3><p>From the business's own product info: products, services, FAQs</p></div>
+        <div class="card hl" data-step="1" style="--k:var(--blue)"><span class="ico">🛒</span><h3>Orders &amp; bookings</h3><p>Taken right in the chat</p></div>
+        <div class="card hl" data-step="2" style="--k:var(--amber)"><span class="ico">🧾</span><h3>Payment with invoices</h3><p>Guides the customer through paying</p></div>
+        <div class="card hl" data-step="2" style="--k:var(--violet)"><span class="ico">⏰</span><h3>Reminders</h3><p>For unpaid orders and upcoming bookings</p></div>
+      </div>
+    </div>
+    <div class="phone fx-right" data-step="0" style="height:600px;width:340px">
+      <div class="scr">
+        <div class="wa-head"><i>🏸</i><div>Rally Point Courts<small>online</small></div></div>
+        <div class="msgs" id="sol-chat"></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p data-step="0">That's why we built <b>Ansera</b>. Owners set up an AI admin on WhatsApp with a <b>customisable front desk flow</b>.</p>
+    <p data-step="1" data-cue="answers, orders and bookings">Using the business's own product info, it <b>answers customers' questions 24/7</b>, takes <b>orders and bookings</b> in the chat,</p>
+    <p data-step="2" data-cue="payment and reminders">guides customers through <b>payment with invoices</b>, and sends <b>reminders</b> for unpaid orders and upcoming bookings.</p>
+  </aside>
+</section>
+
+<!-- 5 · Architecture -->
+<section class="slide arch-slide" id="arch" data-speaker="merry" data-title="Architecture">
+  <div class="kick">Architecture · Google Cloud, Singapore</div>
+  <h2 class="arch-h">A SaaS built on PaaS, <em>in three planes</em></h2>
+  <div class="arch" data-plane="planes"></div>
+  <div class="arch-side">
+    <div class="stack" data-step="0">
+      <div class="lv" style="--k:var(--wa)"><b>SaaS</b><span>Ansera</span></div>
+      <div class="lv" style="--k:var(--blue)"><b>PaaS</b><span>Cloud Run · Pub/Sub · Cloud SQL · Vertex AI</span></div>
+      <div class="lv" style="--k:#22d3ee"><b>IaaS</b><span>Google Cloud, asia-southeast1</span></div>
+    </div>
+    <ol class="journey">
+      <li data-k="1" style="--c:var(--merry)">Control / client plane</li>
+      <li data-k="2" style="--c:var(--blue)">Message plane</li>
+      <li data-k="3" style="--c:var(--wa)">Payment plane</li>
+      <li data-k="4" style="--c:#22d3ee">Shared platform</li>
+    </ol>
+  </div>
+  <aside class="notes">
+    <p data-step="0">So, Ansera is a <b>SaaS built on PaaS</b>, that is Cloud Run, Pub/Sub, Cloud SQL and Vertex AI, running on Google's IaaS in the <b>Singapore</b> region. And our architecture consists of <b>three planes</b>:</p>
+    <p data-step="1" data-cue="the control plane"><b>The control, or client, plane.</b> This is where business owners set up their AI admin. They use the frontend on <b>Firebase Hosting</b>, and every API call enters an independent <b>load balancer with Cloud Armor</b>, while Cloud Run spreads requests over healthy instances. Behind it, <b>configuration-service</b> is the main backend. It manages the database and stores each business's configuration and information.</p>
+    <p data-step="2" data-cue="the message plane"><b>The message plane.</b> Meta's WhatsApp calls the <b>messaging-ingester</b>, which only verifies and queues messages. The <b>messaging-service</b> runs the messages with Gemini. And each service scales out on its own, with dynamic horizontal scaling.</p>
+    <p data-step="3" data-cue="the payment plane"><b>The payment plane</b> shares the same shape as the message plane, but with the <b>processing-service</b> generating the invoice PDFs and emailing them to customers through <b>Brevo</b>, with Cloud Storage to store them.</p>
+    <p data-step="4" data-cue="the shared platform">And then, we also have the <b>shared platform</b>, including these services, all declared in <b>Terraform</b>.</p>
+  </aside>
+</section>
+
+<!-- =====================================================================================================
+     FILBERT · user flow, event pipeline, LLM engine
+     ===================================================================================================== -->
+
+<!-- 6 · User flow ①: message to payment link -->
+<section class="slide arch-slide" id="flow-msg" data-speaker="filbert" data-title="User flow ① message to payment link">
+  <div class="kick">User flow · the customer's point of view</div>
+  <h2 class="arch-h">① A customer messages the shop, <em>through to a payment link</em></h2>
+  <div class="arch" data-plane="flow1"></div>
+  <div class="arch-side">
+    <ol class="journey">
+      <li data-k="0">Signed webhook in</li>
+      <li data-k="1">Signature verified, published</li>
+      <li data-k="2">Kept in the queue</li>
+      <li data-k="3">Cloud SQL → LLM reply</li>
+      <li data-k="4">Reply with the shop's token</li>
+      <li data-k="5">CONFIRM → invoice + link</li>
+    </ol>
+  </div>
+  <aside class="notes">
+    <p data-step="0">Alright, on to the <b>customer's point of view</b> now. When a customer sends a message to the shop via WhatsApp, Meta will post a <b>signed webhook</b> through the load balancer to <b>messaging-ingester</b>.</p>
+    <p data-step="1" data-cue="the signature check and the publish">configuration-service then verifies the <b>signature</b>, and the message is published to <b>Pub/Sub</b>.</p>
+    <p data-step="2" data-cue="the queue filling up">Every message will be kept in the messaging queue, so a fast webhook <b>never has to wait</b> for a slow LLM turn.</p>
+    <p data-step="3" data-cue="messaging-service, Cloud SQL and Gemini">The worker queries <b>Cloud SQL</b>, then talks to the <b>LLM</b> to generate a response.</p>
+    <p data-step="4" data-cue="the reply going out">The reply goes out through configuration-service, along with the business's own <b>WhatsApp token</b>.</p>
+    <p data-step="5" data-cue="CONFIRM: invoice and payment link">After an order is finalized, on the <b>CONFIRM</b> message, the order is saved with its stock or booking on hold, processing-service sends out an <b>invoice by email</b>, and payment-ingester creates a <b>Xendit payment link</b>.</p>
+  </aside>
+</section>
+
+<!-- 7 · User flow ②: payment, receipt, reminders -->
+<section class="slide arch-slide" id="flow-pay" data-speaker="filbert" data-title="User flow ② payment &amp; reminders">
+  <div class="kick">User flow · the customer's point of view</div>
+  <h2 class="arch-h">② Paid: <em>receipt and reminders</em></h2>
+  <div class="arch" data-plane="flow2"></div>
+  <div class="arch-side">
+    <ol class="journey">
+      <li data-k="0">Pay on Xendit's page</li>
+      <li data-k="1">Verified, paid · receipt by email + WhatsApp</li>
+      <li data-k="2">Hourly reminders</li>
+    </ol>
+  </div>
+  <aside class="notes">
+    <p data-step="0">The customer completes the payment fully on <b>Xendit's hosted page</b>, so no card data is recorded on Ansera.</p>
+    <p data-step="1" data-cue="processing-service and the receipt">processing-service proceeds to <b>verify the payment amount</b>, marks the order as paid, and generates the receipt, which is sent to the customer by <b>email and WhatsApp</b>.</p>
+    <p data-step="2" data-cue="the hourly reminders">In between all these payment mechanisms, <b>Cloud Scheduler</b> runs notification-job every hour. It queries Cloud SQL to process payment reminders for unpaid items, and booking reminders within 24 hours.</p>
+  </aside>
+</section>
+
+<!-- 8 · Event pipeline ①: in -->
+<section class="slide pipe-slide" id="pipe-in" data-speaker="filbert" data-title="Event pipeline ① fast in, once only" data-tint2="#a66bff">
+  <div class="kick">Event pipeline · a closer look at the queues</div>
+  <h2>Answer Meta fast, <em>handle each message once</em></h2>
+  <div class="pipe" data-pipe></div>
+  <div class="grid g3 mechs">
+    <div class="mech hl" data-step="0" style="--k:var(--wa)"><h3>⚡ 200 in ~100 ms</h3><p>The ingester only checks the signature and publishes. If the publish fails: <code>503</code>, and Meta retries</p></div>
+    <div class="mech hl" data-step="1" style="--k:var(--amber)"><h3>🪪 Claimed by its WhatsApp ID</h3><p>Pub/Sub delivers at least once: each message is claimed by its unique ID, so it's processed once</p></div>
+    <div class="mech hl" data-step="2" style="--k:var(--merry)"><h3>🧵 A burst gets one reply</h3><p>No ordering key, on purpose: each new message bumps the chat's version, and a turn saves its reply only if the version is unchanged, so one reply answers them all</p></div>
+  </div>
+  <aside class="notes">
+    <p data-step="0">Now we take a closer look at the queues. An LLM turn can take several seconds. So messaging-ingester only checks the message signature, publishes the message to Pub/Sub, and responds with success, <b>200, in about 100 milliseconds</b>. If publishing fails, it answers error <b>503</b>, and Meta will retry. <span class="act">watch the message</span></p>
+    <p data-step="1" data-cue="a duplicate delivery">We make sure each message is processed <b>exactly once</b>. Each message is claimed by its unique WhatsApp ID, so a redelivery is skipped.</p>
+    <p data-step="2" data-cue="a burst of messages">Messages can come in <b>successive bursts</b> within a short period. By utilizing the <b>chat version</b> and <b>optimistic locking</b>, an LLM turn will only answer the <b>latest message</b> in a single chat.</p>
+  </aside>
+</section>
+
+<!-- 9 · Event pipeline ②: failures -->
+<section class="slide pipe-slide" id="pipe-out" data-speaker="filbert" data-title="Event pipeline ② designed for failure" data-tint2="#ff5a5a">
+  <div class="kick">Event pipeline · a closer look at the queues</div>
+  <h2>Failures are expected, <em>so we designed for them</em></h2>
+  <div class="pipe" data-pipe></div>
+  <div class="grid g3 mechs">
+    <div class="mech hl" data-step="0" style="--k:var(--violet)"><h3>🔢 One turn, one transaction</h3><p>State, order and reply commit together, in one transaction, under a row lock</p></div>
+    <div class="mech hl" data-step="1" style="--k:var(--red)"><h3>☠️ Retry, then dead-letter</h3><p>Poison messages back off from 30 s to 10 min; after 5 failed attempts, the dead-letter queue</p></div>
+    <div class="mech hl" data-step="2" style="--k:var(--wa)"><h3>💳 Payments too</h3><p>Only a pending order can change, so a repeated Xendit event is a no-op, and a late expiry never cancels a paid order</p></div>
+  </div>
+  <aside class="notes">
+    <p data-step="0"><b>One turn</b> commits its state, order and reply in <b>one transaction</b>, under a row lock. <span class="act">watch the turn</span></p>
+    <p data-step="1" data-cue="a poison message"><b>Poison messages</b> are retried with delays between <b>30 seconds and 10 minutes</b>, and after <b>5 failed attempts</b> they go to a dead-letter queue.</p>
+    <p data-step="2" data-cue="the payment side">The same system applies to <b>payment-ingester</b>: each Xendit event is stored once, and a late expiry never cancels a paid order.</p>
+  </aside>
+</section>
+
+<!-- 10 · LLM engine -->
+<section class="slide" id="llm" data-speaker="filbert" data-title="LLM engine" data-tint2="#a66bff">
+  <div class="kick">LLM engine · Gemini on Vertex AI</div>
+  <h2><em>The system decides</em>, the LLM talks</h2>
+  <div class="engine">
+    <div class="eng-msg" data-step="0"><span class="who">Customer</span><span id="eng-text"></span></div>
+    <div class="eng-flow">
+      <div class="eng-node llm hl" data-step="1"><b>🧭 Router</b><small>one LLM call · JSON out</small><pre class="json" id="eng-json"></pre>
+        <div class="intents"><span>order</span><span>booking</span><span>question</span><span>order_status</span></div></div>
+      <svg class="eng-wires" viewBox="0 0 120 300" preserveAspectRatio="none"><path data-step="2" d="M0,150 C60,150 60,45 120,45"/><path data-step="3" d="M0,150 C60,150 60,150 120,150"/><path data-step="4" d="M0,150 C60,150 60,255 120,255"/></svg>
+      <div class="eng-handlers">
+        <div class="handler hl" data-step="2" style="--k:var(--blue)"><b>🛒 Orders &amp; bookings</b><div class="chain"><span class="s code">state machine</span><span class="s llm">LLM extracts the details</span><span class="s db">live stock &amp; free slots</span></div></div>
+        <div class="handler hl" data-step="3" style="--k:var(--wa)"><b>📦 Order status</b><div class="chain"><span class="s db">this customer's orders only</span><span class="s code">unknown numbers blocked</span></div></div>
+        <div class="handler hl" data-step="4" style="--k:var(--amber)"><b>❓ Questions</b><div class="chain"><span class="s llm">read-only, tenant-scoped tools</span><span class="s db">products · services · FAQs</span><span class="s tpl">unknown → owner</span></div></div>
+      </div>
+    </div>
+    <div class="legend" data-step="0"><span><i style="background:var(--violet)"></i>LLM call</span><span><i style="background:var(--blue)"></i>Code check</span><span><i style="background:var(--wa)"></i>Database</span><span><i style="background:#cfd8ee"></i>Fixed template</span></div>
+  </div>
+  <aside class="notes">
+    <p data-step="0">Behind the scenes, the LLM tries to <b>understand the customer's query</b> and makes a response for it.</p>
+    <p data-step="1" data-cue="the router's JSON">A <b>router</b> call returns the intents as JSON, preserving their order: order, booking, question, or order status.</p>
+    <p data-step="2" data-cue="orders and bookings">Orders and bookings run a <b>state machine</b>. The LLM extracts the details, and the system checks them against <b>real-time stock and free slots</b>.</p>
+    <p data-step="3" data-cue="order status">Order status searches <b>only this customer's orders</b>, and blocks any number it didn't find.</p>
+    <p data-step="4" data-cue="questions">Questions use <b>read-only, tenant-scoped tools</b> to retrieve products, services and FAQs without risking prompt injection, and anything unknown is redirected to the business owner.</p>
+  </aside>
+</section>
+
+<!-- =====================================================================================================
+     HAZIM · scaling, security, multi-tenancy
+     ===================================================================================================== -->
+
+<!-- 11 · Scaling -->
+<section class="slide" id="scaling" data-speaker="hazim" data-title="Scaling" data-tint2="#3b8bff">
+  <div class="kick">Scaling</div>
+  <h2>Cloud Run scales out, <em>Pub/Sub absorbs the burst</em></h2>
+  <div class="scaler">
+    <div class="sc-left">
+      <div class="sc-chart"><canvas id="sc-chart" width="1000" height="230"></canvas>
+        <div class="sc-legend"><span><i style="background:var(--hazim)"></i>messages in</span><span><i style="background:var(--violet)"></i>Pub/Sub backlog</span><span><i style="background:var(--wa)"></i>CPU utilisation</span><span><i class="dash"></i>60% scale-out threshold</span></div></div>
+      <div class="sc-insts" id="sc-insts"></div>
+    </div>
+    <div class="sc-right">
+      <div class="gauge"><label>Traffic</label><b id="sc-rate">1 msg/s</b><small id="sc-src">WhatsApp</small></div>
+      <div class="gauge" id="sc-cpu-g"><label>CPU utilisation</label><b id="sc-cpu">0%</b><div class="cpu-bar"><i id="sc-cpu-bar"></i><span class="thr"></span></div></div>
+      <div class="gauge"><label>Instances (cap 3)</label><b id="sc-n">1</b></div>
+      <div class="gauge" id="sc-back-g"><label>Backlog in Pub/Sub</label><b id="sc-back">0</b></div>
+      <div class="sc-note" id="sc-note">Steady traffic</div>
+    </div>
+  </div>
+  <div class="pills sc-pills">
+    <span class="pill lec" data-step="0">Containers on Cloud Run</span><span class="pill lec" data-step="0">Horizontal autoscaling at CPU &gt; 60%</span><span class="pill lec" data-step="0">Capped at 3 per service (demo)</span><span class="pill lec" data-step="1">Pub/Sub buffer · asynchronous</span>
+  </div>
+  <aside class="notes">
+    <div class="warn">The chart is an illustration of the behaviour, not a load-test measurement.</div>
+    <p data-step="0">To implement scaling, we chose <b>Cloud Run</b>, as it has integrated autoscaling that triggers when <b>CPU utilization exceeds 60%</b>, allowing automated horizontal scaling of all our backend instances, which are containerized. This demo is capped to <b>3 instances</b> for each container.</p>
+    <p data-step="1" data-cue="the Pub/Sub buffer">To handle webhooks from external services, we use <b>Pub/Sub</b> to buffer incoming messages in a first-in-first-out queue, so WhatsApp messages and payment notifications from Xendit can be handled <b>asynchronously</b>.</p>
+  </aside>
+</section>
+
+<!-- 12 · Security -->
+<section class="slide" id="security" data-speaker="hazim" data-title="Security" data-tint="#ff5a5a" data-tint2="#ff9f1a">
+  <div class="kick">Security</div>
+  <h2>Private by default, <em>one guarded front door</em></h2>
+  <div class="sec" id="sec">
+    <div class="sec-net">🌐 Internet</div>
+    <div class="armor" data-step="3"><span class="em">🛡️</span><b>Cloud Armor</b><small>WAF · DDoS · OWASP Top 10</small></div>
+    <div class="lbx" data-step="0"><span class="em">⚖️</span><b>HTTPS load balancer</b><small>one IP address · one domain</small></div>
+    <svg class="sec-links" viewBox="0 0 1408 600" data-step="0"><path d="M490,300 C530,300 530,115 570,115"/><path d="M490,300 H570"/><path d="M490,300 C530,300 530,485 570,485"/></svg>
+    <div class="vpc" data-step="0"><span class="vpc-l">🔒 Ingress: internal + load balancer only · the VPC is for outbound, via Cloud NAT</span></div>
+    <div class="grp-l" style="left:570px;top:52px" data-step="0">Public: internal + LB ingress</div>
+    <div class="grp-l" style="left:880px;top:52px" data-step="0">No route from the Internet</div>
+    <div class="svc pub" data-step="0" style="left:570px;top:70px"><b>⚙️ configuration-service</b><span class="tags"><span class="sa" data-step="1">🪪 own service account</span><span class="env" data-step="2">🔑 secrets as env vars</span></span></div>
+    <div class="svc pub" data-step="0" style="left:570px;top:255px"><b>📥 messaging-ingester</b><span class="tags"><span class="sa" data-step="1">🪪 own service account</span><span class="env" data-step="2">🔑 secrets as env vars</span></span></div>
+    <div class="svc pub" data-step="0" style="left:570px;top:440px"><b>🧾 payment-ingester</b><span class="tags"><span class="sa" data-step="1">🪪 own service account</span><span class="env" data-step="2">🔑 secrets as env vars</span></span></div>
+    <div class="svc priv" data-step="0" style="left:880px;top:70px"><b>🤖 messaging-service</b><span class="tags"><span>🚪 internal-only ingress</span><span class="sa" data-step="1">🪪 least privilege</span></span></div>
+    <div class="svc priv" data-step="0" style="left:880px;top:180px"><b>🧮 processing-service</b><span class="tags"><span>🚪 internal-only ingress</span><span class="sa" data-step="1">🪪 least privilege</span></span></div>
+    <div class="svc priv" data-step="0" style="left:880px;top:290px"><b>⏰ notification-job</b><span class="tags"><span>⏱️ a job: no endpoint</span><span class="sa" data-step="1">🪪 least privilege</span></span></div>
+    <div class="svc priv db" data-step="0" style="left:880px;top:410px"><b>🐘 Cloud SQL</b><span class="tags"><span>public IP, no authorised networks</span><span>🔌 Cloud SQL connector only</span></span></div>
+    <div class="side-card" data-step="1" style="top:70px;--k:var(--hazim)"><b>🪪 Least privilege</b><span>One service account per container, with only the permissions it needs</span></div>
+    <div class="side-card" data-step="2" style="top:250px;--k:var(--wa)"><b>🔐 Secret Manager</b><span>API keys and credentials, only exposed to containers as environment variables</span></div>
+    <div class="attacks" id="attacks"></div>
+  </div>
+  <aside class="notes">
+    <p data-step="0">For security, our entire backend is encapsulated within a <b>Virtual Private Cloud</b>, and isolated from the open Internet. Public traffic is only allowed through an <b>HTTPS load balancer</b>, which exposes a single IP address and domain for our backend, and routes requests to configuration-service, payment-ingester and messaging-ingester. The remaining containers and Cloud SQL are not exposed. <span class="act">a direct hit bounces</span></p>
+    <p data-step="1" data-cue="the service accounts">Each container is also provisioned with its own <b>service account</b>, following the principle of least privilege, and is assigned minimum permissions.</p>
+    <p data-step="2" data-cue="Secret Manager">Sensitive data, such as API keys and account credentials, is stored in <b>Secret Manager</b>, and only exposed to containers as environment variables.</p>
+    <p data-step="3" data-cue="Cloud Armor"><b>Cloud Armor</b> is GCP's network security service and web application firewall. It protects load balancers and containers from <b>DDoS</b> attacks and <b>OWASP Top 10</b> vulnerabilities, such as cross-site scripting and SQL injection. We have implemented it on our public-facing load balancer, with the appropriate rulesets. <span class="act">attacks bounce</span></p>
+  </aside>
+</section>
+
+<!-- 13 · Multi-tenancy ①: one platform, isolated tenants -->
+<section class="slide" id="tenancy" data-speaker="hazim" data-title="Multi-tenancy ① one platform, isolated tenants" data-tint2="#22d07a">
+  <div class="kick">Multi-tenancy</div>
+  <h2>One platform for every business, <em>each one walled off</em></h2>
+  <div class="grid g2 mt-grid two">
+    <div class="mt hl" data-step="0" style="--k:var(--wa)">
+      <h4><span>🏢</span>Shared by every tenant</h4>
+      <div class="tn-share"><span style="--k:var(--hazim)">🏸 Rally Point</span><span style="--k:#c49a6c">☕ Kopi &amp; Co.</span><span style="--k:var(--blue)">📷 Lumen &amp; Lens</span></div>
+      <div class="tn-down">↓ application-level isolation ↓</div>
+      <div class="tn-one"><span>🐳 one set of backend containers</span><span>🐘 one PostgreSQL database</span></div>
+    </div>
+    <div class="mt hl" data-step="1" style="--k:var(--blue)">
+      <h4><span>🔑</span>Authenticated APIs</h4>
+      <div class="login-card"><span class="muted">request</span><code class="jwt">Authorization: Bearer eyJhbGciOi…</code></div>
+      <div class="tn-down">↓ JWT verified</div>
+      <div class="login-card"><code>business_id = 5</code><span class="muted">every request is tied to its business's operation</span></div>
+    </div>
+    <div class="mt hl" data-step="2" style="--k:var(--hazim)">
+      <h4><span>🪪</span>Business-ID isolation</h4>
+      <table class="rows mini mt-rows">
+        <tbody>
+          <tr data-t="5"><td><b>5</b></td><td>Wei Ling: court tomorrow 7pm?</td></tr>
+          <tr data-t="1"><td><b>1</b></td><td>Budi: 2 flat whites, pls</td></tr>
+          <tr data-t="4"><td><b>4</b></td><td>Sari: portrait on Saturday?</td></tr>
+        </tbody>
+      </table>
+      <div class="req"><code>GET /api/chats/ <b>(business 1)</b></code><span class="stamp">403</span></div>
+      <div class="uniq">📱 Each WhatsApp number belongs to <b>one business only</b>: no duplicates across businesses</div>
+    </div>
+    <div class="mt hl" data-step="3" style="--k:var(--violet)">
+      <h4><span>🏷️</span>Unique within each business</h4>
+      <pre class="sql"><span class="kw">UNIQUE</span> (business_id, product_name)</pre>
+      <div class="dup"><span class="ok">✓ 5 · Yonex Astrox 99 Pro</span><span class="no">✕ 5 · Yonex Astrox 99 Pro <small>duplicate</small></span></div>
+      <p class="mt-p">No ambiguity in what's on offer, or in the orders that follow</p>
+    </div>
+  </div>
+  <aside class="notes">
+    <p data-step="0">To enable scalability within our SaaS application, all tenants' data and application logic are handled by the <b>same PostgreSQL database and backend containers</b>. To enable multi-tenancy for multiple businesses, we use the following <b>application-level logic</b> to implement user isolation.</p>
+    <p data-step="1" data-cue="authentication">First, our application uses APIs that implement <b>authentication</b>, for example <b>JSON Web Tokens</b>, or JWTs, to authenticate incoming webhook traffic, and categorise it into each business's operation.</p>
+    <p data-step="2" data-cue="business-ID isolation">We also implement <b>business-ID based tenant isolation</b>, which assigns a unique business ID to each registered business, to limit object reads and writes to only its own chats, orders and catalog items. Each <b>WhatsApp number</b> must only be used for one business: no duplicates are allowed across businesses. <span class="act">other rows fade, 403</span></p>
+    <p data-step="3" data-cue="unique constraints">Additional <b>unique constraints</b> are also applied for each business, such as no duplicate product names, to ensure there's no ambiguity among product offerings and subsequent orders.</p>
+  </aside>
+</section>
+
+<!-- 14 · Multi-tenancy ②: the data layer -->
+<section class="slide" id="tenancy-db" data-speaker="hazim" data-title="Multi-tenancy ② the data layer" data-tint2="#22d07a">
+  <div class="kick">Multi-tenancy</div>
+  <h2>The data layer: <em>fast, consistent, and safe</em></h2>
+  <div class="grid g2 mt-grid two">
+    <div class="mt hl" data-step="0" style="--k:var(--wa)">
+      <h4><span>⚡</span>Indexed, and strongly consistent</h4>
+      <div class="idx"><span class="muted">indexes on</span><code>order_status</code><code>chat_session_id</code><code>business_id</code></div>
+      <div class="ca"><span class="win">Consistency ✓</span><span class="vs-x">over</span><span class="lose">Availability</span></div>
+      <p class="mt-p">Never stale data: accurate stock counts and payment values</p>
+    </div>
+    <div class="mt hl" data-step="1" style="--k:var(--blue)">
+      <h4><span>🔐</span>Concurrency: two kinds of lock</h4>
+      <div class="lock"><b>💳 Payments &amp; stock</b><span>pessimistic: the row is locked first</span><code><span class="kw">SELECT</span> … <span class="kw">FOR UPDATE</span></code></div>
+      <div class="lock"><b>💬 Customer chats</b><span>optimistic: async LLM calls, chat versions</span><code>chat v7 → v8 · a stale turn reruns</code></div>
+    </div>
+    <div class="mt hl" data-step="2" style="--k:var(--red)">
+      <h4><span>💉</span>SQL injection, mitigated twice</h4>
+      <div class="inj"><code>name = "x' OR 1=1 --"</code><span class="no">✕ just text to the ORM</span></div>
+      <div class="pills"><span class="pill">🧱 well-defined ORMs</span><span class="pill">🧼 sanitised serializers</span><span class="pill">🛡️ Cloud Armor on the load balancer</span></div>
+    </div>
+    <div class="mt hl" data-step="3" style="--k:#22d3ee">
+      <h4><span>🗂️</span>One bucket, grouped by tenant</h4>
+      <pre class="sql">invoices/<span class="v">5</span>/R-0008.pdf
+receipts/<span class="v">5</span>/R-0008.pdf</pre>
+      <div class="uniq">🔗 Customers get a <b>7-day signed URL</b>, never bucket access</div>
+      <div class="lc"><span>Standard</span><i>→ older files →</i><span>Archive</span><i>lifecycle policy, lower storage cost</i></div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p data-step="0">Our PostgreSQL database also implements <b>column indexing</b> on order status, chat session IDs and business IDs, to speed up row lookups, along with prioritising <b>strong consistency over availability</b>, to prevent serving stale data, such as accurate stock counts and payment values.</p>
+    <p data-step="1" data-cue="the two kinds of lock">To handle concurrency, we implement <b>pessimistic locking</b> on payments and stock transactions, to avoid race conditions, while <b>optimistic locking</b> is used for customer chats, which rely on asynchronous LLM calls and incrementing chat versions.</p>
+    <p data-step="2" data-cue="SQL injection"><b>SQL injection</b> attacks are also mitigated by using well-defined ORMs with sanitized serializers, along with Cloud Armor policies on the external load balancer.</p>
+    <p data-step="3" data-cue="files per tenant">Objects related to a business, such as receipts and invoices, are stored in a <b>shared Cloud Storage bucket</b>, grouped by tenant ID. Individual customers don't have bucket access; instead, they get <b>7-day signed URLs</b> to open and download their files. Object lifecycle management policies automatically move older files to <b>Archive</b> storage, to optimise storage costs.</p>
+  </aside>
+</section>
+
+<!-- =====================================================================================================
+     MICHAEL · live demo
+     ===================================================================================================== -->
+
+<!-- 15 · Live demo -->
+<section class="slide demo-slide" id="demo" data-speaker="michael" data-title="Live demo" data-time="180" data-fixed data-tint="#22d07a" data-tint2="#25d366" data-energy="0.8">
+  <div class="kick">Live demo · 3 minutes</div>
+  <h2>Rally Point Courts: <em>an owner and a customer, live</em></h2>
+  <div class="demo">
+    <div class="demo-clock">
+      <svg viewBox="0 0 200 200"><circle class="tr" cx="100" cy="100" r="88"/><circle class="fg" cx="100" cy="100" r="88" pathLength="1000"/></svg>
+      <div class="dc-in"><b class="dc-live"><i></i>LIVE</b><b class="dc-done">✓</b><small class="dc-sub"><span class="dc-live">in the app · 3 min</span><span class="dc-done">Demo done</span></small></div>
+    </div>
+    <ol class="runsheet stagger-done" id="demo-steps">
+      <li style="--i:0"><span class="ck"></span><b>🧩 The owner sets up</b><span>Dashboard · workflow settings · products, services, FAQs</span></li>
+      <li style="--i:1"><span class="ck"></span><b>💬 A customer asks</b><span>"is there parking?" → FAQ · "can I bring my own coach?" → owner</span></li>
+      <li style="--i:2"><span class="ck"></span><b>🏸 Book &amp; order</b><span>Court tomorrow 7pm · 2 rackets but 1 left → never oversells · CONFIRM</span></li>
+      <li style="--i:3"><span class="ck"></span><b>💳 Pay</b><span>Invoice email · Xendit test page → receipt on WhatsApp + email</span></li>
+      <li style="--i:4"><span class="ck"></span><b>📊 Back to the owner</b><span>"Paid, awaiting delivery" · stock updated · answer → FAQ · reminders</span></li>
+    </ol>
+  </div>
+  <div class="foot"><span>Switch to the live app now</span></div>
+  <aside class="notes">
+    <div class="prep"><b>Prep (15 minutes before)</b><ul>
+      <li>Two windows side by side: the <b>owner dashboard</b> (logged in as <code>rally_owner</code>) and the <b>customer's WhatsApp</b> (phone mirrored, or WhatsApp Web) on the shop's number <b>+65 8346 2653</b>. Locally: <code>mock_whatsapp</code> on :9000.</li>
+      <li>Reset the sample data. Check: Yonex Astrox 99 Pro stock is <b>1</b>; Badminton Court 1 is free tomorrow 7pm; the customer's number has no old chat; "can I bring my own coach?" is <b>not</b> an FAQ yet.</li>
+      <li>Open in tabs: the customer's mailbox (invoice and receipt emails), and the Xendit test card details.</li>
+      <li>Reminders run hourly: to show one live, run <code>notification-job</code> by hand beforehand, or just point at the reminder already in the chat.</li>
+      <li>If anything breaks: say "here's the recording of the same flow", and switch to the screen recording.</li>
+    </ul></div>
+    <p data-step="0" data-at="0:00"><b>The owner sets up (0:00–0:35).</b> <i>Do:</i> show the dashboard, open the <b>workflow builder</b>, drag one block (e.g. Reminders) into place, point at the presets; flick through Products, Services and FAQs. <i>Say:</i> "This is the owner's dashboard for Rally Point Courts. Instead of coding, the owner drags blocks into a workflow, or starts from a preset. Ansera answers from what's here: the products, with live stock, the courts as bookable services, and the FAQs."</p>
+    <p data-step="0" data-at="0:35"><b>A customer asks (0:35–1:05).</b> <i>Do:</i> on the customer's phone, send <b>"hi, is there parking and showers?"</b>, then <b>"can I bring my own coach?"</b> <i>Say:</i> "The first answer comes straight from the owner's FAQs. The second isn't in them, so instead of guessing, Ansera tells the customer the team will get back, and flags it for the owner."</p>
+    <p data-step="0" data-at="1:05"><b>Book &amp; order (1:05–1:55).</b> <i>Do:</i> send <b>"can I book a badminton court tomorrow 7pm?"</b>, then give "Wei Ling, weiling@mail.com, 4 of us", and reply <b>CONFIRM</b>. Then send <b>"can I also get 2 Astrox 99 Pro?"</b> <i>Say:</i> "It checks the real calendar, asks for the details the owner chose, and the summary, with the price, is a fixed template. And for the rackets: there's only one in stock, so it offers one instead of overselling. That's a code check, not an AI guess." Accept one, CONFIRM.</p>
+    <p data-step="0" data-at="1:55"><b>Pay (1:55–2:30).</b> <i>Do:</i> show the <b>invoice email</b>, open the payment link, pay with the <b>Xendit test card</b>. <i>Say:</i> "On CONFIRM, the invoice arrived by email and the payment link on WhatsApp. I pay on Xendit's page, so card details never touch Ansera. Within seconds, the receipt arrives on WhatsApp and by email. That went through the payment queue we just showed you."</p>
+    <p data-step="0" data-at="2:30"><b>Back to the owner (2:30–3:00).</b> <i>Do:</i> dashboard → Orders: <b>"Paid, awaiting delivery"</b>; the racket shows 0 left; Unanswered questions → answer the coach question → <b>Add to FAQs</b>. <i>Say:</i> "The owner sees the paid order and the updated stock, answers the question once, and the bot knows it next time. And every hour, reminders go out for unpaid orders and tomorrow's bookings. That's Ansera, end to end."</p>
+    <p data-step="1" data-at="2:57" data-cue="back on the slides: every demo step ticks off"><b>Back on the slides.</b> Switch back to this window, and click once: the five steps tick off and the ring completes. Hand over to Adelia.</p>
+  </aside>
+</section>
+
+<!-- =====================================================================================================
+     ADELIA · evaluation, cost, limitations, future work, conclusion
+     ===================================================================================================== -->
+
+<!-- 16 · Evaluation -->
+<section class="slide" id="eval" data-speaker="adelia" data-title="Evaluation">
+  <div class="kick">Evaluation</div>
+  <h2>Functional, technical, <em>and tested with users</em></h2>
+  <div class="ev3">
+    <div class="evc" data-step="1" style="--k:var(--wa)">
+      <div class="evh"><span>①</span>Functional</div>
+      <div class="big-n"><b data-count="1371">0</b><span>tests across <b>7 services</b></span></div>
+      <div class="flows"><span>Authentication</span><span>Catalogue</span><span>Chat</span><span>Payment</span><span>Reminders</span><span>Dashboard</span></div>
+      <div class="chips"><span class="ok-chip">No failures</span><span class="ok-chip">No errors</span></div>
+    </div>
+    <div class="evc" data-step="2" style="--k:var(--blue)">
+      <div class="evh"><span>②</span>Technical</div>
+      <div class="metric" data-step="2"><span>Webhook p95</span><b>196 ms</b></div>
+      <div class="metric" data-step="2"><span>Sandbox reply latency p95</span><b>3.26 s</b></div>
+      <div class="metric" data-step="2"><span>HTTP burst <small>read-only</small></span><b>455 / 455 ✓</b></div>
+      <div class="metric" data-step="3"><span>Fault &amp; duplicate scenarios</span><b>12 / 12 ✓</b></div>
+      <div class="metric" data-step="3"><span>Dead-letter handling <small>failed message reached the DLQ</small></span><b>78.19 s</b></div>
+      <div class="metric" data-step="3"><span>Tenant isolation <small>cross-tenant requests</small></span><b class="forbid">403 Forbidden</b></div>
+    </div>
+    <div class="evc" data-step="4" style="--k:var(--adelia)">
+      <div class="evh"><span>③</span>User testing</div>
+      <p class="ut-who">🧁 <b>5 participants</b> as home-bakery owners: set up the shop, added products &amp; FAQs, chatted as customers, paid, booked</p>
+      <div class="score" data-step="5" style="--v:80%"><span>Intuitiveness</span><div class="sb"><i></i></div><b>4.0<small>/5</small></b></div>
+      <div class="score" data-step="5" style="--v:86%"><span>Usability</span><div class="sb"><i></i></div><b>4.3<small>/5</small></b></div>
+      <div class="score" data-step="5" style="--v:86%"><span>Usefulness</span><div class="sb"><i></i></div><b>4.3<small>/5</small></b></div>
+      <p class="ut-issue" data-step="5">⚠️ Main issue: navigation. Products, services and FAQs all sit under one <b>Catalog</b> section</p>
+    </div>
+  </div>
+  <div class="foot"><span>The HTTP burst test was read-only</span></div>
+  <aside class="notes">
+    <p data-step="0">We evaluated Ansera in three ways:</p>
+    <p data-step="1" data-cue="the functional tests">For the functional tests, <b>1,371 tests</b> were run across <b>7 services</b>, with no failures or errors.</p>
+    <p data-step="2" data-cue="latency and the burst">For the technical checks, the webhook's p95 is <b>196 milliseconds</b>, and the sandbox replies took <b>3.26 seconds</b> at p95.</p>
+    <p data-step="3" data-cue="failures, dead letters and isolation">We also tested selected failure and duplicate scenarios. All <b>12 cases</b> passed, and a failed message was moved to the dead-letter topic after around <b>78 seconds</b>. Lastly, cross-tenant requests were rejected with <b>403</b>.</p>
+    <p data-step="4" data-cue="the user testing">For user testing, <b>5 participants</b> acted as owners of a home bakery.</p>
+    <p data-step="5" data-cue="the scores">They gave us an average score of <b>4</b> for intuitiveness, and <b>4.3</b> for usability and usefulness. The main issue was <b>navigation</b>, which was not obvious for new users.</p>
+  </aside>
+</section>
+
+<!-- 17 · Business model -->
+<section class="slide" id="biz" data-speaker="adelia" data-title="Business model" data-tint="#25d366" data-tint2="#3b8bff">
+  <div class="kick">Business model</div>
+  <h2>B2B SaaS, <em>from Rp149,000 a month</em></h2>
+  <div class="biz">
+    <div class="grid g3 tiers">
+      <div class="card tier" data-step="0" style="--k:var(--wa)">
+        <h3>Starter</h3>
+        <div class="tp"><b>Rp149,000</b><small>(S$10.57) / month</small></div>
+        <div class="ti"><b>300</b> interactions</div>
+        <p>1 WhatsApp number, no-code workflow builder, orders and bookings, invoices and receipts, payment and reminder follow-ups</p>
+      </div>
+      <div class="card tier" data-step="0" style="--k:var(--blue)">
+        <h3>Growth</h3>
+        <div class="tp"><b>Rp499,000</b><small>(S$35.39) / month</small></div>
+        <div class="ti"><b>1,500</b> interactions</div>
+        <p>Starter, plus 3 staff logins*, analytics dashboard*</p>
+      </div>
+      <div class="card tier" data-step="0" style="--k:var(--violet)">
+        <h3>Business</h3>
+        <div class="tp"><b>Rp1,499,000</b><small>(S$106.31) / month</small></div>
+        <div class="ti"><b>4,000</b> interactions</div>
+        <p>Growth, plus 10 logins*, 3 WhatsApp numbers*, priority support*</p>
+      </div>
+    </div>
+    <p class="biz-note" data-step="0">💡 Starter is about <b>4–7%</b> of a dedicated admin's Rp2–3.5M (S$142–248) monthly salary [6], and Ansera replies at any hour</p>
+    <div class="unit" data-step="1">
+      <div class="u"><span>Year 1: 100 businesses</span><b>60 · 30 · 10</b><small>Starter · Growth · Business</small></div>
+      <div class="u"><span>Monthly revenue</span><b>Rp38.9M</b><small>(S$2,760) · 61,000 interactions</small></div>
+      <div class="u"><span>Monthly cost</span><b>Rp29.8M</b><small>(S$2,111) · Rp21.0M variable, Rp8.8M fixed</small></div>
+      <div class="u ok"><span>Monthly profit</span><b>Rp9.1M</b><small>(S$649) · 23% margin</small></div>
+      <div class="u ok"><span>Break-even</span><b>≈ 50</b><small>businesses</small></div>
+    </div>
+  </div>
+  <div class="foot"><span>Interaction = all of one customer's messages within 24 hours</span><span>Prices exclude VAT</span><span>*Planned for future versions</span><span>Meta messaging and Xendit fees are paid by each business [10, 11]</span></div>
+  <aside class="notes">
+    <p data-step="0">Ansera is a <b>B2B SaaS</b> with three monthly tiers. <b>Starter</b> costs <b>149,000 rupiah</b>, only about 4 to 7% of an admin's salary.</p>
+    <p data-step="1" data-cue="the Year 1 numbers">With <b>100 businesses</b> in Year 1, that's about <b>38.9 million rupiah</b> a month in revenue, a <b>23% margin</b>, and break-even at around <b>50 businesses</b>.</p>
+  </aside>
+</section>
+
+<!-- 18 · Cost -->
+<section class="slide" id="cost" data-speaker="adelia" data-title="Cost &amp; pricing" data-tint="#25d366" data-tint2="#a66bff">
+  <div class="kick">Estimated cost comparison</div>
+  <h2>On-premise would cost <em>about 3.3× more</em></h2>
+  <div class="cost2">
+    <div class="hbars">
+      <div class="hbar" data-step="0" style="--w:29.8%;--k:var(--wa)"><span class="hb-l">☁️ Cloud (Ansera)</span><div class="track"><div class="fill"></div></div><div class="hv"><b data-count="2111" data-prefix="S$">0</b><span>(≈ Rp29.8M) a month</span></div></div>
+      <div class="hbar" data-step="1" style="--w:100%;--k:var(--red)"><span class="hb-l">🏢 On-premise</span><div class="track"><div class="fill"></div></div><div class="hv"><b data-count="7074" data-prefix="S$">0</b><span>(≈ Rp99.7M) a month</span></div></div>
+      <div class="xbadge fx-pop" data-step="2"><b>≈ 3.3×</b><span>more expensive on-premise<br>3-year TCO: S$254.7K vs S$76.0K</span></div>
+    </div>
+    <div class="grid g2 ctabs">
+      <div class="card" data-step="0" style="--k:var(--wa)"><h3>☁️ Cloud: how we got S$2,111</h3>
+        <table class="ctab">
+          <thead><tr><th>Cost component</th><th>Monthly cost</th></tr></thead>
+          <tbody>
+            <tr><td>Cloud Run <small>(5 services, always on)</small></td><td>S$200 <small>(Rp2.8M)</small></td></tr>
+            <tr><td>Cloud SQL <small>(PostgreSQL)</small></td><td>S$97 <small>(Rp1.4M)</small></td></tr>
+            <tr><td>Load balancer and Cloud Armor</td><td>S$38 <small>(Rp0.5M)</small></td></tr>
+            <tr><td>Storage, Pub/Sub, logging, network</td><td>S$35 <small>(Rp0.5M)</small></td></tr>
+            <tr><td>Gemini AI inference and request compute</td><td>S$1,108 <small>(Rp15.6M)</small></td></tr>
+            <tr><td>Operations / on-call</td><td>S$255 <small>(Rp3.6M)</small></td></tr>
+            <tr><td>Email (Brevo)</td><td>S$59 <small>(Rp0.8M)</small></td></tr>
+            <tr><td>Support</td><td>S$319 <small>(Rp4.5M)</small></td></tr>
+            <tr class="tot"><td>Total monthly cost</td><td>S$2,111 <small>(Rp29.8M)</small></td></tr>
+            <tr class="tco"><td>Three-year TCO</td><td>S$76.0K <small>(Rp1.07B)</small></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card" data-step="1" style="--k:var(--red)"><h3>🏢 On-premise: how we got S$7,074</h3>
+        <table class="ctab">
+          <thead><tr><th>Cost component</th><th>Monthly cost</th></tr></thead>
+          <tbody>
+            <tr><td>Hardware depreciation <small>(2 app servers, 2 GPU servers, network, storage, US$65,000 over 36 months)</small></td><td>S$2,318 <small>(Rp32.7M)</small></td></tr>
+            <tr><td>Colocation and power <small>(3.9 kW at US$450/kW)</small></td><td>S$2,253 <small>(Rp31.8M)</small></td></tr>
+            <tr><td>Operations / staff</td><td>S$766 <small>(Rp10.8M)</small></td></tr>
+            <tr><td>Hardware support and spares <small>(8% a year)</small></td><td>S$556 <small>(Rp7.8M)</small></td></tr>
+            <tr><td>Bandwidth and DDoS protection</td><td>S$513 <small>(Rp7.2M)</small></td></tr>
+            <tr><td>Software licences</td><td>S$160 <small>(Rp2.3M)</small></td></tr>
+            <tr><td>Backup and disaster recovery copy</td><td>S$128 <small>(Rp1.8M)</small></td></tr>
+            <tr><td>Email (Brevo)</td><td>S$59 <small>(Rp0.8M)</small></td></tr>
+            <tr><td>Support</td><td>S$319 <small>(Rp4.5M)</small></td></tr>
+            <tr class="tot"><td>Total monthly cost</td><td>S$7,074 <small>(Rp99.7M)</small></td></tr>
+            <tr class="tco"><td>Three-year TCO</td><td>S$254.7K <small>(Rp3.59B)</small></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>3-year horizon, serving 100 businesses</span><span>Monthly estimates, modelled, not billed · exchange rates: Rp14,100 / SGD, Rp18,100 / USD</span></div>
+  <aside class="notes">
+    <p data-step="0">For cost, we estimated the cloud architecture at around <b>SGD 2,111</b>, approximately 29.8 million rupiah, per month.</p>
+    <p data-step="1" data-cue="the on-premise bar">As a comparison, an on-premise setup would cost around <b>SGD 7,074</b>, approximately 99.7 million rupiah, per month.</p>
+    <p data-step="2" data-cue="the 3.3× gap">So, based on these estimates, the on-premise option is <b>3.3 times</b> more expensive.</p>
+  </aside>
+</section>
+
+<!-- 19 · Limitations -->
+<section class="slide" id="limits" data-speaker="adelia" data-title="Limitations" data-tint="#ff9f1a" data-tint2="#a66bff">
+  <div class="kick">Limitations</div>
+  <h2>What it can't do yet, <em>and how we'd fix it</em></h2>
+  <div class="grid g3 limits">
+    <div class="card hl" data-step="0" style="--k:var(--violet)"><span class="ico">💬</span><h3>Text only, one number</h3>
+      <ul><li>Text messages only, through WhatsApp</li><li>One WhatsApp number per business</li></ul>
+      <div class="fix" data-step="1"><b>The fix</b>Multimodal input, like images</div></div>
+    <div class="card hl" data-step="2" style="--k:var(--amber)"><span class="ico">📚</span><h3>Very large catalogues</h3>
+      <ul><li>The whole catalogue has to fit in the model's input</li></ul>
+      <div class="fix" data-step="3"><b>The fix</b>RAG: retrieve only the items a question needs</div></div>
+    <div class="card hl" data-step="4" style="--k:var(--red)"><span class="ico">🌏</span><h3>One region, one cloud</h3>
+      <ul><li>Singapore only: recovering from a regional outage is manual</li><li>Depends on GCP: some vendor lock-in</li></ul>
+      <div class="fix" data-step="5"><b>The fix</b>A backup deployment in Jakarta, with cross-region traffic routing and failover</div></div>
+  </div>
+  <aside class="notes">
+    <p data-step="0">Some of the limitations of the current version of Ansera are: the system only supports <b>text messages</b> through WhatsApp, and each business can only connect to <b>one WhatsApp number</b>.</p>
+    <p data-step="1" data-cue="the fix: multimodal input">To solve this, later we would add <b>multimodal input</b>, like images.</p>
+    <p data-step="2" data-cue="large catalogues">A very <b>large catalogue</b> may not fit into the model's input.</p>
+    <p data-step="3" data-cue="the fix: RAG">So, in a later version, we can use <b>RAG</b>.</p>
+    <p data-step="4" data-cue="region and lock-in">The system currently runs in the <b>Singapore region</b>, so recovering from a regional outage would still require a manual process. We also depend on <b>GCP</b>, which creates some <b>vendor lock-in</b>.</p>
+    <p data-step="5" data-cue="the fix: Jakarta">To improve this, we would add a <b>backup deployment in Jakarta</b>, with cross-region traffic routing and failover.</p>
+  </aside>
+</section>
+
+<!-- 20 · Future work -->
+<section class="slide" id="future" data-speaker="adelia" data-title="Future work" data-tint2="#25d366">
+  <div class="kick">Future work</div>
+  <h2>What's next, <em>on top of the fixes</em></h2>
+  <div class="roadmap three">
+    <div class="rm hl" data-step="0" style="--k:var(--wa)"><b>🙋 Human takeover</b><span>The owner steps into a conversation whenever the AI can't handle the situation</span></div>
+    <div class="rm hl" data-step="1" style="--k:var(--blue)"><b>🧭 Guided setup</b><span>Helps first-time users get started</span></div>
+    <div class="rm hl" data-step="1" style="--k:var(--amber)"><b>🔄 Stock sync</b><span>With marketplaces and physical warehouses</span></div>
+  </div>
+  <aside class="notes">
+    <p data-step="0">On top of that, we would add <b>human takeover</b>, so the owner can step into a conversation whenever the AI cannot handle the situation.</p>
+    <p data-step="1" data-cue="guided setup and stock sync">Then, we would add <b>guided setup</b>, to help first-time users, and <b>stock synchronisation</b> with marketplaces and physical warehouses.</p>
+  </aside>
+</section>
+
+<!-- 21 · Conclusion -->
+<section class="slide end-slide" id="end" data-speaker="adelia" data-title="Conclusion" data-nochrome data-tint="#25d366" data-tint2="#a66bff" data-energy="1">
+  <div class="beams" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+  <canvas class="fw-canvas" width="1600" height="900" aria-hidden="true"></canvas>
+  <div class="fw-flashes" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="confetti" aria-hidden="true"></div>
+  <div class="end-grid">
+    <div>
+      <div class="kick">Conclusion</div>
+      <h2 class="end-q">Routine customer chats, <em>handled 24/7</em></h2>
+      <div class="grid g3 end-cards">
+        <div class="card hl" data-step="0" style="--k:var(--wa)"><span class="ico">💬</span><h3>Answers, sells, gets paid</h3><p>An AI admin on WhatsApp, set up without code</p></div>
+        <div class="card hl" data-step="0" style="--k:var(--blue)"><span class="ico">☁️</span><h3>SaaS on Google Cloud</h3><p>Scales out, and designed for failure</p></div>
+        <div class="card hl" data-step="0" style="--k:var(--violet)"><span class="ico">💸</span><h3>≈ 3.3× cheaper</h3><p>than running it on-premise (estimated)</p></div>
+      </div>
+      <div class="thanks" data-step="1">Thank you! 🙌</div>
+    </div>
+    <div class="deskbot fx-pop" data-step="0" aria-hidden="true">
+      <div class="neon">OPEN 24/7</div>
+      <span class="pop b1">Hello! 👋</span><span class="pop b2">Court booked ✅</span><span class="pop b3">Paid 💳</span><span class="pop b4">Reminder sent ⏰</span><span class="pop b5">FAQ answered 💬</span>
+      <svg viewBox="0 0 400 420" width="380" height="400">
+        <defs>
+          <linearGradient id="botBody" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eef3ff"/><stop offset="1" stop-color="#b9c8ea"/></linearGradient>
+          <linearGradient id="deskG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#25d366"/><stop offset="1" stop-color="#128a45"/></linearGradient>
+          <radialGradient id="glowG"><stop offset="0" stop-color="#9fffc9"/><stop offset="1" stop-color="#25d366" stop-opacity="0"/></radialGradient>
+        </defs>
+        <g class="bot">
+          <line x1="200" y1="62" x2="200" y2="36" stroke="#b9c8ea" stroke-width="5" stroke-linecap="round"/>
+          <circle class="antenna-glow" cx="200" cy="30" r="20" fill="url(#glowG)"/><circle cx="200" cy="30" r="9" fill="#25d366"/>
+          <rect x="128" y="60" width="144" height="112" rx="34" fill="url(#botBody)"/><rect x="144" y="78" width="112" height="76" rx="24" fill="#0f1b33"/>
+          <g class="eyes"><ellipse cx="178" cy="110" rx="11" ry="13" fill="#5ef0a0"/><ellipse cx="222" cy="110" rx="11" ry="13" fill="#5ef0a0"/></g>
+          <path d="M180 133 Q200 147 220 133" fill="none" stroke="#5ef0a0" stroke-width="5" stroke-linecap="round"/>
+          <ellipse cx="160" cy="132" rx="7" ry="4" fill="#ff8fc0" opacity=".7"/><ellipse cx="240" cy="132" rx="7" ry="4" fill="#ff8fc0" opacity=".7"/>
+          <path d="M122 112 Q122 46 200 46 Q278 46 278 112" fill="none" stroke="#3b8bff" stroke-width="8" stroke-linecap="round"/>
+          <rect x="112" y="98" width="20" height="36" rx="9" fill="#3b8bff"/><rect x="268" y="98" width="20" height="36" rx="9" fill="#3b8bff"/>
+          <path d="M122 132 Q130 160 160 160" fill="none" stroke="#3b8bff" stroke-width="5" stroke-linecap="round"/><circle cx="162" cy="160" r="6" fill="#3b8bff"/>
+          <rect x="150" y="180" width="100" height="96" rx="30" fill="url(#botBody)"/>
+          <circle cx="200" cy="214" r="15" fill="#0f1b33"/><text x="200" y="220" text-anchor="middle" font-size="16" font-weight="900" fill="#25d366">A</text>
+          <g class="arm-wave"><rect x="96" y="150" width="22" height="72" rx="11" fill="url(#botBody)"/><circle cx="107" cy="146" r="16" fill="#eef3ff"/></g>
+          <g class="arm-type"><rect x="250" y="196" width="22" height="64" rx="11" fill="url(#botBody)" transform="rotate(-38 261 200)"/></g>
+        </g>
+        <rect x="60" y="270" width="280" height="22" rx="8" fill="#9fffc9"/>
+        <rect x="76" y="290" width="248" height="112" rx="14" fill="url(#deskG)"/>
+        <text x="200" y="338" text-anchor="middle" font-size="19" font-weight="900" fill="#fff" letter-spacing="3">ANSERA</text>
+        <text x="200" y="362" text-anchor="middle" font-size="12" font-weight="700" fill="#d9ffe8" letter-spacing="4">FRONT DESK</text>
+        <g class="laptop"><path d="M262 270 L276 228 L338 228 L330 270 Z" fill="#0f1b33"/><rect x="282" y="236" width="44" height="26" rx="3" fill="#3b8bff" class="laptop-screen"/></g>
+        <g class="bell"><path d="M84 270 Q84 248 104 248 Q124 248 124 270 Z" fill="#f6c34a"/><circle cx="104" cy="244" r="4" fill="#f6c34a"/></g>
+      </svg>
+    </div>
+  </div>
+  <aside class="notes">
+    <p data-step="0">So, with Ansera, you can manage routine customer interactions <b>efficiently</b>.</p>
+    <p data-step="1" data-cue="thank you"><b>Thank you!</b></p>
+  </aside>
+</section>
+
+</div><!-- .stage -->
+</div><!-- .screen -->
+<div class="pres-bar" id="pres-bar">
+  <button id="pb-prev" title="Previous (←)">◀</button><span id="pb-num">1 / 20</span><button id="pb-next" title="Next (→)">▶</button>
+  <span class="pb-sep"></span><span id="pb-clock">0:00</span>
+  <span class="pb-sep"></span><button id="pb-exit" title="Exit (Esc)">✕ Exit</button>
+</div>
+</div><!-- .viewport -->
+
+<!-- ===================================================================================================== speaker notes -->
+<aside class="notes-panel" id="notes-panel" aria-label="Speaker notes">
+  <div class="resize-x" title="Drag to resize"></div>
+  <div class="np-head">
+    <div class="pr-who"><span class="av" id="pr-av">M</span><div><b id="pr-name"></b><small id="pr-title"></small></div></div>
+    <div class="np-est" id="pr-est"></div>
+    <div class="pr-clock">
+      <div><label id="pr-total">Talk</label><span id="pr-elapsed">0:00</span></div>
+      <div id="pr-pace-box" class="pace"><label>Pace</label><span id="pr-pace">not started</span></div>
+      <div><label>This slide</label><span id="pr-slide">0:00</span></div>
+      <div><label>Planned</label><span id="pr-plan">0:00</span></div>
+    </div>
+    <div class="slidebar"><i id="pr-bar"></i></div>
+    <div class="np-ctrl">
+      <button id="btn-prev" title="Previous (←)">◀</button><div class="dots" id="pr-dots"></div><button id="btn-next" title="Next (→ / space)">Next ▶</button>
+      <button id="btn-timer" title="Start or pause the timer (T)">Start timer</button><button id="btn-reset" title="Reset the timer (R)">Reset</button>
+    </div>
+  </div>
+  <div class="pr-script" id="pr-script"></div>
+  <div class="np-foot">
+    <div class="cue" id="pr-cue"></div>
+    <div class="up" id="pr-up"></div>
+  </div>
+</aside>
+</main>
+
+<!-- ===================================================================================================== filmstrip -->
+<nav class="filmstrip" id="filmstrip" aria-label="Slides"></nav>
+</div><!-- .app -->
+
+<div class="overlay" id="overview"><button class="x">Close (Esc)</button><h2>All slides</h2><p class="sub">Click a slide to jump to it.</p><div class="ov-grid"></div></div>
+<div class="overlay" id="runsheet"><button class="x">Close (S)</button>
+  <h2>Run sheet</h2><p class="sub">When each slide starts, how long it needs, what to say, and when to click. Times are estimated from the script at 150 words a minute, plus 1.5 s for each click. Click a yellow <b>CLICK</b> chip to jump to that point, or a slide's name to jump to its start. With presenter view open, the run sheet stays open as you jump; the highlighted line is where you are.</p>
+  <div class="rs-tools"><button id="rs-print">Print the run sheet</button></div>
+  <div class="rs-sum"></div>
+  <table class="rs-table"><thead><tr><th>Starts</th><th>Length</th><th>Slide</th><th>Script and clicks</th></tr></thead><tbody></tbody></table>
+</div>
+<div class="help" id="help"><kbd>P</kbd> present from here · <kbd>⇧P</kbd> from start · <kbd>→</kbd>/<kbd>Space</kbd> next · <kbd>←</kbd> back · <kbd>Esc</kbd> exit · <kbd>N</kbd> notes · <kbd>S</kbd> run sheet · <kbd>O</kbd> grid · <kbd>V</kbd> presenter view · <kbd>T</kbd> timer · <kbd>B</kbd> black</div>
+<div class="goto" id="goto"></div>
+
+<script src="assets/slides.js"></script>
+<script src="assets/deck.js"></script>
+</body>
+</html>

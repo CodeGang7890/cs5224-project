@@ -1,0 +1,35 @@
+# GitHub Pages: publishes the presentation deck in docs/slides (and only that folder, so nothing
+# else in docs/ ends up on the site). Settings → Pages → Source must be "GitHub Actions".
+name: Pages (slides)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/slides/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/slides
+      - id: deployment
+        uses: actions/deploy-pages@v4
